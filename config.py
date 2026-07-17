@@ -6,4 +6,3 @@ MAX_IMAGE_DIMENSION = 1600
 REQUEST_TIMEOUT_SECONDS = 120
 APP_TITLE = "Mary Virtual"
 APP_CAPTION = "Conversa multimodal com texto e fotografia."
-
