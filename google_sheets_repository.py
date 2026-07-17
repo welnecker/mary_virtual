@@ -1,4 +1,5 @@
 from __future__ import annotations
+from config import MARY_SPREADSHEET_ID
 
 import hashlib
 import json
@@ -70,17 +71,13 @@ def obter_planilha() -> Spreadsheet:
         )
 
         spreadsheet_id = str(
-            st.secrets.get(
-                "MARY_SPREADSHEET_ID",
-                "",
-            )
-            or ""
+            MARY_SPREADSHEET_ID or ""
         ).strip()
 
         if not spreadsheet_id:
             raise GoogleSheetsRepositoryError(
                 "MARY_SPREADSHEET_ID não foi definido "
-                "nos secrets do Streamlit."
+                "no arquivo config.py."
             )
 
         cliente = gspread.service_account_from_dict(
