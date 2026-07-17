@@ -19,6 +19,8 @@ from interaction_log import (
     exportar_logs_json,
     exportar_logs_jsonl,
 )
+
+from mary_profile import criar_mary_profile_padrao
 from mary_prompt import montar_prompt_sistema
 from openrouter_client import OpenRouterError, chamar_openrouter
 from user_profile import (
@@ -67,24 +69,35 @@ def inicializar_sessao() -> None:
     st.session_state.setdefault("pending_image", None)
 
     if "user_profile" not in st.session_state:
-        st.session_state["user_profile"] = criar_perfil_padrao()
+        st.session_state["user_profile"] = (
+            criar_perfil_padrao()
+        )
+
+    if "mary_profile" not in st.session_state:
+        st.session_state["mary_profile"] = (
+            criar_mary_profile_padrao()
+        )
 
     st.session_state.setdefault(
         "pending_user_image_confirmation",
         None,
     )
+
     st.session_state.setdefault(
         "pending_mary_image",
         None,
     )
+
     st.session_state.setdefault(
         "show_name_form",
         False,
     )
+
     st.session_state.setdefault(
         "initial_message_created",
         False,
     )
+
     st.session_state.setdefault(
         "interaction_logs",
         [],
