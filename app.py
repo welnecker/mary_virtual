@@ -624,11 +624,7 @@ def main() -> None:
         st.markdown(resposta)
     
     response_time_ms = round(
-        (
-            time.perf_counter()
-            - inicio_resposta
-        )
-        * 1000
+        (time.perf_counter() - inicio_resposta) * 1000
     )
     
     st.session_state["messages"].append(
@@ -638,9 +634,7 @@ def main() -> None:
         }
     )
     
-    perguntou_nome = mary_perguntou_nome(
-        resposta
-    )
+    perguntou_nome = mary_perguntou_nome(resposta)
     
     registro = criar_registro_interacao(
         session_id=st.session_state[
@@ -660,25 +654,19 @@ def main() -> None:
     st.session_state[
         "interaction_logs"
     ] = adicionar_registro_sessao(
-        st.session_state[
-            "interaction_logs"
-        ],
+        st.session_state["interaction_logs"],
         registro,
     )
     
-    profile = st.session_state[
-        "user_profile"
-    ]
+    profile = st.session_state["user_profile"]
     
     if (
         not profile.get("name")
         and perguntou_nome
     ):
-        st.session_state[
-            "show_name_form"
-        ] = True
+        st.session_state["show_name_form"] = True
     
-        st.rerun()
+    st.rerun()
     
     
 if __name__ == "__main__":
