@@ -73,21 +73,27 @@ def inicializar_sessao() -> None:
         "pending_user_image_confirmation",
         None,
     )
-
     st.session_state.setdefault(
         "pending_mary_image",
         None,
     )
-
     st.session_state.setdefault(
         "show_name_form",
         False,
     )
-
     st.session_state.setdefault(
         "initial_message_created",
         False,
     )
+    st.session_state.setdefault(
+        "interaction_logs",
+        [],
+    )
+
+    if "interaction_session_id" not in st.session_state:
+        st.session_state[
+            "interaction_session_id"
+        ] = criar_session_id()
 
 
 def garantir_mensagem_inicial() -> None:
@@ -342,12 +348,12 @@ def main() -> None:
 
     with st.sidebar:
         st.subheader("Configuração")
-
+    
         model = st.text_input(
             "Modelo OpenRouter",
             value=MODEL_DEFAULT,
         )
-
+    
         uploaded_file = st.file_uploader(
             "Mostrar uma fotografia para Mary",
             type=[
@@ -358,21 +364,124 @@ def main() -> None:
             ],
             accept_multiple_files=False,
         )
-
+    
         renderizar_diagnostico_perfil()
-
+    
+        with st.expander("Log de interações"):
+            registros = st.session_state["interaction_logs"]
+    
+            st.caption(
+                f"{len(registros)} interação(ões) "
+                "registrada(s) nesta sessão."
+            )
+    
+            if registros:
+                ultimo_registro = registros[-1]
+    
+                st.markdown("**Última mensagem do usuário**")
+                st.write(
+                    ultimo_registro.get(
+                        "user_text",
+                        "",
+                    )
+                )
+    
+                st.markdown("**Última resposta da Mary**")
+                st.write(
+                    ultimo_registro.get(
+                        "mary_response",
+                        "",
+                    )
+                    or "Nenhuma resposta registrada."
+                )
+    
+                tempo_resposta = ultimo_registro.get(
+                    "response_time_ms"
+                )
+    
+                if tempo_resposta is not None:
+                    st.markdown("**Tempo de resposta**")
+                    st.write(
+                        f"{tempo_resposta} ms"
+                    )
+    
+                if ultimo_registro.get("image_sent"):
+                    largura = ultimo_registro.get(
+                        "image_width"
+                    )
+                    altura = ultimo_registro.get(
+                        "image_height"
+                    )
+                    tamanho = ultimo_registro.get(
+                        "image_size_bytes"
+                    )
+    
+                    st.markdown("**Imagem enviada ao modelo**")
+    
+                    if largura and altura:
+                        st.write(
+                            f"{largura} × {altura} px"
+                        )
+    
+                    if tamanho:
+                        st.write(
+                            f"{tamanho / 1024:.1f} KB"
+                        )
+    
+                erro_registrado = str(
+                    ultimo_registro.get("error", "") or ""
+                ).strip()
+    
+                if erro_registrado:
+                    st.error(erro_registrado)
+    
+                st.download_button(
+                    "Baixar log em JSON",
+                    data=exportar_logs_json(registros),
+                    file_name="mary_interactions.json",
+                    mime="application/json",
+                    use_container_width=True,
+                )
+    
+                st.download_button(
+                    "Baixar log em JSONL",
+                    data=exportar_logs_jsonl(registros),
+                    file_name="mary_interactions.jsonl",
+                    mime="application/x-ndjson",
+                    use_container_width=True,
+                )
+    
+                if st.button(
+                    "Limpar log da sessão",
+                    use_container_width=True,
+                ):
+                    st.session_state[
+                        "interaction_logs"
+                    ] = []
+    
+                    st.session_state[
+                        "interaction_session_id"
+                    ] = criar_session_id()
+    
+                    st.rerun()
+    
+            else:
+                st.info(
+                    "Nenhuma interação foi registrada ainda."
+                )
+    
         if st.button(
             "Limpar conversa",
             use_container_width=True,
         ):
             limpar_conversa()
             st.rerun()
-
+    
     for message in st.session_state["messages"]:
         renderizar_mensagem(message)
-
+    
     renderizar_cadastro_nome()
-
+    
     if uploaded_file is not None:
         st.image(
             uploaded_file,
@@ -380,47 +489,47 @@ def main() -> None:
                 "Fotografia pronta para o próximo envio"
             ),
         )
-
+    
     prompt = st.chat_input(
         "Fale com Mary..."
     )
-
+    
     if not prompt and uploaded_file is None:
         return
-
+    
     if prompt is None:
         return
-
+    
     prepared_image = None
-
+    
     try:
         if uploaded_file is not None:
             prepared_image = preparar_imagem(
                 uploaded_file
             )
-
+    
     except ValueError as exc:
         st.error(str(exc))
         return
-
+    
     user_display = (
         prompt.strip()
         or "Olha isso pra mim, amor."
     )
-
+    
     st.session_state["messages"].append(
         {
             "role": "user",
             "content": user_display,
         }
     )
-
+    
     with st.chat_message("user"):
         st.markdown(user_display)
-
+    
         if uploaded_file is not None:
             st.image(uploaded_file)
-
+    
     api_key = str(
         st.secrets.get(
             "OPENROUTER_API_KEY",
@@ -428,7 +537,12 @@ def main() -> None:
         )
         or ""
     )
-
+    
+    modelo_utilizado = (
+        model.strip()
+        or MODEL_DEFAULT
+    )
+    
     messages = [
         {
             "role": "system",
@@ -442,45 +556,130 @@ def main() -> None:
             prepared_image,
         ),
     ]
-
+    
+    image_metadata = None
+    
+    if prepared_image is not None:
+        image_metadata = {
+            "width": prepared_image.width,
+            "height": prepared_image.height,
+            "size_bytes": prepared_image.size_bytes,
+            "mime_type": prepared_image.mime_type,
+        }
+    
+    inicio_resposta = time.perf_counter()
+    
     with st.chat_message("assistant"):
         with st.spinner("Mary está pensando..."):
             try:
                 resposta = chamar_openrouter(
                     messages=messages,
-                    model=(
-                        model.strip()
-                        or MODEL_DEFAULT
-                    ),
+                    model=modelo_utilizado,
                     api_key=api_key,
                 )
-
+    
             except OpenRouterError as exc:
+                response_time_ms = round(
+                    (
+                        time.perf_counter()
+                        - inicio_resposta
+                    )
+                    * 1000
+                )
+    
+                registro_erro = criar_registro_interacao(
+                    session_id=st.session_state[
+                        "interaction_session_id"
+                    ],
+                    model=modelo_utilizado,
+                    user_text=user_display,
+                    mary_response="",
+                    user_profile=st.session_state[
+                        "user_profile"
+                    ],
+                    image_metadata=image_metadata,
+                    mary_asked_name=False,
+                    response_time_ms=response_time_ms,
+                    error=str(exc),
+                )
+    
+                st.session_state[
+                    "interaction_logs"
+                ] = adicionar_registro_sessao(
+                    st.session_state[
+                        "interaction_logs"
+                    ],
+                    registro_erro,
+                )
+    
                 st.error(str(exc))
-
+    
                 if st.session_state["messages"]:
-                    st.session_state["messages"].pop()
-
+                    st.session_state[
+                        "messages"
+                    ].pop()
+    
                 return
-
+    
         st.markdown(resposta)
-
+    
+    response_time_ms = round(
+        (
+            time.perf_counter()
+            - inicio_resposta
+        )
+        * 1000
+    )
+    
     st.session_state["messages"].append(
         {
             "role": "assistant",
             "content": resposta,
         }
     )
-
-    profile = st.session_state["user_profile"]
-
+    
+    perguntou_nome = mary_perguntou_nome(
+        resposta
+    )
+    
+    registro = criar_registro_interacao(
+        session_id=st.session_state[
+            "interaction_session_id"
+        ],
+        model=modelo_utilizado,
+        user_text=user_display,
+        mary_response=resposta,
+        user_profile=st.session_state[
+            "user_profile"
+        ],
+        image_metadata=image_metadata,
+        mary_asked_name=perguntou_nome,
+        response_time_ms=response_time_ms,
+    )
+    
+    st.session_state[
+        "interaction_logs"
+    ] = adicionar_registro_sessao(
+        st.session_state[
+            "interaction_logs"
+        ],
+        registro,
+    )
+    
+    profile = st.session_state[
+        "user_profile"
+    ]
+    
     if (
         not profile.get("name")
-        and mary_perguntou_nome(resposta)
+        and perguntou_nome
     ):
-        st.session_state["show_name_form"] = True
+        st.session_state[
+            "show_name_form"
+        ] = True
+    
         st.rerun()
-
-
+    
+    
 if __name__ == "__main__":
     main()
