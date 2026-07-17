@@ -36,12 +36,16 @@ from openrouter_client import (
     OpenRouterError,
     chamar_openrouter,
 )
+
 from user_profile import (
     confirmar_referencia_visual,
     criar_perfil_padrao,
     definir_nome,
+    marcar_interacao_realizada,
+    normalizar_perfil,
     obter_nome_usado_por_mary,
 )
+
 from vision_utils import (
     montar_mensagem_usuario,
     preparar_imagem,
@@ -181,7 +185,14 @@ def inicializar_sessao_local() -> None:
 def hidratar_perfil_usuario(
     usuario: dict[str, Any],
 ) -> None:
-    profile = st.session_state["user_profile"]
+    profile = normalizar_perfil(
+        st.session_state["user_profile"]
+    )
+
+    user_id = str(
+        usuario.get("user_id")
+        or ""
+    ).strip()
 
     nome = str(
         usuario.get("name")
@@ -193,23 +204,19 @@ def hidratar_perfil_usuario(
         or ""
     ).strip()
 
-    if nome:
-        profile["name"] = nome
+    if user_id:
+        profile["profile_id"] = user_id
 
-    if nome_preferido:
-        profile["preferred_name"] = nome_preferido
+    profile["name"] = nome
+    profile["preferred_name"] = nome_preferido
 
-    if nome or nome_preferido:
-        if profile.get(
-            "onboarding_stage"
-        ) in {
-            "",
-            "ask_name",
-            "first_contact",
-        }:
-            profile[
-                "onboarding_stage"
-            ] = "name_known"
+    profile["milestones"]["name_known"] = bool(
+        nome_preferido or nome
+    )
+
+    profile = normalizar_perfil(
+        profile
+    )
 
     st.session_state[
         "user_profile"
@@ -1307,6 +1314,11 @@ def processar_interacao(
             "role": "assistant",
             "content": resposta,
         }
+    )
+    st.session_state[
+        "user_profile"
+    ] = marcar_interacao_realizada(
+        st.session_state["user_profile"]
     )
 
     perguntou_nome = mary_perguntou_nome(
