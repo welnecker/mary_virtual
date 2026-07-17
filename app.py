@@ -18,6 +18,7 @@ from google_sheets_repository import (
     GoogleSheetsRepositoryError,
     atualizar_usuario,
     criar_sessao,
+    encerrar_sessoes_ativas_usuario,
     gerar_id,
     obter_ou_criar_relacionamento_mary,
     salvar_interacao,
@@ -313,6 +314,10 @@ def inicializar_persistencia(
             obter_ou_criar_relacionamento_mary(
                 user_id
             )
+        )
+
+        encerrar_sessoes_ativas_usuario(
+            user_id
         )
 
         sessao = criar_sessao(
