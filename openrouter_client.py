@@ -73,4 +73,3 @@ def chamar_openrouter(
         raise OpenRouterError("O modelo retornou uma resposta vazia.")
 
     return result
-
