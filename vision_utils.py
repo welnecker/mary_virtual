@@ -52,7 +52,7 @@ def preparar_imagem(uploaded_file) -> PreparedImage:
         image = image.convert("RGB")
 
     buffer = io.BytesIO()
-    save_kwargs = {"quality": 88, "optimize": True} if output_format == "JPEG" else {}
+    save_kwargs = {"quality": 82, "optimize": True} if output_format == "JPEG" else {}
     image.save(buffer, format=output_format, **save_kwargs)
     optimized = buffer.getvalue()
 
