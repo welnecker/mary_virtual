@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import unicodedata
+import time
 
 import streamlit as st
 
@@ -9,6 +10,14 @@ from config import (
     APP_TITLE,
     MAX_HISTORY_MESSAGES,
     MODEL_DEFAULT,
+)
+
+from interaction_log import (
+    adicionar_registro_sessao,
+    criar_registro_interacao,
+    criar_session_id,
+    exportar_logs_json,
+    exportar_logs_jsonl,
 )
 from mary_prompt import montar_prompt_sistema
 from openrouter_client import OpenRouterError, chamar_openrouter
