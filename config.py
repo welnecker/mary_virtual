@@ -11,3 +11,6 @@ REQUEST_TIMEOUT_SECONDS = 120
 
 APP_TITLE = "Mary Virtual"
 APP_CAPTION = "Conversa multimodal com texto e fotografia."
+
+APP_VERSION = "mary-app-v1"
+PROMPT_VERSION = "mary-prompt-v1"
