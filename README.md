@@ -1,6 +1,6 @@
 # Mary Virtual
 
-MVP em Streamlit para conversa multimodal com Mary usando texto e fotografias pelo OpenRouter.
+Aplicação Streamlit multimodal para interação direta com Mary por texto e fotografias pelo OpenRouter.
 
 ## Recursos atuais
 
