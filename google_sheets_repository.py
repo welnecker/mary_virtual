@@ -700,3 +700,69 @@ def salvar_memoria(
     )
 
     return memoria
+
+def encerrar_sessoes_ativas_usuario(
+    user_id: str,
+) -> None:
+    worksheet = obter_aba(SESSIONS_SHEET)
+    cabecalhos = obter_cabecalhos(worksheet)
+
+    registros = worksheet.get_all_records(
+        default_blank="",
+    )
+
+    agora = utc_now_iso()
+    atualizacoes: list[dict[str, Any]] = []
+
+    for numero_linha, registro in enumerate(
+        registros,
+        start=2,
+    ):
+        mesmo_usuario = (
+            str(registro.get("user_id", "")).strip()
+            == str(user_id).strip()
+        )
+
+        sessao_ativa = (
+            str(registro.get("status", "")).strip().lower()
+            == "active"
+        )
+
+        if not mesmo_usuario or not sessao_ativa:
+            continue
+
+        for coluna, valor in {
+            "last_activity_at": agora,
+            "ended_at": agora,
+            "status": "ended",
+        }.items():
+            if coluna not in cabecalhos:
+                continue
+
+            numero_coluna = cabecalhos.index(coluna) + 1
+            endereco = gspread.utils.rowcol_to_a1(
+                numero_linha,
+                numero_coluna,
+            )
+
+            atualizacoes.append(
+                {
+                    "range": endereco,
+                    "values": [[valor]],
+                }
+            )
+
+    if not atualizacoes:
+        return
+
+    try:
+        worksheet.batch_update(
+            atualizacoes,
+            value_input_option="RAW",
+        )
+
+    except APIError as exc:
+        raise GoogleSheetsRepositoryError(
+            "Não foi possível encerrar as sessões "
+            f"anteriores do usuário: {exc}"
+        ) from exc
