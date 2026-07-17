@@ -33,4 +33,3 @@ Sua resposta deve soar como uma mulher presente e envolvida, nunca como uma ferr
 
 def montar_prompt_sistema() -> str:
     return MARY_SYSTEM_PROMPT
-
