@@ -1,3 +1,13 @@
+from prompts.composer import (
+    PROMPT_COMPOSER_VERSION,
+    juntar_blocos_prompt,
+    montar_contexto_mary,
+    montar_contexto_memorias,
+    montar_contexto_relacao,
+    montar_contexto_usuario,
+    montar_diagnostico_composicao,
+    montar_prompt_sistema,
+)
 from prompts.base import obter_prompt_base
 from prompts.emotional import (
     EMOTIONAL_STAGE_ACQUAINTANCE,
@@ -53,4 +63,12 @@ __all__ = [
     "normalizar_fase_sexual",
     "montar_contexto_estado_sexual",
     "obter_prompt_sexual",
+    "PROMPT_COMPOSER_VERSION",
+    "juntar_blocos_prompt",
+    "montar_contexto_mary",
+    "montar_contexto_usuario",
+    "montar_contexto_relacao",
+    "montar_contexto_memorias",
+    "montar_prompt_sistema",
+    "montar_diagnostico_composicao",
 ]
