@@ -1,3 +1,19 @@
+from relationship.state import (
+    DEFAULT_RELATIONSHIP_STATE,
+    DEFAULT_SEXUAL_STATE,
+    RELATIONSHIP_STATE_VERSION,
+    criar_estado_relacao_padrao,
+    criar_estado_sexual_padrao,
+    limpar_planejamento_turno,
+    marcar_estado_relacao_atualizado,
+    montar_resumo_estado_relacao,
+    normalizar_direcao_turno,
+    normalizar_estado_relacao,
+    normalizar_estado_sexual,
+    normalizar_intencao_turno,
+    preparar_estado_para_persistencia,
+)
+
 from relationship.director_engine import (
     DEFAULT_EXPERIENCE_STATE,
     DEFAULT_TURN_DIRECTION,
@@ -194,4 +210,17 @@ __all__ = [
     "planejar_direcao_turno",
     "sincronizar_direcao_apos_resposta",
     "montar_contexto_direcao",
+    "RELATIONSHIP_STATE_VERSION",
+    "DEFAULT_RELATIONSHIP_STATE",
+    "DEFAULT_SEXUAL_STATE",
+    "criar_estado_relacao_padrao",
+    "criar_estado_sexual_padrao",
+    "normalizar_estado_relacao",
+    "normalizar_estado_sexual",
+    "normalizar_intencao_turno",
+    "normalizar_direcao_turno",
+    "marcar_estado_relacao_atualizado",
+    "limpar_planejamento_turno",
+    "preparar_estado_para_persistencia",
+    "montar_resumo_estado_relacao",
 ]
