@@ -33,8 +33,19 @@ from prompts.sexual import (
     obter_prompt_sexual,
 )
 from prompts.voice import (
+    AI_CLICHES,
+    AI_RESPONSE_PATTERNS,
+    MARY_VOICE_PROMPT,
+    OVERUSED_SEDUCTIVE_PATTERNS,
+    VOICE_CALIBRATION_EXAMPLES,
+    analisar_voz_mary,
     contar_cliches_ia,
+    contar_expressoes,
     encontrar_cliches_ia,
+    encontrar_expressoes,
+    encontrar_padroes_resposta_ia,
+    encontrar_padroes_seducao_repetitiva,
+    normalizar_texto_analise,
     obter_prompt_voz,
 )
 
@@ -71,4 +82,15 @@ __all__ = [
     "montar_contexto_memorias",
     "montar_prompt_sistema",
     "montar_diagnostico_composicao",
+    "MARY_VOICE_PROMPT",
+    "VOICE_CALIBRATION_EXAMPLES",
+    "AI_CLICHES",
+    "AI_RESPONSE_PATTERNS",
+    "OVERUSED_SEDUCTIVE_PATTERNS",
+    "normalizar_texto_analise",
+    "encontrar_expressoes",
+    "contar_expressoes",
+    "encontrar_padroes_resposta_ia",
+    "encontrar_padroes_seducao_repetitiva",
+    "analisar_voz_mary",
 ]
