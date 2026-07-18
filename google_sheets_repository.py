@@ -822,3 +822,230 @@ def listar_interacoes_usuario(
     return interacoes[
         -limite_normalizado:
     ]
+
+# =========================================================
+# RESET E EXCLUSÃO DE DADOS
+# =========================================================
+
+
+def normalizar_user_id(
+    user_id: str,
+) -> str:
+    user_id_normalizado = str(
+        user_id or ""
+    ).strip()
+
+    if not user_id_normalizado:
+        raise GoogleSheetsRepositoryError(
+            "O user_id não foi informado."
+        )
+
+    return user_id_normalizado
+
+
+def excluir_linhas_por_valor(
+    nome_aba: str,
+    *,
+    coluna: str,
+    valor: str,
+) -> int:
+    """
+    Exclui todas as linhas de uma aba que possuem o valor
+    informado na coluna indicada.
+
+    A linha de cabeçalho nunca é excluída.
+
+    As linhas são apagadas de baixo para cima para impedir
+    deslocamento de índices durante a operação.
+    """
+
+    valor_normalizado = str(
+        valor or ""
+    ).strip()
+
+    if not valor_normalizado:
+        raise GoogleSheetsRepositoryError(
+            "O valor usado para exclusão está vazio."
+        )
+
+    worksheet = obter_aba(
+        nome_aba
+    )
+
+    cabecalhos = obter_cabecalhos(
+        worksheet
+    )
+
+    if coluna not in cabecalhos:
+        raise GoogleSheetsRepositoryError(
+            f"A coluna {coluna!r} não existe "
+            f"na aba {nome_aba!r}."
+        )
+
+    try:
+        registros = worksheet.get_all_records(
+            default_blank="",
+        )
+
+    except APIError as exc:
+        raise GoogleSheetsRepositoryError(
+            f"Não foi possível ler a aba "
+            f"{nome_aba!r}: {exc}"
+        ) from exc
+
+    linhas_para_excluir: list[int] = []
+
+    for numero_linha, registro in enumerate(
+        registros,
+        start=2,
+    ):
+        valor_registro = str(
+            registro.get(
+                coluna,
+                "",
+            )
+            or ""
+        ).strip()
+
+        if valor_registro == valor_normalizado:
+            linhas_para_excluir.append(
+                numero_linha
+            )
+
+    if not linhas_para_excluir:
+        return 0
+
+    linhas_para_excluir.sort(
+        reverse=True
+    )
+
+    try:
+        for numero_linha in linhas_para_excluir:
+            worksheet.delete_rows(
+                numero_linha
+            )
+
+    except APIError as exc:
+        raise GoogleSheetsRepositoryError(
+            f"Não foi possível excluir registros "
+            f"da aba {nome_aba!r}: {exc}"
+        ) from exc
+
+    return len(
+        linhas_para_excluir
+    )
+
+
+def limpar_dados_interacao_usuario(
+    user_id: str,
+) -> dict[str, int]:
+    """
+    Apaga o histórico e os estados construídos para um usuário,
+    mas preserva o cadastro na aba USERS e o token atual.
+
+    Depois desta operação, o mesmo usuário pode começar uma
+    relação totalmente nova com Mary.
+    """
+
+    user_id_normalizado = normalizar_user_id(
+        user_id
+    )
+
+    resultado = {
+        "interactions": 0,
+        "memories": 0,
+        "visual_profiles": 0,
+        "relationships": 0,
+        "sessions": 0,
+    }
+
+    # Ordem das abas mais dependentes para as menos dependentes.
+
+    resultado[
+        "interactions"
+    ] = excluir_linhas_por_valor(
+        INTERACTIONS_SHEET,
+        coluna="user_id",
+        valor=user_id_normalizado,
+    )
+
+    resultado[
+        "memories"
+    ] = excluir_linhas_por_valor(
+        MEMORIES_SHEET,
+        coluna="user_id",
+        valor=user_id_normalizado,
+    )
+
+    resultado[
+        "visual_profiles"
+    ] = excluir_linhas_por_valor(
+        USER_VISUAL_PROFILE_SHEET,
+        coluna="user_id",
+        valor=user_id_normalizado,
+    )
+
+    resultado[
+        "relationships"
+    ] = excluir_linhas_por_valor(
+        MARY_RELATIONSHIP_SHEET,
+        coluna="user_id",
+        valor=user_id_normalizado,
+    )
+
+    resultado[
+        "sessions"
+    ] = excluir_linhas_por_valor(
+        SESSIONS_SHEET,
+        coluna="user_id",
+        valor=user_id_normalizado,
+    )
+
+    return resultado
+
+
+def deletar_usuario_e_dados(
+    user_id: str,
+) -> dict[str, int]:
+    """
+    Exclui todos os registros ligados ao usuário e, por último,
+    remove o cadastro da aba USERS.
+
+    O usuário só é apagado depois que os registros dependentes
+    forem removidos.
+    """
+
+    user_id_normalizado = normalizar_user_id(
+        user_id
+    )
+
+    usuario_existente = buscar_registro(
+        USERS_SHEET,
+        coluna="user_id",
+        valor=user_id_normalizado,
+    )
+
+    if usuario_existente is None:
+        raise GoogleSheetsRepositoryError(
+            "O usuário não foi encontrado na aba USERS."
+        )
+
+    resultado = limpar_dados_interacao_usuario(
+        user_id_normalizado
+    )
+
+    resultado[
+        "users"
+    ] = excluir_linhas_por_valor(
+        USERS_SHEET,
+        coluna="user_id",
+        valor=user_id_normalizado,
+    )
+
+    if resultado["users"] != 1:
+        raise GoogleSheetsRepositoryError(
+            "A exclusão do usuário não foi concluída "
+            "de forma consistente."
+        )
+
+    return resultado
