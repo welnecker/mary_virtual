@@ -1,1 +1,48 @@
+from relationship.sexual_engine import (
+    SEXUAL_PHASE_ACTIVE,
+    SEXUAL_PHASE_AFTERCARE,
+    SEXUAL_PHASE_AROUSAL,
+    SEXUAL_PHASE_FRUSTRATION,
+    SEXUAL_PHASE_IDLE,
+    SEXUAL_PHASE_ORGASM,
+    SEXUAL_PHASE_POST_ORGASM,
+    SEXUAL_PHASE_PRE_ORGASM,
+    SEXUAL_PHASE_TENSION,
+    atualizar_estado_sexual_antes_resposta,
+    atualizar_estado_sexual_apos_resposta,
+    criar_estado_sexual_padrao,
+    encerrar_cena_sexual,
+    iniciar_novo_ciclo_sexual,
+    normalizar_estado_sexual,
+    validar_resposta_sexual,
+)
+from relationship.state import (
+    DEFAULT_RELATIONSHIP_STATE,
+    RELATIONSHIP_STATE_VERSION,
+    criar_estado_relacao_padrao,
+    normalizar_estado_relacao,
+)
 
+
+__all__ = [
+    "RELATIONSHIP_STATE_VERSION",
+    "DEFAULT_RELATIONSHIP_STATE",
+    "criar_estado_relacao_padrao",
+    "normalizar_estado_relacao",
+    "SEXUAL_PHASE_IDLE",
+    "SEXUAL_PHASE_TENSION",
+    "SEXUAL_PHASE_AROUSAL",
+    "SEXUAL_PHASE_ACTIVE",
+    "SEXUAL_PHASE_PRE_ORGASM",
+    "SEXUAL_PHASE_ORGASM",
+    "SEXUAL_PHASE_POST_ORGASM",
+    "SEXUAL_PHASE_FRUSTRATION",
+    "SEXUAL_PHASE_AFTERCARE",
+    "criar_estado_sexual_padrao",
+    "normalizar_estado_sexual",
+    "atualizar_estado_sexual_antes_resposta",
+    "atualizar_estado_sexual_apos_resposta",
+    "validar_resposta_sexual",
+    "iniciar_novo_ciclo_sexual",
+    "encerrar_cena_sexual",
+]
