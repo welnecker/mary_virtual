@@ -273,9 +273,19 @@ def normalizar_sinais(
 
 def calcular_incrementos_relacao(
     signals: dict[str, Any] | None,
+    relationship_state: dict[str, Any] | None = None,
 ) -> dict[str, float]:
     signals_normalized = normalizar_sinais(
         signals
+    )
+
+    state = (
+        relationship_state
+        if isinstance(
+            relationship_state,
+            dict,
+        )
+        else {}
     )
 
     familiarity_delta = 0.0
@@ -283,96 +293,270 @@ def calcular_incrementos_relacao(
     affection_delta = 0.0
     romantic_delta = 0.0
 
+    affection_strength = limitar_valor(
+        signals_normalized.get(
+            "affection_strength",
+            0.0,
+        )
+    )
+
+    romantic_strength = limitar_valor(
+        signals_normalized.get(
+            "romantic_strength",
+            0.0,
+        )
+    )
+
+    sexual_strength = limitar_valor(
+        signals_normalized.get(
+            "sexual_strength",
+            0.0,
+        )
+    )
+
+    trust_strength = limitar_valor(
+        signals_normalized.get(
+            "trust_strength",
+            0.0,
+        )
+    )
+
+    negative_strength = limitar_valor(
+        signals_normalized.get(
+            "negative_strength",
+            0.0,
+        )
+    )
+
+    # Uma interação real aumenta familiaridade,
+    # mas não cria automaticamente amor ou confiança.
     if signals_normalized.get(
         "interaction_exists"
     ):
         familiarity_delta += 0.018
 
+    # Conversas recorrentes geram familiaridade suave.
+    if signals_normalized.get(
+        "repeated_interaction"
+    ):
+        familiarity_delta += 0.004
+
+    # Retorno real depois de uma ausência ou nova sessão.
     if signals_normalized.get(
         "user_returned"
     ):
-        familiarity_delta += 0.010
+        familiarity_delta += 0.012
+        affection_delta += 0.004
 
+    # Retomada concreta de assunto ou memória.
     if signals_normalized.get(
         "continuity_signal"
     ):
         familiarity_delta += 0.018
-        trust_delta += 0.006
+        trust_delta += 0.008
 
     if signals_normalized.get(
         "personal_disclosure"
     ):
         familiarity_delta += 0.022
-        trust_delta += 0.018
+        trust_delta += 0.016
 
     if signals_normalized.get(
         "emotional_disclosure"
     ):
-        trust_delta += 0.030
+        trust_delta += 0.026
         affection_delta += 0.016
 
     if signals_normalized.get(
         "trust_signal"
     ):
-        trust_delta += 0.040
-        affection_delta += 0.010
+        trust_delta += (
+            0.030
+            + trust_strength * 0.025
+        )
+
+        affection_delta += (
+            0.006
+            + trust_strength * 0.008
+        )
 
     if signals_normalized.get(
         "affection_signal"
     ):
-        affection_delta += 0.034
-        trust_delta += 0.008
+        affection_delta += (
+            0.026
+            + affection_strength * 0.026
+        )
+
+        trust_delta += (
+            0.005
+            + affection_strength * 0.008
+        )
+
+        romantic_delta += (
+            affection_strength * 0.006
+        )
 
     if signals_normalized.get(
         "romantic_signal"
     ):
-        romantic_delta += 0.045
-        affection_delta += 0.024
-        trust_delta += 0.008
+        romantic_delta += (
+            0.032
+            + romantic_strength * 0.030
+        )
+
+        affection_delta += (
+            0.016
+            + romantic_strength * 0.016
+        )
+
+        trust_delta += (
+            0.005
+            + romantic_strength * 0.006
+        )
 
     if signals_normalized.get(
         "sexual_signal"
     ):
-        romantic_delta += 0.035
-        affection_delta += 0.010
+        romantic_delta += (
+            0.026
+            + sexual_strength * 0.024
+        )
+
+        affection_delta += (
+            0.006
+            + sexual_strength * 0.008
+        )
+
         familiarity_delta += 0.008
 
     if signals_normalized.get(
         "explicit_sexual_signal"
     ):
-        romantic_delta += 0.030
+        romantic_delta += (
+            0.020
+            + sexual_strength * 0.022
+        )
+
         familiarity_delta += 0.006
 
     if signals_normalized.get(
         "respect_signal"
     ):
-        trust_delta += 0.020
+        trust_delta += 0.022
         affection_delta += 0.006
 
     if signals_normalized.get(
         "image_shared"
     ):
         familiarity_delta += 0.012
-        trust_delta += 0.008
+        trust_delta += 0.004
 
+    # A iniciativa de Mary também faz parte da tensão construída.
+    # Isso usa a decisão interna do sistema, não o texto gerado por Mary.
+    mary_internal_state = state.get(
+        "mary_internal_state"
+    )
+
+    if not isinstance(
+        mary_internal_state,
+        dict,
+    ):
+        mary_internal_state = {}
+
+    mary_desire = limitar_valor(
+        mary_internal_state.get(
+            "current_desire",
+            0.0,
+        )
+    )
+
+    current_direction = state.get(
+        "current_turn_direction"
+    )
+
+    if not isinstance(
+        current_direction,
+        dict,
+    ) or not current_direction:
+        current_direction = state.get(
+            "last_turn_direction"
+        )
+
+    if not isinstance(
+        current_direction,
+        dict,
+    ):
+        current_direction = {}
+
+    experience_mode = str(
+        current_direction.get(
+            "experience_mode",
+            "",
+        )
+        or ""
+    ).strip().lower()
+
+    mary_romantic_modes = {
+        "gentle_provocation",
+        "bold_provocation",
+        "romantic_escalation",
+        "sexual_tension",
+        "sexual_initiative",
+        "continue_shared_fantasy",
+    }
+
+    if experience_mode in mary_romantic_modes:
+        romantic_delta += min(
+            0.010,
+            mary_desire * 0.012,
+        )
+
+    # Limites não significam automaticamente perda de afeto.
+    # Eles interrompem principalmente a tensão daquele momento.
     if signals_normalized.get(
         "boundary_signal"
     ):
-        romantic_delta -= 0.035
+        romantic_delta -= (
+            0.025
+            + negative_strength * 0.020
+        )
 
     if signals_normalized.get(
         "rejection_signal"
     ):
-        trust_delta -= 0.055
-        affection_delta -= 0.060
-        romantic_delta -= 0.090
+        trust_delta -= (
+            0.050
+            + negative_strength * 0.035
+        )
+
+        affection_delta -= (
+            0.055
+            + negative_strength * 0.035
+        )
+
+        romantic_delta -= (
+            0.080
+            + negative_strength * 0.050
+        )
 
     if signals_normalized.get(
         "hostility_signal"
     ):
-        trust_delta -= 0.090
-        affection_delta -= 0.075
-        romantic_delta -= 0.100
+        trust_delta -= (
+            0.085
+            + negative_strength * 0.050
+        )
+
+        affection_delta -= (
+            0.070
+            + negative_strength * 0.045
+        )
+
+        romantic_delta -= (
+            0.095
+            + negative_strength * 0.055
+        )
 
     return {
         "familiarity_delta": familiarity_delta,
@@ -658,7 +842,107 @@ def atualizar_estagio_emocional(
                 "significant_relationship_damage"
             )
 
+def obter_estado_interno_mary(
+    state: dict[str, Any],
+) -> dict[str, Any]:
+    internal_state = state.get(
+        "mary_internal_state"
+    )
 
+    if isinstance(
+        internal_state,
+        dict,
+    ):
+        return internal_state
+
+    return {}
+
+
+def obter_desejo_mary(
+    state: dict[str, Any],
+) -> float:
+    internal_state = obter_estado_interno_mary(
+        state
+    )
+
+    return limitar_valor(
+        internal_state.get(
+            "current_desire",
+            0.0,
+        )
+    )
+
+
+def obter_iniciativa_mary(
+    state: dict[str, Any],
+) -> float:
+    internal_state = obter_estado_interno_mary(
+        state
+    )
+
+    return limitar_valor(
+        internal_state.get(
+            "initiative_drive",
+            0.0,
+        )
+    )
+
+
+def calcular_tensao_sexual_efetiva(
+    state: dict[str, Any],
+) -> float:
+    """
+    Combina a tensão construída pelo usuário com o desejo autônomo de Mary.
+
+    A tensão da relação não depende exclusivamente de uma fala sexual do
+    usuário, mas o desejo de Mary também não substitui completamente vínculo,
+    confiança e familiaridade.
+    """
+
+    romantic_tension = limitar_valor(
+        state.get(
+            "romantic_tension_level",
+            0.0,
+        )
+    )
+
+    mary_desire = obter_desejo_mary(
+        state
+    )
+
+    mary_initiative = obter_iniciativa_mary(
+        state
+    )
+
+    mary_component = limitar_valor(
+        mary_desire * 0.72
+        + mary_initiative * 0.18
+    )
+
+    return max(
+        romantic_tension,
+        mary_component,
+    )
+
+
+def existe_bloqueio_sexual_no_turno(
+    signals: dict[str, Any] | None,
+) -> bool:
+    signals_normalized = normalizar_sinais(
+        signals
+    )
+
+    return bool(
+        signals_normalized.get(
+            "boundary_signal"
+        )
+        or signals_normalized.get(
+            "rejection_signal"
+        )
+        or signals_normalized.get(
+            "hostility_signal"
+        )
+    )
 # ==========================================================
 # GATE SEXUAL
 # ==========================================================
@@ -707,10 +991,9 @@ def requisitos_nivel_sexual_atendidos(
         )
     )
 
-    romantic_tension = limitar_valor(
-        state.get(
-            "romantic_tension_level",
-            0.0,
+    effective_romantic_tension = (
+        calcular_tensao_sexual_efetiva(
+            state
         )
     )
 
@@ -736,6 +1019,11 @@ def requisitos_nivel_sexual_atendidos(
         )
     )
 
+    if existe_bloqueio_sexual_no_turno(
+        signals
+    ):
+        return False
+
     basic_requirements = (
         interaction_count
         >= requirements[
@@ -753,7 +1041,7 @@ def requisitos_nivel_sexual_atendidos(
         >= requirements[
             "min_affection"
         ]
-        and romantic_tension
+        and effective_romantic_tension
         >= requirements[
             "min_romantic_tension"
         ]
@@ -764,56 +1052,60 @@ def requisitos_nivel_sexual_atendidos(
     if not basic_requirements:
         return False
 
-    signals_normalized = normalizar_sinais(
-        signals
+    mary_desire = obter_desejo_mary(
+        state
     )
 
-    # Do nível 1 em diante, deve existir alguma reciprocidade
-    # romântica ou sexual no histórico recente.
-    if level >= SEXUAL_LEVEL_ATTRACTION:
-        has_relevant_signal = bool(
-            signals_normalized.get(
-                "romantic_signal"
-            )
-            or signals_normalized.get(
-                "sexual_signal"
-            )
-            or signals_normalized.get(
-                "affection_signal"
+    mary_initiative = obter_iniciativa_mary(
+        state
+    )
+
+    # Atração pode surgir principalmente de Mary.
+    if level == SEXUAL_LEVEL_ATTRACTION:
+        return bool(
+            effective_romantic_tension >= 0.08
+        )
+
+    # Flerte exige alguma disposição ativa de pelo menos um dos lados.
+    if level == SEXUAL_LEVEL_FLIRT:
+        return bool(
+            effective_romantic_tension >= 0.20
+            and (
+                mary_desire >= 0.20
+                or limitar_valor(
+                    state.get(
+                        "romantic_tension_level",
+                        0.0,
+                    )
+                ) >= 0.16
             )
         )
 
-        if not has_relevant_signal:
-            return False
+    # Desejo pode ser iniciado por Mary.
+    if level == SEXUAL_LEVEL_DESIRE:
+        return bool(
+            effective_romantic_tension >= 0.36
+            and mary_desire >= 0.34
+        )
 
-    # Níveis de desejo e intimidade exigem sinal sexual.
-    if level >= SEXUAL_LEVEL_DESIRE:
-        if not bool(
-            signals_normalized.get(
-                "sexual_signal"
-            )
-            or signals_normalized.get(
-                "explicit_sexual_signal"
-            )
-        ):
-            return False
+    # Intimidade exige desejo e segurança.
+    if level == SEXUAL_LEVEL_INTIMACY:
+        return bool(
+            effective_romantic_tension >= 0.54
+            and mary_desire >= 0.48
+            and mary_initiative >= 0.34
+            and trust >= 0.28
+        )
 
-    # Intimidade alta exige confiança e respeito no turno.
-    if level >= SEXUAL_LEVEL_INTIMACY:
-        if signals_normalized.get(
-            "boundary_signal"
-        ):
-            return False
-
-        if signals_normalized.get(
-            "rejection_signal"
-        ):
-            return False
-
-        if signals_normalized.get(
-            "hostility_signal"
-        ):
-            return False
+    # Intimidade profunda continua exigente.
+    if level == SEXUAL_LEVEL_DEEP_INTIMACY:
+        return bool(
+            effective_romantic_tension >= 0.74
+            and mary_desire >= 0.68
+            and mary_initiative >= 0.54
+            and trust >= 0.58
+            and affection >= 0.52
+        )
 
     return True
 
@@ -1031,7 +1323,8 @@ def atualizar_estado_relacao(
         ) + 1
 
     increments = calcular_incrementos_relacao(
-        signals_normalized
+        signals_normalized,
+        relationship_state=state,
     )
 
     aplicar_incrementos_relacao(
