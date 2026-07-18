@@ -46,6 +46,14 @@ from openrouter_client import (
     chamar_openrouter,
 )
 
+from relationship import (
+    atualizar_estado_sexual_antes_resposta,
+    atualizar_estado_sexual_apos_resposta,
+    criar_estado_relacao_padrao,
+    normalizar_estado_relacao,
+    validar_resposta_sexual,
+)
+
 from user_profile import (
     confirmar_referencia_visual,
     criar_perfil_padrao,
@@ -196,10 +204,65 @@ def inicializar_sessao_local() -> None:
         None,
     )
 
+    st.session_state.setdefault(
+        "last_sexual_validation",
+        {
+            "valid": True,
+            "errors": [],
+        },
+    )
+
+    if "relationship_state" not in st.session_state:
+        st.session_state[
+            "relationship_state"
+        ] = criar_estado_relacao_padrao()
+
+    else:
+        st.session_state[
+            "relationship_state"
+        ] = normalizar_estado_relacao(
+            st.session_state[
+                "relationship_state"
+            ]
+        )    
+
     if "interaction_session_id" not in st.session_state:
         st.session_state[
             "interaction_session_id"
         ] = criar_session_id()
+
+def obter_estados_relacao() -> tuple[
+    dict[str, Any],
+    dict[str, Any],
+]:
+    relationship_state = normalizar_estado_relacao(
+        st.session_state.get(
+            "relationship_state"
+        )
+    )
+
+    sexual_state = relationship_state.get(
+        "sexual_state"
+    )
+
+    if not isinstance(
+        sexual_state,
+        dict,
+    ):
+        sexual_state = {}
+
+    relationship_state[
+        "sexual_state"
+    ] = sexual_state
+
+    st.session_state[
+        "relationship_state"
+    ] = relationship_state
+
+    return (
+        relationship_state,
+        sexual_state,
+    )
 
 
 def hidratar_perfil_usuario(
@@ -1435,6 +1498,31 @@ def processar_interacao(
         or ""
     ).strip()
 
+    (
+        relationship_state,
+        sexual_state,
+    ) = obter_estados_relacao()
+
+    sexual_state_anterior = dict(
+        sexual_state
+    )
+
+    sexual_state = (
+        atualizar_estado_sexual_antes_resposta(
+            sexual_state,
+            user_text=user_display,
+            relationship_state=relationship_state,
+        )
+    )
+
+    relationship_state[
+        "sexual_state"
+    ] = sexual_state
+
+    st.session_state[
+        "relationship_state"
+    ] = relationship_state
+
     messages = [
         {
             "role": "system",
@@ -1445,6 +1533,16 @@ def processar_interacao(
                 mary_profile=st.session_state[
                     "mary_profile"
                 ],
+                relationship_state=(
+                    relationship_state
+                ),
+                sexual_state=sexual_state,
+                memories=[],
+                user_message=user_display,
+                has_image=(
+                    prepared_image is not None
+                ),
+                include_voice_examples=True,
             ),
         },
         *construir_historico_api()[:-1],
@@ -1473,6 +1571,13 @@ def processar_interacao(
                     api_key=api_key,
                 )
 
+                validacao_sexual = (
+                    validar_resposta_sexual(
+                        sexual_state,
+                        resposta,
+                    )
+                )
+
             except OpenRouterError as exc:
                 response_time_ms = round(
                     (
@@ -1481,6 +1586,14 @@ def processar_interacao(
                     )
                     * 1000
                 )
+
+                relationship_state[
+                    "sexual_state"
+                ] = sexual_state_anterior
+
+                st.session_state[
+                    "relationship_state"
+                ] = relationship_state
 
                 registro_erro = (
                     criar_registro_interacao(
@@ -1519,6 +1632,22 @@ def processar_interacao(
 
                 return
 
+        if not validacao_sexual.get(
+            "valid",
+            True,
+        ):
+            st.session_state[
+                "last_sexual_validation"
+            ] = validacao_sexual
+
+        else:
+            st.session_state[
+                "last_sexual_validation"
+            ] = {
+                "valid": True,
+                "errors": [],
+            }
+
         st.markdown(
             resposta
         )
@@ -1530,6 +1659,32 @@ def processar_interacao(
         )
         * 1000
     )
+
+    sexual_state = (
+        atualizar_estado_sexual_apos_resposta(
+            sexual_state,
+            user_text=user_display,
+            mary_response=resposta,
+        )
+    )
+
+    relationship_state[
+        "sexual_state"
+    ] = sexual_state
+
+    relationship_state[
+        "interaction_count"
+    ] = int(
+        relationship_state.get(
+            "interaction_count",
+            0,
+        )
+        or 0
+    ) + 1
+
+    st.session_state[
+        "relationship_state"
+    ] = relationship_state
 
     st.session_state[
         "messages"
