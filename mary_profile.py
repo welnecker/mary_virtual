@@ -771,3 +771,77 @@ def obter_aparencia_variavel(
         for key, value in traits.items()
         if str(value).strip()
     }
+
+def obter_perfil_publico(
+    profile: dict[str, Any],
+) -> dict[str, Any]:
+    normalized = normalizar_mary_profile(
+        profile
+    )
+
+    public_profile = normalized.get(
+        "public_profile",
+        {},
+    )
+
+    return deepcopy(
+        public_profile
+    )
+
+
+def obter_caminho_imagem_publica(
+    profile: dict[str, Any],
+) -> str:
+    public_profile = obter_perfil_publico(
+        profile
+    )
+
+    return str(
+        public_profile.get(
+            "profile_image_path"
+        )
+        or "assets/mary_profile_blurred.png"
+    ).strip()
+
+
+def imagem_publica_existe(
+    profile: dict[str, Any],
+) -> bool:
+    image_path = obter_caminho_imagem_publica(
+        profile
+    )
+
+    if not image_path:
+        return False
+
+    return Path(
+        image_path
+    ).is_file()
+
+
+def marcar_perfil_publico_visto(
+    profile: dict[str, Any],
+) -> dict[str, Any]:
+    updated = normalizar_mary_profile(
+        profile
+    )
+
+    relationship = updated.setdefault(
+        "relationship_state",
+        {},
+    )
+
+    relationship[
+        "public_profile_seen"
+    ] = True
+
+    if not relationship.get(
+        "public_profile_seen_at"
+    ):
+        relationship[
+            "public_profile_seen_at"
+        ] = utc_now_iso()
+
+    updated["updated_at"] = utc_now_iso()
+
+    return updated
