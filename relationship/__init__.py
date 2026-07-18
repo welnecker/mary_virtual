@@ -1,3 +1,8 @@
+from relationship.signals import (
+    DEFAULT_RELATIONSHIP_SIGNALS,
+    calcular_forca_sinais,
+    detectar_sinais_relacao,
+)
 from relationship.sexual_engine import (
     SEXUAL_PHASE_ACTIVE,
     SEXUAL_PHASE_AFTERCARE,
@@ -45,4 +50,7 @@ __all__ = [
     "validar_resposta_sexual",
     "iniciar_novo_ciclo_sexual",
     "encerrar_cena_sexual",
+    "DEFAULT_RELATIONSHIP_SIGNALS",
+    "calcular_forca_sinais",
+    "detectar_sinais_relacao",
 ]
