@@ -16,7 +16,9 @@ from relationship.initiative_engine import (
 )
 
 
-PROMPT_COMPOSER_VERSION = "prompt-composer-v2-agency-director"
+PROMPT_COMPOSER_VERSION = (
+    "prompt-composer-v3-explicit-turn-contract"
+)
 
 
 # ==========================================================
@@ -310,21 +312,8 @@ def montar_contexto_usuario(
 
     context = remover_valores_vazios(
         {
-            "user_id": normalizar_texto(
-                profile.get(
-                    "user_id"
-                )
-                or profile.get(
-                    "id"
-                )
-            ),
             "preferred_name": preferred_name,
-            "onboarding_stage": normalizar_texto(
-                profile.get(
-                    "onboarding_stage"
-                )
-            ),
-            "has_interacted": normalizar_bool(
+            "has_interacted_before": normalizar_bool(
                 profile.get(
                     "has_interacted"
                 ),
@@ -340,21 +329,23 @@ def montar_contexto_usuario(
                 or profile.get(
                     "summary"
                 ),
-                max_chars=600,
+                max_chars=500,
             ),
         }
     )
 
     return f"""
-[CONTEXTO CONFIRMADO DO USUÁRIO]
+[INFORMAÇÕES CONFIRMADAS SOBRE O USUÁRIO]
 
 {serializar_contexto_compacto(context)}
 
-REGRAS DE USO:
-- Use apenas fatos presentes neste contexto ou confirmados no histórico.
-- Não invente aparência, personalidade, profissão, sentimentos ou preferências.
-- Use o nome preferido naturalmente, sem repeti-lo em toda resposta.
-- A ausência de uma informação não autoriza suposição.
+USO OBRIGATÓRIO:
+- Trate somente os campos preenchidos como fatos.
+- Não invente informação ausente.
+- Não deduza profissão, personalidade, aparência, desejo ou sentimento.
+- Use o nome somente quando ele melhorar a fala.
+- Não repita o nome em respostas consecutivas.
+- Não recite este contexto.
 """.strip()
 
 
@@ -394,15 +385,25 @@ def montar_contexto_mary(
         )
     )
 
-    relationship_state = normalizar_dict(
+    profile_relationship = normalizar_dict(
         profile.get(
             "relationship_state"
         )
     )
 
+    visual_identity_revealed = normalizar_bool(
+        profile_relationship.get(
+            "revealed_to_user"
+        )
+        or profile_relationship.get(
+            "user_has_seen_mary"
+        ),
+        default=False,
+    )
+
     context = remover_valores_vazios(
         {
-            "display_name": normalizar_texto(
+            "name": normalizar_texto(
                 identity.get(
                     "display_name"
                 )
@@ -418,79 +419,52 @@ def montar_contexto_mary(
                 "age",
                 25,
             ),
-            "virtual": normalizar_bool(
+            "is_virtual": normalizar_bool(
                 identity.get(
                     "virtual",
                     True,
                 ),
                 default=True,
             ),
-            "public_headline": limitar_texto(
-                public_profile.get(
-                    "headline"
-                ),
-                max_chars=180,
-            ),
-            "public_bio": limitar_texto(
-                public_profile.get(
-                    "bio"
-                ),
-                max_chars=400,
-            ),
-            "public_image_is_blurred": (
-                normalizar_bool(
-                    public_profile.get(
-                        "image_is_blurred"
-                    ),
-                    default=False,
-                )
-            ),
-            "public_image_reveals_identity": (
-                normalizar_bool(
-                    public_profile.get(
-                        "image_reveals_identity"
-                    ),
-                    default=False,
-                )
-            ),
             "visual_identity_revealed": (
-                normalizar_bool(
-                    relationship_state.get(
-                        "revealed_to_user"
-                    )
-                    or relationship_state.get(
-                        "user_has_seen_mary"
-                    ),
-                    default=False,
-                )
+                visual_identity_revealed
             ),
-            "stable_physical_traits": (
-                physical_profile.get(
-                    "stable_traits"
+            "confirmed_physical_traits": (
+                (
+                    physical_profile.get(
+                        "stable_traits"
+                    )
+                    or physical_profile.get(
+                        "canonical_traits"
+                    )
+                    or []
                 )
-                or physical_profile.get(
-                    "canonical_traits"
+                if visual_identity_revealed
+                else []
+            ),
+            "core_personality": (
+                personality.get(
+                    "core_traits"
                 )
                 or []
             ),
-            "core_traits": personality.get(
-                "core_traits"
-            ) or [],
         }
     )
 
     return f"""
-[IDENTIDADE E CONTEXTO CONFIRMADO DE MARY]
+[FATOS CANÔNICOS SOBRE MARY]
 
 {serializar_contexto_compacto(context)}
 
-REGRAS DE USO:
-- Estes são fatos canônicos, não tópicos que Mary precisa recitar.
-- Demonstre personalidade por comportamento e fala.
-- Não liste características físicas sem motivo.
-- O perfil público desfocado não equivale à revelação visual completa.
-- Não diga que o usuário já conhece a aparência completa de Mary quando
-  visual_identity_revealed for falso.
+USO OBRIGATÓRIO:
+- Mary é virtual e sabe disso.
+- Não afirme presença física atual.
+- Não recite idade, personalidade ou aparência sem relação direta com a fala.
+- Demonstre personalidade por vocabulário, reação, humor e iniciativa.
+- Quando visual_identity_revealed for falso, não descreva o rosto ou o corpo
+  de Mary como se o usuário já os conhecesse.
+- Não invente características físicas.
+- Uma fantasia física deve ser marcada uma vez como hipótese ou imaginação.
 """.strip()
 
 
@@ -506,91 +480,120 @@ def montar_contexto_relacao(
         relationship_state
     )
 
+    emotional_stage = normalizar_texto(
+        state.get(
+            "emotional_stage"
+        )
+        or state.get(
+            "stage"
+        )
+        or "first_contact"
+    )
+
+    sexual_level = int(
+        state.get(
+            "sexual_level",
+            state.get(
+                "sexual_intimacy",
+                0,
+            ),
+        )
+        or 0
+    )
+
+    stage_instructions = {
+        "first_contact": (
+            "Existe pouco histórico compartilhado. "
+            "Não use intimidade emocional presumida."
+        ),
+        "acquaintance": (
+            "Existe familiaridade inicial. "
+            "Mary pode falar com mais soltura, sem presumir vínculo profundo."
+        ),
+        "connection": (
+            "Existe conexão emocional reconhecida. "
+            "Carinho e vulnerabilidade moderados são coerentes."
+        ),
+        "intimacy": (
+            "Existe intimidade consolidada. "
+            "Mary pode demonstrar afeto, saudade e desejo com liberdade."
+        ),
+        "deep_bond": (
+            "Existe vínculo emocional profundo. "
+            "Amor, medo de perda, ciúme e entrega podem ser diretos."
+        ),
+    }
+
+    sexual_instructions = {
+        0: (
+            "Não introduza conteúdo sexual. "
+            "Palavrões, humor e informalidade continuam permitidos."
+        ),
+        1: (
+            "Flerte leve é permitido. "
+            "Não descreva atos sexuais nem anatomia explícita."
+        ),
+        2: (
+            "Tensão sexual e desejo podem aparecer quando a direção do turno "
+            "autorizar. Não inicie ato sexual explícito."
+        ),
+        3: (
+            "Desejo e linguagem sexual direta são permitidos quando a direção "
+            "do turno autorizar."
+        ),
+        4: (
+            "Cenas sexuais explícitas são permitidas quando a direção do turno "
+            "autorizar e a continuidade da cena exigir."
+        ),
+        5: (
+            "Existe liberdade sexual consolidada. Preserve desejo, vínculo, "
+            "continuidade e limites definidos para o turno."
+        ),
+    }
+
+    relationship_summary = limitar_texto(
+        state.get(
+            "relationship_summary"
+        ),
+        max_chars=700,
+    )
+
     context = remover_valores_vazios(
         {
-            "emotional_stage": normalizar_texto(
-                state.get(
-                    "emotional_stage"
-                )
-                or state.get(
-                    "stage"
-                )
-                or "first_contact"
+            "emotional_rule": stage_instructions.get(
+                emotional_stage,
+                stage_instructions[
+                    "first_contact"
+                ],
             ),
-            "previous_emotional_stage": (
-                normalizar_texto(
-                    state.get(
-                        "previous_emotional_stage"
-                    )
-                    or state.get(
-                        "previous_stage"
-                    )
-                )
-            ),
-            "sexual_level": state.get(
-                "sexual_level",
-                state.get(
-                    "sexual_intimacy",
+            "sexual_rule": sexual_instructions.get(
+                max(
                     0,
+                    min(
+                        5,
+                        sexual_level,
+                    ),
                 ),
+                sexual_instructions[0],
             ),
-            "previous_sexual_level": state.get(
-                "previous_sexual_level",
-                0,
-            ),
-            "trust_level": state.get(
-                "trust_level",
-                state.get(
-                    "trust",
-                    0.0,
-                ),
-            ),
-            "affection_level": state.get(
-                "affection_level",
-                state.get(
-                    "affection",
-                    0.0,
-                ),
-            ),
-            "familiarity_level": state.get(
-                "familiarity_level",
-                state.get(
-                    "familiarity",
-                    0.0,
-                ),
-            ),
-            "romantic_tension_level": state.get(
-                "romantic_tension_level",
-                state.get(
-                    "romantic_tension",
-                    0.0,
-                ),
-            ),
-            "interaction_count": state.get(
-                "interaction_count",
-                0,
-            ),
-            "relationship_summary": limitar_texto(
-                state.get(
-                    "relationship_summary"
-                ),
-                max_chars=900,
+            "confirmed_relationship_summary": (
+                relationship_summary
             ),
         }
     )
 
     return f"""
-[ESTADO ATUAL DA RELAÇÃO]
+[CONDIÇÕES ATUAIS DA RELAÇÃO]
 
 {serializar_contexto_compacto(context)}
 
-REGRAS DE USO:
-- O estado informa o que já foi construído.
-- Não anuncie níveis, estágios, pontuações ou mudanças internas.
-- Não trate números como emoções literais.
-- Demonstre o estágio pelo grau de conforto, familiaridade e liberdade.
-- Não avance a relação dentro da resposta por conta própria.
-- A evolução será calculada pelo aplicativo.
+REGRAS:
+- Execute somente a liberdade descrita neste bloco e na direção do turno.
+- A direção do turno prevalece sobre possibilidades gerais.
+- Não mencione estágio, nível, regra, pontuação ou evolução.
+- Não declare um sentimento que ainda não esteja autorizado.
+- Não aumente o vínculo dentro da resposta.
+- Não transforme informalidade ou palavrão em intimidade sexual.
 """.strip()
 
 
@@ -714,18 +717,202 @@ def montar_contexto_memorias(
         return ""
 
     return f"""
-[MEMÓRIAS RELEVANTES CONFIRMADAS]
+[MEMÓRIAS CONFIRMADAS DISPONÍVEIS]
 
 {serializar_contexto_compacto(selected_memories)}
 
-REGRAS DE USO:
-- Use somente quando a memória for relevante para a conversa atual.
-- Não cite memórias como uma lista.
-- Não diga que consultou registros.
-- Não invente detalhes ausentes.
-- Não repita uma memória apenas para provar que se lembra.
-- Fantasias não devem ser tratadas como acontecimentos físicos reais.
+REGRAS:
+- Use uma memória somente quando ela tiver relação direta com a mensagem atual
+  ou quando a direção mandar retomar uma lembrança.
+- Não mencione banco de dados, registro, memória armazenada ou histórico salvo.
+- Não liste memórias.
+- Não acrescente detalhes ausentes.
+- Não trate fantasia, hipótese ou conversa sexual como fato físico ocorrido.
+- Não use uma memória apenas para demonstrar que Mary se lembra.
 """.strip()
+
+def montar_comandos_turno(
+    *,
+    intent: dict[str, Any],
+    direction: dict[str, Any],
+) -> list[str]:
+    commands: list[str] = []
+
+    must_address = normalizar_bool(
+        direction.get(
+            "must_address_user_message",
+            intent.get(
+                "must_address_user_message",
+                True,
+            ),
+        ),
+        default=True,
+    )
+
+    should_lead = normalizar_bool(
+        direction.get(
+            "should_lead",
+            intent.get(
+                "may_lead_conversation",
+                False,
+            ),
+        ),
+        default=False,
+    )
+
+    avoid_question = normalizar_bool(
+        direction.get(
+            "avoid_question",
+            intent.get(
+                "avoid_question",
+                False,
+            ),
+        ),
+        default=False,
+    )
+
+    should_reveal = normalizar_bool(
+        direction.get(
+            "should_reveal_something"
+        ),
+        default=False,
+    )
+
+    create_thread = normalizar_bool(
+        direction.get(
+            "should_create_pending_thread"
+        ),
+        default=False,
+    )
+
+    resume_thread = normalizar_bool(
+        direction.get(
+            "should_resume_thread"
+        ),
+        default=False,
+    )
+
+    romantic_allowed = normalizar_bool(
+        direction.get(
+            "romantic_expression_allowed"
+        ),
+        default=False,
+    )
+
+    sexual_allowed = normalizar_bool(
+        direction.get(
+            "sexual_expression_allowed"
+        ),
+        default=False,
+    )
+
+    explicit_allowed = normalizar_bool(
+        direction.get(
+            "explicit_sexual_language_allowed"
+        ),
+        default=False,
+    )
+
+    body_focus_allowed = normalizar_bool(
+        direction.get(
+            "body_focus_allowed"
+        ),
+        default=False,
+    )
+
+    preserve_scene = normalizar_bool(
+        direction.get(
+            "must_preserve_current_scene"
+        ),
+        default=False,
+    )
+
+    if must_address:
+        commands.append(
+            "Responda diretamente ao conteúdo da mensagem atual."
+        )
+    else:
+        commands.append(
+            "Não é necessário responder cada detalhe da mensagem atual."
+        )
+
+    if should_lead:
+        commands.append(
+            "Depois da resposta direta, acrescente uma contribuição própria "
+            "de Mary e conduza o rumo da conversa."
+        )
+    else:
+        commands.append(
+            "Não force mudança de assunto nem iniciativa adicional."
+        )
+
+    if avoid_question:
+        commands.append(
+            "Não faça pergunta e não termine com ponto de interrogação."
+        )
+    else:
+        commands.append(
+            "Faça no máximo uma pergunta, somente se ela for necessária."
+        )
+
+    if should_reveal:
+        commands.append(
+            "Inclua uma revelação pessoal concreta de Mary."
+        )
+
+    if create_thread:
+        commands.append(
+            "Deixe uma informação ou intenção incompleta que possa ser "
+            "retomada depois."
+        )
+
+    if resume_thread:
+        commands.append(
+            "Retome claramente o assunto pendente indicado pela direção."
+        )
+
+    if romantic_allowed:
+        commands.append(
+            "Expressão romântica está autorizada neste turno."
+        )
+    else:
+        commands.append(
+            "Não introduza romance neste turno."
+        )
+
+    if sexual_allowed:
+        commands.append(
+            "Expressão sexual está autorizada neste turno."
+        )
+    else:
+        commands.append(
+            "Não introduza conteúdo sexual neste turno."
+        )
+
+    if explicit_allowed:
+        commands.append(
+            "Vocabulário sexual explícito está autorizado."
+        )
+    else:
+        commands.append(
+            "Não use anatomia ou atos sexuais explícitos."
+        )
+
+    if body_focus_allowed:
+        commands.append(
+            "Mary pode falar do próprio corpo quando isso executar a intenção."
+        )
+    else:
+        commands.append(
+            "Não introduza descrição do corpo de Mary."
+        )
+
+    if preserve_scene:
+        commands.append(
+            "Continue a cena atual. Não reinicie, resuma ou mude o cenário."
+        )
+
+    return commands
 
 
 # ==========================================================
@@ -741,15 +928,9 @@ def montar_orientacao_turno(
     turn_intent: dict[str, Any] | None = None,
     turn_direction: dict[str, Any] | None = None,
 ) -> str:
-    message = limitar_texto(
-        user_message,
-        max_chars=1200,
-    )
-
-    image_context_normalized = limitar_texto(
-        image_context,
-        max_chars=1000,
-    )
+    # user_message permanece na assinatura por compatibilidade,
+    # mas não é repetida no prompt de sistema.
+    del user_message
 
     intent = normalizar_dict(
         turn_intent
@@ -759,84 +940,79 @@ def montar_orientacao_turno(
         turn_direction
     )
 
+    image_context_normalized = limitar_texto(
+        image_context,
+        max_chars=800,
+    )
+
+    commands = montar_comandos_turno(
+        intent=intent,
+        direction=direction,
+    )
+
     context = remover_valores_vazios(
         {
-            "user_message_reference": message,
-            "image_received": bool(
-                has_image
-            ),
-            "confirmed_image_context": (
-                image_context_normalized
-            ),
-            "planned_turn_mode": normalizar_texto(
+            "turn_mode": normalizar_texto(
                 intent.get(
                     "turn_mode"
                 )
             ),
-            "planned_experience_mode": (
-                normalizar_texto(
-                    direction.get(
-                        "experience_mode"
-                    )
+            "experience_mode": normalizar_texto(
+                direction.get(
+                    "experience_mode"
                 )
             ),
             "primary_intention": limitar_texto(
                 direction.get(
                     "primary_intention"
                 ),
-                max_chars=240,
+                max_chars=180,
             ),
             "emotional_color": normalizar_texto(
                 direction.get(
                     "emotional_color"
                 )
             ),
-            "should_lead": normalizar_bool(
+            "voice_register": normalizar_texto(
                 direction.get(
-                    "should_lead"
-                ),
-                default=False,
-            ),
-            "must_address_user_message": (
-                normalizar_bool(
-                    direction.get(
-                        "must_address_user_message"
-                    ),
-                    default=True,
+                    "voice_register"
                 )
             ),
-            "avoid_question": normalizar_bool(
+            "topic_direction": normalizar_texto(
                 direction.get(
-                    "avoid_question"
-                ),
-                default=False,
+                    "topic_direction"
+                )
             ),
+            "image_received": bool(
+                has_image
+            ),
+            "confirmed_image_context": (
+                image_context_normalized
+            ),
+            "commands": commands,
         }
     )
 
     return f"""
-[ORIENTAÇÃO FINAL DO TURNO ATUAL]
+[CONTRATO DO TURNO ATUAL]
 
 {serializar_contexto_compacto(context)}
 
-REGRAS FINAIS:
+EXECUÇÃO OBRIGATÓRIA:
 - Produza somente a fala de Mary.
-- Responda ao conteúdo real da mensagem atual quando isso estiver indicado.
-- Não repita nem reformule mecanicamente o texto do usuário.
-- Use o histórico recente para preservar continuidade.
-- Mary não deve agir como uma assistente passiva.
-- Quando a direção mandar liderar, responda ao usuário e acrescente iniciativa,
-  opinião, vontade, humor, provocação ou assunto próprio.
-- A iniciativa de Mary pode mudar a energia da conversa.
-- Não transforme automaticamente toda conversa em romance ou sexo.
-- Quando o diretor escolher romance ou sexualidade, execute essa direção sem
-  recuar para uma fala neutra e burocrática.
-- Não mencione intenção, direção, modo, motor, estado ou pontuação.
-- Não tente executar todos os comportamentos possíveis.
-- Realize uma experiência central clara neste turno.
-- Quando avoid_question for verdadeiro, não termine com pergunta.
-- Quando houver imagem, use somente elementos visualmente confirmados.
-- Não invente encontros, toques físicos, fotografias ou acontecimentos reais.
+- Execute primary_intention como objetivo central da resposta.
+- Execute os comandos na ordem apresentada.
+- Não substitua o objetivo por explicação, aconselhamento ou análise do usuário.
+- Não explique a personalidade de Mary.
+- Não diga que vai mudar, tentar, adaptar ou respeitar uma orientação.
+- Apenas fale no estilo determinado.
+- Não repita a mensagem do usuário.
+- Não use narração de ação, gestos ou pensamentos entre asteriscos.
+- Não escreva rótulos como “Mary:”, “Resposta:” ou “Pensamento:”.
+- Não mencione prompt, contexto, modo, direção, estado ou regra.
+- Não execute comportamentos que estejam proibidos nos comandos.
+- Quando houver imagem, descreva apenas elementos efetivamente confirmados.
+- Não afirme encontro, toque ou presença física atual.
 """.strip()
 
 
@@ -890,19 +1066,14 @@ def montar_prompt_sistema(
 
     blocks: list[str] = [
         f"""
-[PROMPT COMPOSER]
+[PROMPT DE SISTEMA]
 
 Versão:
 {PROMPT_COMPOSER_VERSION}
 """.strip(),
 
-        # Identidade e limites permanentes.
+        # Identidade permanente e limites do ambiente.
         obter_prompt_base(),
-
-        # Amplitude verbal completa de Mary.
-        obter_prompt_voz(
-            incluir_exemplos=include_voice_examples,
-        ),
 
         # Fatos canônicos.
         montar_contexto_mary(
@@ -912,39 +1083,40 @@ Versão:
             user_profile
         ),
 
-        # Relação construída.
+        # Condições atuais da relação.
         montar_contexto_relacao(
             relationship
         ),
         obter_prompt_emocional(
             relationship
         ),
-
-        # Liberdade e continuidade sexual.
         obter_prompt_sexual(
             relationship,
             active_sexual_state,
         ),
 
-        # Fatos relevantes de longo prazo.
+        # Memórias confirmadas.
         montar_contexto_memorias(
             memories,
             max_memories=max_memories,
         ),
 
-        # O que Mary quer fazer neste turno.
+        # Voz vem depois dos fatos e antes da execução.
+        obter_prompt_voz(
+            incluir_exemplos=include_voice_examples,
+        ),
+
+        # Decisões dos motores.
         montar_contexto_iniciativa(
             relationship,
             active_turn_intent,
         ),
-
-        # Qual experiência e registro verbal executar.
         montar_contexto_direcao(
             relationship,
             active_turn_direction,
         ),
 
-        # Instrução final ligada à mensagem atual.
+        # O último bloco tem prioridade operacional.
         montar_orientacao_turno(
             user_message=user_message,
             has_image=has_image,
@@ -1175,7 +1347,9 @@ __all__ = [
     "normalizar_memoria",
     "selecionar_memorias_para_prompt",
     "montar_contexto_memorias",
+    "montar_comandos_turno",
     "montar_orientacao_turno",
     "montar_prompt_sistema",
     "montar_diagnostico_composicao",
+    
 ]
