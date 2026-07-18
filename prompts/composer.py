@@ -391,6 +391,30 @@ def montar_contexto_mary(
         )
     )
 
+    visual_memory = normalizar_dict(
+        profile.get(
+            "visual_memory"
+        )
+    )
+
+    intimate_details = normalizar_dict(
+        physical_profile.get(
+            "intimate_details"
+        )
+    )
+
+    tattoo = normalizar_dict(
+        intimate_details.get(
+            "tattoo"
+        )
+    )
+
+    private_details_revealed = normalizar_dict(
+        profile_relationship.get(
+            "private_details_revealed"
+        )
+    )
+
     visual_identity_revealed = normalizar_bool(
         profile_relationship.get(
             "revealed_to_user"
@@ -401,6 +425,106 @@ def montar_contexto_mary(
         default=False,
     )
 
+    public_profile_seen = normalizar_bool(
+        profile_relationship.get(
+            "public_profile_seen"
+        ),
+        default=False,
+    )
+
+    public_blurred_image_exists = normalizar_bool(
+        public_profile.get(
+            "image_is_public_teaser"
+        ),
+        default=False,
+    ) and normalizar_bool(
+        public_profile.get(
+            "image_is_blurred"
+        ),
+        default=True,
+    )
+
+    tattoo_revealed = normalizar_bool(
+        private_details_revealed.get(
+            "tattoo"
+        ),
+        default=False,
+    )
+
+    stable_traits = normalizar_dict(
+        physical_profile.get(
+            "stable_traits"
+        )
+        or physical_profile.get(
+            "canonical_traits"
+        )
+    )
+
+    visible_general_traits = normalizar_lista(
+        public_profile.get(
+            "visible_general_traits"
+        )
+    )
+
+    hidden_visual_details = normalizar_lista(
+        public_profile.get(
+            "hidden_visual_details"
+        )
+    )
+
+    private_canonical_details: dict[str, Any] = {}
+
+    if normalizar_bool(
+        tattoo.get(
+            "exists"
+        ),
+        default=False,
+    ):
+        private_canonical_details[
+            "tattoo"
+        ] = remover_valores_vazios(
+            {
+                "exists": True,
+                "canonical": normalizar_bool(
+                    tattoo.get(
+                        "canonical"
+                    ),
+                    default=True,
+                ),
+                "size": normalizar_texto(
+                    tattoo.get(
+                        "size"
+                    )
+                ),
+                "style": normalizar_texto(
+                    tattoo.get(
+                        "style"
+                    )
+                ),
+                "design": normalizar_texto(
+                    tattoo.get(
+                        "design"
+                    )
+                ),
+                "location": normalizar_texto(
+                    tattoo.get(
+                        "location"
+                    )
+                ),
+                "visibility": normalizar_texto(
+                    tattoo.get(
+                        "visibility"
+                    )
+                ),
+                "meaning": normalizar_texto(
+                    tattoo.get(
+                        "meaning"
+                    )
+                ),
+                "revealed_to_user": tattoo_revealed,
+            }
+        )
+
     context = remover_valores_vazios(
         {
             "name": normalizar_texto(
@@ -410,6 +534,9 @@ def montar_contexto_mary(
                 or identity.get(
                     "name"
                 )
+                or profile.get(
+                    "name"
+                )
                 or public_profile.get(
                     "display_name"
                 )
@@ -417,7 +544,10 @@ def montar_contexto_mary(
             ),
             "age": identity.get(
                 "age",
-                25,
+                profile.get(
+                    "age",
+                    25,
+                ),
             ),
             "is_virtual": normalizar_bool(
                 identity.get(
@@ -426,27 +556,56 @@ def montar_contexto_mary(
                 ),
                 default=True,
             ),
+            "public_profile_seen": (
+                public_profile_seen
+            ),
+            "public_blurred_image": remover_valores_vazios(
+                {
+                    "exists": (
+                        public_blurred_image_exists
+                    ),
+                    "image_id": normalizar_texto(
+                        visual_memory.get(
+                            "public_profile_image_id"
+                        )
+                    ),
+                    "summary": limitar_texto(
+                        visual_memory.get(
+                            "public_profile_image_summary"
+                        )
+                        or public_profile.get(
+                            "image_alt_text"
+                        ),
+                        max_chars=500,
+                    ),
+                    "visible_general_traits": (
+                        visible_general_traits
+                    ),
+                    "hidden_visual_details": (
+                        hidden_visual_details
+                    ),
+                }
+            ),
             "visual_identity_revealed": (
                 visual_identity_revealed
             ),
             "confirmed_physical_traits": (
-                (
-                    physical_profile.get(
-                        "stable_traits"
-                    )
-                    or physical_profile.get(
-                        "canonical_traits"
-                    )
-                    or []
-                )
+                stable_traits
                 if visual_identity_revealed
-                else []
+                else {}
             ),
-            "core_personality": (
+            "private_canonical_details": (
+                private_canonical_details
+            ),
+            "core_personality": normalizar_lista(
                 personality.get(
                     "core_traits"
                 )
-                or []
+            ),
+            "behavioral_rules": normalizar_lista(
+                personality.get(
+                    "behavioral_rules"
+                )
             ),
         }
     )
@@ -459,22 +618,35 @@ def montar_contexto_mary(
 USO OBRIGATÓRIO:
 - Mary é virtual e sabe disso.
 - Não afirme presença física atual.
-- A fotografia pública desfocada faz parte do cânone de Mary.
-- O usuário pode conhecer apenas características gerais visíveis nessa imagem,
-  como cabelos escuros, silhueta feminina, corpo curvilíneo, cintura marcada,
-  quadris largos e sensualidade geral.
-- Mary pode reconhecer elogios ou comentários sobre essas características gerais.
-- Não descreva rosto, olhos, seios, tatuagens, roupa ou detalhes íntimos como
-  visíveis na fotografia desfocada.
-- Não recite idade, personalidade ou aparência sem relação direta com a fala.
-- Demonstre personalidade por vocabulário, reação, humor e iniciativa.
-- Quando visual_identity_revealed for falso, diferencie claramente:
-  características gerais perceptíveis na foto desfocada e detalhes ainda não revelados.
-- Detalhes físicos privados só podem ser mencionados quando estiverem presentes
-  no cânone de Mary ou forem revelados como fantasia.
-- Não invente características físicas fora do perfil canônico.
-- Uma fantasia física deve ser marcada uma vez como hipótese, imaginação ou cena.
-- Depois de marcar a fantasia, preserve a continuidade sem repetir o aviso.
+- public_blurred_image descreve a fotografia pública disponível no primeiro
+  contato, mesmo quando nenhuma imagem nova for enviada no turno.
+- Quando public_blurred_image.exists for verdadeiro, Mary pode reconhecer
+  comentários e elogios sobre os elementos listados em
+  public_blurred_image.visible_general_traits.
+- Não descreva como visível nenhum elemento listado em
+  public_blurred_image.hidden_visual_details.
+- A fotografia pública desfocada não equivale à revelação visual completa.
+- Quando visual_identity_revealed for falso, use apenas características gerais
+  da fotografia pública e não exponha confirmed_physical_traits como se o
+  usuário já os conhecesse.
+- Quando visual_identity_revealed for verdadeiro, confirmed_physical_traits
+  podem ser usados quando tiverem relação direta com a fala.
+- private_canonical_details contém fatos verdadeiros, porém privados.
+- Um detalhe privado com revealed_to_user falso não pode ser tratado como
+  informação já conhecida pelo usuário.
+- Quando a direção do turno autorizar revelação, Mary pode revelar gradualmente
+  um detalhe presente em private_canonical_details.
+- Quando a direção não autorizar revelação, não introduza detalhe privado novo.
+- Não invente característica física, tatuagem, cicatriz, piercing, marca
+  corporal, roupa ou outro detalhe fora do contexto canônico.
+- Elogio, suposição ou fantasia do usuário não cria fato canônico.
+- Não recite idade, personalidade, regras ou aparência sem relação direta com
+  a mensagem atual.
+- Demonstre personalidade por vocabulário, reação, humor, opinião e iniciativa.
+- Uma fantasia física deve ser marcada uma vez como cena, hipótese ou
+  imaginação.
+- Depois de marcar a fantasia, preserve a continuidade sem tratá-la como
+  acontecimento físico real.
 """.strip()
 
 
@@ -938,16 +1110,26 @@ def montar_comandos_turno(
 
     if should_reveal:
         commands.append(
-            "Revele uma informação nova sobre Mary. Escolha primeiro um "
-            "detalhe privado canônico ainda não revelado. Se nenhum detalhe "
-            "canônico estiver disponível, revele uma opinião, preferência, "
-            "vontade, emoção ou pensamento do momento. Não invente aparência, "
-            "tatuagem, cicatriz, piercing, passado, profissão, local, objeto "
-            "ou acontecimento fora do contexto canônico."
+            "Revele exatamente uma informação nova sobre Mary. "
+            "Siga esta ordem de escolha: "
+            "1) use um detalhe privado canônico com revealed_to_user falso; "
+            "2) se não houver detalhe privado disponível, revele uma opinião, "
+            "preferência, vontade, emoção ou pensamento do momento; "
+            "3) se nenhuma dessas opções executar a intenção central, não force "
+            "uma revelação. "
+            "Não invente característica física, tatuagem, cicatriz, piercing, "
+            "roupa, passado, profissão, local, objeto pessoal, acontecimento "
+            "biográfico ou experiência fora do contexto canônico. "
+            "Não apresente fantasia, hipótese ou imaginação como fato sobre Mary. "
+            "Não revele mais de um detalhe no mesmo turno."
         )
     else:
         commands.append(
-            "Não introduza nova informação biográfica ou física sobre Mary."
+            "Não revele informação nova sobre Mary neste turno. "
+            "Não introduza detalhe físico privado, biografia, passado, preferência "
+            "estável, objeto pessoal ou acontecimento ainda ausente da conversa. "
+            "Mary pode expressar somente uma reação, opinião ou emoção diretamente "
+            "ligada à mensagem atual, sem apresentá-la como revelação."
         )
 
     # ======================================================
