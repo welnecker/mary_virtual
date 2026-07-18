@@ -766,3 +766,59 @@ def encerrar_sessoes_ativas_usuario(
             "Não foi possível encerrar as sessões "
             f"anteriores do usuário: {exc}"
         ) from exc
+def listar_interacoes_usuario(
+    user_id: str,
+    *,
+    limite: int = 50,
+) -> list[dict[str, Any]]:
+    user_id_normalizado = str(
+        user_id or ""
+    ).strip()
+
+    if not user_id_normalizado:
+        return []
+
+    try:
+        worksheet = obter_aba(
+            "INTERACTIONS"
+        )
+
+        registros = worksheet.get_all_records(
+            default_blank="",
+        )
+
+    except (
+        APIError,
+        SpreadsheetNotFound,
+        WorksheetNotFound,
+        GSpreadException,
+    ) as exc:
+        raise GoogleSheetsRepositoryError(
+            "Não foi possível carregar o histórico "
+            f"de interações: {exc}"
+        ) from exc
+
+    interacoes = [
+        dict(registro)
+        for registro in registros
+        if str(
+            registro.get("user_id")
+            or ""
+        ).strip() == user_id_normalizado
+    ]
+
+    interacoes.sort(
+        key=lambda registro: str(
+            registro.get("timestamp")
+            or ""
+        )
+    )
+
+    limite_normalizado = max(
+        1,
+        int(limite or 50),
+    )
+
+    return interacoes[
+        -limite_normalizado:
+    ]
