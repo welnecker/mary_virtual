@@ -1156,3 +1156,26 @@ def montar_diagnostico_composicao(
             include_voice_examples
         ),
     }
+
+__all__ = [
+    "PROMPT_COMPOSER_VERSION",
+    "normalizar_texto",
+    "normalizar_dict",
+    "normalizar_lista",
+    "normalizar_bool",
+    "juntar_blocos_prompt",
+    "limitar_texto",
+    "serializar_contexto_compacto",
+    "remover_valores_vazios",
+    "resolver_intencao_turno",
+    "resolver_direcao_turno",
+    "montar_contexto_usuario",
+    "montar_contexto_mary",
+    "montar_contexto_relacao",
+    "normalizar_memoria",
+    "selecionar_memorias_para_prompt",
+    "montar_contexto_memorias",
+    "montar_orientacao_turno",
+    "montar_prompt_sistema",
+    "montar_diagnostico_composicao",
+]
