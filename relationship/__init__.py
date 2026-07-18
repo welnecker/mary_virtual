@@ -1,3 +1,19 @@
+from relationship.engine import (
+    EMOTIONAL_STAGE_REQUIREMENTS,
+    SEXUAL_LEVEL_REQUIREMENTS,
+    aplicar_incrementos_relacao,
+    atualizar_estado_relacao,
+    atualizar_estagio_emocional,
+    atualizar_nivel_sexual,
+    calcular_estagio_emocional_maximo,
+    calcular_incrementos_relacao,
+    calcular_nivel_sexual_maximo,
+    montar_resumo_relacao,
+    requisitos_estagio_emocional_atendidos,
+    requisitos_nivel_sexual_atendidos,
+    simular_atualizacao_relacao,
+)
+
 from relationship.signals import (
     DEFAULT_RELATIONSHIP_SIGNALS,
     calcular_forca_sinais,
@@ -53,4 +69,17 @@ __all__ = [
     "DEFAULT_RELATIONSHIP_SIGNALS",
     "calcular_forca_sinais",
     "detectar_sinais_relacao",
+    "EMOTIONAL_STAGE_REQUIREMENTS",
+    "SEXUAL_LEVEL_REQUIREMENTS",
+    "calcular_incrementos_relacao",
+    "aplicar_incrementos_relacao",
+    "requisitos_estagio_emocional_atendidos",
+    "calcular_estagio_emocional_maximo",
+    "atualizar_estagio_emocional",
+    "requisitos_nivel_sexual_atendidos",
+    "calcular_nivel_sexual_maximo",
+    "atualizar_nivel_sexual",
+    "montar_resumo_relacao",
+    "atualizar_estado_relacao",
+    "simular_atualizacao_relacao",
 ]
