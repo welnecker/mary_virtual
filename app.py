@@ -53,6 +53,7 @@ from relationship import (
     atualizar_estado_sexual_apos_resposta,
     criar_estado_relacao_padrao,
     detectar_sinais_relacao,
+    montar_resumo_estado_relacao,
     normalizar_estado_relacao,
     planejar_direcao_turno,
     planejar_iniciativa_mary,
@@ -1093,6 +1094,121 @@ def renderizar_diagnostico_perfil() -> None:
             ]
         )
 
+        relationship_state = normalizar_estado_relacao(
+            st.session_state.get(
+                "relationship_state"
+            )
+        )
+
+        st.markdown(
+            "**Estado canônico da relação**"
+        )
+
+        st.json(
+            montar_resumo_estado_relacao(
+                relationship_state
+            )
+        )
+
+        st.markdown(
+            "**Estado interno de Mary**"
+        )
+
+        st.json(
+            relationship_state.get(
+                "mary_internal_state",
+                {},
+            )
+        )
+
+        st.markdown(
+            "**Estado da experiência**"
+        )
+
+        st.json(
+            relationship_state.get(
+                "experience_state",
+                {},
+            )
+        )
+
+        st.markdown(
+            "**Estado de voz**"
+        )
+
+        st.json(
+            relationship_state.get(
+                "voice_state",
+                {},
+            )
+        )
+
+        st.markdown(
+            "**Intenção atual do turno**"
+        )
+
+        st.json(
+            relationship_state.get(
+                "current_turn_intent",
+                {},
+            )
+        )
+
+        st.markdown(
+            "**Direção atual do turno**"
+        )
+
+        st.json(
+            relationship_state.get(
+                "current_turn_direction",
+                {},
+            )
+        )
+
+        st.markdown(
+            "**Últimos sinais detectados**"
+        )
+
+        st.json(
+            relationship_state.get(
+                "last_relationship_signals",
+                {},
+            )
+        )
+
+        st.markdown(
+            "**Últimos incrementos da relação**"
+        )
+
+        st.json(
+            relationship_state.get(
+                "last_relationship_increments",
+                {},
+            )
+        )
+
+        st.markdown(
+            "**Estado sexual**"
+        )
+
+        st.json(
+            relationship_state.get(
+                "sexual_state",
+                {},
+            )
+        )
+
+        st.markdown(
+            "**Última validação sexual**"
+        )
+
+        st.json(
+            relationship_state.get(
+                "last_sexual_validation",
+                {},
+            )
+        )
+
         st.caption(
             "O diagnóstico é temporário e poderá "
             "ser removido depois dos testes."
@@ -1102,7 +1218,9 @@ def renderizar_diagnostico_perfil() -> None:
             "user_profile"
         ]
 
-        if not profile.get("name"):
+        if not profile.get(
+            "name"
+        ):
             if st.button(
                 "Teste: exibir campo de nome",
                 use_container_width=True,
@@ -1560,11 +1678,7 @@ def processar_interacao(
             turn_intent=turn_intent,
         )
     )
-
-    st.session_state[
-        "relationship_state"
-    ] = relationship_state
-
+   
     st.session_state[
         "relationship_state"
     ] = relationship_state
@@ -1759,11 +1873,7 @@ def processar_interacao(
     ] = deepcopy(
         validacao_sexual
     )
-
-    st.session_state[
-        "relationship_state"
-    ] = relationship_state
-
+    
     st.session_state[
         "relationship_state"
     ] = relationship_state
