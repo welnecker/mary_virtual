@@ -16,6 +16,10 @@ from relationship.initiative_engine import (
     DEFAULT_TURN_INTENT,
     normalizar_estado_interno_mary,
 )
+from relationship.sexual_engine import (
+    DEFAULT_SEXUAL_STATE as SEXUAL_ENGINE_DEFAULT_STATE,
+    normalizar_estado_sexual as normalizar_estado_sexual_engine,
+)
 
 
 RELATIONSHIP_STATE_VERSION = (
@@ -28,22 +32,9 @@ RELATIONSHIP_STATE_VERSION = (
 # ==========================================================
 
 
-DEFAULT_SEXUAL_STATE: dict[str, Any] = {
-    "scene_phase": "idle",
-    "previous_scene_phase": "",
-    "arousal_level": 0.0,
-    "tension_level": 0.0,
-    "stimulation_turns": 0,
-    "mary_pre_orgasm": False,
-    "mary_orgasm_allowed": False,
-    "mary_orgasm_done": False,
-    "user_orgasm_pending": False,
-    "user_orgasm_done": False,
-    "frustration_state": "",
-    "aftercare_required": False,
-    "last_stimulus_type": "",
-    "last_transition_reason": "",
-}
+DEFAULT_SEXUAL_STATE: dict[str, Any] = deepcopy(
+    SEXUAL_ENGINE_DEFAULT_STATE
+)
 
 
 # ==========================================================
@@ -256,87 +247,9 @@ def criar_estado_sexual_padrao() -> dict[str, Any]:
 def normalizar_estado_sexual(
     value: dict[str, Any] | None,
 ) -> dict[str, Any]:
-    state = criar_estado_sexual_padrao()
-
-    if isinstance(
-        value,
-        dict,
-    ):
-        state.update(
-            deepcopy(
-                value
-            )
-        )
-
-    state["scene_phase"] = (
-        normalizar_texto(
-            state.get(
-                "scene_phase"
-            ),
-            default="idle",
-        )
-        or "idle"
+    return normalizar_estado_sexual_engine(
+        value
     )
-
-    state["previous_scene_phase"] = (
-        normalizar_texto(
-            state.get(
-                "previous_scene_phase"
-            )
-        )
-    )
-
-    state["arousal_level"] = limitar_valor(
-        state.get(
-            "arousal_level",
-            0.0,
-        )
-    )
-
-    state["tension_level"] = limitar_valor(
-        state.get(
-            "tension_level",
-            0.0,
-        )
-    )
-
-    state["stimulation_turns"] = max(
-        0,
-        safe_int(
-            state.get(
-                "stimulation_turns",
-                0,
-            )
-        ),
-    )
-
-    boolean_fields = (
-        "mary_pre_orgasm",
-        "mary_orgasm_allowed",
-        "mary_orgasm_done",
-        "user_orgasm_pending",
-        "user_orgasm_done",
-        "aftercare_required",
-    )
-
-    for field in boolean_fields:
-        state[field] = normalizar_bool(
-            state.get(field),
-            default=False,
-        )
-
-    text_fields = (
-        "frustration_state",
-        "last_stimulus_type",
-        "last_transition_reason",
-    )
-
-    for field in text_fields:
-        state[field] = normalizar_texto(
-            state.get(field)
-        )
-
-    return state
 
 
 # ==========================================================
