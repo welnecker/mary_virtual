@@ -32,6 +32,19 @@ def gravar_token_url(token: str) -> None:
         QUERY_PARAM_USER_TOKEN
     ] = token
 
+def remover_token_url() -> None:
+    """
+    Remove da URL o token do usuário atual.
+
+    Deve ser chamado depois que o cadastro do usuário
+    for excluído da planilha.
+    """
+
+    if QUERY_PARAM_USER_TOKEN in st.query_params:
+        del st.query_params[
+            QUERY_PARAM_USER_TOKEN
+        ]
+
 
 def obter_ou_criar_usuario_atual(
 ) -> dict[str, Any]:
