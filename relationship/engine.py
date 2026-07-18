@@ -99,54 +99,59 @@ SEXUAL_LEVEL_REQUIREMENTS: dict[int, dict[str, Any]] = {
             EMOTIONAL_STAGE_FIRST_CONTACT
         ),
     },
+
     SEXUAL_LEVEL_ATTRACTION: {
+        "min_interactions": 2,
+        "min_familiarity": 0.08,
+        "min_trust": 0.02,
+        "min_affection": 0.01,
+        "min_romantic_tension": 0.08,
+        "min_emotional_stage": (
+            EMOTIONAL_STAGE_FIRST_CONTACT
+        ),
+    },
+
+    SEXUAL_LEVEL_FLIRT: {
         "min_interactions": 4,
-        "min_familiarity": 0.15,
-        "min_trust": 0.06,
-        "min_affection": 0.04,
-        "min_romantic_tension": 0.12,
+        "min_familiarity": 0.16,
+        "min_trust": 0.08,
+        "min_affection": 0.06,
+        "min_romantic_tension": 0.20,
         "min_emotional_stage": (
             EMOTIONAL_STAGE_ACQUAINTANCE
         ),
     },
-    SEXUAL_LEVEL_FLIRT: {
-        "min_interactions": 8,
-        "min_familiarity": 0.28,
+
+    SEXUAL_LEVEL_DESIRE: {
+        "min_interactions": 7,
+        "min_familiarity": 0.26,
         "min_trust": 0.16,
         "min_affection": 0.12,
-        "min_romantic_tension": 0.28,
+        "min_romantic_tension": 0.36,
         "min_emotional_stage": (
-            EMOTIONAL_STAGE_CONNECTION
+            EMOTIONAL_STAGE_ACQUAINTANCE
         ),
     },
-    SEXUAL_LEVEL_DESIRE: {
-        "min_interactions": 14,
-        "min_familiarity": 0.42,
-        "min_trust": 0.30,
-        "min_affection": 0.24,
-        "min_romantic_tension": 0.48,
-        "min_emotional_stage": (
-            EMOTIONAL_STAGE_CONNECTION
-        ),
-    },
+
     SEXUAL_LEVEL_INTIMACY: {
-        "min_interactions": 22,
-        "min_familiarity": 0.60,
-        "min_trust": 0.52,
-        "min_affection": 0.42,
-        "min_romantic_tension": 0.66,
+        "min_interactions": 11,
+        "min_familiarity": 0.40,
+        "min_trust": 0.28,
+        "min_affection": 0.22,
+        "min_romantic_tension": 0.54,
+        "min_emotional_stage": (
+            EMOTIONAL_STAGE_CONNECTION
+        ),
+    },
+
+    SEXUAL_LEVEL_DEEP_INTIMACY: {
+        "min_interactions": 24,
+        "min_familiarity": 0.68,
+        "min_trust": 0.58,
+        "min_affection": 0.52,
+        "min_romantic_tension": 0.74,
         "min_emotional_stage": (
             EMOTIONAL_STAGE_INTIMACY
-        ),
-    },
-    SEXUAL_LEVEL_DEEP_INTIMACY: {
-        "min_interactions": 38,
-        "min_familiarity": 0.80,
-        "min_trust": 0.74,
-        "min_affection": 0.66,
-        "min_romantic_tension": 0.82,
-        "min_emotional_stage": (
-            EMOTIONAL_STAGE_DEEP_BOND
         ),
     },
 }
