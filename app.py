@@ -20,6 +20,7 @@ from google_sheets_repository import (
     criar_sessao,
     encerrar_sessoes_ativas_usuario,
     gerar_id,
+    listar_interacoes_usuario,
     obter_ou_criar_relacionamento_mary,
     salvar_interacao,
 )
@@ -127,6 +128,11 @@ def inicializar_sessao_local() -> None:
     st.session_state.setdefault(
         "pending_image",
         None,
+    )
+
+    st.session_state.setdefault(
+        "history_restored",
+        False,
     )
 
     if "user_profile" not in st.session_state:
@@ -312,6 +318,77 @@ def hidratar_relacionamento_mary(
         "mary_profile"
     ] = mary_profile
 
+def restaurar_historico_interacoes(
+    user_id: str,
+) -> None:
+    if st.session_state.get(
+        "history_restored"
+    ):
+        return
+
+    interacoes = listar_interacoes_usuario(
+        user_id,
+        limite=50,
+    )
+
+    mensagens: list[dict[str, Any]] = []
+
+    for interacao in interacoes:
+        texto_usuario = str(
+            interacao.get("user_text")
+            or ""
+        ).strip()
+
+        resposta_mary = str(
+            interacao.get("mary_response")
+            or ""
+        ).strip()
+
+        erro = str(
+            interacao.get("error")
+            or ""
+        ).strip()
+
+        # Interações com erro não produziram uma
+        # resposta válida da Mary.
+        if erro:
+            continue
+
+        if texto_usuario:
+            mensagens.append(
+                {
+                    "role": "user",
+                    "content": texto_usuario,
+                }
+            )
+
+        if resposta_mary:
+            mensagens.append(
+                {
+                    "role": "assistant",
+                    "content": resposta_mary,
+                }
+            )
+
+    if mensagens:
+        st.session_state[
+            "messages"
+        ] = mensagens
+
+        st.session_state[
+            "initial_message_created"
+        ] = True
+
+        st.session_state[
+            "user_profile"
+        ] = marcar_interacao_realizada(
+            st.session_state["user_profile"]
+        )
+
+    st.session_state[
+        "history_restored"
+    ] = True
+
 
 def inicializar_persistencia(
     modelo: str,
@@ -374,6 +451,10 @@ def inicializar_persistencia(
 
         hidratar_relacionamento_mary(
             relacionamento
+        )
+
+        restaurar_historico_interacoes(
+            user_id
         )
 
         st.session_state[
@@ -499,6 +580,12 @@ def limpar_conversa() -> None:
     st.session_state[
         "initial_message_created"
     ] = False
+
+    # Impede que o histórico seja restaurado
+    # imediatamente no mesmo processo.
+    st.session_state[
+        "history_restored"
+    ] = True
 
 
 def construir_historico_api() -> list[dict[str, Any]]:
@@ -1549,7 +1636,7 @@ def main() -> None:
         renderizar_log_interacoes()
 
         if st.button(
-            "Limpar conversa",
+            "Limpar conversa desta tela",
             use_container_width=True,
         ):
             limpar_conversa()
