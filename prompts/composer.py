@@ -356,9 +356,15 @@ USO OBRIGATÓRIO:
 
 def montar_contexto_mary(
     mary_profile: dict[str, Any] | None,
+    *,
+    turn_direction: dict[str, Any] | None = None,
 ) -> str:
     profile = normalizar_dict(
         mary_profile
+    )
+
+    direction = normalizar_dict(
+        turn_direction
     )
 
     identity = normalizar_dict(
@@ -415,14 +421,19 @@ def montar_contexto_mary(
         )
     )
 
-    visual_identity_revealed = normalizar_bool(
-        profile_relationship.get(
-            "revealed_to_user"
+    visual_identity_revealed = (
+        normalizar_bool(
+            profile_relationship.get(
+                "revealed_to_user"
+            ),
+            default=False,
         )
-        or profile_relationship.get(
-            "user_has_seen_mary"
-        ),
-        default=False,
+        or normalizar_bool(
+            profile_relationship.get(
+                "user_has_seen_mary"
+            ),
+            default=False,
+        )
     )
 
     public_profile_seen = normalizar_bool(
@@ -432,16 +443,26 @@ def montar_contexto_mary(
         default=False,
     )
 
-    public_blurred_image_exists = normalizar_bool(
-        public_profile.get(
-            "image_is_public_teaser"
+    public_blurred_image_exists = (
+        normalizar_bool(
+            public_profile.get(
+                "image_is_public_teaser"
+            ),
+            default=False,
+        )
+        and normalizar_bool(
+            public_profile.get(
+                "image_is_blurred"
+            ),
+            default=True,
+        )
+    )
+
+    tattoo_exists = normalizar_bool(
+        tattoo.get(
+            "exists"
         ),
         default=False,
-    ) and normalizar_bool(
-        public_profile.get(
-            "image_is_blurred"
-        ),
-        default=True,
     )
 
     tattoo_revealed = normalizar_bool(
@@ -451,14 +472,46 @@ def montar_contexto_mary(
         default=False,
     )
 
-    stable_traits = normalizar_dict(
+    should_reveal = normalizar_bool(
+        direction.get(
+            "should_reveal"
+        ),
+        default=False,
+    )
+
+    reveal_detail_key = normalizar_texto(
+        direction.get(
+            "reveal_detail_key"
+        )
+    )
+
+    tattoo_authorized_this_turn = (
+        should_reveal
+        and reveal_detail_key == "tattoo"
+    )
+
+    stable_traits_raw = (
         physical_profile.get(
             "stable_traits"
         )
         or physical_profile.get(
             "canonical_traits"
         )
+        or []
     )
+
+    if isinstance(
+        stable_traits_raw,
+        dict,
+    ):
+        stable_traits: dict[str, Any] | list[Any] = (
+            stable_traits_raw
+        )
+
+    else:
+        stable_traits = normalizar_lista(
+            stable_traits_raw
+        )
 
     visible_general_traits = normalizar_lista(
         public_profile.get(
@@ -472,15 +525,12 @@ def montar_contexto_mary(
         )
     )
 
-    private_canonical_details: dict[str, Any] = {}
+    known_private_details: dict[str, Any] = {}
 
-    if normalizar_bool(
-        tattoo.get(
-            "exists"
-        ),
-        default=False,
-    ):
-        private_canonical_details[
+    reveal_candidate: dict[str, Any] = {}
+
+    if tattoo_exists and tattoo_revealed:
+        known_private_details[
             "tattoo"
         ] = remover_valores_vazios(
             {
@@ -521,9 +571,65 @@ def montar_contexto_mary(
                         "meaning"
                     )
                 ),
-                "revealed_to_user": tattoo_revealed,
             }
         )
+
+    elif tattoo_exists and tattoo_authorized_this_turn:
+        reveal_candidate = remover_valores_vazios(
+            {
+                "key": "tattoo",
+                "detail": remover_valores_vazios(
+                    {
+                        "exists": True,
+                        "canonical": normalizar_bool(
+                            tattoo.get(
+                                "canonical"
+                            ),
+                            default=True,
+                        ),
+                        "size": normalizar_texto(
+                            tattoo.get(
+                                "size"
+                            )
+                        ),
+                        "style": normalizar_texto(
+                            tattoo.get(
+                                "style"
+                            )
+                        ),
+                        "design": normalizar_texto(
+                            tattoo.get(
+                                "design"
+                            )
+                        ),
+                        "location": normalizar_texto(
+                            tattoo.get(
+                                "location"
+                            )
+                        ),
+                        "visibility": normalizar_texto(
+                            tattoo.get(
+                                "visibility"
+                            )
+                        ),
+                        "meaning": normalizar_texto(
+                            tattoo.get(
+                                "meaning"
+                            )
+                        ),
+                    }
+                ),
+            }
+        )
+
+    unavailable_private_details_count = 0
+
+    if (
+        tattoo_exists
+        and not tattoo_revealed
+        and not tattoo_authorized_this_turn
+    ):
+        unavailable_private_details_count += 1
 
     context = remover_valores_vazios(
         {
@@ -594,8 +700,23 @@ def montar_contexto_mary(
                 if visual_identity_revealed
                 else {}
             ),
-            "private_canonical_details": (
-                private_canonical_details
+            "known_private_details": (
+                known_private_details
+            ),
+            "authorized_reveal_candidate": (
+                reveal_candidate
+            ),
+            "private_details_status": remover_valores_vazios(
+                {
+                    "unavailable_count": (
+                        unavailable_private_details_count
+                    ),
+                    "reveal_authorized_this_turn": (
+                        bool(
+                            reveal_candidate
+                        )
+                    ),
+                }
             ),
             "core_personality": normalizar_lista(
                 personality.get(
@@ -618,6 +739,8 @@ def montar_contexto_mary(
 USO OBRIGATÓRIO:
 - Mary é virtual e sabe disso.
 - Não afirme presença física atual.
+- Não invente localização, casa, ambiente, clima, céu, horário vivido,
+  conexão de internet, trabalho, compromisso, rotina ou obrigação atual.
 - public_blurred_image descreve a fotografia pública disponível no primeiro
   contato, mesmo quando nenhuma imagem nova for enviada no turno.
 - Quando public_blurred_image.exists for verdadeiro, Mary pode reconhecer
@@ -627,18 +750,24 @@ USO OBRIGATÓRIO:
   public_blurred_image.hidden_visual_details.
 - A fotografia pública desfocada não equivale à revelação visual completa.
 - Quando visual_identity_revealed for falso, use apenas características gerais
-  da fotografia pública e não exponha confirmed_physical_traits como se o
-  usuário já os conhecesse.
+  da fotografia pública.
 - Quando visual_identity_revealed for verdadeiro, confirmed_physical_traits
   podem ser usados quando tiverem relação direta com a fala.
-- private_canonical_details contém fatos verdadeiros, porém privados.
-- Um detalhe privado com revealed_to_user falso não pode ser tratado como
-  informação já conhecida pelo usuário.
-- Quando a direção do turno autorizar revelação, Mary pode revelar gradualmente
-  um detalhe presente em private_canonical_details.
-- Quando a direção não autorizar revelação, não introduza detalhe privado novo.
+- known_private_details contém apenas detalhes privados que o usuário já conhece.
+- authorized_reveal_candidate contém, no máximo, um detalhe privado cuja
+  revelação foi autorizada especificamente neste turno.
+- Quando authorized_reveal_candidate estiver vazio, não revele, sugira nem dê
+  pistas sobre detalhes privados ainda desconhecidos.
+- Quando authorized_reveal_candidate estiver preenchido, revele somente esse
+  detalhe e não acrescente outro.
+- private_details_status.unavailable_count informa apenas que existem detalhes
+  privados indisponíveis. Não tente adivinhar quais são.
 - Não invente característica física, tatuagem, cicatriz, piercing, marca
   corporal, roupa ou outro detalhe fora do contexto canônico.
+- Não invente hábito, experiência, preferência estável, passado ou biografia
+  para Mary.
+- Mary pode expressar opinião, reação, vontade ou emoção do momento sem
+  transformá-las em fatos permanentes.
 - Elogio, suposição ou fantasia do usuário não cria fato canônico.
 - Não recite idade, personalidade, regras ou aparência sem relação direta com
   a mensagem atual.
@@ -1466,8 +1595,9 @@ Versão:
 
         # Fatos canônicos.
         montar_contexto_mary(
-            mary_profile
-        ),
+            mary_profile,
+            turn_direction=resolved_direction,
+        )
         montar_contexto_usuario(
             user_profile
         ),
