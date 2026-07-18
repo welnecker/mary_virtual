@@ -1592,16 +1592,16 @@ Versão:
 
         # Identidade permanente e limites do ambiente.
         obter_prompt_base(),
-
+    
         # Fatos canônicos.
         montar_contexto_mary(
             mary_profile,
-            turn_direction=resolved_direction,
-        )
+            turn_direction=active_turn_direction,
+        ),
         montar_contexto_usuario(
             user_profile
         ),
-
+    
         # Condições atuais da relação.
         montar_contexto_relacao(
             relationship
