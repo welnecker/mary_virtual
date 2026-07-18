@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import time
 import unicodedata
+from copy import deepcopy
 from typing import Any
 
 import streamlit as st
@@ -47,10 +48,16 @@ from openrouter_client import (
 )
 
 from relationship import (
+    atualizar_estado_relacao,
     atualizar_estado_sexual_antes_resposta,
     atualizar_estado_sexual_apos_resposta,
     criar_estado_relacao_padrao,
+    detectar_sinais_relacao,
     normalizar_estado_relacao,
+    planejar_direcao_turno,
+    planejar_iniciativa_mary,
+    sincronizar_direcao_apos_resposta,
+    sincronizar_iniciativa_apos_resposta,
     validar_resposta_sexual,
 )
 
@@ -1503,8 +1510,28 @@ def processar_interacao(
         sexual_state,
     ) = obter_estados_relacao()
 
-    sexual_state_anterior = dict(
-        sexual_state
+    # O planejamento dos motores modifica vários blocos do estado.
+    # Em caso de falha da API, todo o estado será restaurado.
+    relationship_state_anterior = deepcopy(
+        relationship_state
+    )
+
+    interaction_count = int(
+        relationship_state.get(
+            "interaction_count",
+            0,
+        )
+        or 0
+    )
+
+    signals = detectar_sinais_relacao(
+        user_text=user_display,
+        mary_response="",
+        interaction_count=interaction_count,
+        has_image=(
+            prepared_image is not None
+        ),
+        user_returned=False,
     )
 
     sexual_state = (
@@ -1518,6 +1545,25 @@ def processar_interacao(
     relationship_state[
         "sexual_state"
     ] = sexual_state
+
+    relationship_state, turn_intent = (
+        planejar_iniciativa_mary(
+            relationship_state,
+            signals=signals,
+        )
+    )
+
+    relationship_state, turn_direction = (
+        planejar_direcao_turno(
+            relationship_state,
+            signals=signals,
+            turn_intent=turn_intent,
+        )
+    )
+
+    st.session_state[
+        "relationship_state"
+    ] = relationship_state
 
     st.session_state[
         "relationship_state"
@@ -1537,6 +1583,8 @@ def processar_interacao(
                     relationship_state
                 ),
                 sexual_state=sexual_state,
+                turn_intent=turn_intent,
+                turn_direction=turn_direction,
                 memories=[],
                 user_message=user_display,
                 has_image=(
@@ -1587,13 +1635,9 @@ def processar_interacao(
                     * 1000
                 )
 
-                relationship_state[
-                    "sexual_state"
-                ] = sexual_state_anterior
-
                 st.session_state[
                     "relationship_state"
-                ] = relationship_state
+                ] = relationship_state_anterior
 
                 registro_erro = (
                     criar_registro_interacao(
@@ -1672,15 +1716,53 @@ def processar_interacao(
         "sexual_state"
     ] = sexual_state
 
-    relationship_state[
-        "interaction_count"
-    ] = int(
-        relationship_state.get(
-            "interaction_count",
-            0,
+    # Observa também o que Mary efetivamente respondeu.
+    # Os campos mary_* são diagnósticos e não aumentam o vínculo.
+    completed_signals = detectar_sinais_relacao(
+        user_text=user_display,
+        mary_response=resposta,
+        interaction_count=int(
+            relationship_state.get(
+                "interaction_count",
+                0,
+            )
+            or 0
+        ),
+        has_image=(
+            prepared_image is not None
+        ),
+        user_returned=False,
+    )
+
+    relationship_state = (
+        sincronizar_iniciativa_apos_resposta(
+            relationship_state,
+            turn_intent=turn_intent,
         )
-        or 0
-    ) + 1
+    )
+
+    relationship_state = (
+        sincronizar_direcao_apos_resposta(
+            relationship_state,
+            turn_direction=turn_direction,
+        )
+    )
+
+    relationship_state = atualizar_estado_relacao(
+        relationship_state,
+        signals=completed_signals,
+        incrementar_interacao=True,
+    )
+
+    relationship_state[
+        "last_sexual_validation"
+    ] = deepcopy(
+        validacao_sexual
+    )
+
+    st.session_state[
+        "relationship_state"
+    ] = relationship_state
 
     st.session_state[
         "relationship_state"
