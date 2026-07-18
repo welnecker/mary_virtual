@@ -326,18 +326,22 @@ def calcular_incrementos_relacao(
     if signals_normalized.get(
         "romantic_signal"
     ):
-        romantic_delta += 0.040
-        affection_delta += 0.018
+        romantic_delta += 0.045
+        affection_delta += 0.024
+        trust_delta += 0.008
 
     if signals_normalized.get(
         "sexual_signal"
     ):
-        romantic_delta += 0.028
+        romantic_delta += 0.035
+        affection_delta += 0.010
+        familiarity_delta += 0.008
 
     if signals_normalized.get(
         "explicit_sexual_signal"
     ):
-        romantic_delta += 0.022
+        romantic_delta += 0.030
+        familiarity_delta += 0.006
 
     if signals_normalized.get(
         "respect_signal"
