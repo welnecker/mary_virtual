@@ -19,13 +19,18 @@ from google_sheets_repository import (
     GoogleSheetsRepositoryError,
     atualizar_usuario,
     criar_sessao,
+    deletar_usuario_e_dados,
     encerrar_sessoes_ativas_usuario,
     gerar_id,
+    limpar_dados_interacao_usuario,
     listar_interacoes_usuario,
     obter_ou_criar_relacionamento_mary,
     salvar_interacao,
 )
-from identity_service import obter_ou_criar_usuario_atual
+from identity_service import (
+    obter_ou_criar_usuario_atual,
+    remover_token_url,
+)
 from interaction_log import (
     adicionar_registro_sessao,
     criar_registro_interacao,
@@ -657,6 +662,171 @@ def limpar_conversa() -> None:
     st.session_state[
         "history_restored"
     ] = True
+
+def obter_user_id_persistente() -> str:
+    usuario = st.session_state.get(
+        "persistent_user"
+    ) or {}
+
+    user_id = str(
+        usuario.get(
+            "user_id"
+        )
+        or ""
+    ).strip()
+
+    if not user_id:
+        raise GoogleSheetsRepositoryError(
+            "Não foi possível identificar o usuário atual."
+        )
+
+    return user_id
+
+
+def resetar_estado_local_relacionamento(
+    *,
+    preservar_usuario: bool,
+) -> None:
+    """
+    Limpa os estados locais ligados à conversa e à relação.
+
+    Quando preservar_usuario for verdadeiro, o cadastro e
+    o token atuais permanecem disponíveis para que uma nova
+    sessão seja criada para o mesmo usuário.
+
+    A autenticação por senha do aplicativo é preservada.
+    """
+
+    usuario_atual = st.session_state.get(
+        "persistent_user"
+    )
+
+    token_atual = st.session_state.get(
+        "persistent_user_token"
+    )
+
+    st.session_state[
+        "messages"
+    ] = []
+
+    st.session_state[
+        "interaction_logs"
+    ] = []
+
+    st.session_state[
+        "pending_image"
+    ] = None
+
+    st.session_state[
+        "pending_user_image_confirmation"
+    ] = None
+
+    st.session_state[
+        "pending_mary_image"
+    ] = None
+
+    st.session_state[
+        "show_name_form"
+    ] = False
+
+    st.session_state[
+        "initial_message_created"
+    ] = False
+
+    st.session_state[
+        "history_restored"
+    ] = False
+
+    st.session_state[
+        "persistence_initialized"
+    ] = False
+
+    st.session_state[
+        "persistent_session"
+    ] = None
+
+    st.session_state[
+        "mary_relationship"
+    ] = None
+
+    st.session_state[
+        "interaction_session_id"
+    ] = criar_session_id()
+
+    st.session_state[
+        "relationship_state"
+    ] = criar_estado_relacao_padrao()
+
+    st.session_state[
+        "mary_profile"
+    ] = criar_mary_profile_padrao()
+
+    st.session_state[
+        "user_profile"
+    ] = criar_perfil_padrao()
+
+    st.session_state[
+        "last_sexual_validation"
+    ] = {
+        "valid": True,
+        "errors": [],
+    }
+
+    if preservar_usuario:
+        st.session_state[
+            "persistent_user"
+        ] = usuario_atual
+
+        st.session_state[
+            "persistent_user_token"
+        ] = token_atual
+
+    else:
+        st.session_state[
+            "persistent_user"
+        ] = None
+
+        st.session_state[
+            "persistent_user_token"
+        ] = None
+
+def executar_limpeza_interacoes() -> dict[str, int]:
+    """
+    Apaga da planilha todos os dados de conversa do
+    usuário atual, preservando o cadastro e o token.
+    """
+
+    user_id = obter_user_id_persistente()
+
+    resultado = limpar_dados_interacao_usuario(
+        user_id
+    )
+
+    resetar_estado_local_relacionamento(
+        preservar_usuario=True,
+    )
+
+    return resultado
+
+def executar_exclusao_usuario() -> dict[str, int]:
+    """
+    Apaga todos os registros do usuário, remove o cadastro
+    da aba USERS e descarta o token da URL.
+    """
+
+    user_id = obter_user_id_persistente()
+
+    resultado = deletar_usuario_e_dados(
+        user_id
+    )
+
+    resetar_estado_local_relacionamento(
+        preservar_usuario=False,
+    )
+
+    remover_token_url()
+
+    return resultado
 
 
 def construir_historico_api() -> list[dict[str, Any]]:
@@ -1948,6 +2118,32 @@ def main() -> None:
         APP_CAPTION
     )
 
+    mensagem_operacao = st.session_state.pop(
+        "mensagem_operacao_persistente",
+        "",
+    )
+
+    resultado_operacao = st.session_state.pop(
+        "resultado_operacao_persistente",
+        None,
+    )
+
+    if mensagem_operacao:
+        st.success(
+            mensagem_operacao
+        )
+
+    if isinstance(
+        resultado_operacao,
+        dict,
+    ):
+        with st.expander(
+            "Registros removidos"
+        ):
+            st.json(
+                resultado_operacao
+            )
+
     with st.sidebar:
         st.subheader(
             "Configuração"
@@ -1989,11 +2185,98 @@ def main() -> None:
             limpar_conversa()
             st.rerun()
 
+        with st.expander(
+            "Gerenciar dados persistentes"
+        ):
+            st.caption(
+                "As operações abaixo alteram os registros "
+                "salvos no Google Sheets."
+            )
+
+            confirmar_limpeza = st.checkbox(
+                "Confirmo que desejo apagar todas as interações "
+                "e reiniciar a relação com Mary",
+                key="confirmar_limpeza_interacoes",
+            )
+
+            if st.button(
+                "Limpar interações",
+                use_container_width=True,
+                disabled=not confirmar_limpeza,
+            ):
+                try:
+                    with st.spinner(
+                        "Limpando interações..."
+                    ):
+                        resultado = (
+                            executar_limpeza_interacoes()
+                        )
+
+                    st.session_state[
+                        "mensagem_operacao_persistente"
+                    ] = (
+                        "As interações foram apagadas. "
+                        "O usuário cadastrado foi preservado."
+                    )
+
+                    st.session_state[
+                        "resultado_operacao_persistente"
+                    ] = resultado
+
+                    st.rerun()
+
+                except GoogleSheetsRepositoryError as exc:
+                    st.error(
+                        "Não foi possível limpar as interações: "
+                        f"{exc}"
+                    )
+
+            st.divider()
+
+            confirmar_exclusao = st.checkbox(
+                "Confirmo que desejo apagar também o usuário "
+                "cadastrado e criar uma identidade nova",
+                key="confirmar_exclusao_usuario",
+            )
+
+            if st.button(
+                "Deletar usuário cadastrado",
+                use_container_width=True,
+                type="primary",
+                disabled=not confirmar_exclusao,
+            ):
+                try:
+                    with st.spinner(
+                        "Excluindo usuário e dados..."
+                    ):
+                        resultado = (
+                            executar_exclusao_usuario()
+                        )
+
+                    st.session_state[
+                        "mensagem_operacao_persistente"
+                    ] = (
+                        "O usuário anterior e todos os dados "
+                        "vinculados foram apagados."
+                    )
+
+                    st.session_state[
+                        "resultado_operacao_persistente"
+                    ] = resultado
+
+                    st.rerun()
+
+                except GoogleSheetsRepositoryError as exc:
+                    st.error(
+                        "Não foi possível excluir o usuário: "
+                        f"{exc}"
+                    )
+
     garantir_mensagem_inicial()
 
     if deve_exibir_perfil_publico_mary():
         renderizar_perfil_publico_mary()
-    
+
     for message in st.session_state[
         "messages"
     ]:
