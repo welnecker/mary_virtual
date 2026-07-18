@@ -103,6 +103,9 @@ DEFAULT_RELATIONSHIP_STATE: dict[str, Any] = {
     # Diagnósticos e sinais do último ciclo.
     "last_relationship_signals": {},
     "last_sexual_validation": {},
+    "last_relationship_increments": {},
+    "last_emotional_transition_reason": "",
+    "last_sexual_transition_reason": "",
 
     # Controle temporal.
     "created_at": "",
@@ -448,7 +451,7 @@ def normalizar_estado_relacao(
         dict,
     ):
         return normalized
-
+    
     normalized[
         "state_version"
     ] = RELATIONSHIP_STATE_VERSION
@@ -510,6 +513,30 @@ def normalizar_estado_relacao(
                 )
             ),
         ),
+    )
+
+    normalized[
+        "last_relationship_increments"
+    ] = normalizar_dict(
+        state.get(
+            "last_relationship_increments"
+        )
+    )
+    
+    normalized[
+        "last_emotional_transition_reason"
+    ] = normalizar_texto(
+        state.get(
+            "last_emotional_transition_reason"
+        )
+    )
+    
+    normalized[
+        "last_sexual_transition_reason"
+    ] = normalizar_texto(
+        state.get(
+            "last_sexual_transition_reason"
+        )
     )
 
     metric_aliases = {
