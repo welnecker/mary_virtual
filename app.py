@@ -31,7 +31,14 @@ from interaction_log import (
     exportar_logs_json,
     exportar_logs_jsonl,
 )
-from mary_profile import criar_mary_profile_padrao
+from mary_profile import (
+    criar_mary_profile_padrao,
+    imagem_publica_existe,
+    marcar_perfil_publico_visto,
+    normalizar_mary_profile,
+    obter_caminho_imagem_publica,
+    obter_perfil_publico,
+)
 from mary_prompt import montar_prompt_sistema
 from openrouter_client import (
     OpenRouterError,
@@ -131,6 +138,12 @@ def inicializar_sessao_local() -> None:
         st.session_state[
             "mary_profile"
         ] = criar_mary_profile_padrao()
+    else:
+        st.session_state[
+            "mary_profile"
+        ] = normalizar_mary_profile(
+            st.session_state["mary_profile"]
+        )
 
     st.session_state.setdefault(
         "pending_user_image_confirmation",
@@ -227,9 +240,9 @@ def hidratar_perfil_usuario(
 def hidratar_relacionamento_mary(
     relacionamento: dict[str, Any],
 ) -> None:
-    mary_profile = st.session_state[
-        "mary_profile"
-    ]
+    mary_profile = normalizar_mary_profile(
+        st.session_state["mary_profile"]
+    )
 
     relationship_state = mary_profile.setdefault(
         "relationship_state",
@@ -278,6 +291,18 @@ def hidratar_relacionamento_mary(
         )
         or ""
     ).strip()
+
+    # A visualização do perfil público é diferente
+    # da revelação visual real de Mary.
+    relationship_state.setdefault(
+        "public_profile_seen",
+        False,
+    )
+
+    relationship_state.setdefault(
+        "public_profile_seen_at",
+        "",
+    )
 
     mary_profile[
         "relationship_state"
@@ -398,21 +423,19 @@ def garantir_mensagem_inicial() -> None:
 
     if nome and access_count > 1:
         mensagem = (
-            f"Oi, {nome}. É bom encontrar você "
-            "por aqui outra vez."
+            f"Oi, {nome}. Gostei de ver você por aqui outra vez."
         )
 
     elif nome:
         mensagem = (
-            f"Oi, {nome}. Agora podemos conversar "
-            "com calma."
+            f"Oi, {nome}. Agora fiquei curiosa pra ver "
+            "como a nossa conversa começa."
         )
 
     else:
         mensagem = (
-            "Oi... gostei de você ter aparecido. "
-            "Pode falar comigo do jeito que se sentir "
-            "mais à vontade."
+            "Oi... parece que esse é o nosso primeiro contato. "
+            "Pode começar por onde tiver vontade."
         )
 
     st.session_state[
@@ -427,6 +450,29 @@ def garantir_mensagem_inicial() -> None:
     st.session_state[
         "initial_message_created"
     ] = True
+
+def deve_exibir_perfil_publico_mary() -> bool:
+    user_profile = st.session_state.get(
+        "user_profile"
+    ) or {}
+
+    milestones = user_profile.get(
+        "milestones"
+    )
+
+    if not isinstance(
+        milestones,
+        dict,
+    ):
+        milestones = {}
+
+    has_interacted = converter_booleano(
+        milestones.get(
+            "has_interacted"
+        )
+    )
+
+    return not has_interacted
 
 
 def limpar_conversa() -> None:
@@ -680,6 +726,92 @@ def renderizar_cadastro_nome() -> None:
         )
 
         st.rerun()
+
+def renderizar_perfil_publico_mary() -> None:
+    mary_profile = normalizar_mary_profile(
+        st.session_state["mary_profile"]
+    )
+
+    public_profile = obter_perfil_publico(
+        mary_profile
+    )
+
+    nome = str(
+        public_profile.get("display_name")
+        or mary_profile.get("name")
+        or "Mary"
+    ).strip()
+
+    idade = mary_profile.get(
+        "age",
+        25,
+    )
+
+    headline = str(
+        public_profile.get("headline")
+        or ""
+    ).strip()
+
+    bio = str(
+        public_profile.get("bio")
+        or ""
+    ).strip()
+
+    image_alt_text = str(
+        public_profile.get("image_alt_text")
+        or "Imagem pública desfocada de Mary."
+    ).strip()
+
+    image_path = obter_caminho_imagem_publica(
+        mary_profile
+    )
+
+    with st.container(
+        border=True
+    ):
+        if imagem_publica_existe(
+            mary_profile
+        ):
+            st.image(
+                image_path,
+                caption=image_alt_text,
+                use_container_width=True,
+            )
+        else:
+            st.warning(
+                "A imagem pública de Mary não foi "
+                f"encontrada em: {image_path}"
+            )
+
+        st.markdown(
+            f"### {nome}, {idade}"
+        )
+
+        if headline:
+            st.markdown(
+                f"**{headline}**"
+            )
+
+        if bio:
+            st.write(
+                bio
+            )
+
+        st.caption(
+            "Perfil virtual · fotografia propositalmente "
+            "desfocada"
+        )
+
+    if not mary_profile[
+        "relationship_state"
+    ].get(
+        "public_profile_seen"
+    ):
+        st.session_state[
+            "mary_profile"
+        ] = marcar_perfil_publico_visto(
+            mary_profile
+        )
 
 
 def renderizar_mensagem(
@@ -1425,6 +1557,9 @@ def main() -> None:
 
     garantir_mensagem_inicial()
 
+    if deve_exibir_perfil_publico_mary():
+        renderizar_perfil_publico_mary()
+    
     for message in st.session_state[
         "messages"
     ]:
