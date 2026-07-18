@@ -8,8 +8,15 @@ from prompts.emotional import obter_prompt_emocional
 from prompts.sexual import obter_prompt_sexual
 from prompts.voice import obter_prompt_voz
 
+from relationship.director_engine import (
+    montar_contexto_direcao,
+)
+from relationship.initiative_engine import (
+    montar_contexto_iniciativa,
+)
 
-PROMPT_COMPOSER_VERSION = "prompt-composer-v1"
+
+PROMPT_COMPOSER_VERSION = "prompt-composer-v2-agency-director"
 
 
 # ==========================================================
@@ -210,6 +217,64 @@ def remover_valores_vazios(
         ] = value
 
     return result
+
+# ==========================================================
+# ESTADOS ATIVOS DO TURNO
+# ==========================================================
+
+
+def resolver_intencao_turno(
+    relationship_state: dict[str, Any] | None,
+    turn_intent: dict[str, Any] | None,
+) -> dict[str, Any]:
+    if isinstance(
+        turn_intent,
+        dict,
+    ) and turn_intent:
+        return turn_intent
+
+    relationship = normalizar_dict(
+        relationship_state
+    )
+
+    current_intent = relationship.get(
+        "current_turn_intent"
+    )
+
+    if isinstance(
+        current_intent,
+        dict,
+    ):
+        return current_intent
+
+    return {}
+
+
+def resolver_direcao_turno(
+    relationship_state: dict[str, Any] | None,
+    turn_direction: dict[str, Any] | None,
+) -> dict[str, Any]:
+    if isinstance(
+        turn_direction,
+        dict,
+    ) and turn_direction:
+        return turn_direction
+
+    relationship = normalizar_dict(
+        relationship_state
+    )
+
+    current_direction = relationship.get(
+        "current_turn_direction"
+    )
+
+    if isinstance(
+        current_direction,
+        dict,
+    ):
+        return current_direction
+
+    return {}
 
 
 # ==========================================================
@@ -673,6 +738,8 @@ def montar_orientacao_turno(
     user_message: str = "",
     has_image: bool = False,
     image_context: str = "",
+    turn_intent: dict[str, Any] | None = None,
+    turn_direction: dict[str, Any] | None = None,
 ) -> str:
     message = limitar_texto(
         user_message,
@@ -684,6 +751,14 @@ def montar_orientacao_turno(
         max_chars=1000,
     )
 
+    intent = normalizar_dict(
+        turn_intent
+    )
+
+    direction = normalizar_dict(
+        turn_direction
+    )
+
     context = remover_valores_vazios(
         {
             "user_message_reference": message,
@@ -693,19 +768,75 @@ def montar_orientacao_turno(
             "confirmed_image_context": (
                 image_context_normalized
             ),
+            "planned_turn_mode": normalizar_texto(
+                intent.get(
+                    "turn_mode"
+                )
+            ),
+            "planned_experience_mode": (
+                normalizar_texto(
+                    direction.get(
+                        "experience_mode"
+                    )
+                )
+            ),
+            "primary_intention": limitar_texto(
+                direction.get(
+                    "primary_intention"
+                ),
+                max_chars=240,
+            ),
+            "emotional_color": normalizar_texto(
+                direction.get(
+                    "emotional_color"
+                )
+            ),
+            "should_lead": normalizar_bool(
+                direction.get(
+                    "should_lead"
+                ),
+                default=False,
+            ),
+            "must_address_user_message": (
+                normalizar_bool(
+                    direction.get(
+                        "must_address_user_message"
+                    ),
+                    default=True,
+                )
+            ),
+            "avoid_question": normalizar_bool(
+                direction.get(
+                    "avoid_question"
+                ),
+                default=False,
+            ),
         }
     )
 
     return f"""
-[ORIENTAÇÃO DO TURNO ATUAL]
+[ORIENTAÇÃO FINAL DO TURNO ATUAL]
 
 {serializar_contexto_compacto(context)}
 
-- Responda ao conteúdo real da mensagem atual.
-- Use o histórico recente para continuidade.
-- Não repita o texto do usuário.
-- Não transforme automaticamente o turno em avanço emocional ou sexual.
-- Quando houver imagem, descreva somente o que estiver visualmente confirmado.
+REGRAS FINAIS:
+- Produza somente a fala de Mary.
+- Responda ao conteúdo real da mensagem atual quando isso estiver indicado.
+- Não repita nem reformule mecanicamente o texto do usuário.
+- Use o histórico recente para preservar continuidade.
+- Mary não deve agir como uma assistente passiva.
+- Quando a direção mandar liderar, responda ao usuário e acrescente iniciativa,
+  opinião, vontade, humor, provocação ou assunto próprio.
+- A iniciativa de Mary pode mudar a energia da conversa.
+- Não transforme automaticamente toda conversa em romance ou sexo.
+- Quando o diretor escolher romance ou sexualidade, execute essa direção sem
+  recuar para uma fala neutra e burocrática.
+- Não mencione intenção, direção, modo, motor, estado ou pontuação.
+- Não tente executar todos os comportamentos possíveis.
+- Realize uma experiência central clara neste turno.
+- Quando avoid_question for verdadeiro, não termine com pergunta.
+- Quando houver imagem, use somente elementos visualmente confirmados.
+- Não invente encontros, toques físicos, fotografias ou acontecimentos reais.
 """.strip()
 
 
@@ -720,6 +851,8 @@ def montar_prompt_sistema(
     user_profile: dict[str, Any] | None = None,
     relationship_state: dict[str, Any] | None = None,
     sexual_state: dict[str, Any] | None = None,
+    turn_intent: dict[str, Any] | None = None,
+    turn_direction: dict[str, Any] | None = None,
     memories: list[dict[str, Any]] | None = None,
     user_message: str = "",
     has_image: bool = False,
@@ -745,6 +878,16 @@ def montar_prompt_sistema(
         )
     )
 
+    active_turn_intent = resolver_intencao_turno(
+        relationship,
+        turn_intent,
+    )
+
+    active_turn_direction = resolver_direcao_turno(
+        relationship,
+        turn_direction,
+    )
+
     blocks: list[str] = [
         f"""
 [PROMPT COMPOSER]
@@ -752,34 +895,62 @@ def montar_prompt_sistema(
 Versão:
 {PROMPT_COMPOSER_VERSION}
 """.strip(),
+
+        # Identidade e limites permanentes.
         obter_prompt_base(),
+
+        # Amplitude verbal completa de Mary.
         obter_prompt_voz(
             incluir_exemplos=include_voice_examples,
         ),
+
+        # Fatos canônicos.
         montar_contexto_mary(
             mary_profile
         ),
         montar_contexto_usuario(
             user_profile
         ),
+
+        # Relação construída.
         montar_contexto_relacao(
             relationship
         ),
         obter_prompt_emocional(
             relationship
         ),
+
+        # Liberdade e continuidade sexual.
         obter_prompt_sexual(
             relationship,
             active_sexual_state,
         ),
+
+        # Fatos relevantes de longo prazo.
         montar_contexto_memorias(
             memories,
             max_memories=max_memories,
         ),
+
+        # O que Mary quer fazer neste turno.
+        montar_contexto_iniciativa(
+            relationship,
+            active_turn_intent,
+        ),
+
+        # Qual experiência e registro verbal executar.
+        montar_contexto_direcao(
+            relationship,
+            active_turn_direction,
+        ),
+
+        # Instrução final ligada à mensagem atual.
         montar_orientacao_turno(
             user_message=user_message,
             has_image=has_image,
             image_context=image_context,
+            turn_intent=active_turn_intent,
+            turn_direction=active_turn_direction,
         ),
     ]
 
@@ -807,6 +978,8 @@ def montar_diagnostico_composicao(
     user_profile: dict[str, Any] | None = None,
     relationship_state: dict[str, Any] | None = None,
     sexual_state: dict[str, Any] | None = None,
+    turn_intent: dict[str, Any] | None = None,
+    turn_direction: dict[str, Any] | None = None,
     memories: list[dict[str, Any]] | None = None,
     include_voice_examples: bool = True,
 ) -> dict[str, Any]:
@@ -827,6 +1000,16 @@ def montar_diagnostico_composicao(
         )
     )
 
+    active_turn_intent = resolver_intencao_turno(
+        relationship,
+        turn_intent,
+    )
+
+    active_turn_direction = resolver_direcao_turno(
+        relationship,
+        turn_direction,
+    )
+
     selected_memories = selecionar_memorias_para_prompt(
         memories
     )
@@ -836,8 +1019,28 @@ def montar_diagnostico_composicao(
         user_profile=user_profile,
         relationship_state=relationship,
         sexual_state=active_sexual_state,
+        turn_intent=active_turn_intent,
+        turn_direction=active_turn_direction,
         memories=selected_memories,
         include_voice_examples=include_voice_examples,
+    )
+
+    voice_state = normalizar_dict(
+        active_turn_direction.get(
+            "voice_state"
+        )
+    )
+
+    mary_internal_state = normalizar_dict(
+        relationship.get(
+            "mary_internal_state"
+        )
+    )
+
+    experience_state = normalizar_dict(
+        relationship.get(
+            "experience_state"
+        )
     )
 
     return {
@@ -869,6 +1072,82 @@ def montar_diagnostico_composicao(
         "sexual_phase": active_sexual_state.get(
             "scene_phase",
             "idle",
+        ),
+        "turn_mode": active_turn_intent.get(
+            "turn_mode",
+            "respond",
+        ),
+        "turn_intensity": active_turn_intent.get(
+            "intensity",
+            0.0,
+        ),
+        "experience_mode": (
+            active_turn_direction.get(
+                "experience_mode",
+                "natural_conversation",
+            )
+        ),
+        "primary_intention": (
+            active_turn_direction.get(
+                "primary_intention",
+                "",
+            )
+        ),
+        "emotional_color": (
+            active_turn_direction.get(
+                "emotional_color",
+                "",
+            )
+        ),
+        "voice_register": (
+            active_turn_direction.get(
+                "voice_register",
+                "natural",
+            )
+        ),
+        "should_lead": active_turn_direction.get(
+            "should_lead",
+            False,
+        ),
+        "surprise_level": (
+            active_turn_direction.get(
+                "surprise_level",
+                0.0,
+            )
+        ),
+        "surprise_budget": experience_state.get(
+            "surprise_budget",
+            0.0,
+        ),
+        "mary_desire": mary_internal_state.get(
+            "current_desire",
+            0.0,
+        ),
+        "mary_curiosity": mary_internal_state.get(
+            "current_curiosity",
+            0.0,
+        ),
+        "mary_initiative_drive": (
+            mary_internal_state.get(
+                "initiative_drive",
+                0.0,
+            )
+        ),
+        "sexual_explicitness": voice_state.get(
+            "sexual_explicitness",
+            0.0,
+        ),
+        "vulgarity": voice_state.get(
+            "vulgarity",
+            0.0,
+        ),
+        "humor": voice_state.get(
+            "humor",
+            0.0,
+        ),
+        "body_confidence": voice_state.get(
+            "body_confidence",
+            0.0,
         ),
         "memory_count": len(
             selected_memories
