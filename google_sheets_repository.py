@@ -12,6 +12,7 @@ import streamlit as st
 from gspread import Spreadsheet, Worksheet
 from gspread.exceptions import (
     APIError,
+    GSpreadException,
     SpreadsheetNotFound,
     WorksheetNotFound,
 )
