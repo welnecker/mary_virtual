@@ -190,27 +190,27 @@ DEFAULT_EXPERIENCE_STATE: dict[str, Any] = {
 
 
 DEFAULT_VOICE_STATE: dict[str, Any] = {
-    "warmth": 0.52,
-    "playfulness": 0.40,
-    "boldness": 0.30,
-    "vulnerability": 0.16,
+    "warmth": 0.34,
+    "playfulness": 0.24,
+    "boldness": 0.12,
+    "vulnerability": 0.10,
     "romantic_intensity": 0.0,
     "sexual_intensity": 0.0,
     "sexual_explicitness": 0.0,
-    "vulgarity": 0.06,
-    "body_confidence": 0.62,
-    "emotional_openness": 0.20,
-    "humor": 0.32,
-    "tenderness": 0.24,
+    "vulgarity": 0.04,
+    "body_confidence": 0.34,
+    "emotional_openness": 0.14,
+    "humor": 0.22,
+    "tenderness": 0.12,
     "jealousy": 0.0,
 }
-
 
 DEFAULT_TURN_DIRECTION: dict[str, Any] = {
     "experience_mode": EXPERIENCE_MODE_NATURAL,
     "primary_intention": "respond_naturally",
     "emotional_color": "natural_presence",
     "voice_register": VOICE_REGISTER_NATURAL,
+    "response_scope": "brief",
     "surprise_level": 0.0,
     "topic_direction": TOPIC_DIRECTION_CURRENT,
     "should_lead": False,
@@ -227,7 +227,7 @@ DEFAULT_TURN_DIRECTION: dict[str, Any] = {
     "must_preserve_current_scene": False,
     "must_avoid_repetition": True,
     "must_address_user_message": True,
-    "avoid_question": False,
+    "avoid_question": True,
     "reason": "default_direction",
     "voice_state": deepcopy(
         DEFAULT_VOICE_STATE
@@ -1453,13 +1453,14 @@ def criar_direcao(
     open_thread_id: str = "",
     callback_memory_id: str = "",
     scene_seed: str = "",
+    response_scope: str = "brief",
     body_focus_allowed: bool = False,
     romantic_expression_allowed: bool = False,
     sexual_expression_allowed: bool = False,
     explicit_sexual_language_allowed: bool = False,
     must_preserve_current_scene: bool = False,
     must_address_user_message: bool = True,
-    avoid_question: bool = False,
+    avoid_question: bool = False,    
 ) -> dict[str, Any]:
     return {
         "experience_mode": (
@@ -1478,6 +1479,9 @@ def criar_direcao(
                 voice_register
             )
         ),
+        "response_scope": str(
+            response_scope or "brief"
+        ).strip().lower(),
         "surprise_level": limitar_valor(
             surprise_level
         ),
@@ -1870,6 +1874,7 @@ def obter_atributos_modo(
             "topic_direction": (
                 TOPIC_DIRECTION_CURRENT
             ),
+            "response_scope": "brief",
             "should_lead": False,
             "should_reveal_something": False,
             "should_create_pending_thread": False,
@@ -2374,6 +2379,10 @@ def planejar_direcao_turno(
         voice_register=voice_register,
         voice_state=voice_state,
         reason=selection_reason,
+        response_scope=attributes.get(
+            "response_scope",
+            "brief",
+        ),
         surprise_level=attributes[
             "surprise_level"
         ],
@@ -2711,6 +2720,9 @@ Cor emocional:
 Registro de voz:
 {direction.get("voice_register", VOICE_REGISTER_NATURAL)}
 
+Escopo da resposta:
+{direction.get("response_scope", "brief")}
+
 Nível de surpresa:
 {limitar_valor(direction.get("surprise_level", 0.0)):.2f}
 
@@ -2792,6 +2804,11 @@ REGRAS DE EXECUÇÃO:
 - Vaidade deve aparecer como traço humano, não como propaganda do próprio corpo.
 - Mary pode ser vulgar, apaixonada, engraçada e carinhosa no mesmo vínculo.
 - Evite repetir a mesma provocação, confissão, pergunta ou frase de efeito.
+- brief: uma frase ou poucas frases; responda e pare.
+- normal: resposta direta e uma contribuição própria.
+- developed: desenvolva apenas a ideia central.
+- scene: preserve e avance somente o movimento atual.
+- Não preencha a resposta para atingir tamanho.
 """.strip()
 
 
