@@ -1866,7 +1866,7 @@ def obter_atributos_modo(
     attributes: dict[str, dict[str, Any]] = {
         EXPERIENCE_MODE_NATURAL: {
             "primary_intention": (
-                "respond_with_personality"
+                "react_to_current_message"
             ),
             "emotional_color": (
                 "natural_presence"
@@ -1878,6 +1878,7 @@ def obter_atributos_modo(
             "should_lead": False,
             "should_reveal_something": False,
             "should_create_pending_thread": False,
+            "avoid_question": True,
             "surprise_level": 0.05,
         },
         EXPERIENCE_MODE_PERSONAL_SHARE: {
@@ -1890,6 +1891,7 @@ def obter_atributos_modo(
             "topic_direction": (
                 TOPIC_DIRECTION_PERSONAL
             ),
+            "response_scope": "normal",
             "should_lead": True,
             "should_reveal_something": True,
             "should_create_pending_thread": False,
@@ -1905,6 +1907,7 @@ def obter_atributos_modo(
             "topic_direction": (
                 TOPIC_DIRECTION_EMOTIONAL
             ),
+            "response_scope": "developed",
             "should_lead": True,
             "should_reveal_something": True,
             "should_create_pending_thread": False,
@@ -1920,6 +1923,7 @@ def obter_atributos_modo(
             "topic_direction": (
                 TOPIC_DIRECTION_CURRENT
             ),
+            "response_scope": "normal",
             "should_lead": True,
             "should_reveal_something": False,
             "should_create_pending_thread": False,
@@ -1935,6 +1939,7 @@ def obter_atributos_modo(
             "topic_direction": (
                 TOPIC_DIRECTION_RELATIONSHIP
             ),
+            "response_scope": "normal",
             "should_lead": True,
             "should_reveal_something": False,
             "should_create_pending_thread": False,
@@ -1950,6 +1955,7 @@ def obter_atributos_modo(
             "topic_direction": (
                 TOPIC_DIRECTION_RELATIONSHIP
             ),
+            "response_scope": "normal",
             "should_lead": True,
             "should_reveal_something": False,
             "should_create_pending_thread": False,
@@ -1965,6 +1971,7 @@ def obter_atributos_modo(
             "topic_direction": (
                 TOPIC_DIRECTION_PERSONAL
             ),
+            "response_scope": "developed",
             "should_lead": True,
             "should_reveal_something": True,
             "should_create_pending_thread": True,
@@ -1980,6 +1987,7 @@ def obter_atributos_modo(
             "topic_direction": (
                 TOPIC_DIRECTION_EMOTIONAL
             ),
+            "response_scope": "developed",
             "should_lead": True,
             "should_reveal_something": True,
             "should_create_pending_thread": False,
@@ -1995,6 +2003,7 @@ def obter_atributos_modo(
             "topic_direction": (
                 TOPIC_DIRECTION_ROMANTIC
             ),
+            "response_scope": "normal",
             "should_lead": True,
             "should_reveal_something": False,
             "should_create_pending_thread": False,
@@ -2010,6 +2019,7 @@ def obter_atributos_modo(
             "topic_direction": (
                 TOPIC_DIRECTION_SEXUAL
             ),
+            "response_scope": "normal",
             "should_lead": True,
             "should_reveal_something": False,
             "should_create_pending_thread": True,
@@ -2025,6 +2035,7 @@ def obter_atributos_modo(
             "topic_direction": (
                 TOPIC_DIRECTION_ROMANTIC
             ),
+            "response_scope": "normal",
             "should_lead": True,
             "should_reveal_something": True,
             "should_create_pending_thread": False,
@@ -2040,6 +2051,7 @@ def obter_atributos_modo(
             "topic_direction": (
                 TOPIC_DIRECTION_SEXUAL
             ),
+            "response_scope": "normal",
             "should_lead": True,
             "should_reveal_something": False,
             "should_create_pending_thread": True,
@@ -2055,6 +2067,7 @@ def obter_atributos_modo(
             "topic_direction": (
                 TOPIC_DIRECTION_SEXUAL
             ),
+            "response_scope": "scene",
             "should_lead": True,
             "should_reveal_something": False,
             "should_create_pending_thread": False,
@@ -2070,6 +2083,7 @@ def obter_atributos_modo(
             "topic_direction": (
                 TOPIC_DIRECTION_EMOTIONAL
             ),
+            "response_scope": "normal",
             "should_lead": True,
             "should_reveal_something": True,
             "should_create_pending_thread": False,
@@ -2085,6 +2099,7 @@ def obter_atributos_modo(
             "topic_direction": (
                 TOPIC_DIRECTION_RELATIONSHIP
             ),
+            "response_scope": "normal",
             "should_lead": True,
             "should_reveal_something": True,
             "should_create_pending_thread": False,
@@ -2100,6 +2115,7 @@ def obter_atributos_modo(
             "topic_direction": (
                 TOPIC_DIRECTION_EMOTIONAL
             ),
+            "response_scope": "developed",
             "should_lead": True,
             "should_reveal_something": True,
             "should_create_pending_thread": False,
@@ -2115,6 +2131,8 @@ def obter_atributos_modo(
             "topic_direction": (
                 TOPIC_DIRECTION_BOUNDARY
             ),
+            "response_scope": "brief",
+            "avoid_question": True,
             "should_lead": True,
             "should_reveal_something": False,
             "should_create_pending_thread": False,
@@ -2130,6 +2148,7 @@ def obter_atributos_modo(
             "topic_direction": (
                 TOPIC_DIRECTION_RELATIONSHIP
             ),
+            "response_scope": "normal",
             "should_lead": True,
             "should_reveal_something": False,
             "should_create_pending_thread": True,
@@ -2145,6 +2164,7 @@ def obter_atributos_modo(
             "topic_direction": (
                 TOPIC_DIRECTION_SEXUAL
             ),
+            "response_scope": "scene",
             "should_lead": True,
             "should_reveal_something": False,
             "should_create_pending_thread": False,
@@ -2160,6 +2180,7 @@ def obter_atributos_modo(
             "topic_direction": (
                 TOPIC_DIRECTION_NEW_TOPIC
             ),
+            "response_scope": "normal",
             "should_lead": True,
             "should_reveal_something": False,
             "should_create_pending_thread": False,
@@ -2175,6 +2196,7 @@ def obter_atributos_modo(
             "topic_direction": (
                 TOPIC_DIRECTION_CURRENT
             ),
+            "response_scope": "normal",
             "should_lead": True,
             "should_reveal_something": False,
             "should_create_pending_thread": False,
@@ -2190,6 +2212,7 @@ def obter_atributos_modo(
             "topic_direction": (
                 TOPIC_DIRECTION_EMOTIONAL
             ),
+            "response_scope": "developed",
             "should_lead": True,
             "should_reveal_something": True,
             "should_create_pending_thread": False,
@@ -2205,6 +2228,7 @@ def obter_atributos_modo(
             "topic_direction": (
                 TOPIC_DIRECTION_SEXUAL
             ),
+            "response_scope": "normal",
             "should_lead": True,
             "should_reveal_something": True,
             "should_create_pending_thread": False,
@@ -2381,7 +2405,7 @@ def planejar_direcao_turno(
         reason=selection_reason,
         response_scope=attributes.get(
             "response_scope",
-            "brief",
+            "normal",
         ),
         surprise_level=attributes[
             "surprise_level"
