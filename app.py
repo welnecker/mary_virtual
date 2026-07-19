@@ -1936,6 +1936,7 @@ def processar_interacao(
                         ],
                         image_metadata=image_metadata,
                         turn_direction=turn_direction,
+                        raw_messages=messages,
                         mary_asked_name=False,
                         response_time_ms=(
                             response_time_ms
@@ -2079,6 +2080,7 @@ def processar_interacao(
         ],
         image_metadata=image_metadata,
         turn_direction=turn_direction,
+        raw_messages=messages,
         mary_asked_name=perguntou_nome,
         response_time_ms=response_time_ms,
     )
