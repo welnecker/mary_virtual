@@ -152,22 +152,6 @@ def obter_aba(nome: str) -> Worksheet:
             f"{nome_limpo!r}: {exc}"
         ) from exc
 
-
-def obter_aba(nome: str) -> Worksheet:
-    try:
-        return obter_planilha().worksheet(nome)
-
-    except WorksheetNotFound as exc:
-        raise GoogleSheetsRepositoryError(
-            f"A aba {nome!r} não foi encontrada."
-        ) from exc
-
-    except APIError as exc:
-        raise GoogleSheetsRepositoryError(
-            f"Não foi possível acessar a aba {nome!r}: {exc}"
-        ) from exc
-
-
 @st.cache_data(
     show_spinner=False,
     ttl=300,
@@ -331,7 +315,9 @@ def atualizar_registro(
         return False
 
     numero_linha, _ = resultado
-    cabecalhos = obter_cabecalhos(worksheet)
+    cabecalhos = obter_cabecalhos(
+        nome_aba
+    )
 
     atualizacoes: list[dict[str, Any]] = []
 
@@ -778,11 +764,16 @@ def salvar_memoria(
 def encerrar_sessoes_ativas_usuario(
     user_id: str,
 ) -> None:
-    worksheet = obter_aba(SESSIONS_SHEET)
-    cabecalhos = obter_cabecalhos(worksheet)
+    worksheet = obter_aba(
+        SESSIONS_SHEET
+    )
 
-    registros = worksheet.get_all_records(
-        default_blank="",
+    cabecalhos = obter_cabecalhos(
+        SESSIONS_SHEET
+    )
+
+    registros = obter_registros_aba(
+        SESSIONS_SHEET
     )
 
     agora = utc_now_iso()
