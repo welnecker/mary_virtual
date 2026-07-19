@@ -1,5 +1,4 @@
 from __future__ import annotations
-from config import MARY_SPREADSHEET_ID
 
 import hashlib
 import json
@@ -9,6 +8,7 @@ from typing import Any
 
 import gspread
 import streamlit as st
+from config import MARY_SPREADSHEET_ID
 from gspread import Spreadsheet, Worksheet
 from gspread.exceptions import (
     APIError,
@@ -107,15 +107,49 @@ def obter_planilha() -> Spreadsheet:
             f"Erro da API do Google Sheets: {exc}"
         ) from exc
 
-    except Exception as exc:
-        if isinstance(
-            exc,
-            GoogleSheetsRepositoryError,
-        ):
-            raise
+    except GSpreadException as exc:
+        raise GoogleSheetsRepositoryError(
+            f"Erro de comunicação com o Google Sheets: {exc}"
+        ) from exc
 
+    except GoogleSheetsRepositoryError:
+        raise
+
+    except Exception as exc:
         raise GoogleSheetsRepositoryError(
             f"Não foi possível conectar à planilha: {exc}"
+        ) from exc
+
+
+@st.cache_resource(show_spinner=False)
+def obter_aba(nome: str) -> Worksheet:
+    nome_limpo = str(nome or "").strip()
+
+    if not nome_limpo:
+        raise GoogleSheetsRepositoryError(
+            "O nome da aba não pode ficar vazio."
+        )
+
+    try:
+        return obter_planilha().worksheet(
+            nome_limpo
+        )
+
+    except WorksheetNotFound as exc:
+        raise GoogleSheetsRepositoryError(
+            f"A aba {nome_limpo!r} não foi encontrada."
+        ) from exc
+
+    except APIError as exc:
+        raise GoogleSheetsRepositoryError(
+            f"Não foi possível acessar a aba "
+            f"{nome_limpo!r}: {exc}"
+        ) from exc
+
+    except GSpreadException as exc:
+        raise GoogleSheetsRepositoryError(
+            f"Falha de comunicação ao acessar a aba "
+            f"{nome_limpo!r}: {exc}"
         ) from exc
 
 
@@ -134,9 +168,15 @@ def obter_aba(nome: str) -> Worksheet:
         ) from exc
 
 
+@st.cache_data(
+    show_spinner=False,
+    ttl=300,
+)
 def obter_cabecalhos(
-    worksheet: Worksheet,
+    nome_aba: str,
 ) -> list[str]:
+    worksheet = obter_aba(nome_aba)
+
     cabecalhos = [
         str(valor).strip()
         for valor in worksheet.row_values(1)
@@ -144,18 +184,38 @@ def obter_cabecalhos(
 
     if not cabecalhos:
         raise GoogleSheetsRepositoryError(
-            f"A aba {worksheet.title!r} não possui "
+            f"A aba {nome_aba!r} não possui "
             "cabeçalhos na linha 1."
         )
 
     return cabecalhos
 
+@st.cache_data(
+    show_spinner=False,
+    ttl=60,
+)
+def obter_registros_aba(
+    nome_aba: str,
+) -> list[dict[str, Any]]:
+    worksheet = obter_aba(nome_aba)
+
+    registros = worksheet.get_all_records(
+        default_blank="",
+    )
+
+    return [
+        dict(registro)
+        for registro in registros
+    ]
+
 
 def montar_linha_por_cabecalho(
-    worksheet: Worksheet,
+    nome_aba: str,
     dados: dict[str, Any],
 ) -> list[Any]:
-    cabecalhos = obter_cabecalhos(worksheet)
+    cabecalhos = obter_cabecalhos(
+        nome_aba
+    )
 
     return [
         dados.get(cabecalho, "")
@@ -169,7 +229,7 @@ def adicionar_registro(
 ) -> None:
     worksheet = obter_aba(nome_aba)
     linha = montar_linha_por_cabecalho(
-        worksheet,
+        nome_aba,
         dados,
     )
 
@@ -178,6 +238,7 @@ def adicionar_registro(
             linha,
             value_input_option="RAW",
         )
+        obter_registros_aba.clear()
 
     except APIError as exc:
         raise GoogleSheetsRepositoryError(
@@ -192,16 +253,20 @@ def buscar_registro(
     coluna: str,
     valor: str,
 ) -> dict[str, Any] | None:
-    worksheet = obter_aba(nome_aba)
-    registros = worksheet.get_all_records(
-        default_blank="",
+    registros = obter_registros_aba(
+        nome_aba
     )
 
-    valor_procurado = str(valor or "").strip()
+    valor_procurado = str(
+        valor or ""
+    ).strip()
 
     for registro in registros:
         if str(
-            registro.get(coluna, "")
+            registro.get(
+                coluna,
+                "",
+            )
         ).strip() == valor_procurado:
             return dict(registro)
 
@@ -209,31 +274,38 @@ def buscar_registro(
 
 
 def buscar_linha(
-    worksheet: Worksheet,
+    nome_aba: str,
     *,
     coluna: str,
     valor: str,
 ) -> tuple[int, dict[str, Any]] | None:
-    cabecalhos = obter_cabecalhos(worksheet)
+    cabecalhos = obter_cabecalhos(
+        nome_aba
+    )
 
     if coluna not in cabecalhos:
         raise GoogleSheetsRepositoryError(
             f"A coluna {coluna!r} não existe na aba "
-            f"{worksheet.title!r}."
+            f"{nome_aba!r}."
         )
 
-    registros = worksheet.get_all_records(
-        default_blank="",
+    registros = obter_registros_aba(
+        nome_aba
     )
 
-    valor_procurado = str(valor or "").strip()
+    valor_procurado = str(
+        valor or ""
+    ).strip()
 
     for indice, registro in enumerate(
         registros,
         start=2,
     ):
         if str(
-            registro.get(coluna, "")
+            registro.get(
+                coluna,
+                "",
+            )
         ).strip() == valor_procurado:
             return indice, dict(registro)
 
@@ -250,7 +322,7 @@ def atualizar_registro(
     worksheet = obter_aba(nome_aba)
 
     resultado = buscar_linha(
-        worksheet,
+        nome_aba,
         coluna=coluna_chave,
         valor=valor_chave,
     )
@@ -291,6 +363,7 @@ def atualizar_registro(
             atualizacoes,
             value_input_option="RAW",
         )
+        obter_registros_aba.clear()
 
     except APIError as exc:
         raise GoogleSheetsRepositoryError(
@@ -874,7 +947,7 @@ def excluir_linhas_por_valor(
     )
 
     cabecalhos = obter_cabecalhos(
-        worksheet
+        nome_aba
     )
 
     if coluna not in cabecalhos:
