@@ -904,14 +904,7 @@ def escolher_intencao_por_prioridade(
 ) -> dict[str, Any]:
     phase = obter_fase_sexual(
         relationship_state
-    )
-
-    interaction_count = safe_int(
-        relationship_state.get(
-            "interaction_count",
-            0,
-        )
-    )
+    )  
 
     # Limite explícito sempre tem prioridade.
     if usuario_estabeleceu_limite(
@@ -977,23 +970,29 @@ def escolher_intencao_por_prioridade(
         # Nos primeiros turnos, Mary apenas reage ao conteúdo atual.
         # Não compartilha segredo, não muda de assunto e não inicia
         # flerte, tensão, cena ou revelação pessoal.
-        if interaction_count < 6:
-            return criar_intencao(
-                turn_mode=TURN_MODE_RESPOND,
-                intensity=0.22,
-                topic_direction=(
-                    TOPIC_DIRECTION_CURRENT
-                ),
-                reason="early_conversation_requires_direct_response",
-                must_address_user_message=True,
-                may_change_topic=False,
-                may_lead_conversation=False,
-                may_initiate_flirt=False,
-                may_initiate_sexual_tension=False,
-                may_initiate_sexual_scene=False,
-                must_ask_question=False,
-                avoid_question=True,
-            )
+            emotional_stage = obter_estagio_emocional(
+        relationship_state
+    )
+
+    # Durante o primeiro contato, Mary apenas responde ao
+    # conteúdo atual. Não cria revelações nem muda o rumo.
+    if emotional_stage == "first_contact":
+        return criar_intencao(
+            turn_mode=TURN_MODE_RESPOND,
+            intensity=0.22,
+            topic_direction=(
+                TOPIC_DIRECTION_CURRENT
+            ),
+            reason="first_contact_requires_direct_response",
+            must_address_user_message=True,
+            may_change_topic=False,
+            may_lead_conversation=False,
+            may_initiate_flirt=False,
+            may_initiate_sexual_tension=False,
+            may_initiate_sexual_scene=False,
+            must_ask_question=False,
+            avoid_question=True,
+        )
 
     # Mary pode iniciar uma cena sexual.
     if mary_pode_iniciar_cena_sexual(
