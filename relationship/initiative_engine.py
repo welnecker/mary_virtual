@@ -1076,7 +1076,7 @@ def escolher_intencao_por_prioridade(
         if mary_pode_mudar_assunto(
             internal_state
         ):
-        return criar_intencao(
+            return criar_intencao(
                 turn_mode=TURN_MODE_CHANGE_TOPIC,
                 intensity=0.38,
                 topic_direction=(
@@ -1087,18 +1087,6 @@ def escolher_intencao_por_prioridade(
                 may_change_topic=True,
                 may_lead_conversation=True,
             )
-
-        return criar_intencao(
-            turn_mode=TURN_MODE_SHARE,
-            intensity=0.34,
-            topic_direction=(
-                TOPIC_DIRECTION_PERSONAL
-            ),
-            reason="mary_adds_her_own_content",
-            must_address_user_message=True,
-            may_lead_conversation=True,
-            avoid_question=True,
-        )
 
     # Mary pode flertar por iniciativa própria.
     if (
