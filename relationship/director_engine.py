@@ -1869,17 +1869,17 @@ def obter_atributos_modo(
                 "react_to_current_message"
             ),
             "emotional_color": (
-                "natural_presence"
+                "warm_natural_presence"
             ),
             "topic_direction": (
                 TOPIC_DIRECTION_CURRENT
             ),
-            "response_scope": "brief",
+            "response_scope": "normal",
             "should_lead": False,
             "should_reveal_something": False,
             "should_create_pending_thread": False,
             "avoid_question": True,
-            "surprise_level": 0.05,
+            "surprise_level": 0.16,
         },
         EXPERIENCE_MODE_PERSONAL_SHARE: {
             "primary_intention": (
