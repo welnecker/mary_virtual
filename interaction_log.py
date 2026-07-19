@@ -27,6 +27,7 @@ def criar_registro_interacao(
     user_profile: dict[str, Any] | None,
     image_metadata: dict[str, Any] | None = None,
     turn_direction: dict[str, Any] | None = None,
+    raw_messages = raw_messages or []
     mary_asked_name: bool = False,
     response_time_ms: int | None = None,
     error: str = "",
@@ -125,6 +126,17 @@ def criar_registro_interacao(
                 "reason",
                 "",
             )
+        ),
+        "raw_messages": deepcopy(raw_messages),
+        "raw_system_prompt": str(
+            raw_messages[0].get(
+                "content",
+                "",
+            )
+            if raw_messages
+            and isinstance(raw_messages[0], dict)
+            and raw_messages[0].get("role") == "system"
+            else ""
         ),
         "response_time_ms": response_time_ms,
         "error": str(error or "").strip(),
