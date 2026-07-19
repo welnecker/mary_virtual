@@ -27,13 +27,17 @@ def criar_registro_interacao(
     user_profile: dict[str, Any] | None,
     image_metadata: dict[str, Any] | None = None,
     turn_direction: dict[str, Any] | None = None,
-    raw_messages = raw_messages or []
+    raw_messages: list[dict[str, Any]] | None = None,
     mary_asked_name: bool = False,
     response_time_ms: int | None = None,
     error: str = "",
 ) -> dict[str, Any]:
     profile = user_profile or {}
     visual_profile = profile.get("visual_profile", {}) or {}
+
+    image_metadata = image_metadata or {}
+    turn_direction = turn_direction or {}
+    raw_messages = raw_messages or []
 
     nome = str(
         profile.get("preferred_name")
