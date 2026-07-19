@@ -26,6 +26,7 @@ def criar_registro_interacao(
     mary_response: str,
     user_profile: dict[str, Any] | None,
     image_metadata: dict[str, Any] | None = None,
+    turn_direction: dict[str, Any] | None = None,
     mary_asked_name: bool = False,
     response_time_ms: int | None = None,
     error: str = "",
@@ -40,6 +41,7 @@ def criar_registro_interacao(
     ).strip()
 
     image_metadata = image_metadata or {}
+    turn_direction = turn_direction or {}
 
     return {
         "timestamp": utc_now_iso(),
@@ -64,6 +66,66 @@ def criar_registro_interacao(
         "image_size_bytes": image_metadata.get("size_bytes"),
         "image_mime_type": image_metadata.get("mime_type"),
         "mary_asked_name": bool(mary_asked_name),
+        "experience_mode": str(
+            turn_direction.get(
+                "experience_mode",
+                "",
+            )
+        ),
+        "primary_intention": str(
+            turn_direction.get(
+                "primary_intention",
+                "",
+            )
+        ),
+        "response_scope": str(
+            turn_direction.get(
+                "response_scope",
+                "",
+            )
+        ),
+        "avoid_question": bool(
+            turn_direction.get(
+                "avoid_question",
+                False,
+            )
+        ),
+        "should_lead": bool(
+            turn_direction.get(
+                "should_lead",
+                False,
+            )
+        ),
+        "should_reveal_something": bool(
+            turn_direction.get(
+                "should_reveal_something",
+                False,
+            )
+        ),
+        "romantic_expression_allowed": bool(
+            turn_direction.get(
+                "romantic_expression_allowed",
+                False,
+            )
+        ),
+        "sexual_expression_allowed": bool(
+            turn_direction.get(
+                "sexual_expression_allowed",
+                False,
+            )
+        ),
+        "explicit_sexual_language_allowed": bool(
+            turn_direction.get(
+                "explicit_sexual_language_allowed",
+                False,
+            )
+        ),
+        "direction_reason": str(
+            turn_direction.get(
+                "reason",
+                "",
+            )
+        ),
         "response_time_ms": response_time_ms,
         "error": str(error or "").strip(),
     }
