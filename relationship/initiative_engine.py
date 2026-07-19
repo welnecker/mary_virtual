@@ -1079,7 +1079,7 @@ def escolher_intencao_por_prioridade(
         if mary_pode_mudar_assunto(
             internal_state
         ):
-            return criar_intencao(
+        return criar_intencao(
                 turn_mode=TURN_MODE_CHANGE_TOPIC,
                 intensity=0.38,
                 topic_direction=(
