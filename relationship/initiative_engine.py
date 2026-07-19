@@ -967,9 +967,6 @@ def escolher_intencao_por_prioridade(
             avoid_question=True,
         )
 
-        # Nos primeiros turnos, Mary apenas reage ao conteúdo atual.
-        # Não compartilha segredo, não muda de assunto e não inicia
-        # flerte, tensão, cena ou revelação pessoal.
     emotional_stage = obter_estagio_emocional(
         relationship_state
     )
