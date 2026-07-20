@@ -1,7 +1,7 @@
 MODEL_DEFAULT = "google/gemini-3-flash-preview"
 OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions"
 MARY_SPREADSHEET_ID = (
-    "1f7LBJFlhJvg3NGIWwpLTmJXxH9TH-MNn3F4SQkyfZNM"
+    "1lOd92EhC-UZmK48kYS-Q_HYO9qpRU5BxpM2uUlVWD-g"
 )
 
 MAX_HISTORY_MESSAGES = 24
