@@ -2358,19 +2358,16 @@ def processar_interacao(
     )
 
     direcao_monologo_interno = (
-    montar_direcao_monologo_interno(
-        instancia_cenario=instancia_cenario,
-        scene_state=scene_state,
+        montar_direcao_monologo_interno(
+            instancia_cenario=instancia_cenario,
+            scene_state=scene_state,
+        )
     )
-)
 
     # =====================================================
     # ESTADO DA RELAÇÃO
     # =====================================================
 
-    # O planejamento dos motores modifica vários blocos
-    # do estado. Em caso de falha da API, o estado anterior
-    # será restaurado.
     relationship_state_anterior = deepcopy(
         relationship_state
     )
@@ -2435,9 +2432,7 @@ def processar_interacao(
         mary_profile=st.session_state[
             "mary_profile"
         ],
-        relationship_state=(
-            relationship_state
-        ),
+        relationship_state=relationship_state,
         sexual_state=sexual_state,
         turn_intent=turn_intent,
         turn_direction=turn_direction,
@@ -2461,6 +2456,17 @@ def processar_interacao(
         )
 
     if scenario_config:
+        roles = scenario_config.get(
+            "roles",
+            {},
+        )
+
+        if not isinstance(
+            roles,
+            dict,
+        ):
+            roles = {}
+
         contexto_configuracao = {
             "scenario_id": scenario_id,
             "scenario_session_id": (
@@ -2474,27 +2480,21 @@ def processar_interacao(
                 "category",
                 "",
             ),
-            "mary_role": scenario_config.get(
-                "mary_role",
+            "mary_role": roles.get(
+                "mary",
                 "",
             ),
-            "user_role": scenario_config.get(
-                "user_role",
+            "user_role": roles.get(
+                "user",
                 "",
             ),
             "premise": scenario_config.get(
                 "premise",
                 {},
             ),
-            "beats": scenario_config.get(
-                "beats",
+            "phases": scenario_config.get(
+                "phases",
                 {},
-            ),
-            "optional_events": (
-                scenario_config.get(
-                    "optional_events",
-                    [],
-                )
             ),
         }
 
@@ -2536,23 +2536,21 @@ USO OBRIGATÓRIO DO ESTADO DA FANTASIA:
 - Preserve local, personagens presentes, roupas, objetos e condições confirmadas.
 - Reaja ao que o usuário acabou de fazer ou dizer.
 - Avance somente o movimento atual.
-- Não execute todos os beats do roteiro de uma vez.
-- Os beats são possibilidades narrativas, não uma sequência obrigatória.
+- Não execute todas as fases do roteiro de uma vez.
 - A cena deve se adaptar às decisões do usuário.
 - Mary fala em primeira pessoa e predominantemente no presente.
 """.strip()
         )
 
-partes_prompt_sistema = [
-    prompt_sistema_base,
-    *blocos_cenario,
-]
+    partes_prompt_sistema = [
+        prompt_sistema_base,
+        *blocos_cenario,
+    ]
 
-if direcao_monologo_interno:
-    partes_prompt_sistema.append(
-        direcao_monologo_interno
-    )
-    
+    if direcao_monologo_interno:
+        partes_prompt_sistema.append(
+            direcao_monologo_interno
+        )
 
     prompt_sistema_completo = "\n\n".join(
         str(parte).strip()
@@ -2565,9 +2563,7 @@ if direcao_monologo_interno:
     messages = [
         {
             "role": "system",
-            "content": (
-                prompt_sistema_completo
-            ),
+            "content": prompt_sistema_completo,
         },
         *construir_historico_api()[:-1],
         montar_mensagem_usuario(
