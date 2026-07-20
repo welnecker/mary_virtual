@@ -361,6 +361,13 @@ def integrar_direcao_cenario(
         )
     )
 
+    mary_should_add_affordance = bool(
+        analise_cenario.get(
+            "mary_should_add_affordance",
+            False,
+        )
+    )
+
     user_disengaged = bool(
         analise_cenario.get(
             "user_disengaged",
@@ -393,10 +400,13 @@ def integrar_direcao_cenario(
     #
     # O cenário apenas aumenta a iniciativa quando houver
     # necessidade narrativa.
-    if (
+    precisa_movimento_mary = bool(
         should_create_hook
+        or mary_should_add_affordance
         or turns_without_advance >= 4
-    ):
+    )
+
+    if precisa_movimento_mary:
         direcao[
             "should_lead"
         ] = True
@@ -405,9 +415,14 @@ def integrar_direcao_cenario(
             "create_narrative_pending"
         ] = True
 
-    # Se houve avanço criado pelo próprio usuário, Mary não
-    # precisa imediatamente inventar outro acontecimento.
-    if narrative_progress:
+        direcao[
+            "avoid_question"
+        ] = False
+
+    elif narrative_progress:
+        # O usuário já produziu avanço suficiente neste turno.
+        # Mary pode aprofundar o acontecimento sem ser obrigada
+        # a criar imediatamente outra pendência.
         direcao[
             "create_narrative_pending"
         ] = False
@@ -535,6 +550,11 @@ def analisar_turno_cenario(
             "should_create_hook": (
                 "boolean; verdadeiro apenas quando um "
                 "pequeno movimento ajudaria a evitar estagnação"
+            ),
+            "mary_should_add_affordance": (
+                "boolean; verdadeiro quando a próxima resposta de Mary "
+                "deve deixar uma ação, escolha, tensão ou pendência "
+                "concreta à qual o usuário possa reagir"
             ),
             "hook_purpose": (
                 "Objetivo abstrato do gancho, sem impor "
@@ -811,9 +831,17 @@ def montar_direcao_narrativa(
         )
     )
 
-    # Proteção antimonotonia.
-    if turns_without_advance >= 4:
-        should_create_hook = True
+    mary_should_add_affordance = bool(
+        analise.get(
+            "mary_should_add_affordance"
+        )
+    )
+
+    precisa_movimento_mary = bool(
+        should_create_hook
+        or mary_should_add_affordance
+        or turns_without_advance >= 4
+    )
 
     focus = str(
         analise.get(
@@ -831,35 +859,28 @@ def montar_direcao_narrativa(
         or ""
     ).strip()
 
-    if should_create_hook:
+    if precisa_movimento_mary:
         movimento = """
-Neste turno, além de reagir ao usuário, Mary deve criar no máximo
-um pequeno movimento narrativo coerente.
+Além de reagir ao usuário, Mary deve deixar exatamente uma
+possibilidade concreta de continuação criada por ela.
 
-Ela decide livremente qual movimento combina com o momento.
+Essa possibilidade pode ser uma decisão, vontade, pedido,
+resistência, escolha, provocação, curiosidade, ação iniciada
+ou pequena consequência natural do momento.
 
-Pode ser:
-- uma vontade;
-- uma observação concreta;
-- uma pequena decisão;
-- uma mudança de atitude;
-- uma complicação natural;
-- uma aproximação;
-- uma hesitação;
-- uma provocação;
-- uma informação circunstancial;
-- um pedido;
-- um convite;
-- uma recusa;
-- uma escolha.
+Não precisa ser uma pergunta.
 
-A lista é apenas ilustrativa. Não escolha mecanicamente um item.
+A resposta não deve terminar com Mary apenas aceitando,
+agradecendo, esperando ou devolvendo toda a iniciativa ao usuário.
 
-O movimento deve nascer do que já aconteceu e deixar espaço para
-o usuário responder.
+Mary escolhe livremente o conteúdo com base no que acabou
+de acontecer. Não imponha acontecimento previamente cadastrado.
+
+A possibilidade criada deve permanecer aberta para que o
+usuário possa aceitá-la, recusá-la, modificá-la ou ignorá-la.
 
 Não crie acontecimentos aleatórios apenas para movimentar a trama.
-Não resolva o movimento no mesmo turno em que ele surgir.
+Não resolva a possibilidade no mesmo turno em que ela surgir.
 """.strip()
 
     else:
