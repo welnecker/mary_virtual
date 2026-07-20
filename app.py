@@ -7,6 +7,7 @@ from typing import Any
 
 import streamlit as st
 import json
+import hashlib
 
 from config import (
     APP_CAPTION,
@@ -1854,6 +1855,263 @@ def registrar_interacao_local_e_remota(
             f"Detalhe: {exc}"
         )
 
+def limitar_probabilidade(
+    valor: Any,
+) -> float:
+    try:
+        probabilidade = float(
+            valor
+        )
+
+    except (
+        TypeError,
+        ValueError,
+    ):
+        return 0.0
+
+    return max(
+        0.0,
+        min(
+            1.0,
+            probabilidade,
+        ),
+    )
+
+
+def sortear_monologo_deterministico(
+    *,
+    scenario_session_id: str,
+    interaction_number: int,
+    probability: float,
+) -> bool:
+    """
+    Faz um sorteio determinístico por fantasia e interação.
+
+    Isso evita que um simples rerun altere a decisão de incluir
+    ou não o pensamento no mesmo turno.
+    """
+    probability = limitar_probabilidade(
+        probability
+    )
+
+    if probability <= 0:
+        return False
+
+    if probability >= 1:
+        return True
+
+    material = (
+        f"{scenario_session_id}:"
+        f"{interaction_number}:"
+        "internal_monologue"
+    )
+
+    digest = hashlib.sha256(
+        material.encode(
+            "utf-8"
+        )
+    ).hexdigest()
+
+    # Usa os primeiros oito caracteres hexadecimais
+    # para obter um valor estável entre 0 e 1.
+    numero = int(
+        digest[:8],
+        16,
+    )
+
+    valor_normalizado = numero / 0xFFFFFFFF
+
+    return valor_normalizado < probability
+
+
+def montar_direcao_monologo_interno(
+    *,
+    instancia_cenario: dict[str, Any],
+    scene_state: dict[str, Any],
+) -> str:
+    scenario_config = instancia_cenario.get(
+        "scenario_config"
+    )
+
+    if not isinstance(
+        scenario_config,
+        dict,
+    ):
+        return ""
+
+    config_monologo = scenario_config.get(
+        "internal_monologue"
+    )
+
+    if not isinstance(
+        config_monologo,
+        dict,
+    ):
+        return ""
+
+    if not config_monologo.get(
+        "enabled",
+        False,
+    ):
+        return ""
+
+    current_phase = str(
+        scene_state.get(
+            "current_phase",
+            instancia_cenario.get(
+                "current_phase",
+                "opening",
+            ),
+        )
+        or "opening"
+    ).strip()
+
+    frequencies = config_monologo.get(
+        "frequency_by_phase",
+        {}
+    )
+
+    if not isinstance(
+        frequencies,
+        dict,
+    ):
+        frequencies = {}
+
+    probability = limitar_probabilidade(
+        frequencies.get(
+            current_phase,
+            0.0,
+        )
+    )
+
+    interaction_number = (
+        int(
+            instancia_cenario.get(
+                "interaction_count",
+                0,
+            )
+            or 0
+        )
+        + 1
+    )
+
+    scenario_session_id = str(
+        instancia_cenario.get(
+            "scenario_session_id",
+            "",
+        )
+        or ""
+    ).strip()
+
+    incluir_monologo = sortear_monologo_deterministico(
+        scenario_session_id=scenario_session_id,
+        interaction_number=interaction_number,
+        probability=probability,
+    )
+
+    purposes_by_phase = config_monologo.get(
+        "purposes_by_phase",
+        {}
+    )
+
+    if not isinstance(
+        purposes_by_phase,
+        dict,
+    ):
+        purposes_by_phase = {}
+
+    purposes = purposes_by_phase.get(
+        current_phase,
+        [],
+    )
+
+    if not isinstance(
+        purposes,
+        list,
+    ):
+        purposes = []
+
+    purposes_text = ", ".join(
+        str(item).strip()
+        for item in purposes
+        if str(
+            item or ""
+        ).strip()
+    )
+
+    max_sentences = int(
+        config_monologo.get(
+            "max_sentences",
+            1,
+        )
+        or 1
+    )
+
+    max_words = int(
+        config_monologo.get(
+            "max_words",
+            24,
+        )
+        or 24
+    )
+
+    rules = config_monologo.get(
+        "rules",
+        []
+    )
+
+    if not isinstance(
+        rules,
+        list,
+    ):
+        rules = []
+
+    rules_text = "\n".join(
+        f"- {str(regra).strip()}"
+        for regra in rules
+        if str(
+            regra or ""
+        ).strip()
+    )
+
+    if not incluir_monologo:
+        return f"""
+[MONÓLOGO INTERNO DE MARY — DECISÃO DESTE TURNO]
+
+Fase atual: {current_phase}
+Interação da fantasia: {interaction_number}
+
+Neste turno, NÃO inclua pensamento interno.
+
+Produza somente a fala ou reação normal de Mary.
+Não acrescente texto em itálico representando pensamento.
+""".strip()
+
+    return f"""
+[MONÓLOGO INTERNO DE MARY — ATIVO NESTE TURNO]
+
+Fase atual: {current_phase}
+Interação da fantasia: {interaction_number}
+Possíveis funções narrativas: {purposes_text or "reação íntima ao momento atual"}
+
+Depois da fala visível de Mary, acrescente um pensamento interno curto.
+
+FORMATO OBRIGATÓRIO:
+
+Fala visível de Mary.
+
+*Pensamento interno de Mary em primeira pessoa.*
+
+REGRAS:
+
+- O pensamento deve ocupar uma única linha em itálico.
+- Use no máximo {max_sentences} frase.
+- Use aproximadamente no máximo {max_words} palavras.
+- Não escreva rótulos como "Pensamento:", "Mary pensa:" ou "Monólogo interno:".
+- Não use parênteses para representar o pensamento.
+{rules_text}
+""".strip()
+
 
 def processar_interacao(
     *,
@@ -1983,6 +2241,13 @@ def processar_interacao(
     scene_state = deepcopy(
         scene_state
     )
+
+    direcao_monologo_interno = (
+    montar_direcao_monologo_interno(
+        instancia_cenario=instancia_cenario,
+        scene_state=scene_state,
+    )
+)
 
     # =====================================================
     # ESTADO DA RELAÇÃO
@@ -2163,10 +2428,16 @@ USO OBRIGATÓRIO DO ESTADO DA FANTASIA:
 """.strip()
         )
 
-    partes_prompt_sistema = [
-        prompt_sistema_base,
-        *blocos_cenario,
-    ]
+partes_prompt_sistema = [
+    prompt_sistema_base,
+    *blocos_cenario,
+]
+
+if direcao_monologo_interno:
+    partes_prompt_sistema.append(
+        direcao_monologo_interno
+    )
+    
 
     prompt_sistema_completo = "\n\n".join(
         str(parte).strip()
