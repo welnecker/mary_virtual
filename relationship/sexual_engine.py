@@ -9,9 +9,21 @@ from typing import Any
 SEXUAL_PHASE_IDLE = "idle"
 SEXUAL_PHASE_TENSION = "tension"
 SEXUAL_PHASE_AROUSAL = "arousal"
+SEXUAL_PHASE_BODY_EXPLORATION = "body_exploration"
+SEXUAL_PHASE_GIVING_PLEASURE = "giving_pleasure"
+SEXUAL_PHASE_RECEIVING_PLEASURE = "receiving_pleasure"
+SEXUAL_PHASE_ORAL = "oral"
+SEXUAL_PHASE_PENETRATION_START = "penetration_start"
+SEXUAL_PHASE_PENETRATION_ACTIVE = "penetration_active"
+SEXUAL_PHASE_PACE_CONTROL = "pace_control"
+SEXUAL_PHASE_USER_EDGE = "user_edge"
+SEXUAL_PHASE_MARY_EDGE = "mary_edge"
 SEXUAL_PHASE_ACTIVE = "active"
 SEXUAL_PHASE_PRE_ORGASM = "pre_orgasm"
+SEXUAL_PHASE_USER_ORGASM = "user_orgasm"
+SEXUAL_PHASE_MARY_ORGASM = "mary_orgasm"
 SEXUAL_PHASE_ORGASM = "orgasm"
+SEXUAL_PHASE_POST_ORGASM_ACTIVE = "post_orgasm_active"
 SEXUAL_PHASE_POST_ORGASM = "post_orgasm"
 SEXUAL_PHASE_FRUSTRATION = "frustration"
 SEXUAL_PHASE_AFTERCARE = "aftercare"
@@ -21,9 +33,21 @@ SEXUAL_PHASES: tuple[str, ...] = (
     SEXUAL_PHASE_IDLE,
     SEXUAL_PHASE_TENSION,
     SEXUAL_PHASE_AROUSAL,
+    SEXUAL_PHASE_BODY_EXPLORATION,
+    SEXUAL_PHASE_GIVING_PLEASURE,
+    SEXUAL_PHASE_RECEIVING_PLEASURE,
+    SEXUAL_PHASE_ORAL,
+    SEXUAL_PHASE_PENETRATION_START,
+    SEXUAL_PHASE_PENETRATION_ACTIVE,
+    SEXUAL_PHASE_PACE_CONTROL,
+    SEXUAL_PHASE_USER_EDGE,
+    SEXUAL_PHASE_MARY_EDGE,
     SEXUAL_PHASE_ACTIVE,
     SEXUAL_PHASE_PRE_ORGASM,
+    SEXUAL_PHASE_USER_ORGASM,
+    SEXUAL_PHASE_MARY_ORGASM,
     SEXUAL_PHASE_ORGASM,
+    SEXUAL_PHASE_POST_ORGASM_ACTIVE,
     SEXUAL_PHASE_POST_ORGASM,
     SEXUAL_PHASE_FRUSTRATION,
     SEXUAL_PHASE_AFTERCARE,
@@ -35,8 +59,19 @@ DEFAULT_SEXUAL_STATE: dict[str, Any] = {
     "previous_scene_phase": "",
     "arousal_level": 0.0,
     "tension_level": 0.0,
+    "user_arousal_estimate": 0.0,
     "stimulation_turns": 0,
     "consecutive_low_intensity_turns": 0,
+    "same_activity_turns": 0,
+    "current_activity": "",
+    "current_position": "",
+    "current_pace": "",
+    "mary_is_leading": False,
+    "mary_is_giving_pleasure": False,
+    "mary_is_receiving_pleasure": False,
+    "user_near_orgasm": False,
+    "mary_near_orgasm": False,
+    "post_orgasm_continue": False,
     "mary_pre_orgasm": False,
     "mary_orgasm_allowed": False,
     "mary_orgasm_done": False,
@@ -222,8 +257,18 @@ def normalizar_fase(
         "aproximacao": SEXUAL_PHASE_TENSION,
         "intimidade": SEXUAL_PHASE_TENSION,
         "excitacao": SEXUAL_PHASE_AROUSAL,
-        "estimulo_corporal": SEXUAL_PHASE_ACTIVE,
+        "estimulo_corporal": SEXUAL_PHASE_BODY_EXPLORATION,
         "sexo_ou_estimulo": SEXUAL_PHASE_ACTIVE,
+        "exploracao_corporal": SEXUAL_PHASE_BODY_EXPLORATION,
+        "dando_prazer": SEXUAL_PHASE_GIVING_PLEASURE,
+        "recebendo_prazer": SEXUAL_PHASE_RECEIVING_PLEASURE,
+        "oral": SEXUAL_PHASE_ORAL,
+        "inicio_penetracao": SEXUAL_PHASE_PENETRATION_START,
+        "penetracao_ativa": SEXUAL_PHASE_PENETRATION_ACTIVE,
+        "controle": SEXUAL_PHASE_PACE_CONTROL,
+        "limite_usuario": SEXUAL_PHASE_USER_EDGE,
+        "limite_mary": SEXUAL_PHASE_MARY_EDGE,
+        "pos_orgasmo_ativo": SEXUAL_PHASE_POST_ORGASM_ACTIVE,
         "pre_pico_mary": SEXUAL_PHASE_PRE_ORGASM,
         "pico_mary": SEXUAL_PHASE_ORGASM,
         "pos_pico_mary": SEXUAL_PHASE_POST_ORGASM,
@@ -301,6 +346,13 @@ def normalizar_estado_sexual(
         )
     )
 
+    normalized["user_arousal_estimate"] = limitar_float(
+        normalized.get(
+            "user_arousal_estimate",
+            0.0,
+        )
+    )
+
     normalized["stimulation_turns"] = max(
         0,
         safe_int(
@@ -324,6 +376,29 @@ def normalizar_estado_sexual(
         ),
     )
 
+    normalized["same_activity_turns"] = max(
+        0,
+        safe_int(
+            normalized.get(
+                "same_activity_turns",
+                0,
+            )
+        ),
+    )
+
+    for field in (
+        "current_activity",
+        "current_position",
+        "current_pace",
+    ):
+        normalized[field] = str(
+            normalized.get(
+                field,
+                "",
+            )
+            or ""
+        ).strip().lower()
+
     bool_fields = (
         "mary_pre_orgasm",
         "mary_orgasm_allowed",
@@ -331,6 +406,12 @@ def normalizar_estado_sexual(
         "user_orgasm_warning",
         "user_orgasm_pending",
         "user_orgasm_done",
+        "mary_is_leading",
+        "mary_is_giving_pleasure",
+        "mary_is_receiving_pleasure",
+        "user_near_orgasm",
+        "mary_near_orgasm",
+        "post_orgasm_continue",
         "aftercare_required",
         "resolution_done",
     )
@@ -658,6 +739,28 @@ def detectar_intensidade_turno(
             text,
             tension_terms,
         ),
+        "user_invites_mary_lead": contem_algum(
+            text,
+            (
+                "faz do seu jeito",
+                "deixa com voce",
+                "voce que manda",
+                "me surpreende",
+                "assume",
+                "pode conduzir",
+            ),
+        ),
+        "user_requests_more": contem_algum(
+            text,
+            (
+                "mais",
+                "continua",
+                "nao para",
+                "quero mais",
+                "isso",
+                "assim",
+            ),
+        ),
         "has_active_stimulation": contem_algum(
             text,
             active_terms,
@@ -703,13 +806,17 @@ def detectar_tipo_estimulo(
             "oral",
             "lingua",
             "lambendo",
+            "chupando",
+            "chupa",
         ),
         "penetration": (
             "penetracao",
             "penetrando",
             "entra e sai",
-            "ritmo",
             "mais fundo",
+            "monta em mim",
+            "por cima",
+            "dentro",
         ),
         "fantasy": (
             "imagina",
@@ -727,6 +834,84 @@ def detectar_tipo_estimulo(
             return stimulus_type
 
     return ""
+
+
+# ==========================================================
+# LEITURA DO CENÁRIO E CONTEXTO
+# ==========================================================
+
+
+def obter_estado_cenario_ativo(
+    relationship_state: dict[str, Any] | None,
+) -> dict[str, Any]:
+    state = (
+        relationship_state
+        if isinstance(
+            relationship_state,
+            dict,
+        )
+        else {}
+    )
+
+    candidates = (
+        state.get("active_scenario"),
+        state.get("scenario_state"),
+        state.get("scene_state"),
+        state.get("current_scenario"),
+    )
+
+    for candidate in candidates:
+        if not isinstance(candidate, dict):
+            continue
+
+        nested_state = candidate.get(
+            "scene_state"
+        )
+
+        if isinstance(nested_state, dict):
+            candidate = nested_state
+
+        if bool(
+            candidate.get(
+                "scene_active",
+                candidate.get("status") == "active",
+            )
+        ):
+            return candidate
+
+    return {}
+
+
+def cenario_ativo(
+    relationship_state: dict[str, Any] | None,
+) -> bool:
+    return bool(
+        obter_estado_cenario_ativo(
+            relationship_state
+        )
+    )
+
+
+def obter_nivel_seducao_cenario(
+    relationship_state: dict[str, Any] | None,
+) -> int:
+    scene_state = obter_estado_cenario_ativo(
+        relationship_state
+    )
+
+    return max(
+        0,
+        min(
+            6,
+            safe_int(
+                scene_state.get(
+                    "seduction_level",
+                    0,
+                ),
+                0,
+            ),
+        ),
+    )
 
 
 # ==========================================================
@@ -771,22 +956,33 @@ def obter_nivel_sexual_relacao(
 def cena_sexual_pode_avancar(
     relationship_state: dict[str, Any] | None,
 ) -> bool:
-    return (
+    return bool(
         obter_nivel_sexual_relacao(
             relationship_state
         )
-        >= 3
+        >= 2
+        or obter_nivel_seducao_cenario(
+            relationship_state
+        )
+        >= 4
+        or cenario_ativo(
+            relationship_state
+        )
     )
 
 
 def cena_sexual_intensa_permitida(
     relationship_state: dict[str, Any] | None,
 ) -> bool:
-    return (
+    return bool(
         obter_nivel_sexual_relacao(
             relationship_state
         )
-        >= 4
+        >= 3
+        or obter_nivel_seducao_cenario(
+            relationship_state
+        )
+        >= 5
     )
 
 
@@ -805,12 +1001,12 @@ def calcular_minimo_turnos_estimulo(
     # Relação mais íntima permite fluxo mais natural,
     # mas nunca orgasmo imediato.
     if sexual_level >= 5:
-        return 4
+        return 6
 
     if sexual_level >= 4:
-        return 5
+        return 7
 
-    return 6
+    return 8
 
 
 def atualizar_gate_orgasmo_mary(
@@ -856,6 +1052,15 @@ def atualizar_gate_orgasmo_mary(
     )
 
     active_phase = phase in {
+        SEXUAL_PHASE_BODY_EXPLORATION,
+        SEXUAL_PHASE_GIVING_PLEASURE,
+        SEXUAL_PHASE_RECEIVING_PLEASURE,
+        SEXUAL_PHASE_ORAL,
+        SEXUAL_PHASE_PENETRATION_START,
+        SEXUAL_PHASE_PENETRATION_ACTIVE,
+        SEXUAL_PHASE_PACE_CONTROL,
+        SEXUAL_PHASE_USER_EDGE,
+        SEXUAL_PHASE_MARY_EDGE,
         SEXUAL_PHASE_ACTIVE,
         SEXUAL_PHASE_PRE_ORGASM,
     }
@@ -923,10 +1128,49 @@ def atualizar_gate_orgasmo_mary(
 # ==========================================================
 
 
+def escolher_fase_por_estimulo(
+    stimulus_type: str,
+    *,
+    current_phase: str,
+    mary_is_leading: bool,
+) -> str:
+    stimulus_type = str(
+        stimulus_type or ""
+    ).strip().lower()
+
+    if stimulus_type == "kiss":
+        return SEXUAL_PHASE_BODY_EXPLORATION
+
+    if stimulus_type == "touch":
+        return (
+            SEXUAL_PHASE_GIVING_PLEASURE
+            if mary_is_leading
+            else SEXUAL_PHASE_RECEIVING_PLEASURE
+        )
+
+    if stimulus_type == "oral":
+        return SEXUAL_PHASE_ORAL
+
+    if stimulus_type == "penetration":
+        if current_phase in {
+            SEXUAL_PHASE_PENETRATION_START,
+            SEXUAL_PHASE_PENETRATION_ACTIVE,
+            SEXUAL_PHASE_PACE_CONTROL,
+            SEXUAL_PHASE_USER_EDGE,
+            SEXUAL_PHASE_MARY_EDGE,
+        }:
+            return SEXUAL_PHASE_PENETRATION_ACTIVE
+
+        return SEXUAL_PHASE_PENETRATION_START
+
+    return SEXUAL_PHASE_ACTIVE
+
+
 def atualizar_progressao_por_sinais(
     state: dict[str, Any],
     *,
     signals: dict[str, Any],
+    stimulus_type: str,
     relationship_state: dict[str, Any] | None,
 ) -> None:
     phase = normalizar_fase(
@@ -1021,6 +1265,67 @@ def atualizar_progressao_por_sinais(
             "consecutive_low_intensity_turns"
         ] = 0
 
+        current_activity = str(
+            stimulus_type
+            or state.get(
+                "current_activity",
+                "",
+            )
+        ).strip().lower()
+
+        if current_activity == state.get(
+            "current_activity"
+        ):
+            state[
+                "same_activity_turns"
+            ] += 1
+        else:
+            state[
+                "same_activity_turns"
+            ] = 0
+
+        state[
+            "current_activity"
+        ] = current_activity
+
+        state[
+            "mary_is_leading"
+        ] = bool(
+            signals.get(
+                "user_invites_mary_lead"
+            )
+            or state.get(
+                "mary_is_leading"
+            )
+        )
+
+        state[
+            "mary_is_giving_pleasure"
+        ] = bool(
+            state[
+                "mary_is_leading"
+            ]
+            and current_activity
+            in {
+                "touch",
+                "oral",
+            }
+        )
+
+        state[
+            "mary_is_receiving_pleasure"
+        ] = bool(
+            not state[
+                "mary_is_giving_pleasure"
+            ]
+            and current_activity
+            in {
+                "touch",
+                "oral",
+                "penetration",
+            }
+        )
+
         state[
             "stimulation_turns"
         ] += 1
@@ -1051,13 +1356,38 @@ def atualizar_progressao_por_sinais(
             ] + 0.08,
         )
 
+        state[
+            "user_arousal_estimate"
+        ] = min(
+            1.0,
+            state[
+                "user_arousal_estimate"
+            ] + (
+                0.14
+                if signals.get(
+                    "user_requests_more"
+                )
+                else 0.08
+            ),
+        )
+
         if phase not in {
             SEXUAL_PHASE_PRE_ORGASM,
+            SEXUAL_PHASE_MARY_ORGASM,
+            SEXUAL_PHASE_USER_ORGASM,
             SEXUAL_PHASE_ORGASM,
         }:
+            next_phase = escolher_fase_por_estimulo(
+                current_activity,
+                current_phase=phase,
+                mary_is_leading=state[
+                    "mary_is_leading"
+                ],
+            )
+
             alterar_fase(
                 state,
-                SEXUAL_PHASE_ACTIVE,
+                next_phase,
                 reason="active_stimulation_detected",
             )
 
@@ -1215,7 +1545,7 @@ def processar_climax_usuario_antes_resposta(
         ]:
             state[
                 "frustration_state"
-            ] = "user_finished_before_mary"
+            ] = ""
 
             state[
                 "mary_pre_orgasm"
@@ -1227,12 +1557,16 @@ def processar_climax_usuario_antes_resposta(
 
             state[
                 "aftercare_required"
+            ] = False
+
+            state[
+                "post_orgasm_continue"
             ] = True
 
             alterar_fase(
                 state,
-                SEXUAL_PHASE_FRUSTRATION,
-                reason="user_climax_confirmed_before_mary",
+                SEXUAL_PHASE_POST_ORGASM_ACTIVE,
+                reason="user_climax_confirmed_mary_still_active",
             )
 
         else:
@@ -1277,6 +1611,7 @@ def atualizar_estado_sexual_antes_resposta(
     atualizar_progressao_por_sinais(
         state,
         signals=signals,
+        stimulus_type=stimulus_type,
         relationship_state=relationship_state,
     )
 
@@ -1388,9 +1723,13 @@ def confirmar_orgasmo_mary_apos_resposta(
             "aftercare_required"
         ] = False
 
+        state[
+            "post_orgasm_continue"
+        ] = True
+
         alterar_fase(
             state,
-            SEXUAL_PHASE_POST_ORGASM,
+            SEXUAL_PHASE_POST_ORGASM_ACTIVE,
             reason="mary_resolution_completed_user_pending",
         )
 
@@ -1449,6 +1788,10 @@ def atualizar_pos_pico_e_aftercare(
         ] = False
 
         state[
+            "post_orgasm_continue"
+        ] = False
+
+        state[
             "aftercare_required"
         ] = True
 
@@ -1473,9 +1816,13 @@ def atualizar_pos_pico_e_aftercare(
             "aftercare_required"
         ] = False
 
+        state[
+            "post_orgasm_continue"
+        ] = True
+
         alterar_fase(
             state,
-            SEXUAL_PHASE_POST_ORGASM,
+            SEXUAL_PHASE_POST_ORGASM_ACTIVE,
             reason="mary_done_user_still_pending",
         )
 
@@ -1486,21 +1833,22 @@ def atualizar_pos_pico_e_aftercare(
             "user_orgasm_pending"
         ] = False
 
-        if not state[
+        state[
             "frustration_state"
-        ]:
-            state[
-                "frustration_state"
-            ] = "user_finished_before_mary"
+        ] = ""
 
         state[
             "aftercare_required"
+        ] = False
+
+        state[
+            "post_orgasm_continue"
         ] = True
 
         alterar_fase(
             state,
-            SEXUAL_PHASE_FRUSTRATION,
-            reason="user_done_mary_unresolved",
+            SEXUAL_PHASE_POST_ORGASM_ACTIVE,
+            reason="user_done_mary_still_engaged",
         )
 
 
@@ -1649,6 +1997,46 @@ def encerrar_cena_sexual(
     ] = 0
 
     state[
+        "same_activity_turns"
+    ] = 0
+
+    state[
+        "current_activity"
+    ] = ""
+
+    state[
+        "current_position"
+    ] = ""
+
+    state[
+        "current_pace"
+    ] = ""
+
+    state[
+        "mary_is_leading"
+    ] = False
+
+    state[
+        "mary_is_giving_pleasure"
+    ] = False
+
+    state[
+        "mary_is_receiving_pleasure"
+    ] = False
+
+    state[
+        "user_near_orgasm"
+    ] = False
+
+    state[
+        "mary_near_orgasm"
+    ] = False
+
+    state[
+        "post_orgasm_continue"
+    ] = False
+
+    state[
         "mary_pre_orgasm"
     ] = False
 
@@ -1681,3 +2069,71 @@ def encerrar_cena_sexual(
     return aplicar_aliases_legados(
         state
     )
+
+# ==========================================================
+# CONTEXTO SEXUAL PARA O PROMPT
+# ==========================================================
+
+
+def montar_contexto_sexual(
+    sexual_state: dict[str, Any] | None,
+) -> str:
+    state = normalizar_estado_sexual(
+        sexual_state
+    )
+
+    return f"""
+[ESTADO SEXUAL ATUAL]
+
+Fase:
+{state["scene_phase"]}
+
+Excitação de Mary:
+{state["arousal_level"]:.2f}
+
+Excitação estimada do usuário:
+{state["user_arousal_estimate"]:.2f}
+
+Atividade atual:
+{state["current_activity"] or "nenhuma"}
+
+Mary conduz:
+{state["mary_is_leading"]}
+
+Mary oferece prazer:
+{state["mary_is_giving_pleasure"]}
+
+Mary recebe prazer:
+{state["mary_is_receiving_pleasure"]}
+
+Mary próxima do orgasmo:
+{state["mary_pre_orgasm"]}
+
+Orgasmo de Mary autorizado:
+{state["mary_orgasm_allowed"]}
+
+Usuário próximo do orgasmo:
+{state["user_orgasm_warning"]}
+
+Usuário já chegou ao orgasmo:
+{state["user_orgasm_done"]}
+
+Continuar depois do primeiro orgasmo:
+{state["post_orgasm_continue"]}
+
+REGRAS:
+
+- Mary não é espectadora da cena sexual.
+- Ela participa, deseja, provoca, conduz, pede e reage.
+- O orgasmo não é o único objetivo.
+- Antes dele, desenvolva exploração, prazer, controle,
+  mudança de posição, aproximação do limite e retomada.
+- O orgasmo de Mary e o do usuário são independentes.
+- O orgasmo de um não encerra automaticamente a cena.
+- Entre em aftercare somente quando a interação realmente desacelerar.
+- Em fase sexual ativa, prefira fala viva, curta e sensorial.
+- Não descreva a própria ação como narradora.
+- Não use frases mecânicas como "acompanhar o ritmo",
+  "manter o ritmo" ou "não muda o ritmo".
+- Preserve limites claros e interrupções do usuário.
+""".strip()
