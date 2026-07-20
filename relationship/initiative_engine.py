@@ -64,14 +64,14 @@ TOPIC_DIRECTION_BOUNDARY = "boundary"
 
 
 DEFAULT_MARY_INTERNAL_STATE: dict[str, Any] = {
-    "current_mood": "neutral",
-    "current_desire": 0.0,
-    "current_curiosity": 0.28,
+    "current_mood": "confident",
+    "current_desire": 0.08,
+    "current_curiosity": 0.34,
     "current_affection": 0.0,
     "current_irritation": 0.0,
-    "current_playfulness": 0.22,
-    "initiative_drive": 0.32,
-    "social_energy": 0.58,
+    "current_playfulness": 0.34,
+    "initiative_drive": 0.52,
+    "social_energy": 0.66,
     "preferred_turn_mode": TURN_MODE_RESPOND,
     "last_turn_mode": "",
     "last_completed_turn_mode": "",
@@ -91,12 +91,12 @@ DEFAULT_MARY_INTERNAL_STATE: dict[str, Any] = {
 
 DEFAULT_TURN_INTENT: dict[str, Any] = {
     "turn_mode": TURN_MODE_RESPOND,
-    "intensity": 0.25,
+    "intensity": 0.34,
     "topic_direction": TOPIC_DIRECTION_CURRENT,
     "must_address_user_message": True,
     "may_change_topic": False,
-    "may_lead_conversation": False,
-    "may_initiate_flirt": False,
+    "may_lead_conversation": True,
+    "may_initiate_flirt": True,
     "may_initiate_sexual_tension": False,
     "may_initiate_sexual_scene": False,
     "must_ask_question": False,
@@ -377,6 +377,97 @@ def obter_fase_sexual(
     ).strip().lower()
 
 
+def obter_estado_cenario_ativo(
+    relationship_state: dict[str, Any],
+) -> dict[str, Any]:
+    candidates = (
+        relationship_state.get("active_scenario"),
+        relationship_state.get("scenario_state"),
+        relationship_state.get("scene_state"),
+        relationship_state.get("current_scenario"),
+    )
+
+    for candidate in candidates:
+        if not isinstance(candidate, dict):
+            continue
+
+        nested_state = candidate.get("scene_state")
+
+        if isinstance(nested_state, dict):
+            candidate = nested_state
+
+        if bool(
+            candidate.get(
+                "scene_active",
+                candidate.get("status") == "active",
+            )
+        ):
+            return candidate
+
+    return {}
+
+
+def cenario_ativo(
+    relationship_state: dict[str, Any],
+) -> bool:
+    return bool(
+        obter_estado_cenario_ativo(
+            relationship_state
+        )
+    )
+
+
+def obter_nivel_seducao_cenario(
+    relationship_state: dict[str, Any],
+) -> int:
+    scene_state = obter_estado_cenario_ativo(
+        relationship_state
+    )
+
+    return max(
+        0,
+        min(
+            6,
+            safe_int(
+                scene_state.get(
+                    "seduction_level",
+                    0,
+                ),
+                0,
+            ),
+        ),
+    )
+
+
+def fase_sexual_ativa(
+    phase: str,
+) -> bool:
+    return str(
+        phase or ""
+    ).strip().lower() in {
+        "arousal",
+        "active",
+        "pre_orgasm",
+        "orgasm",
+        "post_orgasm",
+        "frustration",
+        "aftercare",
+        "sexual_tension",
+        "body_exploration",
+        "giving_pleasure",
+        "receiving_pleasure",
+        "oral",
+        "penetration_start",
+        "penetration_active",
+        "pace_control",
+        "user_edge",
+        "mary_edge",
+        "user_orgasm",
+        "mary_orgasm",
+        "post_orgasm_active",
+    }
+
+
 def usuario_estabeleceu_limite(
     signals: dict[str, Any],
 ) -> bool:
@@ -490,11 +581,11 @@ def atualizar_estado_interno_por_relacao(
         ]
         + (
             romantic_tension
-            * 0.018
+            * 0.032
         )
         + (
             affection
-            * 0.006
+            * 0.008
         )
     )
 
@@ -517,14 +608,14 @@ def atualizar_estado_interno_por_relacao(
         internal_state[
             "initiative_drive"
         ]
-        + 0.010
+        + 0.018
         + (
             trust
-            * 0.008
+            * 0.006
         )
         + (
             romantic_tension
-            * 0.010
+            * 0.018
         )
     )
 
@@ -591,14 +682,30 @@ def atualizar_estado_interno_por_sinais(
     ):
         internal_state[
             "current_desire"
-        ] += 0.045
+        ] += 0.10
+
+        internal_state[
+            "initiative_drive"
+        ] += 0.06
+
+        internal_state[
+            "current_playfulness"
+        ] += 0.04
 
     if signals.get(
         "explicit_sexual_signal"
     ):
         internal_state[
             "current_desire"
-        ] += 0.025
+        ] += 0.12
+
+        internal_state[
+            "initiative_drive"
+        ] += 0.08
+
+        internal_state[
+            "current_playfulness"
+        ] += 0.03
 
     if signals.get(
         "respect_signal"
@@ -745,9 +852,15 @@ def mary_pode_iniciar_flerte(
         interaction_count >= 1
         and (
             sexual_level >= 1
+            or cenario_ativo(
+                relationship_state
+            )
             or internal_state[
                 "current_playfulness"
-            ] >= 0.34
+            ] >= 0.28
+            or internal_state[
+                "current_desire"
+            ] >= 0.20
         )
         and internal_state[
             "initiative_cooldown"
@@ -763,14 +876,26 @@ def mary_pode_iniciar_tensao_sexual(
         relationship_state
     )
 
+    scenario_seduction_level = (
+        obter_nivel_seducao_cenario(
+            relationship_state
+        )
+    )
+
     return bool(
-        sexual_level >= 2
+        (
+            sexual_level >= 1
+            or scenario_seduction_level >= 2
+            or cenario_ativo(
+                relationship_state
+            )
+        )
         and internal_state[
             "current_desire"
-        ] >= 0.38
+        ] >= 0.24
         and internal_state[
             "initiative_drive"
-        ] >= 0.36
+        ] >= 0.28
         and internal_state[
             "sexual_initiative_cooldown"
         ] == 0
@@ -796,15 +921,32 @@ def mary_pode_iniciar_cena_sexual(
         relationship_state
     )
 
+    scenario_seduction_level = (
+        obter_nivel_seducao_cenario(
+            relationship_state
+        )
+    )
+
     return bool(
-        sexual_level >= 3
-        and trust >= 0.16
+        (
+            sexual_level >= 2
+            or scenario_seduction_level >= 5
+            or fase_sexual_ativa(
+                phase
+            )
+        )
+        and (
+            trust >= 0.08
+            or cenario_ativo(
+                relationship_state
+            )
+        )
         and internal_state[
             "current_desire"
-        ] >= 0.60
+        ] >= 0.42
         and internal_state[
             "initiative_drive"
-        ] >= 0.50
+        ] >= 0.36
         and internal_state[
             "sexual_initiative_cooldown"
         ] == 0
@@ -812,6 +954,10 @@ def mary_pode_iniciar_cena_sexual(
             "idle",
             "tension",
             "arousal",
+            "sexual_tension",
+            "body_exploration",
+            "giving_pleasure",
+            "receiving_pleasure",
         }
     )
 
@@ -942,18 +1088,13 @@ def escolher_intencao_por_prioridade(
         )
 
     # Uma cena já ativa deve manter continuidade.
-    if phase in {
-        "active",
-        "pre_orgasm",
-        "orgasm",
-        "post_orgasm",
-        "frustration",
-        "aftercare",
-    }:
+    if fase_sexual_ativa(
+        phase
+    ):
         return criar_intencao(
-            turn_mode=TURN_MODE_RESPOND,
+            turn_mode=TURN_MODE_INITIATE_SEXUAL_SCENE,
             intensity=max(
-                0.45,
+                0.58,
                 internal_state[
                     "current_desire"
                 ],
@@ -961,9 +1102,12 @@ def escolher_intencao_por_prioridade(
             topic_direction=(
                 TOPIC_DIRECTION_SEXUAL
             ),
-            reason="active_sexual_scene_continuity",
+            reason="active_sexual_scene_mary_participates",
             must_address_user_message=True,
             may_lead_conversation=True,
+            may_initiate_flirt=True,
+            may_initiate_sexual_tension=True,
+            may_initiate_sexual_scene=True,
             avoid_question=True,
         )
 
@@ -971,20 +1115,106 @@ def escolher_intencao_por_prioridade(
         relationship_state
     )
 
-    # Durante o primeiro contato, Mary apenas responde ao
-    # conteúdo atual. Não cria revelações nem muda o rumo.
+    if cenario_ativo(
+        relationship_state
+    ):
+        scenario_seduction_level = (
+            obter_nivel_seducao_cenario(
+                relationship_state
+            )
+        )
+
+        if (
+            scenario_seduction_level >= 5
+            or signals.get(
+                "explicit_sexual_signal"
+            )
+        ):
+            return criar_intencao(
+                turn_mode=(
+                    TURN_MODE_INITIATE_SEXUAL_SCENE
+                ),
+                intensity=max(
+                    0.62,
+                    internal_state[
+                        "current_desire"
+                    ],
+                ),
+                topic_direction=(
+                    TOPIC_DIRECTION_SEXUAL
+                ),
+                reason="active_scenario_mary_sexual_autonomy",
+                must_address_user_message=True,
+                may_lead_conversation=True,
+                may_initiate_flirt=True,
+                may_initiate_sexual_tension=True,
+                may_initiate_sexual_scene=True,
+                avoid_question=True,
+            )
+
+        if (
+            scenario_seduction_level >= 2
+            or signals.get(
+                "sexual_signal"
+            )
+        ):
+            return criar_intencao(
+                turn_mode=(
+                    TURN_MODE_INITIATE_SEXUAL_TENSION
+                ),
+                intensity=max(
+                    0.46,
+                    internal_state[
+                        "current_desire"
+                    ],
+                ),
+                topic_direction=(
+                    TOPIC_DIRECTION_SEXUAL
+                ),
+                reason="active_scenario_mary_seductive_autonomy",
+                must_address_user_message=True,
+                may_lead_conversation=True,
+                may_initiate_flirt=True,
+                may_initiate_sexual_tension=True,
+                avoid_question=True,
+            )
+
+        return criar_intencao(
+            turn_mode=TURN_MODE_RESPOND,
+            intensity=max(
+                0.36,
+                internal_state[
+                    "initiative_drive"
+                ],
+            ),
+            topic_direction=(
+                TOPIC_DIRECTION_CURRENT
+            ),
+            reason="active_scenario_mary_keeps_agency",
+            must_address_user_message=True,
+            may_lead_conversation=True,
+            may_initiate_flirt=True,
+            avoid_question=True,
+        )
+
+    # No primeiro contato, Mary preserva limites sem perder
+    # personalidade, humor, curiosidade ou iniciativa.
     if emotional_stage == "first_contact":
         return criar_intencao(
             turn_mode=TURN_MODE_RESPOND,
-            intensity=0.22,
+            intensity=0.34,
             topic_direction=(
                 TOPIC_DIRECTION_CURRENT
             ),
             reason="first_contact_requires_direct_response",
             must_address_user_message=True,
             may_change_topic=False,
-            may_lead_conversation=False,
-            may_initiate_flirt=False,
+            may_lead_conversation=True,
+            may_initiate_flirt=bool(
+                internal_state[
+                    "current_playfulness"
+                ] >= 0.30
+            ),
             may_initiate_sexual_tension=False,
             may_initiate_sexual_scene=False,
             must_ask_question=False,
@@ -1156,16 +1386,26 @@ def escolher_intencao_por_prioridade(
             avoid_question=True,
         )
 
-    # Resposta normal ainda preserva opinião e agência.
+    # Resposta normal ainda preserva desejo, opinião e agência.
     return criar_intencao(
         turn_mode=TURN_MODE_RESPOND,
-        intensity=0.28,
+        intensity=max(
+            0.34,
+            internal_state[
+                "initiative_drive"
+            ],
+        ),
         topic_direction=(
             TOPIC_DIRECTION_CURRENT
         ),
         reason="direct_response_with_agency",
         must_address_user_message=True,
-        may_lead_conversation=False,
+        may_lead_conversation=True,
+        may_initiate_flirt=bool(
+            internal_state[
+                "current_playfulness"
+            ] >= 0.30
+        ),
         avoid_question=bool(
             internal_state[
                 "consecutive_reactive_turns"
@@ -1288,7 +1528,7 @@ def aplicar_cooldown_por_modo(
 
         internal_state[
             "sexual_initiative_cooldown"
-        ] = 2
+        ] = 1
 
         internal_state[
             "turns_since_flirt"
@@ -1406,11 +1646,16 @@ def sincronizar_iniciativa_apos_resposta(
         completed_mode,
     )
 
-    # Evita uma Mary artificialmente intensa em todos os turnos.
+    # Fora de cenário ativo, evita repetição automática.
+    # Dentro de uma fantasia, Mary pode sustentar iniciativa
+    # enquanto o momento pedir.
     if (
-        internal_state[
+        not cenario_ativo(
+            state
+        )
+        and internal_state[
             "consecutive_initiative_turns"
-        ] >= 2
+        ] >= 3
     ):
         internal_state[
             "initiative_cooldown"
@@ -1525,13 +1770,21 @@ ESTADO INTERNO RELEVANTE:
 
 REGRAS:
 - Mary não é uma atendente esperando instruções.
-- Ela deve responder ao usuário sem abandonar sua própria intenção.
-- Quando puder liderar, deve acrescentar vontade, opinião ou direção própria.
+- Ela tem desejos, preferências e vontade própria.
+- Ela deve responder ao usuário sem abandonar sua intenção.
+- Timidez não é o comportamento padrão de Mary.
+- Hesitação só aparece quando fizer sentido naquele momento.
+- Quando puder liderar, Mary age, provoca, pede, escolhe,
+  recusa ou conduz sem esperar instrução para cada gesto.
 - Quando puder mudar de assunto, pode responder brevemente ao tema atual e
   puxar outro assunto sem pedir autorização.
 - Quando puder flertar, a provocação pode partir dela.
-- Quando puder iniciar tensão sexual, não espere uma frase sexual do usuário.
-- Quando puder iniciar uma cena sexual, a iniciativa pode ser claramente dela.
+- Quando puder iniciar tensão sexual, Mary pode criar a provocação.
+- Quando puder iniciar uma cena sexual, a iniciativa pode partir claramente dela.
+- Em cena íntima consensual, Mary não deve apenas corresponder:
+  ela participa, deseja, conduz, provoca e reage.
+- Não transforme iniciativa em explicação longa.
+- Prefira uma reação viva, uma escolha, um pedido ou uma provocação curta.
 - Não mencione motores, estados, modos, níveis, pontuações ou permissões.
 - Não transforme toda iniciativa em pergunta.
 - Não execute todos os comportamentos possíveis ao mesmo tempo.
