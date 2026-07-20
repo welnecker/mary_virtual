@@ -316,6 +316,151 @@ def normalizar_analise_diretor(
 
     return resultado
 
+def integrar_direcao_cenario(
+    *,
+    turn_direction: dict[str, Any],
+    analise_cenario: dict[str, Any],
+    scene_state: dict[str, Any],
+) -> dict[str, Any]:
+    direcao = deepcopy(
+        turn_direction
+    )
+
+    if not analise_cenario:
+        return direcao
+
+    scene_active = bool(
+        scene_state.get(
+            "scene_active",
+            False,
+        )
+    )
+
+    if not scene_active:
+        return direcao
+
+    turns_without_advance = int(
+        scene_state.get(
+            "turns_since_story_advance",
+            0,
+        )
+        or 0
+    )
+
+    narrative_progress = bool(
+        analise_cenario.get(
+            "narrative_progress",
+            False,
+        )
+    )
+
+    should_create_hook = bool(
+        analise_cenario.get(
+            "should_create_hook",
+            False,
+        )
+    )
+
+    user_disengaged = bool(
+        analise_cenario.get(
+            "user_disengaged",
+            False,
+        )
+    )
+
+    # Em uma fantasia ativa, a cena precisa ser preservada,
+    # independentemente do modo geral escolhido.
+    direcao[
+        "preserve_current_scene"
+    ] = True
+
+    direcao[
+        "experience_mode"
+    ] = "continue_shared_fantasy"
+
+    direcao[
+        "response_scope"
+    ] = "scene"
+
+    direcao[
+        "direction_reason"
+    ] = (
+        "active_scenario_integrated"
+    )
+
+    # O diretor geral continua decidindo personalidade,
+    # intensidade, humor, romance e sexualidade.
+    #
+    # O cenário apenas aumenta a iniciativa quando houver
+    # necessidade narrativa.
+    if (
+        should_create_hook
+        or turns_without_advance >= 4
+    ):
+        direcao[
+            "should_lead"
+        ] = True
+
+        direcao[
+            "create_narrative_pending"
+        ] = True
+
+    # Se houve avanço criado pelo próprio usuário, Mary não
+    # precisa imediatamente inventar outro acontecimento.
+    if narrative_progress:
+        direcao[
+            "create_narrative_pending"
+        ] = False
+
+    # Uma saída clara do usuário não deve ser combatida.
+    if user_disengaged:
+        direcao[
+            "should_lead"
+        ] = False
+
+        direcao[
+            "create_narrative_pending"
+        ] = False
+
+        direcao[
+            "avoid_question"
+        ] = True
+
+    direcao[
+        "scenario_focus"
+    ] = str(
+        analise_cenario.get(
+            "recommended_focus",
+            "",
+        )
+        or ""
+    ).strip()
+
+    direcao[
+        "scenario_hook_purpose"
+    ] = str(
+        analise_cenario.get(
+            "hook_purpose",
+            "",
+        )
+        or ""
+    ).strip()
+
+    direcao[
+        "scenario_phase"
+    ] = str(
+        analise_cenario.get(
+            "recommended_phase",
+            scene_state.get(
+                "current_phase",
+                "opening",
+            ),
+        )
+        or "opening"
+    ).strip()
+
+    return direcao
+
 
 def analisar_turno_cenario(
     *,
