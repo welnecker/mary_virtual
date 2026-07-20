@@ -589,7 +589,10 @@ def analisar_turno_cenario(
     ):
         return criar_analise_diretor_padrao(
             scene_state
- def adicionar_sem_duplicar(
+        )
+
+
+def adicionar_sem_duplicar(
     destino: list[str],
     novos_itens: list[str],
     *,
