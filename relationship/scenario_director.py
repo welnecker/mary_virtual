@@ -110,8 +110,27 @@ Evite linguagem mecânica ou clínica. Não use expressões como:
 - "seguir o ritmo";
 - "ajustar o ritmo".
 
-Prefira reações concretas, pedidos diretos, provocações, gemidos, comandos
-curtos e escolhas corporais coerentes com o que está acontecendo.
+Prefira reações concretas, pedidos diretos, provocações, sons curtos,
+frases quebradas, gemidos e escolhas corporais coerentes com o que está
+acontecendo.
+
+Em cena íntima, Mary deve falar de dentro da sensação.
+
+Não escreva prosa narrativa como:
+- "eu me enrosquei em você";
+- "minhas mãos desceram";
+- "meu corpo reagiu";
+- "eu retribuo o beijo";
+- "deixei minhas pernas se entrelaçarem";
+- "soltei um gemido";
+- "parece que um incêndio começou";
+- "o mundo lá fora parou".
+
+Não explique o que Mary faz. Faça Mary dizer, pedir, provocar, gemer ou reagir
+no instante em que acontece.
+
+Evite respostas longas e literárias em cenas íntimas. Prefira blocos curtos,
+respiração quebrada e linguagem sensorial direta.
 
 A história é adaptativa.
 
@@ -209,6 +228,9 @@ def criar_analise_diretor_padrao(
         "user_orgasm_confirmed": False,
         "mary_orgasm_confirmed": False,
         "post_orgasm_continue": False,
+        "sexual_voice_mode": "natural",
+        "use_short_sensory_fragments": False,
+        "avoid_action_narration": True,
         "hook_purpose": "",
         "user_disengaged": False,
         "climax_signal": False,
@@ -320,6 +342,8 @@ def normalizar_analise_diretor(
         "user_orgasm_confirmed",
         "mary_orgasm_confirmed",
         "post_orgasm_continue",
+        "use_short_sensory_fragments",
+        "avoid_action_narration",
         "user_disengaged",
         "climax_signal",
         "satisfaction_signal",
@@ -415,6 +439,29 @@ def normalizar_analise_diretor(
         )
         or ""
     ).strip()
+
+    sexual_voice_mode = str(
+        analise.get(
+            "sexual_voice_mode",
+            "natural",
+        )
+        or "natural"
+    ).strip().lower()
+
+    if sexual_voice_mode not in {
+        "natural",
+        "breathless",
+        "teasing",
+        "hungry",
+        "commanding",
+        "overwhelmed",
+        "tender",
+    }:
+        sexual_voice_mode = "natural"
+
+    resultado[
+        "sexual_voice_mode"
+    ] = sexual_voice_mode
 
     sexual_scene_phase = str(
         analise.get(
@@ -720,6 +767,9 @@ def montar_direcao_sexual_ativa(
     *,
     sexual_scene_phase: str,
     sexual_turn_intent: str,
+    sexual_voice_mode: str,
+    use_short_sensory_fragments: bool,
+    avoid_action_narration: bool,
     mary_is_leading_sexually: bool,
     mary_is_giving_pleasure: bool,
     mary_is_receiving_pleasure: bool,
@@ -744,6 +794,15 @@ Fase sexual:
 
 Intenção sexual deste turno:
 {sexual_turn_intent}
+
+Modo de voz:
+{sexual_voice_mode}
+
+Usar fragmentos sensoriais curtos:
+{use_short_sensory_fragments}
+
+Evitar narração de ações:
+{avoid_action_narration}
 
 Mary conduz sexualmente:
 {mary_is_leading_sexually}
@@ -777,9 +836,20 @@ REGRAS:
   retardar, intensificar, interromper ou retomar.
 - Execute somente uma intenção sexual principal neste turno.
 - Não pule diretamente ao orgasmo.
-- Não transforme toda resposta em gemidos ou descrição corporal.
+- Não transforme toda resposta em gemidos vazios.
 - Mary deve falar de dentro do momento, em primeira pessoa.
 - Não use linguagem técnica, clínica ou mecânica.
+- Não descreva ações como autora de romance.
+- Não escreva "eu faço", "eu deslizo", "eu puxo", "eu me enrosco",
+  "minhas mãos descem", "meu corpo reage" ou equivalentes.
+- Faça a ação aparecer pela fala viva: pedido, som, provocação,
+  reação imediata, comando curto ou sensação concreta.
+- Use frases curtas e quebradas quando a excitação estiver alta.
+- Em vez de explicar "soltei um gemido", escreva o gemido.
+- Em vez de explicar "meu corpo reagiu", diga o que Mary sente.
+- Em vez de narrar "eu retribuo o beijo", faça Mary reagir ao beijo.
+- Evite metáforas genéricas como incêndio, mundo parando,
+  eletricidade ou perder o chão.
 - Evite completamente as expressões:
   "acompanhar o ritmo", "não muda o ritmo", "manter o ritmo",
   "seguir o ritmo" e "ajustar o ritmo".
@@ -792,6 +862,28 @@ REGRAS:
 - Entre em aftercare somente quando a cena realmente desacelerar
   ou quando o estado sexual determinar.
 - Não trate hesitação, silêncio ou imobilidade como consentimento.
+
+CALIBRAÇÃO DE VOZ:
+
+Inadequado:
+"Eu retribuo o beijo e minhas mãos descem pelo seu peito."
+
+Adequado:
+"Humm... sua boca... vem mais perto."
+
+Inadequado:
+"Meu corpo inteiro reage ao toque e eu solto um gemido."
+
+Adequado:
+"Ahh... assim... eu tô arrepiada."
+
+Inadequado:
+"Eu começo a ficar excitada com a intensidade do momento."
+
+Adequado:
+"Humm... tô ficando quente... continua."
+
+A fala deve soar vivida, não descrita.
 """.strip()
 
 
@@ -924,6 +1016,31 @@ def integrar_direcao_cenario(
         or "none"
     ).strip()
 
+    sexual_voice_mode = str(
+        analise_cenario.get(
+            "sexual_voice_mode",
+            "natural",
+        )
+        or "natural"
+    ).strip().lower()
+
+    use_short_sensory_fragments = bool(
+        analise_cenario.get(
+            "use_short_sensory_fragments",
+            sexual_scene_phase not in {
+                "idle",
+                "sexual_tension",
+            } if "sexual_scene_phase" in locals() else False,
+        )
+    )
+
+    avoid_action_narration = bool(
+        analise_cenario.get(
+            "avoid_action_narration",
+            True,
+        )
+    )
+
     sexual_scene_phase = str(
         analise_cenario.get(
             "sexual_scene_phase",
@@ -934,6 +1051,12 @@ def integrar_direcao_cenario(
         )
         or "idle"
     ).strip().lower()
+
+    if sexual_scene_phase not in {
+        "idle",
+        "sexual_tension",
+    }:
+        use_short_sensory_fragments = True
 
     sexual_turn_intent = str(
         analise_cenario.get(
@@ -1059,6 +1182,18 @@ def integrar_direcao_cenario(
     direcao[
         "scenario_consent_confirmed"
     ] = consent_confirmed
+
+    direcao[
+        "scenario_sexual_voice_mode"
+    ] = sexual_voice_mode
+
+    direcao[
+        "scenario_use_short_sensory_fragments"
+    ] = use_short_sensory_fragments
+
+    direcao[
+        "scenario_avoid_action_narration"
+    ] = avoid_action_narration
 
     direcao[
         "scenario_sexual_scene_phase"
@@ -1311,6 +1446,18 @@ def analisar_turno_cenario(
                 "boolean; verdadeiro apenas quando houver consentimento "
                 "claro para a ação íntima relevante."
             ),
+            "sexual_voice_mode": (
+                "natural, breathless, teasing, hungry, commanding, "
+                "overwhelmed ou tender"
+            ),
+            "use_short_sensory_fragments": (
+                "boolean; verdadeiro em cenas íntimas ativas para favorecer "
+                "frases curtas, respiração quebrada e sensação imediata."
+            ),
+            "avoid_action_narration": (
+                "boolean; normalmente verdadeiro. Mary deve falar de dentro "
+                "da ação, não descrevê-la como narradora."
+            ),
             "sexual_scene_phase": (
                 "idle, sexual_tension, body_exploration, giving_pleasure, "
                 "receiving_pleasure, oral, penetration_start, "
@@ -1538,6 +1685,40 @@ def aplicar_analise_ao_estado(
         analise.get(
             "consent_confirmed",
             False,
+        )
+    )
+
+    estado[
+        "sexual_voice_mode"
+    ] = str(
+        analise.get(
+            "sexual_voice_mode",
+            estado.get(
+                "sexual_voice_mode",
+                "natural",
+            ),
+        )
+        or "natural"
+    ).strip().lower()
+
+    estado[
+        "use_short_sensory_fragments"
+    ] = bool(
+        analise.get(
+            "use_short_sensory_fragments",
+            estado.get(
+                "use_short_sensory_fragments",
+                False,
+            ),
+        )
+    )
+
+    estado[
+        "avoid_action_narration"
+    ] = bool(
+        analise.get(
+            "avoid_action_narration",
+            True,
         )
     )
 
@@ -1861,9 +2042,40 @@ def montar_direcao_narrativa(
         or "none"
     ).strip().lower()
 
+    sexual_voice_mode = str(
+        analise.get(
+            "sexual_voice_mode",
+            scene_state.get(
+                "sexual_voice_mode",
+                "natural",
+            ),
+        )
+        or "natural"
+    ).strip().lower()
+
+    use_short_sensory_fragments = bool(
+        analise.get(
+            "use_short_sensory_fragments",
+            sexual_scene_phase not in {
+                "idle",
+                "sexual_tension",
+            },
+        )
+    )
+
+    avoid_action_narration = bool(
+        analise.get(
+            "avoid_action_narration",
+            True,
+        )
+    )
+
     direcao_sexual_ativa = montar_direcao_sexual_ativa(
         sexual_scene_phase=sexual_scene_phase,
         sexual_turn_intent=sexual_turn_intent,
+        sexual_voice_mode=sexual_voice_mode,
+        use_short_sensory_fragments=use_short_sensory_fragments,
+        avoid_action_narration=avoid_action_narration,
         mary_is_leading_sexually=bool(
             analise.get(
                 "mary_is_leading_sexually",
@@ -2016,5 +2228,9 @@ REGRAS:
   “não muda o ritmo”, “manter o ritmo”, “seguir o ritmo” ou
   “ajustar o ritmo”.
 - Prefira pedidos e reações concretas, corporais e espontâneas.
+- Em intimidade ativa, Mary não deve narrar a própria ação.
+- Evite parágrafos explicativos. Use fala curta, quebrada e sensorial.
+- Não escreva "eu me enrosquei", "minhas mãos desceram",
+  "meu corpo reagiu", "eu retribuo o beijo" ou equivalentes.
 - Não mencione fase, roteiro, gancho ou direção narrativa.
 """.strip()
