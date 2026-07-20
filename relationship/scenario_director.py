@@ -629,7 +629,88 @@ def normalizar_analise_diretor(
         ),
     )
 
+    # A análise semântica não pode devolver Mary à passividade
+    # quando o próprio estado demonstra estagnação.
+    turns_without_advance = max(
+        0,
+        int(
+            scene_state.get(
+                "turns_since_story_advance",
+                0,
+            )
+            or 0
+        ),
+    )
+
+    previous_strength = max(
+        0,
+        min(
+            3,
+            int(
+                scene_state.get(
+                    "last_mary_initiative_strength",
+                    0,
+                )
+                or 0
+            ),
+        ),
+    )
+
+    if turns_without_advance >= 2:
+        resultado[
+            "mary_initiative_strength"
+        ] = max(
+            2,
+            resultado[
+                "mary_initiative_strength"
+            ],
+        )
+
+        resultado[
+            "mary_should_add_affordance"
+        ] = True
+
+        if not resultado[
+            "recommended_focus"
+        ]:
+            resultado[
+                "recommended_focus"
+            ] = (
+                "Mary executa uma decisão concreta que altera "
+                "o momento atual e deixa uma consequência "
+                "imediata para o usuário."
+            )
+
+    if turns_without_advance >= 4:
+        resultado[
+            "mary_initiative_strength"
+        ] = 3
+
+        resultado[
+            "should_create_hook"
+        ] = True
+
+    if (
+        previous_strength >= 2
+        and not resultado[
+            "narrative_progress"
+        ]
+    ):
+        resultado[
+            "mary_initiative_strength"
+        ] = max(
+            2,
+            resultado[
+                "mary_initiative_strength"
+            ],
+        )
+
+        resultado[
+            "mary_should_add_affordance"
+        ] = True
+
     return resultado
+
 
 def calcular_nivel_seducao(
     *,
@@ -1024,16 +1105,6 @@ def integrar_direcao_cenario(
         or "natural"
     ).strip().lower()
 
-    use_short_sensory_fragments = bool(
-        analise_cenario.get(
-            "use_short_sensory_fragments",
-            sexual_scene_phase not in {
-                "idle",
-                "sexual_tension",
-            } if "sexual_scene_phase" in locals() else False,
-        )
-    )
-
     avoid_action_narration = bool(
         analise_cenario.get(
             "avoid_action_narration",
@@ -1051,6 +1122,16 @@ def integrar_direcao_cenario(
         )
         or "idle"
     ).strip().lower()
+
+    use_short_sensory_fragments = bool(
+        analise_cenario.get(
+            "use_short_sensory_fragments",
+            sexual_scene_phase not in {
+                "idle",
+                "sexual_tension",
+            },
+        )
+    )
 
     if sexual_scene_phase not in {
         "idle",
@@ -1122,8 +1203,13 @@ def integrar_direcao_cenario(
         )
     )
 
-    # Em uma fantasia ativa, a cena precisa ser preservada,
-    # independentemente do modo geral escolhido.
+    # Em fantasia ativa, esta integração ocorre depois do
+    # diretor geral e substitui os campos operacionais incompatíveis.
+    direcao[
+        "must_preserve_current_scene"
+    ] = True
+
+    # Compatibilidade com versões anteriores.
     direcao[
         "preserve_current_scene"
     ] = True
@@ -1137,21 +1223,111 @@ def integrar_direcao_cenario(
     ] = "scene"
 
     direcao[
+        "reason"
+    ] = "active_scenario_integrated"
+
+    direcao[
         "direction_reason"
-    ] = (
-        "active_scenario_integrated"
+    ] = "active_scenario_integrated"
+
+    recommended_focus = str(
+        analise_cenario.get(
+            "recommended_focus",
+            "",
+        )
+        or ""
+    ).strip()
+
+    if recommended_focus:
+        direcao[
+            "primary_intention"
+        ] = recommended_focus
+
+    # Mary pode falar do próprio corpo e de sensações canônicas
+    # dentro da fantasia, mesmo antes de uma cena explicitamente sexual.
+    direcao[
+        "body_focus_allowed"
+    ] = bool(
+        seduction_level >= 1
+        or sexual_scene_phase != "idle"
+        or scene_state.get(
+            "fantasy_established",
+            False,
+        )
     )
 
-    # O diretor geral continua decidindo personalidade,
-    # intensidade, humor, romance e sexualidade.
-    #
-    # O cenário apenas aumenta a iniciativa quando houver
-    # necessidade narrativa.
+    sexual_phase_active = (
+        sexual_scene_phase
+        not in {
+            "",
+            "idle",
+        }
+    )
+
+    explicit_phase_active = (
+        sexual_scene_phase
+        in {
+            "body_exploration",
+            "giving_pleasure",
+            "receiving_pleasure",
+            "oral",
+            "penetration_start",
+            "penetration_active",
+            "pace_control",
+            "user_edge",
+            "mary_edge",
+            "user_orgasm",
+            "mary_orgasm",
+            "post_orgasm_active",
+        }
+    )
+
+    direcao[
+        "sexual_expression_allowed"
+    ] = bool(
+        direcao.get(
+            "sexual_expression_allowed",
+            False,
+        )
+        or seduction_level >= 2
+        or sexual_phase_active
+        or sexual_reciprocity_evidence
+    )
+
+    direcao[
+        "explicit_sexual_language_allowed"
+    ] = bool(
+        direcao.get(
+            "explicit_sexual_language_allowed",
+            False,
+        )
+        or explicit_phase_active
+        or (
+            seduction_level >= 5
+            and sexual_reciprocity_evidence
+            and consent_confirmed
+        )
+    )
+
+    # O cenário decide atitude e movimento; o motor sexual
+    # continua decidindo orgasmo e continuidade fisiológica.
+    if turns_without_advance >= 2:
+        mary_initiative_strength = max(
+            2,
+            mary_initiative_strength,
+        )
+
+        mary_should_add_affordance = True
+
+    if turns_without_advance >= 4:
+        mary_initiative_strength = 3
+        should_create_hook = True
+
     precisa_movimento_mary = bool(
         should_create_hook
         or mary_should_add_affordance
         or mary_initiative_strength >= 2
-        or turns_without_advance >= 3
+        or turns_without_advance >= 2
     )
 
     direcao[
@@ -1253,9 +1429,24 @@ def integrar_direcao_cenario(
             "create_narrative_pending"
         ] = True
 
+        # Iniciativa não deve virar pergunta devolvida ao usuário.
         direcao[
             "avoid_question"
-        ] = False
+        ] = True
+
+        if not recommended_focus:
+            recommended_focus = (
+                "Mary toma uma decisão concreta e executa "
+                "um movimento perceptível agora."
+            )
+
+        direcao[
+            "primary_intention"
+        ] = recommended_focus
+
+        direcao[
+            "scenario_focus"
+        ] = recommended_focus
 
         if mary_initiative_strength >= 3:
             direcao[
@@ -1292,13 +1483,16 @@ def integrar_direcao_cenario(
 
     direcao[
         "scenario_focus"
-    ] = str(
-        analise_cenario.get(
-            "recommended_focus",
-            "",
-        )
-        or ""
-    ).strip()
+    ] = (
+        recommended_focus
+        or str(
+            analise_cenario.get(
+                "recommended_focus",
+                "",
+            )
+            or ""
+        ).strip()
+    )
 
     direcao[
         "scenario_hook_purpose"
@@ -1573,9 +1767,38 @@ def aplicar_analise_ao_estado(
         scene_state
     )
 
+    previous_interaction_count = max(
+        0,
+        int(
+            estado.get(
+                "interaction_count",
+                0,
+            )
+            or 0
+        ),
+    )
+
+    supplied_interaction_number = max(
+        0,
+        int(
+            interaction_number
+            or 0
+        ),
+    )
+
     estado[
         "interaction_count"
-    ] = interaction_number
+    ] = max(
+        previous_interaction_count + 1,
+        supplied_interaction_number,
+    )
+
+    if estado[
+        "interaction_count"
+    ] >= 1:
+        estado[
+            "opening_sent"
+        ] = True
 
     estado[
         "last_user_action"
@@ -1648,23 +1871,41 @@ def aplicar_analise_ao_estado(
         ),
     )
 
-    estado[
-        "seduction_strategy"
-    ] = str(
+    proposed_strategy = str(
         analise.get(
             "seduction_strategy",
+            "",
+        )
+        or ""
+    ).strip()
+
+    if (
+        proposed_strategy
+        and proposed_strategy != "none"
+    ):
+        estado[
+            "seduction_strategy"
+        ] = proposed_strategy
+
+    else:
+        estado[
+            "seduction_strategy"
+        ] = str(
             estado.get(
                 "seduction_strategy",
                 "none",
-            ),
-        )
-        or "none"
-    ).strip()
+            )
+            or "none"
+        ).strip()
 
     estado[
         "sexual_reciprocity_evidence"
     ] = bool(
-        analise.get(
+        estado.get(
+            "sexual_reciprocity_evidence",
+            False,
+        )
+        or analise.get(
             "sexual_reciprocity_evidence",
             False,
         )
@@ -1673,7 +1914,11 @@ def aplicar_analise_ao_estado(
     estado[
         "intimate_action_started"
     ] = bool(
-        analise.get(
+        estado.get(
+            "intimate_action_started",
+            False,
+        )
+        or analise.get(
             "intimate_action_started",
             False,
         )
@@ -1682,7 +1927,11 @@ def aplicar_analise_ao_estado(
     estado[
         "consent_confirmed"
     ] = bool(
-        analise.get(
+        estado.get(
+            "consent_confirmed",
+            False,
+        )
+        or analise.get(
             "consent_confirmed",
             False,
         )
@@ -1818,21 +2067,73 @@ def aplicar_analise_ao_estado(
         ),
     )
 
-    if (
+    recommended_phase = str(
         analise.get(
-            "confidence",
-            0.0,
-        )
-        >= 0.55
-    ):
-        estado[
-            "current_phase"
-        ] = analise.get(
             "recommended_phase",
             estado.get(
                 "current_phase",
                 "opening",
             ),
+        )
+        or estado.get(
+            "current_phase",
+            "opening",
+        )
+    ).strip().lower()
+
+    if (
+        analise.get(
+            "confidence",
+            0.0,
+        )
+        >= 0.45
+    ):
+        estado[
+            "current_phase"
+        ] = recommended_phase
+
+    # A abertura não pode permanecer congelada depois que a
+    # situação inicial já foi aceita ou resolvida.
+    resolved_elements = set(
+        str(item).strip().lower()
+        for item in analise.get(
+            "resolved_elements",
+            [],
+        )
+        if str(
+            item or ""
+        ).strip()
+    )
+
+    if (
+        estado.get(
+            "current_phase",
+            "opening",
+        ) == "opening"
+        and (
+            estado[
+                "interaction_count"
+            ] >= 3
+            or bool(
+                resolved_elements
+            )
+            or bool(
+                analise.get(
+                    "scene_changed",
+                    False,
+                )
+            )
+        )
+    ):
+        estado[
+            "current_phase"
+        ] = (
+            "tension"
+            if estado.get(
+                "seduction_level",
+                0,
+            ) >= 2
+            else "familiarity"
         )
 
     if analise.get(
@@ -1844,7 +2145,9 @@ def aplicar_analise_ao_estado(
 
         estado[
             "last_story_advance_at"
-        ] = interaction_number
+        ] = estado[
+            "interaction_count"
+        ]
 
     else:
         estado[
@@ -1952,11 +2255,20 @@ def montar_direcao_narrativa(
         ),
     )
 
+    if turns_without_advance >= 2:
+        initiative_strength = max(
+            2,
+            initiative_strength,
+        )
+
+    if turns_without_advance >= 4:
+        initiative_strength = 3
+
     precisa_movimento_mary = bool(
         should_create_hook
         or mary_should_add_affordance
         or initiative_strength >= 2
-        or turns_without_advance >= 3
+        or turns_without_advance >= 2
     )
 
     focus = str(
@@ -1976,12 +2288,16 @@ def montar_direcao_narrativa(
     ).strip()
 
     seduction_level = int(
-        scene_state.get(
+        analise.get(
             "seduction_level",
-            analise.get(
+            scene_state.get(
                 "seduction_level",
                 0,
             ),
+        )
+        or scene_state.get(
+            "seduction_level",
+            0,
         )
         or 0
     )
@@ -2006,15 +2322,18 @@ def montar_direcao_narrativa(
     ).strip()
 
     sexual_expression_allowed = bool(
-        analise.get(
-            "sexual_reciprocity_evidence",
-            False,
-        )
-        and analise.get(
-            "consent_confirmed",
-            False,
-        )
-        and seduction_level >= 5
+        seduction_level >= 2
+        or str(
+            analise.get(
+                "sexual_scene_phase",
+                scene_state.get(
+                    "sexual_scene_phase",
+                    "idle",
+                ),
+            )
+            or "idle"
+        ).strip().lower()
+        != "idle"
     )
 
     direcao_seducao = montar_direcao_seducao(
@@ -2173,12 +2492,14 @@ REGRAS DO MOVIMENTO:
 
     else:
         movimento = """
-Mary não precisa criar um acontecimento novo neste turno.
+Mary não precisa criar um acontecimento externo novo neste turno.
 
-Ela pode aprofundar o momento atual por meio de reação, emoção,
-humor, desconforto, curiosidade, silêncio implícito ou proximidade.
+Ainda assim, ela não deve ficar passiva. Pode assumir uma vontade,
+fazer uma provocação, falar do próprio corpo, revelar uma sensação,
+formular um pedido curto ou tomar uma pequena decisão coerente.
 
-Mesmo sem um novo acontecimento, evite repetir a mesma ideia.
+Não explique longamente o momento. Corresponda e acrescente apenas
+a atitude necessária.
 """.strip()
 
     return f"""
