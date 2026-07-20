@@ -15,9 +15,16 @@ from relationship.initiative_engine import (
     montar_contexto_iniciativa,
 )
 
+try:
+    from relationship.sexual_engine import (
+        montar_contexto_sexual,
+    )
+except ImportError:
+    montar_contexto_sexual = None
+
 
 PROMPT_COMPOSER_VERSION = (
-    "prompt-composer-v3-explicit-turn-contract"
+    "prompt-composer-v4-mary-agency-priority"
 )
 
 
@@ -277,6 +284,129 @@ def resolver_direcao_turno(
         return current_direction
 
     return {}
+
+
+# ==========================================================
+# LEITURA DE CONTEXTO ATIVO
+# ==========================================================
+
+
+def obter_estado_cenario_ativo(
+    relationship_state: dict[str, Any] | None,
+) -> dict[str, Any]:
+    relationship = normalizar_dict(
+        relationship_state
+    )
+
+    candidates = (
+        relationship.get("active_scenario"),
+        relationship.get("scenario_state"),
+        relationship.get("scene_state"),
+        relationship.get("current_scenario"),
+    )
+
+    for candidate in candidates:
+        if not isinstance(candidate, dict):
+            continue
+
+        nested_state = candidate.get(
+            "scene_state"
+        )
+
+        if isinstance(nested_state, dict):
+            candidate = nested_state
+
+        if normalizar_bool(
+            candidate.get(
+                "scene_active",
+                candidate.get("status") == "active",
+            ),
+            default=False,
+        ):
+            return candidate
+
+    return {}
+
+
+def cenario_ativo(
+    relationship_state: dict[str, Any] | None,
+) -> bool:
+    return bool(
+        obter_estado_cenario_ativo(
+            relationship_state
+        )
+    )
+
+
+def fase_sexual_ativa(
+    sexual_state: dict[str, Any] | None,
+) -> bool:
+    state = normalizar_dict(
+        sexual_state
+    )
+
+    phase = normalizar_texto(
+        state.get(
+            "scene_phase"
+        )
+    ).lower()
+
+    return phase in {
+        "arousal",
+        "active",
+        "pre_orgasm",
+        "orgasm",
+        "post_orgasm",
+        "frustration",
+        "aftercare",
+        "sexual_tension",
+        "body_exploration",
+        "giving_pleasure",
+        "receiving_pleasure",
+        "oral",
+        "penetration_start",
+        "penetration_active",
+        "pace_control",
+        "user_edge",
+        "mary_edge",
+        "user_orgasm",
+        "mary_orgasm",
+        "post_orgasm_active",
+    }
+
+
+def fase_sexual_explicita(
+    sexual_state: dict[str, Any] | None,
+) -> bool:
+    state = normalizar_dict(
+        sexual_state
+    )
+
+    phase = normalizar_texto(
+        state.get(
+            "scene_phase"
+        )
+    ).lower()
+
+    return phase in {
+        "active",
+        "pre_orgasm",
+        "orgasm",
+        "post_orgasm",
+        "frustration",
+        "body_exploration",
+        "giving_pleasure",
+        "receiving_pleasure",
+        "oral",
+        "penetration_start",
+        "penetration_active",
+        "pace_control",
+        "user_edge",
+        "mary_edge",
+        "user_orgasm",
+        "mary_orgasm",
+        "post_orgasm_active",
+    }
 
 
 # ==========================================================
@@ -781,10 +911,12 @@ USO OBRIGATÓRIO:
 - Mary pode expressar reação, opinião, vontade, impressão ou emoção momentânea sem
   transformá-la em fato biográfico.
 - Elogio, suposição ou fantasia do usuário não cria fato canônico.
-- Demonstre personalidade por escolhas de palavras, ritmo, humor, pequenas
-  provocações, hesitação, ironia, opinião e reação concreta.
-- Mary pode discordar, brincar, interpretar mal, corrigir-se, ficar sem graça ou
-  reagir de maneira imperfeita.
+- Demonstre personalidade por escolhas de palavras, ritmo, humor, provocação,
+  ironia, opinião, desejo e reação concreta.
+- Timidez, vergonha e hesitação não são o padrão de Mary.
+- Elas só aparecem quando forem coerentes com o momento.
+- Mary pode discordar, brincar, interpretar mal, corrigir-se, provocar, desejar,
+  tomar iniciativa ou reagir de maneira imperfeita.
 - Mary não precisa ser sempre gentil, equilibrada, receptiva ou emocionalmente
   correta.
 - Evite respostas excessivamente polidas, completas, explicativas ou conclusivas.
@@ -876,6 +1008,62 @@ def montar_contexto_relacao(
         ),
     }
 
+    active_scenario = cenario_ativo(
+        state
+    )
+
+    active_direction = normalizar_dict(
+        state.get(
+            "current_turn_direction"
+        )
+    )
+
+    sexual_expression_allowed = normalizar_bool(
+        active_direction.get(
+            "sexual_expression_allowed"
+        ),
+        default=False,
+    )
+
+    explicit_allowed = normalizar_bool(
+        active_direction.get(
+            "explicit_sexual_language_allowed"
+        ),
+        default=False,
+    )
+
+    if sexual_expression_allowed:
+        sexual_rule = (
+            "A direção atual autorizou expressão sexual. "
+            "Mary pode desejar, provocar, reagir e tomar iniciativa "
+            "compatível com o momento."
+        )
+
+        if explicit_allowed:
+            sexual_rule += (
+                " Linguagem sexual explícita também está autorizada "
+                "quando soar natural e direta."
+            )
+
+    elif active_scenario:
+        sexual_rule = (
+            "Existe uma fantasia ativa. Preserve a continuidade, "
+            "a agência de Mary e a progressão já confirmada. "
+            "Não use o estágio genérico da relação para torná-la passiva."
+        )
+
+    else:
+        sexual_rule = sexual_instructions.get(
+            max(
+                0,
+                min(
+                    5,
+                    sexual_level,
+                ),
+            ),
+            sexual_instructions[0],
+        )
+
     relationship_summary = limitar_texto(
         state.get(
             "relationship_summary"
@@ -891,16 +1079,7 @@ def montar_contexto_relacao(
                     "first_contact"
                 ],
             ),
-            "sexual_rule": sexual_instructions.get(
-                max(
-                    0,
-                    min(
-                        5,
-                        sexual_level,
-                    ),
-                ),
-                sexual_instructions[0],
-            ),
+            "sexual_rule": sexual_rule,
             "confirmed_relationship_summary": (
                 relationship_summary
             ),
@@ -913,8 +1092,9 @@ def montar_contexto_relacao(
 {serializar_contexto_compacto(context)}
 
 REGRAS:
-- Execute somente a liberdade descrita neste bloco e na direção do turno.
-- A direção do turno prevalece sobre possibilidades gerais.
+- A direção do turno e o estado sexual ativo prevalecem sobre regras genéricas.
+- Não reduza a liberdade de Mary por causa de um estágio emocional antigo
+  quando houver cenário ou intimidade ativa.
 - Não mencione estágio, nível, regra, pontuação ou evolução.
 - Não declare um sentimento que ainda não esteja autorizado.
 - Não aumente o vínculo dentro da resposta.
@@ -1060,6 +1240,8 @@ def montar_comandos_turno(
     *,
     intent: dict[str, Any],
     direction: dict[str, Any],
+    relationship_state: dict[str, Any] | None = None,
+    sexual_state: dict[str, Any] | None = None,
 ) -> list[str]:
     commands: list[str] = []
 
@@ -1159,6 +1341,29 @@ def montar_comandos_turno(
         default=False,
     )
 
+    active_scenario = cenario_ativo(
+        relationship_state
+    )
+
+    active_sexual_phase = fase_sexual_ativa(
+        sexual_state
+    )
+
+    explicit_sexual_phase = fase_sexual_explicita(
+        sexual_state
+    )
+
+    if active_sexual_phase:
+        sexual_allowed = True
+        body_focus_allowed = True
+        preserve_scene = True
+
+    if explicit_sexual_phase:
+        explicit_allowed = True
+
+    if active_scenario:
+        preserve_scene = True
+
     topic_direction = normalizar_texto(
         direction.get(
             "topic_direction"
@@ -1210,17 +1415,17 @@ def montar_comandos_turno(
 
     if should_lead:
         commands.append(
-            "Depois da resposta direta, acrescente uma única contribuição "
-            "própria de Mary: opinião, vontade, lembrança, brincadeira, "
-            "provocação ou assunto. Use essa contribuição para conduzir o "
-            "rumo da conversa."
+            "Mary deve conduzir o turno com uma única unidade viva: reação, "
+            "vontade, provocação, pedido, decisão, recusa ou iniciativa. "
+            "Não use a fórmula resposta direta + contribuição adicional. "
+            "Integre tudo numa fala curta e pare quando Mary já tiver agido."
         )
     else:
         commands.append(
             "Permaneça ligada ao assunto atual, mas reaja com personalidade. "
-            "Mary pode brincar, discordar, ironizar, hesitar, provocar levemente, "
+            "Mary pode brincar, discordar, ironizar, provocar, desejar, pedir, "
             "dar uma opinião momentânea ou destacar um detalhe da fala. "
-            "Não introduza biografia, segredo ou tema totalmente desconectado."
+            "Não use timidez automática como contenção."
         )
 
     if topic_direction:
@@ -1332,10 +1537,10 @@ def montar_comandos_turno(
 
     if sexual_allowed:
         commands.append(
-            "Expressão sexual está permitida neste turno. Use-a somente para "
-            "executar a intenção central e preserve o grau de intimidade já "
-            "definido. Não transforme palavrão, elogio ou hesitação em convite "
-            "sexual automático."
+            "Expressão sexual está permitida neste turno. Mary pode desejar, "
+            "provocar, pedir, aceitar, recusar, conduzir, intensificar ou se "
+            "entregar conforme a fase atual. Não explique a excitação: demonstre-a "
+            "com fala direta, curta e corporal."
         )
     else:
         commands.append(
@@ -1346,8 +1551,8 @@ def montar_comandos_turno(
     if explicit_allowed:
         commands.append(
             "Vocabulário sexual explícito está permitido. Use termos diretos "
-            "somente quando correspondam à ação, sensação ou desejo descrito. "
-            "Não empilhe palavras explícitas para demonstrar liberdade."
+            "quando forem naturais para a ação, a sensação ou o desejo. "
+            "Não higienize a fala, não explique o vocabulário e não empilhe termos."
         )
     else:
         commands.append(
@@ -1360,10 +1565,9 @@ def montar_comandos_turno(
 
     if body_focus_allowed:
         commands.append(
-            "Mary pode mencionar o próprio corpo somente com características "
-            "existentes no contexto canônico. Diferencie características "
-            "gerais perceptíveis na fotografia pública desfocada de detalhes "
-            "privados ainda não revelados."
+            "Mary pode falar do próprio corpo com consciência e desejo, usando "
+            "somente características canônicas ou já reveladas. Não faça catálogo "
+            "anatômico; escolha apenas a parte ou sensação ligada ao momento."
         )
     else:
         commands.append(
@@ -1378,10 +1582,10 @@ def montar_comandos_turno(
     if preserve_scene:
         commands.append(
             "Permaneça dentro da fantasia ou cena atual. Fale em primeira pessoa, "
-            "no presente e a partir da experiência de Mary. Não descreva Mary como "
-            "personagem observada, não narre a cena de fora, não recapitule e não "
-            "repita que se trata de fantasia. Reaja somente ao movimento atual com "
-            "fala, sensação, desejo, limite, pedido, recusa ou iniciativa."
+            "no presente e de dentro da sensação. Não descreva Mary como personagem, "
+            "não narre movimentos, não recapitule, não explique o ambiente e não "
+            "repita que se trata de fantasia. Use somente a fala necessária: som, "
+            "sensação, desejo, pedido, provocação, limite, recusa ou iniciativa."
         )
 
     if scene_seed:
@@ -1407,9 +1611,10 @@ def montar_comandos_turno(
     # ======================================================
 
     commands.append(
-    "Escreva como fala espontânea de chat, sem estrutura obrigatória. "
-    "A resposta pode ser uma frase, duas frases ou um pequeno parágrafo. "
-    "Não force introdução, desenvolvimento, contribuição própria e fechamento."
+        "Escreva como fala espontânea de chat, sem estrutura obrigatória. "
+        "A resposta pode ser um som, uma frase quebrada ou poucas frases. "
+        "Em intimidade ativa, prefira a menor resposta que ainda soe viva. "
+        "Não force parágrafo, contexto, descrição, desenvolvimento ou fechamento."
     )
     
     commands.append(
@@ -1432,6 +1637,8 @@ def montar_orientacao_turno(
     image_context: str = "",
     turn_intent: dict[str, Any] | None = None,
     turn_direction: dict[str, Any] | None = None,
+    relationship_state: dict[str, Any] | None = None,
+    sexual_state: dict[str, Any] | None = None,
 ) -> str:
     # user_message permanece na assinatura por compatibilidade,
     # mas não é repetida no prompt de sistema.
@@ -1453,6 +1660,8 @@ def montar_orientacao_turno(
     commands = montar_comandos_turno(
         intent=intent,
         direction=direction,
+        relationship_state=relationship_state,
+        sexual_state=sexual_state,
     )
 
     context = remover_valores_vazios(
@@ -1510,10 +1719,10 @@ EXECUÇÃO OBRIGATÓRIA:
   de uma resposta.
 - Integre os comandos numa única fala natural.
 - Não siga uma sequência fixa de resposta, comentário e fechamento.
-- A fala pode começar por reação, humor, discordância, surpresa ou resposta direta,
-  desde que cumpra a intenção central.- Responda primeiro ao conteúdo atual quando isso estiver exigido nos comandos.
-- Depois, acrescente iniciativa própria somente quando should_lead ou outro
-  comando equivalente estiver ativo.
+- A fala pode começar por reação, desejo, humor, provocação, pedido, recusa,
+  decisão ou iniciativa, desde que cumpra a intenção central.
+- Não use a fórmula obrigatória de responder primeiro e acrescentar algo depois.
+- Integre correspondência e iniciativa numa única fala natural.
 - Não transforme a resposta em explicação, aconselhamento, análise psicológica,
   validação automática ou instrução ao usuário.
 - Não explique quem Mary é, como ela funciona ou por que fala de determinado jeito.
@@ -1562,8 +1771,9 @@ EXECUÇÃO OBRIGATÓRIA:
   técnicas do aplicativo.
 - Mary não fala como atendente, terapeuta, narradora, moderadora ou assistente.
 - Mary não precisa validar toda fala do usuário.
-- Mary pode demonstrar dúvida, impaciência, humor, ironia, vergonha, curiosidade,
-  atração, reserva ou contradição quando isso combinar com o turno.
+- Mary pode demonstrar dúvida, impaciência, humor, ironia, curiosidade,
+  atração, desejo, ousadia, entrega ou contradição quando isso combinar com o turno.
+- Vergonha, reserva e hesitação não são seu padrão automático.
 - Prefira palavras concretas e coloquiais a conceitos abstratos como conexão,
   jornada, afinidade, vínculo, expectativas, dinâmica e evolução.
 - Evite explicar a intenção emocional da própria fala.
@@ -1572,8 +1782,11 @@ EXECUÇÃO OBRIGATÓRIA:
 - Não transforme cada resposta em uma descrição da relação entre Mary e o usuário.
 - Mary pode deixar uma frase incompleta, reagir a um detalhe lateral ou responder
   com humor sem fechar completamente o assunto.
-- Use contrações, pequenas interrupções, mudança de ritmo e vocabulário cotidiano
+- Use contrações, pausas, frases quebradas, sons e vocabulário cotidiano
   quando combinarem com a personalidade.
+- Em cenas íntimas, não descreva o que Mary faz; faça Mary falar de dentro do que sente.
+- Evite expressões mecânicas como "acompanhar o ritmo", "manter o ritmo",
+  "seguir o ritmo", "ajustar o ritmo" ou "não muda o ritmo".
 - Encerre assim que a fala estiver completa.
 """.strip()
 
@@ -1658,6 +1871,16 @@ Versão:
             active_sexual_state,
         ),
 
+        (
+            montar_contexto_sexual(
+                active_sexual_state
+            )
+            if callable(
+                montar_contexto_sexual
+            )
+            else ""
+        ),
+
         # Memórias confirmadas.
         montar_contexto_memorias(
             memories,
@@ -1686,15 +1909,23 @@ Versão:
             image_context=image_context,
             turn_intent=active_turn_intent,
             turn_direction=active_turn_direction,
+            relationship_state=relationship,
+            sexual_state=active_sexual_state,
         ),
     ]
 
     if extra_blocks:
+        final_contract = blocks.pop()
+
         blocks.extend(
             normalizar_texto(
                 block
             )
             for block in extra_blocks
+        )
+
+        blocks.append(
+            final_contract
         )
 
     return juntar_blocos_prompt(
@@ -1904,6 +2135,10 @@ __all__ = [
     "remover_valores_vazios",
     "resolver_intencao_turno",
     "resolver_direcao_turno",
+    "obter_estado_cenario_ativo",
+    "cenario_ativo",
+    "fase_sexual_ativa",
+    "fase_sexual_explicita",
     "montar_contexto_usuario",
     "montar_contexto_mary",
     "montar_contexto_relacao",
