@@ -191,14 +191,14 @@ DEFAULT_EXPERIENCE_STATE: dict[str, Any] = {
 
 DEFAULT_VOICE_STATE: dict[str, Any] = {
     "warmth": 0.34,
-    "playfulness": 0.24,
-    "boldness": 0.12,
-    "vulnerability": 0.10,
+    "playfulness": 0.30,
+    "boldness": 0.26,
+    "vulnerability": 0.08,
     "romantic_intensity": 0.0,
     "sexual_intensity": 0.0,
     "sexual_explicitness": 0.0,
-    "vulgarity": 0.04,
-    "body_confidence": 0.34,
+    "vulgarity": 0.08,
+    "body_confidence": 0.56,
     "emotional_openness": 0.14,
     "humor": 0.22,
     "tenderness": 0.12,
@@ -213,7 +213,7 @@ DEFAULT_TURN_DIRECTION: dict[str, Any] = {
     "response_scope": "brief",
     "surprise_level": 0.0,
     "topic_direction": TOPIC_DIRECTION_CURRENT,
-    "should_lead": False,
+    "should_lead": True,
     "should_reveal_something": False,
     "should_create_pending_thread": False,
     "should_resume_thread": False,
@@ -667,6 +667,125 @@ def obter_fase_sexual(
         )
         or "idle"
     ).strip().lower()
+
+
+def obter_estado_cenario_ativo(
+    relationship_state: dict[str, Any],
+) -> dict[str, Any]:
+    candidates = (
+        relationship_state.get("active_scenario"),
+        relationship_state.get("scenario_state"),
+        relationship_state.get("scene_state"),
+        relationship_state.get("current_scenario"),
+    )
+
+    for candidate in candidates:
+        if not isinstance(candidate, dict):
+            continue
+
+        nested_state = candidate.get("scene_state")
+
+        if isinstance(nested_state, dict):
+            candidate = nested_state
+
+        if bool(
+            candidate.get(
+                "scene_active",
+                candidate.get(
+                    "status"
+                ) == "active",
+            )
+        ):
+            return candidate
+
+    return {}
+
+
+def cenario_ativo(
+    relationship_state: dict[str, Any],
+) -> bool:
+    return bool(
+        obter_estado_cenario_ativo(
+            relationship_state
+        )
+    )
+
+
+def obter_nivel_seducao_cenario(
+    relationship_state: dict[str, Any],
+) -> int:
+    scene_state = obter_estado_cenario_ativo(
+        relationship_state
+    )
+
+    return max(
+        0,
+        min(
+            6,
+            safe_int(
+                scene_state.get(
+                    "seduction_level",
+                    0,
+                ),
+                0,
+            ),
+        ),
+    )
+
+
+def fase_sexual_ativa(
+    sexual_phase: str,
+) -> bool:
+    return str(
+        sexual_phase or ""
+    ).strip().lower() in {
+        "arousal",
+        "active",
+        "pre_orgasm",
+        "orgasm",
+        "post_orgasm",
+        "frustration",
+        "aftercare",
+        "sexual_tension",
+        "body_exploration",
+        "giving_pleasure",
+        "receiving_pleasure",
+        "oral",
+        "penetration_start",
+        "penetration_active",
+        "pace_control",
+        "user_edge",
+        "mary_edge",
+        "user_orgasm",
+        "mary_orgasm",
+        "post_orgasm_active",
+    }
+
+
+def fase_sexual_explicita(
+    sexual_phase: str,
+) -> bool:
+    return str(
+        sexual_phase or ""
+    ).strip().lower() in {
+        "active",
+        "pre_orgasm",
+        "orgasm",
+        "post_orgasm",
+        "frustration",
+        "body_exploration",
+        "giving_pleasure",
+        "receiving_pleasure",
+        "oral",
+        "penetration_start",
+        "penetration_active",
+        "pace_control",
+        "user_edge",
+        "mary_edge",
+        "user_orgasm",
+        "mary_orgasm",
+        "post_orgasm_active",
+    }
 
 
 def obter_interaction_count(
@@ -1293,8 +1412,9 @@ def aplicar_modo_ao_estado_voz(
     elif experience_mode == (
         EXPERIENCE_MODE_SEXUAL_TENSION
     ):
-        voice["boldness"] += 0.18
-        voice["sexual_intensity"] += 0.24
+        voice["boldness"] += 0.30
+        voice["sexual_intensity"] += 0.34
+        voice["body_confidence"] += 0.22
         voice["sexual_explicitness"] = max(
             voice[
                 "sexual_explicitness"
@@ -1314,10 +1434,10 @@ def aplicar_modo_ao_estado_voz(
     elif experience_mode == (
         EXPERIENCE_MODE_SEXUAL_INITIATIVE
     ):
-        voice["boldness"] += 0.28
-        voice["sexual_intensity"] += 0.30
-        voice["body_confidence"] += 0.18
-        voice["vulgarity"] += 0.18
+        voice["boldness"] += 0.42
+        voice["sexual_intensity"] += 0.44
+        voice["body_confidence"] += 0.30
+        voice["vulgarity"] += 0.24
 
         if sexual_phase in {
             "active",
@@ -1355,10 +1475,11 @@ def aplicar_modo_ao_estado_voz(
     elif experience_mode == (
         EXPERIENCE_MODE_CONTINUE_SHARED_FANTASY
     ):
-        voice["sexual_intensity"] += 0.24
-        voice["romantic_intensity"] += 0.10
-        voice["body_confidence"] += 0.12
-        voice["vulgarity"] += 0.14
+        voice["boldness"] += 0.18
+        voice["sexual_intensity"] += 0.26
+        voice["romantic_intensity"] += 0.08
+        voice["body_confidence"] += 0.24
+        voice["vulgarity"] += 0.16
         voice[
             "sexual_explicitness"
         ] = max(
@@ -1612,6 +1733,68 @@ def escolher_modo_experiencia(
             "mary_boundary_after_hostility",
         )
 
+    # Um cenário ativo tem prioridade sobre a conversa genérica.
+    # Mary continua livre para reagir, provocar e tomar iniciativa
+    # dentro da situação, sem voltar artificialmente ao primeiro contato.
+    if cenario_ativo(
+        relationship_state
+    ):
+        scenario_state = obter_estado_cenario_ativo(
+            relationship_state
+        )
+
+        scenario_seduction_level = max(
+            0,
+            min(
+                6,
+                safe_int(
+                    scenario_state.get(
+                        "seduction_level",
+                        0,
+                    ),
+                    0,
+                ),
+            ),
+        )
+
+        if (
+            fase_sexual_ativa(
+                sexual_phase
+            )
+            or scenario_seduction_level >= 5
+            or signals.get(
+                "explicit_sexual_signal"
+            )
+        ):
+            return (
+                EXPERIENCE_MODE_SEXUAL_INITIATIVE,
+                None,
+                "active_scenario_sexual_autonomy",
+            )
+
+        if (
+            scenario_seduction_level >= 2
+            or signals.get(
+                "sexual_signal"
+            )
+            or turn_mode
+            in {
+                TURN_MODE_INITIATE_FLIRT,
+                TURN_MODE_INITIATE_SEXUAL_TENSION,
+            }
+        ):
+            return (
+                EXPERIENCE_MODE_SEXUAL_TENSION,
+                None,
+                "active_scenario_seductive_continuity",
+            )
+
+        return (
+            EXPERIENCE_MODE_CONTINUE_SHARED_FANTASY,
+            None,
+            "active_scenario_continuity",
+        )
+
     # Continuidade sexual tem prioridade sobre surpresa.
     if sexual_phase == "frustration":
         return (
@@ -1705,8 +1888,13 @@ def escolher_modo_experiencia(
         if (
             internal_state[
                 "current_desire"
-            ] >= 0.46
-            and sexual_level >= 2
+            ] >= 0.34
+            or signals.get(
+                "sexual_signal"
+            )
+            or signals.get(
+                "explicit_sexual_signal"
+            )
         ):
             return (
                 EXPERIENCE_MODE_BOLD_PROVOCATION,
@@ -1866,16 +2054,16 @@ def obter_atributos_modo(
     attributes: dict[str, dict[str, Any]] = {
         EXPERIENCE_MODE_NATURAL: {
             "primary_intention": (
-                "react_to_current_message"
+                "react_with_mary_own_attitude"
             ),
             "emotional_color": (
-                "warm_natural_presence"
+                "warm_confident_presence"
             ),
             "topic_direction": (
                 TOPIC_DIRECTION_CURRENT
             ),
-            "response_scope": "normal",
-            "should_lead": False,
+            "response_scope": "brief",
+            "should_lead": True,
             "should_reveal_something": False,
             "should_create_pending_thread": False,
             "avoid_question": True,
@@ -1891,7 +2079,7 @@ def obter_atributos_modo(
             "topic_direction": (
                 TOPIC_DIRECTION_PERSONAL
             ),
-            "response_scope": "normal",
+            "response_scope": "brief",
             "should_lead": True,
             "should_reveal_something": True,
             "should_create_pending_thread": False,
@@ -1995,7 +2183,7 @@ def obter_atributos_modo(
         },
         EXPERIENCE_MODE_GENTLE_PROVOCATION: {
             "primary_intention": (
-                "create_light_romantic_tension"
+                "express_playful_attraction_without_hiding_desire"
             ),
             "emotional_color": (
                 "playful_attraction"
@@ -2043,15 +2231,15 @@ def obter_atributos_modo(
         },
         EXPERIENCE_MODE_SEXUAL_TENSION: {
             "primary_intention": (
-                "create_autonomous_sexual_tension"
+                "mary_expresses_and_acts_on_current_desire"
             ),
             "emotional_color": (
-                "playful_desire"
+                "confident_playful_desire"
             ),
             "topic_direction": (
                 TOPIC_DIRECTION_SEXUAL
             ),
-            "response_scope": "normal",
+            "response_scope": "brief",
             "should_lead": True,
             "should_reveal_something": False,
             "should_create_pending_thread": True,
@@ -2067,7 +2255,7 @@ def obter_atributos_modo(
             "topic_direction": (
                 TOPIC_DIRECTION_SEXUAL
             ),
-            "response_scope": "scene",
+            "response_scope": "brief",
             "should_lead": True,
             "should_reveal_something": False,
             "should_create_pending_thread": False,
@@ -2332,46 +2520,76 @@ def planejar_direcao_turno(
         sexual_phase=sexual_phase,
     )
 
+    active_scenario = cenario_ativo(
+        state
+    )
+
+    scenario_seduction_level = (
+        obter_nivel_seducao_cenario(
+            state
+        )
+    )
+
+    sexual_signal = bool(
+        normalized_signals.get(
+            "sexual_signal"
+        )
+    )
+
+    explicit_signal = bool(
+        normalized_signals.get(
+            "explicit_sexual_signal"
+        )
+    )
+
     sexual_expression_allowed = bool(
-        sexual_level >= 2
-        or sexual_phase
+        fase_sexual_ativa(
+            sexual_phase
+        )
+        or sexual_level >= 1
+        or scenario_seduction_level >= 2
+        or sexual_signal
+        or explicit_signal
+        or experience_mode
         in {
-            "arousal",
-            "active",
-            "pre_orgasm",
-            "orgasm",
-            "post_orgasm",
-            "frustration",
-            "aftercare",
+            EXPERIENCE_MODE_BOLD_PROVOCATION,
+            EXPERIENCE_MODE_SEXUAL_TENSION,
+            EXPERIENCE_MODE_SEXUAL_INITIATIVE,
         }
     )
 
     explicit_sexual_language_allowed = bool(
-        voice_state[
-            "sexual_explicitness"
-        ] >= 0.56
-        and (
-            sexual_level >= 3
-            or sexual_phase
-            in {
-                "active",
-                "pre_orgasm",
-                "orgasm",
-                "post_orgasm",
-                "frustration",
-            }
+        explicit_signal
+        or fase_sexual_explicita(
+            sexual_phase
+        )
+        or (
+            active_scenario
+            and scenario_seduction_level >= 5
+            and sexual_expression_allowed
+        )
+        or (
+            experience_mode
+            == EXPERIENCE_MODE_SEXUAL_INITIATIVE
+            and voice_state[
+                "sexual_explicitness"
+            ] >= 0.46
         )
     )
 
     body_focus_allowed = bool(
-        experience_mode
+        sexual_expression_allowed
+        or (
+            active_scenario
+            and scenario_seduction_level >= 1
+        )
+        or experience_mode
         in {
             EXPERIENCE_MODE_BOLD_PROVOCATION,
             EXPERIENCE_MODE_SEXUAL_TENSION,
             EXPERIENCE_MODE_SEXUAL_INITIATIVE,
             EXPERIENCE_MODE_CONTINUE_SHARED_FANTASY,
         }
-        and sexual_level >= 2
     )
 
     romantic_expression_allowed = bool(
@@ -2437,15 +2655,10 @@ def planejar_direcao_turno(
             explicit_sexual_language_allowed
         ),
         must_preserve_current_scene=bool(
-            sexual_phase
-            in {
-                "active",
-                "pre_orgasm",
-                "orgasm",
-                "post_orgasm",
-                "frustration",
-                "aftercare",
-            }
+            active_scenario
+            or fase_sexual_ativa(
+                sexual_phase
+            )
         ),
         must_address_user_message=normalizar_bool(
             normalized_intent.get(
@@ -2810,8 +3023,15 @@ PALETA DE VOZ:
 REGRAS DE EXECUÇÃO:
 - Esta direção define a experiência principal do turno.
 - Não mencione modos, níveis, estados, cálculos ou permissões.
-- Mary deve responder ao usuário, mas não precisa permanecer passiva.
-- Quando should_lead for verdadeiro, Mary deve acrescentar direção própria.
+- Mary deve responder ao usuário com vontade própria.
+- Mary não deve usar timidez automática como mecanismo de contenção.
+- Hesitação só aparece quando combina com o desejo e com a situação,
+  não como padrão de personalidade.
+- Quando should_lead for verdadeiro, Mary age, provoca, pede, recusa
+  ou conduz sem esperar uma instrução para cada gesto.
+- Em cena adulta consensual, Mary pode desejar, iniciar, intensificar,
+  mudar de ideia, controlar, entregar-se e usar linguagem explícita
+  quando essa linguagem estiver autorizada.
 - Não execute vários modos dramáticos ao mesmo tempo.
 - Não transforme surpresa em aleatoriedade incoerente.
 - Não invente acontecimentos físicos ou memórias.
@@ -2822,16 +3042,21 @@ REGRAS DE EXECUÇÃO:
 - Vulnerabilidade deve ser concreta, não linguagem terapêutica.
 - Romance deve ser direto e pessoal, não abstrato.
 - Desejo sexual pode partir de Mary.
-- Quando a linguagem explícita estiver permitida, não higienize artificialmente
-  o vocabulário.
-- Quando não estiver permitida, preserve provocação e desejo sem saltar a fase.
+- Quando a linguagem explícita estiver permitida, use vocabulário direto
+  somente quando ele soar natural no momento; não higienize nem explique.
+- Quando não estiver permitida, Mary ainda pode ser sensual, ousada,
+  corporal e provocadora sem fingir ingenuidade permanente.
 - Vaidade deve aparecer como traço humano, não como propaganda do próprio corpo.
 - Mary pode ser vulgar, apaixonada, engraçada e carinhosa no mesmo vínculo.
 - Evite repetir a mesma provocação, confissão, pergunta ou frase de efeito.
-- brief: uma frase ou poucas frases; responda e pare.
-- normal: resposta direta e uma contribuição própria.
-- developed: desenvolva apenas a ideia central.
-- scene: preserve e avance somente o movimento atual.
+- brief: uma reação, pedido, provocação, decisão ou poucas frases; pare.
+- normal: use apenas quando duas ideias forem realmente necessárias.
+- developed: somente para conflito ou emoção que exija desenvolvimento.
+- scene: preserve o momento sem narrar tudo o que acontece.
+- Em intimidade, prefira fala viva, curta e sensorial.
+- Não descreva a própria ação como autora de romance.
+- Não acrescente contexto, explicação ou fechamento depois que Mary
+  já correspondeu ao núcleo da mensagem.
 - Não preencha a resposta para atingir tamanho.
 """.strip()
 
