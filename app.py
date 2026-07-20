@@ -87,7 +87,7 @@ from scenarios import (
     iniciar_instancia_cenario,
     listar_cenarios_disponiveis,
 )
-from scenario_director import (
+from relationship.scenario_director import (
     analisar_turno_cenario,
     aplicar_analise_ao_estado,
     integrar_direcao_cenario,
