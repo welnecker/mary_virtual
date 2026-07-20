@@ -22,98 +22,98 @@ SCENARIO_CONFIG: dict[str, Any] = {
     "max_interactions": 100,
 
     "internal_monologue": {
-    "enabled": True,
-
-    # O pensamento aparece em uma linha separada,
-    # depois da fala visível de Mary.
-    "format": "markdown_italic",
-
-    # Nunca produzir mais que uma frase.
-    "max_sentences": 1,
-
-    # Limite aproximado do tamanho do pensamento.
-    "max_words": 24,
-
-    # Probabilidade de haver pensamento em cada fase.
-    "frequency_by_phase": {
-        "opening": 0.35,
-        "familiarity": 0.45,
-        "tension": 0.70,
-        "intimacy": 0.80,
-        "climax": 0.55,
-        "aftercare": 0.35,
-        "ending": 0.15,
+        "enabled": True,
+    
+        # O pensamento aparece em uma linha separada,
+        # depois da fala visível de Mary.
+        "format": "markdown_italic",
+    
+        # Nunca produzir mais que uma frase.
+        "max_sentences": 1,
+    
+        # Limite aproximado do tamanho do pensamento.
+        "max_words": 24,
+    
+        # Probabilidade de haver pensamento em cada fase.
+        "frequency_by_phase": {
+            "opening": 0.35,
+            "familiarity": 0.45,
+            "tension": 0.70,
+            "intimacy": 0.80,
+            "climax": 0.55,
+            "aftercare": 0.35,
+            "ending": 0.15,
+        },
+    
+        # Tipos de pensamento adequados por fase.
+        "purposes_by_phase": {
+            "opening": [
+                "embarrassment",
+                "curiosity",
+                "hidden_attraction",
+            ],
+            "familiarity": [
+                "curiosity",
+                "growing_attraction",
+                "anticipation",
+            ],
+            "tension": [
+                "hidden_attraction",
+                "sexual_desire",
+                "anticipation",
+            ],
+            "intimacy": [
+                "sexual_desire",
+                "emotional_exposure",
+                "anticipation",
+            ],
+            "climax": [
+                "pleasure",
+                "emotional_intensity",
+            ],
+            "aftercare": [
+                "satisfaction",
+                "affection",
+                "vulnerability",
+            ],
+            "ending": [
+                "satisfaction",
+                "playful_memory",
+            ],
+        },
+    
+        "rules": [
+            (
+                "O pensamento pertence exclusivamente a Mary "
+                "e não é ouvido pelo usuário nem por outros personagens."
+            ),
+            (
+                "O pensamento deve ser escrito em primeira pessoa."
+            ),
+            (
+                "O pensamento deve revelar algo que Mary não disse "
+                "diretamente na fala."
+            ),
+            (
+                "O pensamento não deve repetir a fala com outras palavras."
+            ),
+            (
+                "O pensamento não pode afirmar como fato aquilo que "
+                "o usuário pensa, sente, deseja ou pretende."
+            ),
+            (
+                "O pensamento deve permanecer coerente com a fase, "
+                "a relação e o estado atual da cena."
+            ),
+            (
+                "Não antecipar fatos que ainda não aconteceram."
+            ),
+            (
+                "Não explicar o roteiro ou mencionar que a situação "
+                "é uma fantasia."
+            ),
+        ],
     },
-
-    # Tipos de pensamento adequados por fase.
-    "purposes_by_phase": {
-        "opening": [
-            "embarrassment",
-            "curiosity",
-            "hidden_attraction",
-        ],
-        "familiarity": [
-            "curiosity",
-            "growing_attraction",
-            "anticipation",
-        ],
-        "tension": [
-            "hidden_attraction",
-            "sexual_desire",
-            "anticipation",
-        ],
-        "intimacy": [
-            "sexual_desire",
-            "emotional_exposure",
-            "anticipation",
-        ],
-        "climax": [
-            "pleasure",
-            "emotional_intensity",
-        ],
-        "aftercare": [
-            "satisfaction",
-            "affection",
-            "vulnerability",
-        ],
-        "ending": [
-            "satisfaction",
-            "playful_memory",
-        ],
-    },
-
-    "rules": [
-        (
-            "O pensamento pertence exclusivamente a Mary "
-            "e não é ouvido pelo usuário nem por outros personagens."
-        ),
-        (
-            "O pensamento deve ser escrito em primeira pessoa."
-        ),
-        (
-            "O pensamento deve revelar algo que Mary não disse "
-            "diretamente na fala."
-        ),
-        (
-            "O pensamento não deve repetir a fala com outras palavras."
-        ),
-        (
-            "O pensamento não pode afirmar como fato aquilo que "
-            "o usuário pensa, sente, deseja ou pretende."
-        ),
-        (
-            "O pensamento deve permanecer coerente com a fase, "
-            "a relação e o estado atual da cena."
-        ),
-        (
-            "Não antecipar fatos que ainda não aconteceram."
-        ),
-        (
-            "Não explicar o roteiro ou mencionar que a situação "
-            "é uma fantasia."
-        ),
-    ],
-},
 
     "roles": {
         "mary": "vizinha adulta do usuário",
@@ -144,18 +144,48 @@ SCENARIO_CONFIG: dict[str, Any] = {
     },
 
     "initial_scene_state": {
+        # Direção narrativa inicial.
+        "current_phase": "opening",
+        "current_route": "locked_door",
+        "current_beat": "request_help",
+        "active_hook": "door_problem",
+    
+        # Estado geral da fantasia.
+        "scene_active": True,
+        "fantasy_established": True,
+        "opening_sent": False,
+        "interaction_count": 0,
+    
+        # Ambiente.
         "location": "corredor do prédio",
         "time_context": "noite",
+    
+        # Personagens presentes.
         "present_characters": [
             "mary",
             "user",
         ],
+    
+        # Estado físico da cena.
         "mary_clothing": "babydoll",
         "door_status": "locked",
         "mary_inside_apartment": False,
         "user_inside_apartment": False,
         "porteiro_called": False,
         "key_found": False,
+    
+        # Progresso do roteiro.
+        "completed_beats": [],
+        "failed_beats": [],
+        "pending_events": [],
+        "last_user_action": "",
+        "last_director_decision": "",
+    
+        # Encerramento.
+        "climax_reached": False,
+        "satisfaction_detected": False,
+        "ending_ready": False,
+        "ending_sent": False,
     },
 
     "phases": {
