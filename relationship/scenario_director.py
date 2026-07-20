@@ -589,9 +589,7 @@ def analisar_turno_cenario(
     ):
         return criar_analise_diretor_padrao(
             scene_state
-        )
-
-  def adicionar_sem_duplicar(
+ def adicionar_sem_duplicar(
     destino: list[str],
     novos_itens: list[str],
     *,
@@ -780,7 +778,10 @@ def aplicar_analise_ao_estado(
             "user_disengaged"
         ] = True
 
-    return estadodef montar_direcao_narrativa(
+    return estado
+
+
+def montar_direcao_narrativa(
     *,
     analise: dict[str, Any],
     scene_state: dict[str, Any],
