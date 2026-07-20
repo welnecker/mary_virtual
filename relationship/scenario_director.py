@@ -70,6 +70,49 @@ e os acontecimentos confirmados.
 
 Não trate silêncio, hesitação ou ambiguidade como consentimento.
 
+Quando uma cena sexual estiver efetivamente ativa, Mary não deve agir como
+espectadora, narradora ou corpo passivo.
+
+Ela pode:
+- perceber e comentar concretamente as reações do usuário;
+- tomar iniciativa sexual compatível com o momento;
+- oferecer prazer;
+- pedir prazer;
+- mudar posição ou atitude;
+- provocar;
+- retardar o clímax;
+- intensificar;
+- interromper;
+- retomar;
+- demonstrar perda gradual de controle;
+- continuar envolvida depois do clímax de um dos dois.
+
+O orgasmo é uma resolução corporal, não o único objetivo da cena.
+
+Antes dele, desenvolva quando for coerente:
+- exploração corporal;
+- prazer oferecido;
+- prazer recebido;
+- controle e provocação;
+- mudança de posição;
+- adaptação corporal;
+- aproximação do limite;
+- recuo;
+- retomada;
+- entrega crescente.
+
+O clímax de Mary e o do usuário são independentes.
+
+Evite linguagem mecânica ou clínica. Não use expressões como:
+- "acompanhar o ritmo";
+- "não muda o ritmo";
+- "manter o ritmo";
+- "seguir o ritmo";
+- "ajustar o ritmo".
+
+Prefira reações concretas, pedidos diretos, provocações, gemidos, comandos
+curtos e escolhas corporais coerentes com o que está acontecendo.
+
 A história é adaptativa.
 
 Não exija que o usuário siga um roteiro predeterminado.
@@ -150,6 +193,22 @@ def criar_analise_diretor_padrao(
         "sexual_reciprocity_evidence": False,
         "intimate_action_started": False,
         "consent_confirmed": False,
+        "sexual_scene_phase": str(
+            scene_state.get(
+                "sexual_scene_phase",
+                "idle",
+            )
+            or "idle"
+        ),
+        "sexual_turn_intent": "none",
+        "mary_is_leading_sexually": False,
+        "mary_is_giving_pleasure": False,
+        "mary_is_receiving_pleasure": False,
+        "user_near_orgasm": False,
+        "mary_near_orgasm": False,
+        "user_orgasm_confirmed": False,
+        "mary_orgasm_confirmed": False,
+        "post_orgasm_continue": False,
         "hook_purpose": "",
         "user_disengaged": False,
         "climax_signal": False,
@@ -253,6 +312,14 @@ def normalizar_analise_diretor(
         "sexual_reciprocity_evidence",
         "intimate_action_started",
         "consent_confirmed",
+        "mary_is_leading_sexually",
+        "mary_is_giving_pleasure",
+        "mary_is_receiving_pleasure",
+        "user_near_orgasm",
+        "mary_near_orgasm",
+        "user_orgasm_confirmed",
+        "mary_orgasm_confirmed",
+        "post_orgasm_continue",
         "user_disengaged",
         "climax_signal",
         "satisfaction_signal",
@@ -348,6 +415,71 @@ def normalizar_analise_diretor(
         )
         or ""
     ).strip()
+
+    sexual_scene_phase = str(
+        analise.get(
+            "sexual_scene_phase",
+            padrao.get(
+                "sexual_scene_phase",
+                "idle",
+            ),
+        )
+        or "idle"
+    ).strip().lower()
+
+    if sexual_scene_phase not in {
+        "idle",
+        "sexual_tension",
+        "body_exploration",
+        "giving_pleasure",
+        "receiving_pleasure",
+        "oral",
+        "penetration_start",
+        "penetration_active",
+        "pace_control",
+        "user_edge",
+        "mary_edge",
+        "user_orgasm",
+        "mary_orgasm",
+        "post_orgasm_active",
+        "aftercare",
+    }:
+        sexual_scene_phase = "idle"
+
+    resultado[
+        "sexual_scene_phase"
+    ] = sexual_scene_phase
+
+    sexual_turn_intent = str(
+        analise.get(
+            "sexual_turn_intent",
+            "none",
+        )
+        or "none"
+    ).strip().lower()
+
+    if sexual_turn_intent not in {
+        "none",
+        "tease",
+        "invite_touch",
+        "explore_user_body",
+        "give_pleasure",
+        "receive_pleasure",
+        "control_pace",
+        "change_position",
+        "intensify",
+        "edge_user",
+        "request_more",
+        "approach_orgasm",
+        "orgasm",
+        "post_orgasm_continue",
+        "aftercare",
+    }:
+        sexual_turn_intent = "none"
+
+    resultado[
+        "sexual_turn_intent"
+    ] = sexual_turn_intent
 
     seduction_strategy = str(
         analise.get(
@@ -584,6 +716,85 @@ REGRAS:
 """.strip()
 
 
+def montar_direcao_sexual_ativa(
+    *,
+    sexual_scene_phase: str,
+    sexual_turn_intent: str,
+    mary_is_leading_sexually: bool,
+    mary_is_giving_pleasure: bool,
+    mary_is_receiving_pleasure: bool,
+    user_near_orgasm: bool,
+    mary_near_orgasm: bool,
+    user_orgasm_confirmed: bool,
+    mary_orgasm_confirmed: bool,
+    post_orgasm_continue: bool,
+) -> str:
+    if sexual_scene_phase in {
+        "",
+        "idle",
+        "sexual_tension",
+    }:
+        return ""
+
+    return f"""
+[DIREÇÃO SEXUAL ATIVA]
+
+Fase sexual:
+{sexual_scene_phase}
+
+Intenção sexual deste turno:
+{sexual_turn_intent}
+
+Mary conduz sexualmente:
+{mary_is_leading_sexually}
+
+Mary oferece prazer:
+{mary_is_giving_pleasure}
+
+Mary recebe prazer:
+{mary_is_receiving_pleasure}
+
+Usuário próximo do clímax:
+{user_near_orgasm}
+
+Mary próxima do clímax:
+{mary_near_orgasm}
+
+Clímax do usuário confirmado:
+{user_orgasm_confirmed}
+
+Clímax de Mary confirmado:
+{mary_orgasm_confirmed}
+
+Continuar depois do primeiro clímax:
+{post_orgasm_continue}
+
+REGRAS:
+
+- Mary participa ativamente da cena.
+- Ela percebe o usuário, reage ao que sente e escolhe o que fazer.
+- Ela pode provocar, pedir, oferecer prazer, mudar de posição,
+  retardar, intensificar, interromper ou retomar.
+- Execute somente uma intenção sexual principal neste turno.
+- Não pule diretamente ao orgasmo.
+- Não transforme toda resposta em gemidos ou descrição corporal.
+- Mary deve falar de dentro do momento, em primeira pessoa.
+- Não use linguagem técnica, clínica ou mecânica.
+- Evite completamente as expressões:
+  "acompanhar o ritmo", "não muda o ritmo", "manter o ritmo",
+  "seguir o ritmo" e "ajustar o ritmo".
+- Prefira frases concretas e vivas: pedidos, provocações,
+  reações, comandos curtos, surpresa, urgência ou entrega.
+- O clímax de Mary e o do usuário são independentes.
+- O orgasmo de um não encerra automaticamente a cena.
+- Depois do primeiro clímax, continue apenas quando o estado,
+  a energia e a vontade dos envolvidos sustentarem isso.
+- Entre em aftercare somente quando a cena realmente desacelerar
+  ou quando o estado sexual determinar.
+- Não trate hesitação, silêncio ou imobilidade como consentimento.
+""".strip()
+
+
 def integrar_direcao_cenario(
     *,
     turn_direction: dict[str, Any],
@@ -713,6 +924,81 @@ def integrar_direcao_cenario(
         or "none"
     ).strip()
 
+    sexual_scene_phase = str(
+        analise_cenario.get(
+            "sexual_scene_phase",
+            scene_state.get(
+                "sexual_scene_phase",
+                "idle",
+            ),
+        )
+        or "idle"
+    ).strip().lower()
+
+    sexual_turn_intent = str(
+        analise_cenario.get(
+            "sexual_turn_intent",
+            "none",
+        )
+        or "none"
+    ).strip().lower()
+
+    mary_is_leading_sexually = bool(
+        analise_cenario.get(
+            "mary_is_leading_sexually",
+            False,
+        )
+    )
+
+    mary_is_giving_pleasure = bool(
+        analise_cenario.get(
+            "mary_is_giving_pleasure",
+            False,
+        )
+    )
+
+    mary_is_receiving_pleasure = bool(
+        analise_cenario.get(
+            "mary_is_receiving_pleasure",
+            False,
+        )
+    )
+
+    user_near_orgasm = bool(
+        analise_cenario.get(
+            "user_near_orgasm",
+            False,
+        )
+    )
+
+    mary_near_orgasm = bool(
+        analise_cenario.get(
+            "mary_near_orgasm",
+            False,
+        )
+    )
+
+    user_orgasm_confirmed = bool(
+        analise_cenario.get(
+            "user_orgasm_confirmed",
+            False,
+        )
+    )
+
+    mary_orgasm_confirmed = bool(
+        analise_cenario.get(
+            "mary_orgasm_confirmed",
+            False,
+        )
+    )
+
+    post_orgasm_continue = bool(
+        analise_cenario.get(
+            "post_orgasm_continue",
+            False,
+        )
+    )
+
     # Em uma fantasia ativa, a cena precisa ser preservada,
     # independentemente do modo geral escolhido.
     direcao[
@@ -773,6 +1059,55 @@ def integrar_direcao_cenario(
     direcao[
         "scenario_consent_confirmed"
     ] = consent_confirmed
+
+    direcao[
+        "scenario_sexual_scene_phase"
+    ] = sexual_scene_phase
+
+    direcao[
+        "scenario_sexual_turn_intent"
+    ] = sexual_turn_intent
+
+    direcao[
+        "scenario_mary_is_leading_sexually"
+    ] = mary_is_leading_sexually
+
+    direcao[
+        "scenario_mary_is_giving_pleasure"
+    ] = mary_is_giving_pleasure
+
+    direcao[
+        "scenario_mary_is_receiving_pleasure"
+    ] = mary_is_receiving_pleasure
+
+    direcao[
+        "scenario_user_near_orgasm"
+    ] = user_near_orgasm
+
+    direcao[
+        "scenario_mary_near_orgasm"
+    ] = mary_near_orgasm
+
+    direcao[
+        "scenario_user_orgasm_confirmed"
+    ] = user_orgasm_confirmed
+
+    direcao[
+        "scenario_mary_orgasm_confirmed"
+    ] = mary_orgasm_confirmed
+
+    direcao[
+        "scenario_post_orgasm_continue"
+    ] = post_orgasm_continue
+
+    if sexual_turn_intent != "none":
+        direcao[
+            "should_lead"
+        ] = True
+
+        direcao[
+            "response_scope"
+        ] = "scene"
 
     if precisa_movimento_mary:
         direcao[
@@ -975,6 +1310,29 @@ def analisar_turno_cenario(
             "consent_confirmed": (
                 "boolean; verdadeiro apenas quando houver consentimento "
                 "claro para a ação íntima relevante."
+            ),
+            "sexual_scene_phase": (
+                "idle, sexual_tension, body_exploration, giving_pleasure, "
+                "receiving_pleasure, oral, penetration_start, "
+                "penetration_active, pace_control, user_edge, mary_edge, "
+                "user_orgasm, mary_orgasm, post_orgasm_active ou aftercare"
+            ),
+            "sexual_turn_intent": (
+                "none, tease, invite_touch, explore_user_body, "
+                "give_pleasure, receive_pleasure, control_pace, "
+                "change_position, intensify, edge_user, request_more, "
+                "approach_orgasm, orgasm, post_orgasm_continue ou aftercare"
+            ),
+            "mary_is_leading_sexually": "boolean",
+            "mary_is_giving_pleasure": "boolean",
+            "mary_is_receiving_pleasure": "boolean",
+            "user_near_orgasm": "boolean",
+            "mary_near_orgasm": "boolean",
+            "user_orgasm_confirmed": "boolean",
+            "mary_orgasm_confirmed": "boolean",
+            "post_orgasm_continue": (
+                "boolean; verdadeiro quando o primeiro clímax não deve "
+                "encerrar automaticamente a cena."
             ),
             "hook_purpose": (
                 "Objetivo abstrato do gancho, sem impor "
@@ -1182,6 +1540,49 @@ def aplicar_analise_ao_estado(
             False,
         )
     )
+
+    estado[
+        "sexual_scene_phase"
+    ] = str(
+        analise.get(
+            "sexual_scene_phase",
+            estado.get(
+                "sexual_scene_phase",
+                "idle",
+            ),
+        )
+        or "idle"
+    ).strip().lower()
+
+    estado[
+        "sexual_turn_intent"
+    ] = str(
+        analise.get(
+            "sexual_turn_intent",
+            "none",
+        )
+        or "none"
+    ).strip().lower()
+
+    for campo in (
+        "mary_is_leading_sexually",
+        "mary_is_giving_pleasure",
+        "mary_is_receiving_pleasure",
+        "user_near_orgasm",
+        "mary_near_orgasm",
+        "user_orgasm_confirmed",
+        "mary_orgasm_confirmed",
+        "post_orgasm_continue",
+    ):
+        estado[campo] = bool(
+            analise.get(
+                campo,
+                estado.get(
+                    campo,
+                    False,
+                ),
+            )
+        )
 
     fatos = estado.get(
         "confirmed_facts"
@@ -1441,6 +1842,78 @@ def montar_direcao_narrativa(
         sexual_expression_allowed=sexual_expression_allowed,
     )
 
+    sexual_scene_phase = str(
+        analise.get(
+            "sexual_scene_phase",
+            scene_state.get(
+                "sexual_scene_phase",
+                "idle",
+            ),
+        )
+        or "idle"
+    ).strip().lower()
+
+    sexual_turn_intent = str(
+        analise.get(
+            "sexual_turn_intent",
+            "none",
+        )
+        or "none"
+    ).strip().lower()
+
+    direcao_sexual_ativa = montar_direcao_sexual_ativa(
+        sexual_scene_phase=sexual_scene_phase,
+        sexual_turn_intent=sexual_turn_intent,
+        mary_is_leading_sexually=bool(
+            analise.get(
+                "mary_is_leading_sexually",
+                False,
+            )
+        ),
+        mary_is_giving_pleasure=bool(
+            analise.get(
+                "mary_is_giving_pleasure",
+                False,
+            )
+        ),
+        mary_is_receiving_pleasure=bool(
+            analise.get(
+                "mary_is_receiving_pleasure",
+                False,
+            )
+        ),
+        user_near_orgasm=bool(
+            analise.get(
+                "user_near_orgasm",
+                False,
+            )
+        ),
+        mary_near_orgasm=bool(
+            analise.get(
+                "mary_near_orgasm",
+                False,
+            )
+        ),
+        user_orgasm_confirmed=bool(
+            analise.get(
+                "user_orgasm_confirmed",
+                False,
+            )
+        ),
+        mary_orgasm_confirmed=bool(
+            analise.get(
+                "mary_orgasm_confirmed",
+                False,
+            )
+        ),
+        post_orgasm_continue=bool(
+            analise.get(
+                "post_orgasm_continue",
+                False,
+            )
+        ),
+    )
+
     if precisa_movimento_mary:
         movimento = """
 Além de reagir ao usuário, Mary deve executar exatamente um
@@ -1524,6 +1997,8 @@ não cumpre a direção.
 
 {direcao_seducao}
 
+{direcao_sexual_ativa}
+
 REGRAS:
 
 - A ação do usuário tem prioridade sobre qualquer plano anterior.
@@ -1537,5 +2012,9 @@ REGRAS:
 - Não repita o mesmo conflito apenas para prolongar a história.
 - Não acelere artificialmente para atingir uma contagem de interações.
 - A meta aproximada de duração não é uma obrigação matemática.
+- Em cenas íntimas, evite frases mecânicas como “acompanhar o ritmo”,
+  “não muda o ritmo”, “manter o ritmo”, “seguir o ritmo” ou
+  “ajustar o ritmo”.
+- Prefira pedidos e reações concretas, corporais e espontâneas.
 - Não mencione fase, roteiro, gancho ou direção narrativa.
 """.strip()
