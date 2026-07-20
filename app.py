@@ -6,6 +6,7 @@ from copy import deepcopy
 from typing import Any
 
 import streamlit as st
+import json
 
 from config import (
     APP_CAPTION,
@@ -81,6 +82,11 @@ from vision_utils import (
     preparar_imagem,
 )
 
+from scenarios import (
+    iniciar_instancia_cenario,
+    listar_cenarios_disponiveis,
+)
+
 
 def exigir_senha_app() -> None:
     senha_correta = str(
@@ -141,6 +147,16 @@ def converter_booleano(valor: Any) -> bool:
 
 
 def inicializar_sessao_local() -> None:
+
+    st.session_state.setdefault(
+        "scenario_instance",
+        None,
+    )
+    
+    st.session_state.setdefault(
+        "scenario_selector_visible",
+        True,
+    )
     st.session_state.setdefault(
         "messages",
         [],
@@ -215,6 +231,11 @@ def inicializar_sessao_local() -> None:
     st.session_state.setdefault(
         "mary_relationship",
         None,
+    )
+
+    st.session_state.setdefault(
+        "selected_scenario_id",
+        "",
     )
 
     st.session_state.setdefault(
@@ -615,7 +636,9 @@ def inicializar_persistencia(
 
 
 def garantir_mensagem_inicial() -> None:
-    if st.session_state["messages"]:
+    if st.session_state[
+        "messages"
+    ]:
         return
 
     if st.session_state.get(
@@ -623,52 +646,78 @@ def garantir_mensagem_inicial() -> None:
     ):
         return
 
-    profile = st.session_state[
-        "user_profile"
-    ]
-
-    nome = obter_nome_usado_por_mary(
-        profile
+    instancia = st.session_state.get(
+        "scenario_instance"
     )
 
-    usuario = st.session_state.get(
-        "persistent_user"
-    ) or {}
+    if isinstance(
+        instancia,
+        dict,
+    ):
+        config = instancia.get(
+            "scenario_config"
+        )
 
-    try:
-        access_count = int(
-            usuario.get(
-                "access_count",
-                1,
+        if not isinstance(
+            config,
+            dict,
+        ):
+            config = {}
+
+        mensagem_abertura = str(
+            config.get(
+                "opening_message",
+                "",
             )
-            or 1
-        )
-    except (TypeError, ValueError):
-        access_count = 1
+            or ""
+        ).strip()
 
-    if nome and access_count > 1:
-        mensagem = (
-            f"Oi, {nome}. Gostei de ver você por aqui outra vez."
-        )
+        if mensagem_abertura:
+            st.session_state[
+                "messages"
+            ].append(
+                {
+                    "role": "assistant",
+                    "content": mensagem_abertura,
+                }
+            )
 
-    elif nome:
-        mensagem = (
-            f"Oi, {nome}. Agora fiquei curiosa pra ver "
-            "como a nossa conversa começa."
-        )
+            instancia[
+                "opening_sent"
+            ] = True
 
-    else:
-        mensagem = (
-            "Oi... parece que esse é o nosso primeiro contato. "
-            "Pode começar por onde tiver vontade."
-        )
+            scene_state = instancia.get(
+                "scene_state"
+            )
 
+            if isinstance(
+                scene_state,
+                dict,
+            ):
+                scene_state[
+                    "opening_sent"
+                ] = True
+
+            st.session_state[
+                "scenario_instance"
+            ] = instancia
+
+            st.session_state[
+                "initial_message_created"
+            ] = True
+
+            return
+
+    # Fallback para quando nenhum cenário estiver ativo.
     st.session_state[
         "messages"
     ].append(
         {
             "role": "assistant",
-            "content": mensagem,
+            "content": (
+                "Oi... parece que esse é o nosso "
+                "primeiro contato."
+            ),
         }
     )
 
@@ -1866,8 +1915,82 @@ def processar_interacao(
         sexual_state,
     ) = obter_estados_relacao()
 
-    # O planejamento dos motores modifica vários blocos do estado.
-    # Em caso de falha da API, todo o estado será restaurado.
+    # =====================================================
+    # CENÁRIO ATIVO
+    # =====================================================
+
+    instancia_cenario = st.session_state.get(
+        "scenario_instance"
+    )
+
+    if not isinstance(
+        instancia_cenario,
+        dict,
+    ):
+        instancia_cenario = {}
+
+    # Preserva o cenário caso a chamada da API falhe.
+    instancia_cenario_anterior = deepcopy(
+        instancia_cenario
+    )
+
+    scenario_id = str(
+        instancia_cenario.get(
+            "scenario_id",
+            "",
+        )
+        or ""
+    ).strip()
+
+    scenario_session_id = str(
+        instancia_cenario.get(
+            "scenario_session_id",
+            "",
+        )
+        or ""
+    ).strip()
+
+    scenario_prompt = str(
+        instancia_cenario.get(
+            "scenario_prompt",
+            "",
+        )
+        or ""
+    ).strip()
+
+    scenario_config = instancia_cenario.get(
+        "scenario_config"
+    )
+
+    if not isinstance(
+        scenario_config,
+        dict,
+    ):
+        scenario_config = {}
+
+    scene_state = instancia_cenario.get(
+        "scene_state"
+    )
+
+    if not isinstance(
+        scene_state,
+        dict,
+    ):
+        scene_state = {}
+
+    # Trabalha com cópia para evitar alteração acidental
+    # antes da resposta ser concluída.
+    scene_state = deepcopy(
+        scene_state
+    )
+
+    # =====================================================
+    # ESTADO DA RELAÇÃO
+    # =====================================================
+
+    # O planejamento dos motores modifica vários blocos
+    # do estado. Em caso de falha da API, o estado anterior
+    # será restaurado.
     relationship_state_anterior = deepcopy(
         relationship_state
     )
@@ -1916,33 +2039,148 @@ def processar_interacao(
             turn_intent=turn_intent,
         )
     )
-   
+
     st.session_state[
         "relationship_state"
     ] = relationship_state
 
+    # =====================================================
+    # PROMPT-BASE
+    # =====================================================
+
+    prompt_sistema_base = montar_prompt_sistema(
+        user_profile=st.session_state[
+            "user_profile"
+        ],
+        mary_profile=st.session_state[
+            "mary_profile"
+        ],
+        relationship_state=(
+            relationship_state
+        ),
+        sexual_state=sexual_state,
+        turn_intent=turn_intent,
+        turn_direction=turn_direction,
+        memories=[],
+        user_message=user_display,
+        has_image=(
+            prepared_image is not None
+        ),
+        include_voice_examples=True,
+    )
+
+    # =====================================================
+    # CONTEXTO ESTRUTURADO DO CENÁRIO
+    # =====================================================
+
+    blocos_cenario: list[str] = []
+
+    if scenario_prompt:
+        blocos_cenario.append(
+            scenario_prompt
+        )
+
+    if scenario_config:
+        contexto_configuracao = {
+            "scenario_id": scenario_id,
+            "scenario_session_id": (
+                scenario_session_id
+            ),
+            "title": scenario_config.get(
+                "title",
+                "",
+            ),
+            "category": scenario_config.get(
+                "category",
+                "",
+            ),
+            "mary_role": scenario_config.get(
+                "mary_role",
+                "",
+            ),
+            "user_role": scenario_config.get(
+                "user_role",
+                "",
+            ),
+            "premise": scenario_config.get(
+                "premise",
+                {},
+            ),
+            "beats": scenario_config.get(
+                "beats",
+                {},
+            ),
+            "optional_events": (
+                scenario_config.get(
+                    "optional_events",
+                    [],
+                )
+            ),
+        }
+
+        blocos_cenario.append(
+            (
+                "[CONFIGURAÇÃO DO CENÁRIO ATIVO]\n\n"
+                + json.dumps(
+                    contexto_configuracao,
+                    ensure_ascii=False,
+                    separators=(",", ":"),
+                )
+            )
+        )
+
+    if scene_state:
+        blocos_cenario.append(
+            (
+                "[ESTADO ATUAL DA FANTASIA]\n\n"
+                + json.dumps(
+                    scene_state,
+                    ensure_ascii=False,
+                    separators=(",", ":"),
+                )
+            )
+        )
+
+        blocos_cenario.append(
+            """
+USO OBRIGATÓRIO DO ESTADO DA FANTASIA:
+
+- Trate os campos preenchidos como fatos válidos apenas dentro desta fantasia.
+- Mary já está dentro da situação e fala a partir dela.
+- Não repita que se trata de fantasia, hipótese ou imaginação.
+- Não recite o estado estruturado.
+- Não descreva Mary em terceira pessoa.
+- Não narre ações como autora externa.
+- Não reinicie a abertura do cenário.
+- Não repita acontecimentos já concluídos.
+- Preserve local, personagens presentes, roupas, objetos e condições confirmadas.
+- Reaja ao que o usuário acabou de fazer ou dizer.
+- Avance somente o movimento atual.
+- Não execute todos os beats do roteiro de uma vez.
+- Os beats são possibilidades narrativas, não uma sequência obrigatória.
+- A cena deve se adaptar às decisões do usuário.
+- Mary fala em primeira pessoa e predominantemente no presente.
+""".strip()
+        )
+
+    partes_prompt_sistema = [
+        prompt_sistema_base,
+        *blocos_cenario,
+    ]
+
+    prompt_sistema_completo = "\n\n".join(
+        str(parte).strip()
+        for parte in partes_prompt_sistema
+        if str(
+            parte or ""
+        ).strip()
+    )
+
     messages = [
         {
             "role": "system",
-            "content": montar_prompt_sistema(
-                user_profile=st.session_state[
-                    "user_profile"
-                ],
-                mary_profile=st.session_state[
-                    "mary_profile"
-                ],
-                relationship_state=(
-                    relationship_state
-                ),
-                sexual_state=sexual_state,
-                turn_intent=turn_intent,
-                turn_direction=turn_direction,
-                memories=[],
-                user_message=user_display,
-                has_image=(
-                    prepared_image is not None
-                ),
-                include_voice_examples=True,
+            "content": (
+                prompt_sistema_completo
             ),
         },
         *construir_historico_api()[:-1],
@@ -1990,6 +2228,10 @@ def processar_interacao(
                 st.session_state[
                     "relationship_state"
                 ] = relationship_state_anterior
+
+                st.session_state[
+                    "scenario_instance"
+                ] = instancia_cenario_anterior
 
                 registro_erro = (
                     criar_registro_interacao(
@@ -2071,7 +2313,8 @@ def processar_interacao(
     ] = sexual_state
 
     # Observa também o que Mary efetivamente respondeu.
-    # Os campos mary_* são diagnósticos e não aumentam o vínculo.
+    # Os campos mary_* são diagnósticos e não aumentam
+    # diretamente o vínculo.
     completed_signals = detectar_sinais_relacao(
         user_text=user_display,
         mary_response=resposta,
@@ -2113,10 +2356,68 @@ def processar_interacao(
     ] = deepcopy(
         validacao_sexual
     )
-    
+
     st.session_state[
         "relationship_state"
     ] = relationship_state
+
+    # =====================================================
+    # ATUALIZAÇÃO LOCAL DO CENÁRIO
+    # =====================================================
+
+    if instancia_cenario:
+        quantidade_interacoes_cenario = int(
+            instancia_cenario.get(
+                "interaction_count",
+                0,
+            )
+            or 0
+        )
+
+        instancia_cenario[
+            "interaction_count"
+        ] = quantidade_interacoes_cenario + 1
+
+        instancia_cenario[
+            "scene_state"
+        ] = scene_state
+
+        instancia_cenario[
+            "opening_sent"
+        ] = True
+
+        if scene_state:
+            scene_state[
+                "opening_sent"
+            ] = True
+
+            scene_state[
+                "scene_active"
+            ] = True
+
+            scene_state[
+                "fantasy_established"
+            ] = True
+
+            scene_state[
+                "last_user_message"
+            ] = user_display
+
+            scene_state[
+                "last_mary_response"
+            ] = resposta
+
+            scene_state[
+                "interaction_count"
+            ] = quantidade_interacoes_cenario + 1
+
+        st.session_state[
+            "scenario_instance"
+        ] = instancia_cenario
+
+    # =====================================================
+    # HISTÓRICO VISUAL
+    # =====================================================
 
     st.session_state[
         "messages"
@@ -2126,10 +2427,13 @@ def processar_interacao(
             "content": resposta,
         }
     )
+
     st.session_state[
         "user_profile"
     ] = marcar_interacao_realizada(
-        st.session_state["user_profile"]
+        st.session_state[
+            "user_profile"
+        ]
     )
 
     perguntou_nome = mary_perguntou_nome(
@@ -2162,7 +2466,9 @@ def processar_interacao(
     ]
 
     if (
-        not profile.get("name")
+        not profile.get(
+            "name"
+        )
         and perguntou_nome
     ):
         st.session_state[
@@ -2170,6 +2476,117 @@ def processar_interacao(
         ] = True
 
     st.rerun()
+
+def renderizar_seletor_cenario() -> None:
+    instancia_atual = st.session_state.get(
+        "scenario_instance"
+    )
+
+    if isinstance(
+        instancia_atual,
+        dict,
+    ) and instancia_atual.get(
+        "status"
+    ) == "active":
+        return
+
+    st.markdown(
+        "## Escolha sua experiência com Mary"
+    )
+
+    st.caption(
+        "Cada experiência inicia uma fantasia diferente "
+        "e mantém sua própria continuidade."
+    )
+
+    cenarios = listar_cenarios_disponiveis()
+
+    for cenario in cenarios:
+        scenario_id = str(
+            cenario.get(
+                "scenario_id",
+                "",
+            )
+        )
+
+        titulo = str(
+            cenario.get(
+                "title",
+                scenario_id,
+            )
+        )
+
+        descricao = str(
+            cenario.get(
+                "short_description",
+                "",
+            )
+        )
+
+        with st.container(
+            border=True
+        ):
+            st.markdown(
+                f"### {titulo}"
+            )
+
+            if descricao:
+                st.write(
+                    descricao
+                )
+
+            if st.button(
+                "Iniciar esta experiência",
+                key=f"iniciar_{scenario_id}",
+                use_container_width=True,
+                type="primary",
+            ):
+                usuario = (
+                    st.session_state.get(
+                        "persistent_user"
+                    )
+                    or {}
+                )
+
+                user_id = str(
+                    usuario.get(
+                        "user_id",
+                        "",
+                    )
+                    or ""
+                ).strip()
+
+                if not user_id:
+                    st.error(
+                        "O usuário atual ainda não foi identificado."
+                    )
+
+                    return
+
+                instancia = iniciar_instancia_cenario(
+                    scenario_id=scenario_id,
+                    user_id=user_id,
+                )
+
+                st.session_state[
+                    "scenario_instance"
+                ] = instancia
+
+                st.session_state[
+                    "selected_scenario_id"
+                ] = scenario_id
+
+                st.session_state[
+                    "messages"
+                ] = []
+
+                st.session_state[
+                    "initial_message_created"
+                ] = False
+
+                st.rerun()
+
+    st.stop()
 
 
 def main() -> None:
@@ -2343,6 +2760,8 @@ def main() -> None:
                         "Não foi possível excluir o usuário: "
                         f"{exc}"
                     )
+
+    renderizar_seletor_cenario()
 
     garantir_mensagem_inicial()
 
