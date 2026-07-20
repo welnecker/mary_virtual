@@ -396,9 +396,35 @@ def hidratar_relacionamento_mary(
 
 def restaurar_historico_interacoes(
     user_id: str,
+    *,
+    forcar: bool = False,
 ) -> None:
-    if st.session_state.get(
-        "history_restored"
+    mensagens_atuais = st.session_state.get(
+        "messages"
+    )
+
+    if not isinstance(
+        mensagens_atuais,
+        list,
+    ):
+        mensagens_atuais = []
+
+        st.session_state[
+            "messages"
+        ] = mensagens_atuais
+
+    historico_ja_restaurado = bool(
+        st.session_state.get(
+            "history_restored"
+        )
+    )
+
+    # Só impede nova leitura quando o histórico já foi
+    # restaurado e as mensagens continuam presentes.
+    if (
+        historico_ja_restaurado
+        and mensagens_atuais
+        and not forcar
     ):
         return
 
@@ -411,17 +437,23 @@ def restaurar_historico_interacoes(
 
     for interacao in interacoes:
         texto_usuario = str(
-            interacao.get("user_text")
+            interacao.get(
+                "user_text"
+            )
             or ""
         ).strip()
 
         resposta_mary = str(
-            interacao.get("mary_response")
+            interacao.get(
+                "mary_response"
+            )
             or ""
         ).strip()
 
         erro = str(
-            interacao.get("error")
+            interacao.get(
+                "error"
+            )
             or ""
         ).strip()
 
@@ -446,11 +478,11 @@ def restaurar_historico_interacoes(
                 }
             )
 
-    if mensagens:
-        st.session_state[
-            "messages"
-        ] = mensagens
+    st.session_state[
+        "messages"
+    ] = mensagens
 
+    if mensagens:
         st.session_state[
             "initial_message_created"
         ] = True
@@ -458,8 +490,14 @@ def restaurar_historico_interacoes(
         st.session_state[
             "user_profile"
         ] = marcar_interacao_realizada(
-            st.session_state["user_profile"]
+            st.session_state[
+                "user_profile"
+            ]
         )
+    else:
+        st.session_state[
+            "initial_message_created"
+        ] = False
 
     st.session_state[
         "history_restored"
@@ -472,6 +510,36 @@ def inicializar_persistencia(
     if st.session_state.get(
         "persistence_initialized"
     ):
+        usuario = st.session_state.get(
+            "persistent_user"
+        ) or {}
+    
+        user_id = str(
+            usuario.get(
+                "user_id"
+            )
+            or ""
+        ).strip()
+    
+        mensagens = st.session_state.get(
+            "messages"
+        )
+    
+        if (
+            user_id
+            and (
+                not isinstance(
+                    mensagens,
+                    list,
+                )
+                or not mensagens
+            )
+        ):
+            restaurar_historico_interacoes(
+                user_id,
+                forcar=True,
+            )
+    
         return
 
     try:
