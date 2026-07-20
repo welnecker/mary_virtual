@@ -27,7 +27,24 @@ Você analisa:
 - se a relação avançou, recuou ou permaneceu igual;
 - se a história progrediu;
 - qual deve ser o foco imediato da próxima resposta;
-- se Mary precisa criar um pequeno gancho para evitar estagnação.
+- se Mary precisa criar um pequeno gancho para evitar estagnação;
+- se Mary precisa executar uma ação concreta, em vez de apenas cogitar;
+- qual deve ser a intensidade da iniciativa de Mary no próximo turno.
+
+Considere que não houve iniciativa efetiva de Mary quando ela apenas:
+- disse que talvez faria alguma coisa;
+- anunciou que estava quase agindo;
+- perguntou se deveria agir;
+- repetiu a mesma hesitação do turno anterior;
+- descreveu uma vontade sem transformá-la em decisão;
+- devolveu imediatamente a decisão ao usuário.
+
+Quando Mary repetir duas vezes a mesma hesitação ou ameaça de ação,
+defina mary_initiative_strength como pelo menos 2 no próximo turno.
+
+Quando a cena permanecer no mesmo lugar, objetivo e dinâmica por
+três turnos, use intensidade 3, salvo se houver aprofundamento novo
+e relevante.
 
 A história é adaptativa.
 
@@ -95,6 +112,8 @@ def criar_analise_diretor_padrao(
         ),
         "recommended_focus": "",
         "should_create_hook": False,
+        "mary_should_add_affordance": False,
+        "mary_initiative_strength": 0,
         "hook_purpose": "",
         "user_disengaged": False,
         "climax_signal": False,
@@ -193,6 +212,7 @@ def normalizar_analise_diretor(
         "scene_changed",
         "narrative_progress",
         "should_create_hook",
+        "mary_should_add_affordance",
         "user_disengaged",
         "climax_signal",
         "satisfaction_signal",
@@ -290,6 +310,31 @@ def normalizar_analise_diretor(
     ).strip()
 
     try:
+        initiative_strength = int(
+            analise.get(
+                "mary_initiative_strength",
+                0,
+            )
+            or 0
+        )
+
+    except (
+        TypeError,
+        ValueError,
+    ):
+        initiative_strength = 0
+
+    resultado[
+        "mary_initiative_strength"
+    ] = max(
+        0,
+        min(
+            3,
+            initiative_strength,
+        ),
+    )
+
+    try:
         confidence = float(
             analise.get(
                 "confidence",
@@ -368,6 +413,22 @@ def integrar_direcao_cenario(
         )
     )
 
+    mary_initiative_strength = int(
+        analise_cenario.get(
+            "mary_initiative_strength",
+            0,
+        )
+        or 0
+    )
+
+    mary_initiative_strength = max(
+        0,
+        min(
+            3,
+            mary_initiative_strength,
+        ),
+    )
+
     user_disengaged = bool(
         analise_cenario.get(
             "user_disengaged",
@@ -403,8 +464,13 @@ def integrar_direcao_cenario(
     precisa_movimento_mary = bool(
         should_create_hook
         or mary_should_add_affordance
-        or turns_without_advance >= 4
+        or mary_initiative_strength >= 2
+        or turns_without_advance >= 3
     )
+
+    direcao[
+        "scenario_initiative_strength"
+    ] = mary_initiative_strength
 
     if precisa_movimento_mary:
         direcao[
@@ -418,6 +484,17 @@ def integrar_direcao_cenario(
         direcao[
             "avoid_question"
         ] = False
+
+        if mary_initiative_strength >= 3:
+            direcao[
+                "response_scope"
+            ] = "scene"
+
+            direcao[
+                "direction_reason"
+            ] = (
+                "active_scenario_strong_initiative"
+            )
 
     elif narrative_progress:
         # O usuário já produziu avanço suficiente neste turno.
@@ -544,8 +621,10 @@ def analisar_turno_cenario(
                 "climax, aftercare ou ending"
             ),
             "recommended_focus": (
-                "Foco imediato da próxima resposta, "
-                "sem escrever a fala de Mary"
+                "Foco imediato da próxima resposta. Quando houver necessidade "
+                "de iniciativa, descreva uma ação que Mary deve efetivamente "
+                "começar ou realizar, sem escrever a fala completa e sem "
+                "determinar a reação do usuário."
             ),
             "should_create_hook": (
                 "boolean; verdadeiro apenas quando um "
@@ -555,6 +634,14 @@ def analisar_turno_cenario(
                 "boolean; verdadeiro quando a próxima resposta de Mary "
                 "deve deixar uma ação, escolha, tensão ou pendência "
                 "concreta à qual o usuário possa reagir"
+            ),
+            "mary_initiative_strength": (
+                "Número inteiro de 0 a 3. "
+                "0 = apenas reagir; "
+                "1 = acrescentar atitude ou opinião; "
+                "2 = executar um movimento concreto; "
+                "3 = executar uma mudança narrativa marcante, ainda coerente "
+                "e sem resolver toda a cena."
             ),
             "hook_purpose": (
                 "Objetivo abstrato do gancho, sem impor "
@@ -664,6 +751,16 @@ def aplicar_analise_ao_estado(
     ] = analise.get(
         "recommended_focus",
         "",
+    )
+
+    estado[
+        "last_mary_initiative_strength"
+    ] = int(
+        analise.get(
+            "mary_initiative_strength",
+            0,
+        )
+        or 0
     )
 
     fatos = estado.get(
@@ -837,10 +934,27 @@ def montar_direcao_narrativa(
         )
     )
 
+    initiative_strength = int(
+        analise.get(
+            "mary_initiative_strength",
+            0,
+        )
+        or 0
+    )
+
+    initiative_strength = max(
+        0,
+        min(
+            3,
+            initiative_strength,
+        ),
+    )
+
     precisa_movimento_mary = bool(
         should_create_hook
         or mary_should_add_affordance
-        or turns_without_advance >= 4
+        or initiative_strength >= 2
+        or turns_without_advance >= 3
     )
 
     focus = str(
@@ -861,26 +975,47 @@ def montar_direcao_narrativa(
 
     if precisa_movimento_mary:
         movimento = """
-Além de reagir ao usuário, Mary deve deixar exatamente uma
-possibilidade concreta de continuação criada por ela.
+Além de reagir ao usuário, Mary deve executar exatamente um
+movimento narrativo próprio e perceptível neste turno.
 
-Essa possibilidade pode ser uma decisão, vontade, pedido,
-resistência, escolha, provocação, curiosidade, ação iniciada
-ou pequena consequência natural do momento.
+Ela não deve apenas cogitar, ameaçar, ensaiar ou perguntar se
+deveria agir. Mary toma uma decisão compatível com o momento
+e começa ou conclui uma ação concreta.
 
-Não precisa ser uma pergunta.
+O movimento pode ser:
 
-A resposta não deve terminar com Mary apenas aceitando,
-agradecendo, esperando ou devolvendo toda a iniciativa ao usuário.
+- mudar de posição ou ambiente;
+- aproximar-se ou afastar-se;
+- iniciar uma tarefa;
+- fazer um pedido direto;
+- estabelecer uma condição;
+- recusar alguma coisa;
+- revelar uma reação concreta;
+- provocar deliberadamente;
+- tomar uma pequena decisão;
+- interromper uma situação;
+- criar uma consequência natural;
+- alterar o objetivo imediato da cena.
 
-Mary escolhe livremente o conteúdo com base no que acabou
-de acontecer. Não imponha acontecimento previamente cadastrado.
+A lista é ilustrativa. Mary escolhe livremente o movimento
+mais coerente com o histórico.
 
-A possibilidade criada deve permanecer aberta para que o
-usuário possa aceitá-la, recusá-la, modificá-la ou ignorá-la.
+REGRAS DO MOVIMENTO:
 
-Não crie acontecimentos aleatórios apenas para movimentar a trama.
-Não resolva a possibilidade no mesmo turno em que ela surgir.
+- O movimento deve mudar alguma coisa observável na cena,
+  na relação ou no objetivo imediato.
+- Mary executa o movimento; não fica apenas pensando nele.
+- Não use “quase”, “talvez”, “estou pensando em”, “vou acabar”,
+  “quem sabe” ou “será que eu deveria” como substituto da ação.
+- Mary não deve pedir ao usuário autorização para toda iniciativa
+  não íntima e cotidiana.
+- A ação de Mary não determina a reação do usuário.
+- Mary pode abrir uma porta, aproximar-se, bater, chamar, sentar,
+  levantar, escolher, pedir ou recusar; o usuário continua livre
+  para reagir como desejar.
+- Introduza apenas um movimento relevante.
+- Não resolva toda a situação no mesmo turno.
+- Não crie acontecimentos aleatórios ou desconectados.
 """.strip()
 
     else:
@@ -902,6 +1037,20 @@ Objetivo abstrato de eventual gancho:
 {hook_purpose or "preservar interesse e continuidade"}
 Turnos sem avanço narrativo confirmado:
 {turns_without_advance}
+
+Intensidade da iniciativa de Mary:
+{initiative_strength}
+
+INTERPRETAÇÃO DA INTENSIDADE:
+
+- 0: Mary reage sem precisar criar movimento.
+- 1: Mary acrescenta personalidade, opinião ou vontade.
+- 2: Mary executa uma ação concreta que altera o momento.
+- 3: Mary produz uma mudança narrativa perceptível, coerente
+  com a fase, sem resolver toda a história.
+
+Quando a intensidade for 2 ou 3, uma intenção não executada
+não cumpre a direção.
 
 {movimento}
 
