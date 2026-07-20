@@ -87,6 +87,12 @@ from scenarios import (
     iniciar_instancia_cenario,
     listar_cenarios_disponiveis,
 )
+from scenario_director import (
+    analisar_turno_cenario,
+    aplicar_analise_ao_estado,
+    integrar_direcao_cenario,
+    montar_direcao_narrativa,
+)
 
 
 def exigir_senha_app() -> None:
@@ -2357,12 +2363,73 @@ def processar_interacao(
         scene_state
     )
 
-    direcao_monologo_interno = (
-        montar_direcao_monologo_interno(
-            instancia_cenario=instancia_cenario,
-            scene_state=scene_state,
+    # =====================================================
+    # DIRETOR SEMÂNTICO DO CENÁRIO
+    # =====================================================
+
+    analise_diretor: dict[str, Any] = {}
+    direcao_narrativa_cenario = ""
+
+    quantidade_interacoes_cenario = int(
+        instancia_cenario.get(
+            "interaction_count",
+            0,
         )
+        or 0
     )
+
+    interaction_number_cenario = (
+        quantidade_interacoes_cenario + 1
+    )
+
+    if (
+        instancia_cenario
+        and scenario_config
+        and api_key
+    ):
+        mensagens_recentes = (
+            construir_historico_api()
+        )
+
+        ultima_resposta_mary = ""
+
+        for item in reversed(
+            mensagens_recentes
+        ):
+            if item.get(
+                "role"
+            ) == "assistant":
+                ultima_resposta_mary = str(
+                    item.get(
+                        "content",
+                        "",
+                    )
+                    or ""
+                ).strip()
+
+                break
+
+        analise_diretor = analisar_turno_cenario(
+            api_key=api_key,
+            model=modelo_utilizado,
+            scenario_config=scenario_config,
+            scene_state=scene_state,
+            user_text=user_display,
+            last_mary_response=(
+                ultima_resposta_mary
+            ),
+            recent_messages=(
+                mensagens_recentes
+            ),
+        )
+
+        scene_state = aplicar_analise_ao_estado(
+            scene_state=scene_state,
+            analise=analise_diretor,
+            interaction_number=(
+                interaction_number_cenario
+            ),
+        )
 
     # =====================================================
     # ESTADO DA RELAÇÃO
@@ -2414,6 +2481,30 @@ def processar_interacao(
             relationship_state,
             signals=signals,
             turn_intent=turn_intent,
+        )
+    )
+
+    # O director_engine continua responsável pela direção
+    # geral. O diretor do cenário apenas integra a fantasia
+    # ativa, sem impor uma rota rígida.
+    if analise_diretor:
+        turn_direction = integrar_direcao_cenario(
+            turn_direction=turn_direction,
+            analise_cenario=analise_diretor,
+            scene_state=scene_state,
+        )
+
+        direcao_narrativa_cenario = (
+            montar_direcao_narrativa(
+                analise=analise_diretor,
+                scene_state=scene_state,
+            )
+        )
+
+    direcao_monologo_interno = (
+        montar_direcao_monologo_interno(
+            instancia_cenario=instancia_cenario,
+            scene_state=scene_state,
         )
     )
 
@@ -2546,6 +2637,11 @@ USO OBRIGATÓRIO DO ESTADO DA FANTASIA:
         prompt_sistema_base,
         *blocos_cenario,
     ]
+
+    if direcao_narrativa_cenario:
+        partes_prompt_sistema.append(
+            direcao_narrativa_cenario
+        )
 
     if direcao_monologo_interno:
         partes_prompt_sistema.append(
@@ -2748,17 +2844,9 @@ USO OBRIGATÓRIO DO ESTADO DA FANTASIA:
     # =====================================================
 
     if instancia_cenario:
-        quantidade_interacoes_cenario = int(
-            instancia_cenario.get(
-                "interaction_count",
-                0,
-            )
-            or 0
-        )
-
         instancia_cenario[
             "interaction_count"
-        ] = quantidade_interacoes_cenario + 1
+        ] = interaction_number_cenario
 
         instancia_cenario[
             "scene_state"
@@ -2767,6 +2855,94 @@ USO OBRIGATÓRIO DO ESTADO DA FANTASIA:
         instancia_cenario[
             "opening_sent"
         ] = True
+
+        instancia_cenario[
+            "current_phase"
+        ] = str(
+            scene_state.get(
+                "current_phase",
+                instancia_cenario.get(
+                    "current_phase",
+                    "opening",
+                ),
+            )
+            or "opening"
+        )
+
+        instancia_cenario[
+            "current_route"
+        ] = str(
+            scene_state.get(
+                "current_route",
+                instancia_cenario.get(
+                    "current_route",
+                    "",
+                ),
+            )
+            or ""
+        )
+
+        instancia_cenario[
+            "current_beat"
+        ] = str(
+            scene_state.get(
+                "current_beat",
+                instancia_cenario.get(
+                    "current_beat",
+                    "",
+                ),
+            )
+            or ""
+        )
+
+        instancia_cenario[
+            "active_hook"
+        ] = str(
+            scene_state.get(
+                "active_hook",
+                instancia_cenario.get(
+                    "active_hook",
+                    "",
+                ),
+            )
+            or ""
+        )
+
+        instancia_cenario[
+            "climax_reached"
+        ] = bool(
+            scene_state.get(
+                "climax_reached",
+                instancia_cenario.get(
+                    "climax_reached",
+                    False,
+                ),
+            )
+        )
+
+        instancia_cenario[
+            "satisfaction_detected"
+        ] = bool(
+            scene_state.get(
+                "satisfaction_detected",
+                instancia_cenario.get(
+                    "satisfaction_detected",
+                    False,
+                ),
+            )
+        )
+
+        instancia_cenario[
+            "ending_ready"
+        ] = bool(
+            scene_state.get(
+                "ending_ready",
+                instancia_cenario.get(
+                    "ending_ready",
+                    False,
+                ),
+            )
+        )
 
         if scene_state:
             scene_state[
@@ -2791,7 +2967,7 @@ USO OBRIGATÓRIO DO ESTADO DA FANTASIA:
 
             scene_state[
                 "interaction_count"
-            ] = quantidade_interacoes_cenario + 1
+            ] = interaction_number_cenario
 
         st.session_state[
             "scenario_instance"
