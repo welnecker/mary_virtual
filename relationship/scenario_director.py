@@ -46,6 +46,30 @@ Quando a cena permanecer no mesmo lugar, objetivo e dinâmica por
 três turnos, use intensidade 3, salvo se houver aprofundamento novo
 e relevante.
 
+Avalie também a progressão de sedução de Mary.
+
+A sedução deve evoluir por etapas:
+- proximidade prática;
+- inocência plausível;
+- teste da reação;
+- provocação deliberada;
+- admissão parcial do desejo;
+- intenção sexual clara.
+
+Mary não deve saltar diretamente da inocência para uma proposta
+sexual explícita.
+
+Mary pode usar uma justificativa aparentemente inocente para criar
+proximidade, mas a progressão precisa aparecer nas escolhas dela:
+permanecer, aproximar-se, repetir um contato, provocar, testar limites
+ou admitir que gostou.
+
+Não aumente o nível de sedução apenas porque passaram turnos.
+Use as respostas do usuário, a reciprocidade percebida, a proximidade
+e os acontecimentos confirmados.
+
+Não trate silêncio, hesitação ou ambiguidade como consentimento.
+
 A história é adaptativa.
 
 Não exija que o usuário siga um roteiro predeterminado.
@@ -114,6 +138,18 @@ def criar_analise_diretor_padrao(
         "should_create_hook": False,
         "mary_should_add_affordance": False,
         "mary_initiative_strength": 0,
+        "seduction_level": int(
+            scene_state.get(
+                "seduction_level",
+                0,
+            )
+            or 0
+        ),
+        "seduction_progress_allowed": False,
+        "seduction_strategy": "none",
+        "sexual_reciprocity_evidence": False,
+        "intimate_action_started": False,
+        "consent_confirmed": False,
         "hook_purpose": "",
         "user_disengaged": False,
         "climax_signal": False,
@@ -213,6 +249,10 @@ def normalizar_analise_diretor(
         "narrative_progress",
         "should_create_hook",
         "mary_should_add_affordance",
+        "seduction_progress_allowed",
+        "sexual_reciprocity_evidence",
+        "intimate_action_started",
+        "consent_confirmed",
         "user_disengaged",
         "climax_signal",
         "satisfaction_signal",
@@ -309,6 +349,57 @@ def normalizar_analise_diretor(
         or ""
     ).strip()
 
+    seduction_strategy = str(
+        analise.get(
+            "seduction_strategy",
+            "none",
+        )
+        or "none"
+    ).strip().lower()
+
+    if seduction_strategy not in {
+        "none",
+        "practical_proximity",
+        "plausible_innocence",
+        "test_reaction",
+        "deliberate_teasing",
+        "admit_desire",
+        "clear_sexual_intent",
+    }:
+        seduction_strategy = "none"
+
+    resultado[
+        "seduction_strategy"
+    ] = seduction_strategy
+
+    try:
+        seduction_level = int(
+            analise.get(
+                "seduction_level",
+                padrao.get(
+                    "seduction_level",
+                    0,
+                ),
+            )
+            or 0
+        )
+
+    except (
+        TypeError,
+        ValueError,
+    ):
+        seduction_level = 0
+
+    resultado[
+        "seduction_level"
+    ] = max(
+        0,
+        min(
+            6,
+            seduction_level,
+        ),
+    )
+
     try:
         initiative_strength = int(
             analise.get(
@@ -360,6 +451,138 @@ def normalizar_analise_diretor(
     )
 
     return resultado
+
+def calcular_nivel_seducao(
+    *,
+    current_level: int,
+    proposed_level: int,
+    progress_allowed: bool,
+    reciprocity_evidence: bool,
+    user_disengaged: bool,
+    consent_confirmed: bool,
+) -> int:
+    current_level = max(
+        0,
+        min(
+            6,
+            int(
+                current_level
+                or 0
+            ),
+        ),
+    )
+
+    proposed_level = max(
+        0,
+        min(
+            6,
+            int(
+                proposed_level
+                or 0
+            ),
+        ),
+    )
+
+    if user_disengaged:
+        return max(
+            0,
+            current_level - 1,
+        )
+
+    if not progress_allowed:
+        return current_level
+
+    max_step = 1
+
+    if (
+        reciprocity_evidence
+        and consent_confirmed
+    ):
+        max_step = 2
+
+    upper_bound = min(
+        6,
+        current_level + max_step,
+    )
+
+    return max(
+        current_level,
+        min(
+            proposed_level,
+            upper_bound,
+        ),
+    )
+
+
+def montar_direcao_seducao(
+    *,
+    seduction_level: int,
+    seduction_strategy: str,
+    sexual_expression_allowed: bool,
+) -> str:
+    if seduction_level <= 0:
+        return ""
+
+    if sexual_expression_allowed:
+        limite_sexual = (
+            "Mary pode expressar desejo de forma direta, "
+            "respeitando a continuidade, o consentimento "
+            "e o estado sexual atual."
+        )
+
+    else:
+        limite_sexual = (
+            "A tensão pode ser sensual, mas Mary não deve "
+            "introduzir ato sexual, anatomia íntima ou linguagem "
+            "sexual explícita neste turno."
+        )
+
+    return f"""
+[DIREÇÃO DE SEDUÇÃO GRADUAL]
+
+Nível atual:
+{seduction_level}
+
+Estratégia atual:
+{seduction_strategy}
+
+INTERPRETAÇÃO:
+
+- 0: nenhuma sedução.
+- 1: proximidade justificada pela situação.
+- 2: inocência plausível e contato ambíguo.
+- 3: Mary percebe o efeito e testa a reação.
+- 4: provocação deliberada, ainda parcialmente negável.
+- 5: Mary admite que gostou e pede continuidade.
+- 6: Mary expressa intenção sexual clara.
+
+REGRAS:
+
+- Mary aumenta a tensão por meio de uma escolha concreta,
+  não por uma declaração abstrata de sedução.
+- Primeiro existe uma justificativa plausível.
+- Depois Mary permite ou cria proximidade.
+- Em seguida percebe o efeito que causa.
+- Então testa a reação do usuário.
+- Somente depois provoca conscientemente.
+- Por fim admite o próprio desejo.
+- Mary não deve repetir a mesma desculpa em vários turnos.
+- A cada avanço, alguma coisa deve mudar: distância,
+  contato, ousadia, consciência do desejo ou clareza.
+- Inocência plausível não significa passividade.
+- Mary pode fingir que o gesto foi inocente, mas sua escolha
+  de permanecer, aproximar-se ou repetir o contato deve revelar
+  intenção crescente.
+- A resposta do usuário determina se Mary avança,
+  mantém, desacelera ou recua.
+- Não trate silêncio, hesitação ou ambiguidade como consentimento.
+- Não pule diretamente para ato sexual ou clímax.
+- O motor sexual continua responsável pela progressão corporal,
+  pré-orgasmo, orgasmo e aftercare.
+
+{limite_sexual}
+""".strip()
+
 
 def integrar_direcao_cenario(
     *,
@@ -436,6 +659,60 @@ def integrar_direcao_cenario(
         )
     )
 
+    current_seduction_level = int(
+        scene_state.get(
+            "seduction_level",
+            0,
+        )
+        or 0
+    )
+
+    proposed_seduction_level = int(
+        analise_cenario.get(
+            "seduction_level",
+            current_seduction_level,
+        )
+        or 0
+    )
+
+    seduction_progress_allowed = bool(
+        analise_cenario.get(
+            "seduction_progress_allowed",
+            False,
+        )
+    )
+
+    sexual_reciprocity_evidence = bool(
+        analise_cenario.get(
+            "sexual_reciprocity_evidence",
+            False,
+        )
+    )
+
+    consent_confirmed = bool(
+        analise_cenario.get(
+            "consent_confirmed",
+            False,
+        )
+    )
+
+    seduction_level = calcular_nivel_seducao(
+        current_level=current_seduction_level,
+        proposed_level=proposed_seduction_level,
+        progress_allowed=seduction_progress_allowed,
+        reciprocity_evidence=sexual_reciprocity_evidence,
+        user_disengaged=user_disengaged,
+        consent_confirmed=consent_confirmed,
+    )
+
+    seduction_strategy = str(
+        analise_cenario.get(
+            "seduction_strategy",
+            "none",
+        )
+        or "none"
+    ).strip()
+
     # Em uma fantasia ativa, a cena precisa ser preservada,
     # independentemente do modo geral escolhido.
     direcao[
@@ -471,6 +748,31 @@ def integrar_direcao_cenario(
     direcao[
         "scenario_initiative_strength"
     ] = mary_initiative_strength
+
+    direcao[
+        "scenario_seduction_level"
+    ] = seduction_level
+
+    direcao[
+        "scenario_seduction_strategy"
+    ] = seduction_strategy
+
+    direcao[
+        "scenario_sexual_reciprocity_evidence"
+    ] = sexual_reciprocity_evidence
+
+    direcao[
+        "scenario_intimate_action_started"
+    ] = bool(
+        analise_cenario.get(
+            "intimate_action_started",
+            False,
+        )
+    )
+
+    direcao[
+        "scenario_consent_confirmed"
+    ] = consent_confirmed
 
     if precisa_movimento_mary:
         direcao[
@@ -643,6 +945,37 @@ def analisar_turno_cenario(
                 "3 = executar uma mudança narrativa marcante, ainda coerente "
                 "e sem resolver toda a cena."
             ),
+            "seduction_level": (
+                "Número inteiro de 0 a 6. "
+                "0 = nenhuma sedução; "
+                "1 = proximidade prática; "
+                "2 = inocência plausível; "
+                "3 = teste da reação; "
+                "4 = provocação deliberada; "
+                "5 = desejo parcialmente admitido; "
+                "6 = intenção sexual clara."
+            ),
+            "seduction_progress_allowed": (
+                "boolean; verdadeiro apenas quando os acontecimentos "
+                "e a resposta do usuário sustentam avanço gradual."
+            ),
+            "seduction_strategy": (
+                "none, practical_proximity, plausible_innocence, "
+                "test_reaction, deliberate_teasing, admit_desire "
+                "ou clear_sexual_intent"
+            ),
+            "sexual_reciprocity_evidence": (
+                "boolean; verdadeiro apenas quando o usuário demonstrou "
+                "interesse ou reciprocidade compatível com o avanço."
+            ),
+            "intimate_action_started": (
+                "boolean; verdadeiro apenas quando uma ação íntima "
+                "efetivamente começou na cena."
+            ),
+            "consent_confirmed": (
+                "boolean; verdadeiro apenas quando houver consentimento "
+                "claro para a ação íntima relevante."
+            ),
             "hook_purpose": (
                 "Objetivo abstrato do gancho, sem impor "
                 "um acontecimento específico"
@@ -761,6 +1094,93 @@ def aplicar_analise_ao_estado(
             0,
         )
         or 0
+    )
+
+    current_seduction_level = int(
+        estado.get(
+            "seduction_level",
+            0,
+        )
+        or 0
+    )
+
+    proposed_seduction_level = int(
+        analise.get(
+            "seduction_level",
+            current_seduction_level,
+        )
+        or 0
+    )
+
+    estado[
+        "seduction_level"
+    ] = calcular_nivel_seducao(
+        current_level=current_seduction_level,
+        proposed_level=proposed_seduction_level,
+        progress_allowed=bool(
+            analise.get(
+                "seduction_progress_allowed",
+                False,
+            )
+        ),
+        reciprocity_evidence=bool(
+            analise.get(
+                "sexual_reciprocity_evidence",
+                False,
+            )
+        ),
+        user_disengaged=bool(
+            analise.get(
+                "user_disengaged",
+                False,
+            )
+        ),
+        consent_confirmed=bool(
+            analise.get(
+                "consent_confirmed",
+                False,
+            )
+        ),
+    )
+
+    estado[
+        "seduction_strategy"
+    ] = str(
+        analise.get(
+            "seduction_strategy",
+            estado.get(
+                "seduction_strategy",
+                "none",
+            ),
+        )
+        or "none"
+    ).strip()
+
+    estado[
+        "sexual_reciprocity_evidence"
+    ] = bool(
+        analise.get(
+            "sexual_reciprocity_evidence",
+            False,
+        )
+    )
+
+    estado[
+        "intimate_action_started"
+    ] = bool(
+        analise.get(
+            "intimate_action_started",
+            False,
+        )
+    )
+
+    estado[
+        "consent_confirmed"
+    ] = bool(
+        analise.get(
+            "consent_confirmed",
+            False,
+        )
     )
 
     fatos = estado.get(
@@ -973,6 +1393,54 @@ def montar_direcao_narrativa(
         or ""
     ).strip()
 
+    seduction_level = int(
+        scene_state.get(
+            "seduction_level",
+            analise.get(
+                "seduction_level",
+                0,
+            ),
+        )
+        or 0
+    )
+
+    seduction_level = max(
+        0,
+        min(
+            6,
+            seduction_level,
+        ),
+    )
+
+    seduction_strategy = str(
+        analise.get(
+            "seduction_strategy",
+            scene_state.get(
+                "seduction_strategy",
+                "none",
+            ),
+        )
+        or "none"
+    ).strip()
+
+    sexual_expression_allowed = bool(
+        analise.get(
+            "sexual_reciprocity_evidence",
+            False,
+        )
+        and analise.get(
+            "consent_confirmed",
+            False,
+        )
+        and seduction_level >= 5
+    )
+
+    direcao_seducao = montar_direcao_seducao(
+        seduction_level=seduction_level,
+        seduction_strategy=seduction_strategy,
+        sexual_expression_allowed=sexual_expression_allowed,
+    )
+
     if precisa_movimento_mary:
         movimento = """
 Além de reagir ao usuário, Mary deve executar exatamente um
@@ -1053,6 +1521,8 @@ Quando a intensidade for 2 ou 3, uma intenção não executada
 não cumpre a direção.
 
 {movimento}
+
+{direcao_seducao}
 
 REGRAS:
 
