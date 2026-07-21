@@ -3854,20 +3854,36 @@ def main() -> None:
     )
 
     if instancia_cenario:
-        st.caption(
-            "História ativa: "
-            + str(
+        titulo_cenario = str(
+            instancia_cenario.get(
+                "scenario_config",
+                {},
+            ).get(
+                "title",
                 instancia_cenario.get(
-                    "scenario_config",
-                    {},
-                ).get(
-                    "title",
-                    instancia_cenario.get(
-                        "scenario_id",
-                        "",
-                    ),
-                )
+                    "scenario_id",
+                    "",
+                ),
             )
+            or ""
+        ).strip()
+
+        total_interacoes = int(
+            instancia_cenario.get(
+                "interaction_count",
+                0,
+            )
+            or 0
+        )
+
+        rotulo_interacoes = (
+            "1 interação"
+            if total_interacoes == 1
+            else f"{total_interacoes} interações"
+        )
+
+        st.caption(
+            f"História ativa: {titulo_cenario} · {rotulo_interacoes}"
         )
     else:
         renderizar_seletor_cenario()
