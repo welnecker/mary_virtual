@@ -51,6 +51,10 @@ def obter_perfil_publico(
     )
     public.setdefault("open_to", ["conversar", "se conhecer aos poucos"])
     public.setdefault("identity", identity)
+    public.setdefault(
+        "image_id",
+        "mary_public_profile_blurred_v1",
+    )
     return public
 
 
