@@ -4,6 +4,7 @@ from copy import deepcopy
 from typing import Any, Iterable
 
 from repositories.scenario_session_repository import (
+    listar_sessoes_cenario_usuario,
     salvar_instancia_cenario,
 )
 from scenarios.registry import (
@@ -188,6 +189,66 @@ def listar_cenarios_para_usuario(
     return resultado
 
 
+def listar_historias_iniciadas_usuario(
+    *,
+    user_id: str,
+    status: str | None = None,
+) -> list[dict[str, Any]]:
+    """Lista as sessões narrativas do usuário com dados do catálogo."""
+
+    user_id = _normalizar_user_id(user_id)
+    sessoes = listar_sessoes_cenario_usuario(
+        user_id,
+        status=status,
+    )
+
+    catalogo = {
+        _normalizar_texto(item.get("scenario_id")): item
+        for item in listar_cenarios_disponiveis()
+    }
+
+    resultado: list[dict[str, Any]] = []
+
+    for sessao in sessoes:
+        scenario_id = _normalizar_texto(
+            sessao.get("scenario_id")
+        )
+        cenario = catalogo.get(
+            scenario_id,
+            {},
+        )
+
+        item = deepcopy(sessao)
+        item["title"] = _normalizar_texto(
+            cenario.get("title")
+        ) or scenario_id
+        item["short_description"] = _normalizar_texto(
+            cenario.get("short_description")
+        )
+        item["card"] = deepcopy(
+            cenario.get("card")
+            if isinstance(cenario.get("card"), dict)
+            else {}
+        )
+        item["duration"] = deepcopy(
+            cenario.get("duration")
+            if isinstance(cenario.get("duration"), dict)
+            else {}
+        )
+        item["scenario_available"] = bool(cenario)
+        item["can_continue"] = (
+            _normalizar_texto(
+                sessao.get("status")
+            ).lower()
+            == "active"
+            and bool(cenario)
+        )
+
+        resultado.append(item)
+
+    return resultado
+
+
 def obter_cenario_para_usuario(
     *,
     user_id: str,
@@ -265,5 +326,6 @@ __all__ = [
     "avaliar_acesso_cenario",
     "iniciar_cenario_para_usuario",
     "listar_cenarios_para_usuario",
+    "listar_historias_iniciadas_usuario",
     "obter_cenario_para_usuario",
 ]
