@@ -89,6 +89,7 @@ from scenarios.service import (
     ScenarioAccessError,
     iniciar_cenario_para_usuario,
     listar_cenarios_para_usuario,
+    listar_historias_iniciadas_usuario,
 )
 from ui.login import (
     renderizar_tela_login,
@@ -3655,6 +3656,124 @@ def garantir_usuario_autenticado() -> dict[str, Any]:
     st.rerun()
 
 
+def formatar_data_historia(valor: Any) -> str:
+    texto = str(valor or "").strip()
+    if not texto:
+        return ""
+
+    try:
+        data = datetime.fromisoformat(
+            texto.replace("Z", "+00:00")
+        )
+    except (TypeError, ValueError):
+        return texto
+
+    return data.astimezone().strftime(
+        "%d/%m/%Y às %H:%M"
+    )
+
+
+def renderizar_historias_concluidas(
+    *,
+    user_id: str,
+) -> str:
+    try:
+        historias = listar_historias_iniciadas_usuario(
+            user_id=user_id,
+            status="completed",
+        )
+    except ValueError:
+        return ""
+
+    if not historias:
+        return ""
+
+    st.markdown("### Histórias concluídas")
+
+    for indice, historia in enumerate(
+        historias[:10]
+    ):
+        scenario_id = str(
+            historia.get("scenario_id", "")
+            or ""
+        ).strip()
+
+        if not scenario_id:
+            continue
+
+        titulo = str(
+            historia.get("title")
+            or scenario_id
+        ).strip()
+
+        total_interacoes = int(
+            historia.get(
+                "interaction_count",
+                0,
+            )
+            or 0
+        )
+
+        ending_type = str(
+            historia.get(
+                "ending_type",
+                "",
+            )
+            or ""
+        ).strip()
+
+        concluida_em = formatar_data_historia(
+            historia.get("completed_at")
+            or historia.get("updated_at")
+        )
+
+        resumo = str(
+            historia.get("summary", "")
+            or ""
+        ).strip()
+
+        with st.container(border=True):
+            st.markdown(f"**{titulo}**")
+
+            detalhes = [
+                (
+                    "1 interação"
+                    if total_interacoes == 1
+                    else f"{total_interacoes} interações"
+                )
+            ]
+
+            if concluida_em:
+                detalhes.append(
+                    f"concluída em {concluida_em}"
+                )
+
+            if ending_type:
+                detalhes.append(
+                    f"final: {ending_type}"
+                )
+
+            st.caption(" · ".join(detalhes))
+
+            if resumo:
+                st.write(resumo)
+
+            if st.button(
+                "Jogar novamente",
+                key=(
+                    "scenario_replay_"
+                    + scenario_id
+                    + "_"
+                    + str(indice)
+                ),
+                use_container_width=True,
+            ):
+                return scenario_id
+
+    st.divider()
+    return ""
+
+
 def renderizar_seletor_cenario() -> None:
     instancia_atual = st.session_state.get(
         "scenario_instance"
@@ -3693,6 +3812,49 @@ def renderizar_seletor_cenario() -> None:
         st.stop()
 
     unlocked_scenario_ids: set[str] = set()
+
+    scenario_replay_id = (
+        renderizar_historias_concluidas(
+            user_id=user_id,
+        )
+    )
+
+    if scenario_replay_id:
+        try:
+            instancia = iniciar_cenario_para_usuario(
+                scenario_id=scenario_replay_id,
+                user_id=user_id,
+                unlocked_scenario_ids=(
+                    unlocked_scenario_ids
+                ),
+            )
+        except ScenarioAccessError as exc:
+            st.error(str(exc))
+            st.stop()
+        except ValueError as exc:
+            st.error(str(exc))
+            st.stop()
+
+        st.session_state[
+            "scenario_instance"
+        ] = instancia
+        st.session_state[
+            "selected_scenario_id"
+        ] = scenario_replay_id
+        st.session_state[
+            "scenario_selector_visible"
+        ] = False
+        st.session_state[
+            "messages"
+        ] = []
+        st.session_state[
+            "initial_message_created"
+        ] = False
+        st.session_state[
+            "history_restored"
+        ] = True
+
+        st.rerun()
 
     try:
         cenarios = listar_cenarios_para_usuario(
