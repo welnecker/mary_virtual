@@ -8,6 +8,7 @@ from google_sheets_repository import (
     INTERACTIONS_SHEET,
     atualizar_registro,
     obter_cabecalhos,
+    obter_registros_aba,
     salvar_interacao as salvar_interacao_base,
 )
 from repositories.scenario_session_repository import (
@@ -20,25 +21,22 @@ SCENARIO_INTERACTION_COLUMNS = (
 )
 
 
+def _texto(valor: Any) -> str:
+    return str(valor or "").strip()
+
+
 def _obter_instancia_cenario(
     *,
     user_id: str,
 ) -> dict[str, Any] | None:
-    instancia = st.session_state.get(
-        "scenario_instance"
-    )
-
+    instancia = st.session_state.get("scenario_instance")
     if not isinstance(instancia, dict):
         return None
 
-    scenario_user_id = str(
-        instancia.get("user_id", "") or ""
-    ).strip()
-    user_id = str(user_id or "").strip()
-
+    scenario_user_id = _texto(instancia.get("user_id"))
+    user_id = _texto(user_id)
     if scenario_user_id and scenario_user_id != user_id:
         return None
-
     return instancia
 
 
@@ -46,21 +44,41 @@ def _obter_contexto_cenario(
     *,
     user_id: str,
 ) -> tuple[str, str]:
-    instancia = _obter_instancia_cenario(
-        user_id=user_id,
-    )
-
+    instancia = _obter_instancia_cenario(user_id=user_id)
     if instancia is None:
         return "", ""
+    return (
+        _texto(instancia.get("scenario_id")),
+        _texto(instancia.get("scenario_session_id")),
+    )
 
-    scenario_id = str(
-        instancia.get("scenario_id", "") or ""
-    ).strip()
-    scenario_session_id = str(
-        instancia.get("scenario_session_id", "") or ""
-    ).strip()
 
-    return scenario_id, scenario_session_id
+def listar_interacoes_sessao_cenario(
+    *,
+    user_id: str,
+    scenario_session_id: str,
+    limite: int = 100,
+) -> list[dict[str, Any]]:
+    user_id = _texto(user_id)
+    scenario_session_id = _texto(scenario_session_id)
+    if not user_id or not scenario_session_id:
+        return []
+
+    registros = obter_registros_aba(INTERACTIONS_SHEET)
+    resultado = [
+        dict(registro)
+        for registro in registros
+        if (
+            _texto(registro.get("user_id")) == user_id
+            and _texto(registro.get("scenario_session_id"))
+            == scenario_session_id
+        )
+    ]
+    resultado.sort(
+        key=lambda registro: _texto(registro.get("timestamp"))
+    )
+    limite = max(1, int(limite or 100))
+    return resultado[-limite:]
 
 
 def salvar_interacao(
@@ -103,25 +121,16 @@ def salvar_interacao(
         error=error,
     )
 
-    instancia = _obter_instancia_cenario(
-        user_id=user_id,
-    )
-    scenario_id, scenario_session_id = (
-        _obter_contexto_cenario(
-            user_id=user_id,
-        )
+    instancia = _obter_instancia_cenario(user_id=user_id)
+    scenario_id, scenario_session_id = _obter_contexto_cenario(
+        user_id=user_id
     )
 
     if not scenario_id or not scenario_session_id:
         return
 
-    cabecalhos = set(
-        obter_cabecalhos(INTERACTIONS_SHEET)
-    )
-
-    if set(SCENARIO_INTERACTION_COLUMNS).issubset(
-        cabecalhos
-    ):
+    cabecalhos = set(obter_cabecalhos(INTERACTIONS_SHEET))
+    if set(SCENARIO_INTERACTION_COLUMNS).issubset(cabecalhos):
         atualizar_registro(
             INTERACTIONS_SHEET,
             coluna_chave="interaction_id",
@@ -133,16 +142,12 @@ def salvar_interacao(
         )
 
     if instancia is not None:
-        salvar_instancia_cenario(
-            instancia,
-            houve_interacao=True,
-        )
-        st.session_state[
-            "scenario_instance"
-        ] = instancia
+        salvar_instancia_cenario(instancia, houve_interacao=True)
+        st.session_state["scenario_instance"] = instancia
 
 
 __all__ = [
     "SCENARIO_INTERACTION_COLUMNS",
+    "listar_interacoes_sessao_cenario",
     "salvar_interacao",
 ]
