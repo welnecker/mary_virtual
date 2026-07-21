@@ -591,21 +591,15 @@ def inicializar_persistencia(
         )
 
         sessao = criar_sessao(
-            session_id=(
-                st.session_state[
-                    "interaction_session_id"
-                ]
-            ),
             user_id=user_id,
-            started_at=gerar_id("time").replace(
-                "time_",
-                "",
-                1,
-            ),
             model=modelo_utilizado,
             prompt_version=PROMPT_VERSION,
             app_version=APP_VERSION,
         )
+
+        st.session_state[
+            "interaction_session_id"
+        ] = sessao["session_id"]
 
         st.session_state[
             "persistent_user"
@@ -2833,6 +2827,7 @@ def processar_interacao(
         atualizar_estado_sexual_antes_resposta(
             sexual_state,
             user_text=user_display,
+            relationship_state=relationship_state,
         )
     )
 
@@ -2866,40 +2861,69 @@ def processar_interacao(
             or 0
         ) + 1
 
+        scenario_config = instancia_cenario.get(
+            "scenario_config"
+        )
+
+        if not isinstance(
+            scenario_config,
+            dict,
+        ):
+            scenario_config = {}
+
+        mensagens_recentes = st.session_state.get(
+            "messages",
+            [],
+        )
+
+        if not isinstance(
+            mensagens_recentes,
+            list,
+        ):
+            mensagens_recentes = []
+
+        ultima_resposta_mary = ""
+
+        for mensagem in reversed(
+            mensagens_recentes
+        ):
+            if (
+                isinstance(mensagem, dict)
+                and mensagem.get("role") == "assistant"
+            ):
+                ultima_resposta_mary = str(
+                    mensagem.get("content")
+                    or ""
+                ).strip()
+                break
+
         analysis = analisar_turno_cenario(
-            user_text=user_display,
+            api_key=api_key,
+            model=modelo_utilizado,
+            scenario_config=scenario_config,
             scene_state=scene_state,
-            interaction_number=(
-                interaction_number_cenario
+            user_text=user_display,
+            last_mary_response=(
+                ultima_resposta_mary
+            ),
+            recent_messages=(
+                mensagens_recentes[-8:]
             ),
         )
 
         scene_state = aplicar_analise_ao_estado(
             scene_state=scene_state,
-            analysis=analysis,
+            analise=analysis,
             interaction_number=(
                 interaction_number_cenario
             ),
         )
 
-        integrated = integrar_direcao_cenario(
-            turn_intent=turn_intent,
+        turn_direction = integrar_direcao_cenario(
             turn_direction=turn_direction,
-            analysis=analysis,
+            analise_cenario=analysis,
             scene_state=scene_state,
         )
-
-        turn_intent = integrated[
-            "turn_intent"
-        ]
-
-        turn_direction = integrated[
-            "turn_direction"
-        ]
-
-        scene_state = integrated[
-            "scene_state"
-        ]
 
         relationship_state[
             "current_turn_intent"
@@ -2916,11 +2940,8 @@ def processar_interacao(
 
         direcao_narrativa_cenario = (
             montar_direcao_narrativa(
-                analysis=analysis,
+                analise=analysis,
                 scene_state=scene_state,
-                interaction_number=(
-                    interaction_number_cenario
-                ),
             )
         )
     else:
