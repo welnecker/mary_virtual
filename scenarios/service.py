@@ -3,6 +3,9 @@ from __future__ import annotations
 from copy import deepcopy
 from typing import Any, Iterable
 
+from repositories.scenario_session_repository import (
+    salvar_instancia_cenario,
+)
 from scenarios.registry import (
     iniciar_instancia_cenario,
     listar_cenarios_disponiveis,
@@ -69,27 +72,15 @@ def avaliar_acesso_cenario(
     cenario: dict[str, Any],
     unlocked_scenario_ids: Iterable[str] | None = None,
 ) -> dict[str, Any]:
-    """
-    Calcula o estado de acesso de um card.
+    """Calcula o estado de acesso de um card."""
 
-    Nesta etapa, histórias gratuitas são liberadas automaticamente.
-    Histórias pagas só são liberadas quando seu scenario_id é recebido
-    em unlocked_scenario_ids. A origem desses direitos será integrada
-    posteriormente ao login e ao sistema de cobrança.
-    """
-
-    if not isinstance(
-        cenario,
-        dict,
-    ):
+    if not isinstance(cenario, dict):
         raise ValueError(
             "Os dados do cenário são inválidos."
         )
 
     scenario_id = _normalizar_texto(
-        cenario.get(
-            "scenario_id"
-        )
+        cenario.get("scenario_id")
     )
 
     if not scenario_id:
@@ -97,54 +88,33 @@ def avaliar_acesso_cenario(
             "O cenário não possui scenario_id."
         )
 
-    commerce = cenario.get(
-        "commerce"
-    )
-
-    if not isinstance(
-        commerce,
-        dict,
-    ):
+    commerce = cenario.get("commerce")
+    if not isinstance(commerce, dict):
         commerce = {}
 
     access_type = _normalizar_texto(
-        commerce.get(
-            "access_type"
-        )
-        or cenario.get(
-            "access_type"
-        )
+        commerce.get("access_type")
+        or cenario.get("access_type")
         or ACCESS_TYPE_PAID
     ).lower()
 
     price_cents = int(
         commerce.get(
             "price_cents",
-            cenario.get(
-                "price_cents",
-                0,
-            ),
+            cenario.get("price_cents", 0),
         )
         or 0
     )
 
     currency = _normalizar_texto(
-        commerce.get(
-            "currency"
-        )
-        or cenario.get(
-            "currency"
-        )
+        commerce.get("currency")
+        or cenario.get("currency")
         or "BRL"
     ).upper()
 
     product_id = _normalizar_texto(
-        commerce.get(
-            "product_id"
-        )
-        or cenario.get(
-            "product_id"
-        )
+        commerce.get("product_id")
+        or cenario.get("product_id")
     )
 
     unlocked_ids = _normalizar_ids_desbloqueados(
@@ -202,31 +172,18 @@ def listar_cenarios_para_usuario(
 ) -> list[dict[str, Any]]:
     """Retorna o catálogo já enriquecido com o acesso do usuário."""
 
-    _normalizar_user_id(
-        user_id
-    )
-
+    _normalizar_user_id(user_id)
     cenarios = listar_cenarios_disponiveis()
     resultado: list[dict[str, Any]] = []
 
     for cenario in cenarios:
         acesso = avaliar_acesso_cenario(
             cenario=cenario,
-            unlocked_scenario_ids=(
-                unlocked_scenario_ids
-            ),
+            unlocked_scenario_ids=unlocked_scenario_ids,
         )
-
-        item = deepcopy(
-            cenario
-        )
-        item.update(
-            acesso
-        )
-
-        resultado.append(
-            item
-        )
+        item = deepcopy(cenario)
+        item.update(acesso)
+        resultado.append(item)
 
     return resultado
 
@@ -239,49 +196,29 @@ def obter_cenario_para_usuario(
 ) -> dict[str, Any]:
     """Carrega um cenário e inclui o resultado da autorização."""
 
-    _normalizar_user_id(
-        user_id
-    )
-
-    scenario_id = _normalizar_texto(
-        scenario_id
-    )
+    _normalizar_user_id(user_id)
+    scenario_id = _normalizar_texto(scenario_id)
 
     if not scenario_id:
         raise ValueError(
             "O cenário não foi informado."
         )
 
-    pacote = obter_cenario(
-        scenario_id
-    )
+    pacote = obter_cenario(scenario_id)
+    config = pacote.get("config")
 
-    config = pacote.get(
-        "config"
-    )
-
-    if not isinstance(
-        config,
-        dict,
-    ):
+    if not isinstance(config, dict):
         raise ValueError(
             "A configuração do cenário é inválida."
         )
 
     acesso = avaliar_acesso_cenario(
         cenario=config,
-        unlocked_scenario_ids=(
-            unlocked_scenario_ids
-        ),
+        unlocked_scenario_ids=unlocked_scenario_ids,
     )
 
-    resultado = deepcopy(
-        pacote
-    )
-    resultado[
-        "access"
-    ] = acesso
-
+    resultado = deepcopy(pacote)
+    resultado["access"] = acesso
     return resultado
 
 
@@ -291,35 +228,19 @@ def iniciar_cenario_para_usuario(
     scenario_id: str,
     unlocked_scenario_ids: Iterable[str] | None = None,
 ) -> dict[str, Any]:
-    """
-    Autoriza e cria uma nova sessão narrativa para o usuário.
+    """Autoriza, cria e persiste uma nova sessão narrativa."""
 
-    A verificação ocorre aqui, e não apenas no card, para impedir que
-    uma história bloqueada seja iniciada por chamada direta.
-    """
-
-    user_id = _normalizar_user_id(
-        user_id
-    )
+    user_id = _normalizar_user_id(user_id)
 
     pacote_usuario = obter_cenario_para_usuario(
         user_id=user_id,
         scenario_id=scenario_id,
-        unlocked_scenario_ids=(
-            unlocked_scenario_ids
-        ),
+        unlocked_scenario_ids=unlocked_scenario_ids,
     )
 
-    acesso = pacote_usuario[
-        "access"
-    ]
+    acesso = pacote_usuario["access"]
 
-    if not bool(
-        acesso.get(
-            "allowed",
-            False,
-        )
-    ):
+    if not bool(acesso.get("allowed", False)):
         raise ScenarioAccessError(
             "Esta historinha precisa ser desbloqueada antes de iniciar."
         )
@@ -328,18 +249,10 @@ def iniciar_cenario_para_usuario(
         scenario_id=scenario_id,
         user_id=user_id,
     )
+    instancia["access_status"] = acesso["access_status"]
+    instancia["access_reason"] = acesso["access_reason"]
 
-    instancia[
-        "access_status"
-    ] = acesso[
-        "access_status"
-    ]
-    instancia[
-        "access_reason"
-    ] = acesso[
-        "access_reason"
-    ]
-
+    salvar_instancia_cenario(instancia)
     return instancia
 
 
