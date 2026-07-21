@@ -24,6 +24,7 @@ for _name in dir(_current):
 _analisar_atual = _current.analisar_turno_cenario
 _aplicar_atual = _current.aplicar_analise_ao_estado
 _integrar_atual = _current.integrar_direcao_cenario
+_montar_direcao_narrativa_atual = _current.montar_direcao_narrativa
 
 
 def analisar_turno_cenario(
@@ -142,6 +143,31 @@ def integrar_direcao_cenario(
         "turn_direction": direction,
         "scene_state": state,
     }
+
+
+def montar_direcao_narrativa(
+    *,
+    analise: dict[str, Any] | None = None,
+    analysis: dict[str, Any] | None = None,
+    scene_state: dict[str, Any] | None = None,
+    interaction_number: int | None = None,
+    **_: Any,
+) -> str:
+    """Aceita `analysis` do app restaurado e `analise` do contrato atual."""
+
+    state = scene_state if isinstance(scene_state, dict) else {}
+    selected = analise if isinstance(analise, dict) else analysis
+    if not isinstance(selected, dict):
+        selected = _current.criar_analise_diretor_padrao(state)
+
+    # interaction_number pertence ao contrato antigo. O número já está
+    # refletido no scene_state e não é argumento da implementação atual.
+    _ = interaction_number
+
+    return _montar_direcao_narrativa_atual(
+        analise=selected,
+        scene_state=state,
+    )
 
 
 __all__ = [
