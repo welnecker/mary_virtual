@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from datetime import datetime, timezone
 from typing import Any
 
@@ -7,6 +8,7 @@ from google_sheets_repository import (
     adicionar_registro,
     atualizar_registro,
     buscar_registro,
+    obter_registros_aba,
     serializar_json,
 )
 
@@ -38,6 +40,61 @@ def _booleano(valor: Any) -> bool:
         "yes",
         "verdadeiro",
     }
+
+
+def _desserializar_json(valor: Any) -> dict[str, Any]:
+    if isinstance(valor, dict):
+        return dict(valor)
+
+    texto = _texto(valor)
+    if not texto:
+        return {}
+
+    try:
+        resultado = json.loads(texto)
+    except (TypeError, ValueError, json.JSONDecodeError):
+        return {}
+
+    if not isinstance(resultado, dict):
+        return {}
+
+    return resultado
+
+
+def _hidratar_registro_sessao(
+    registro: dict[str, Any],
+) -> dict[str, Any]:
+    resultado = dict(registro)
+    resultado["scenario_version"] = _inteiro(
+        resultado.get("scenario_version"),
+        1,
+    )
+    resultado["interaction_count"] = _inteiro(
+        resultado.get("interaction_count"),
+        0,
+    )
+
+    for campo in (
+        "opening_sent",
+        "climax_reached",
+        "satisfaction_detected",
+        "ending_ready",
+        "ending_sent",
+        "input_locked",
+        "show_return_to_menu",
+    ):
+        resultado[campo] = _booleano(
+            resultado.get(campo)
+        )
+
+    resultado["scene_state"] = _desserializar_json(
+        resultado.get("scene_state_json")
+    )
+    resultado["story_progress"] = _desserializar_json(
+        resultado.get("story_progress_json")
+    )
+
+    return resultado
 
 
 def montar_registro_sessao_cenario(
@@ -181,8 +238,81 @@ def salvar_instancia_cenario(
     return registro
 
 
+def listar_sessoes_cenario_usuario(
+    user_id: str,
+    *,
+    status: str | None = None,
+    scenario_id: str | None = None,
+) -> list[dict[str, Any]]:
+    user_id = _texto(user_id)
+    if not user_id:
+        raise ValueError("O usuário não foi identificado.")
+
+    status_normalizado = _texto(status).lower()
+    scenario_id_normalizado = _texto(scenario_id)
+
+    registros = obter_registros_aba(
+        SCENARIO_SESSIONS_SHEET
+    )
+
+    resultado: list[dict[str, Any]] = []
+
+    for registro in registros:
+        if _texto(registro.get("user_id")) != user_id:
+            continue
+
+        if (
+            status_normalizado
+            and _texto(registro.get("status")).lower()
+            != status_normalizado
+        ):
+            continue
+
+        if (
+            scenario_id_normalizado
+            and _texto(registro.get("scenario_id"))
+            != scenario_id_normalizado
+        ):
+            continue
+
+        resultado.append(
+            _hidratar_registro_sessao(
+                dict(registro)
+            )
+        )
+
+    resultado.sort(
+        key=lambda item: (
+            _texto(item.get("updated_at")),
+            _texto(item.get("created_at")),
+        ),
+        reverse=True,
+    )
+
+    return resultado
+
+
+def obter_sessao_ativa_mais_recente(
+    *,
+    user_id: str,
+    scenario_id: str,
+) -> dict[str, Any] | None:
+    sessoes = listar_sessoes_cenario_usuario(
+        user_id,
+        status="active",
+        scenario_id=scenario_id,
+    )
+
+    if not sessoes:
+        return None
+
+    return sessoes[0]
+
+
 __all__ = [
     "SCENARIO_SESSIONS_SHEET",
+    "listar_sessoes_cenario_usuario",
     "montar_registro_sessao_cenario",
+    "obter_sessao_ativa_mais_recente",
     "salvar_instancia_cenario",
 ]
