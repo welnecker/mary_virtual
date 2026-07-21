@@ -3883,7 +3883,7 @@ def main() -> None:
         )
 
         st.caption(
-            f"História ativa: {titulo_cenario} · {rotulo_interacoes}"
+            f"História ativa: {titulo_cenario}"
         )
     else:
         renderizar_seletor_cenario()
@@ -3904,15 +3904,44 @@ def main() -> None:
         instancia_cenario
     )
 
-    for message in st.session_state[
+    mensagens_tela = st.session_state[
         "messages"
-    ]:
+    ]
+
+    total_mensagens_usuario = sum(
+        1
+        for item in mensagens_tela
+        if item.get("role") == "user"
+    )
+
+    total_interacoes_cenario = int(
+        instancia_cenario.get(
+            "interaction_count",
+            0,
+        )
+        or 0
+    )
+
+    numero_interacao = max(
+        0,
+        total_interacoes_cenario
+        - total_mensagens_usuario,
+    )
+
+    for message in mensagens_tela:
         with st.chat_message(
             message["role"]
         ):
             st.markdown(
                 message["content"]
             )
+
+            if message.get("role") == "user":
+                numero_interacao += 1
+
+                st.caption(
+                    f"Interação {numero_interacao}"
+                )
 
     renderizar_formulario_nome()
 
