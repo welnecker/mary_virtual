@@ -34,31 +34,21 @@ def _booleano(valor: Any) -> bool:
     if isinstance(valor, bool):
         return valor
     return _texto(valor).lower() in {
-        "true",
-        "1",
-        "sim",
-        "yes",
-        "verdadeiro",
+        "true", "1", "sim", "yes", "verdadeiro"
     }
 
 
 def _desserializar_json(valor: Any) -> dict[str, Any]:
     if isinstance(valor, dict):
         return dict(valor)
-
     texto = _texto(valor)
     if not texto:
         return {}
-
     try:
         resultado = json.loads(texto)
     except (TypeError, ValueError, json.JSONDecodeError):
         return {}
-
-    if not isinstance(resultado, dict):
-        return {}
-
-    return resultado
+    return resultado if isinstance(resultado, dict) else {}
 
 
 def _hidratar_registro_sessao(
@@ -66,34 +56,23 @@ def _hidratar_registro_sessao(
 ) -> dict[str, Any]:
     resultado = dict(registro)
     resultado["scenario_version"] = _inteiro(
-        resultado.get("scenario_version"),
-        1,
+        resultado.get("scenario_version"), 1
     )
     resultado["interaction_count"] = _inteiro(
-        resultado.get("interaction_count"),
-        0,
+        resultado.get("interaction_count"), 0
     )
-
     for campo in (
-        "opening_sent",
-        "climax_reached",
-        "satisfaction_detected",
-        "ending_ready",
-        "ending_sent",
-        "input_locked",
+        "opening_sent", "climax_reached", "satisfaction_detected",
+        "ending_ready", "ending_sent", "input_locked",
         "show_return_to_menu",
     ):
-        resultado[campo] = _booleano(
-            resultado.get(campo)
-        )
-
+        resultado[campo] = _booleano(resultado.get(campo))
     resultado["scene_state"] = _desserializar_json(
         resultado.get("scene_state_json")
     )
     resultado["story_progress"] = _desserializar_json(
         resultado.get("story_progress_json")
     )
-
     return resultado
 
 
@@ -105,9 +84,7 @@ def montar_registro_sessao_cenario(
     if not isinstance(instancia, dict):
         raise ValueError("A instância do cenário é inválida.")
 
-    scenario_session_id = _texto(
-        instancia.get("scenario_session_id")
-    )
+    scenario_session_id = _texto(instancia.get("scenario_session_id"))
     user_id = _texto(instancia.get("user_id"))
     scenario_id = _texto(instancia.get("scenario_id"))
 
@@ -120,18 +97,13 @@ def montar_registro_sessao_cenario(
 
     agora = utc_now_iso()
     created_at = _texto(instancia.get("created_at")) or agora
-    updated_at = agora
-
-    last_interaction_at = _texto(
-        instancia.get("last_interaction_at")
-    )
+    last_interaction_at = _texto(instancia.get("last_interaction_at"))
     if houve_interacao:
         last_interaction_at = agora
 
     scene_state = instancia.get("scene_state")
     if not isinstance(scene_state, dict):
         scene_state = {}
-
     story_progress = instancia.get("story_progress")
     if not isinstance(story_progress, dict):
         story_progress = {}
@@ -141,54 +113,30 @@ def montar_registro_sessao_cenario(
         "user_id": user_id,
         "scenario_id": scenario_id,
         "scenario_version": _inteiro(
-            instancia.get("scenario_version"),
-            1,
+            instancia.get("scenario_version"), 1
         ),
         "created_at": created_at,
-        "updated_at": updated_at,
+        "updated_at": agora,
         "last_interaction_at": last_interaction_at,
         "completed_at": _texto(instancia.get("completed_at")),
         "status": _texto(instancia.get("status")) or "active",
         "interaction_count": _inteiro(
-            instancia.get("interaction_count"),
-            0,
+            instancia.get("interaction_count"), 0
         ),
-        "opening_sent": _booleano(
-            instancia.get("opening_sent")
-        ),
-        "current_phase": _texto(
-            instancia.get("current_phase")
-        ),
-        "current_route": _texto(
-            instancia.get("current_route")
-        ),
-        "current_beat": _texto(
-            instancia.get("current_beat")
-        ),
-        "active_hook": _texto(
-            instancia.get("active_hook")
-        ),
-        "climax_reached": _booleano(
-            instancia.get("climax_reached")
-        ),
+        "opening_sent": _booleano(instancia.get("opening_sent")),
+        "current_phase": _texto(instancia.get("current_phase")),
+        "current_route": _texto(instancia.get("current_route")),
+        "current_beat": _texto(instancia.get("current_beat")),
+        "active_hook": _texto(instancia.get("active_hook")),
+        "climax_reached": _booleano(instancia.get("climax_reached")),
         "satisfaction_detected": _booleano(
             instancia.get("satisfaction_detected")
         ),
-        "ending_ready": _booleano(
-            instancia.get("ending_ready")
-        ),
-        "ending_sent": _booleano(
-            instancia.get("ending_sent")
-        ),
-        "ending_type": _texto(
-            instancia.get("ending_type")
-        ),
-        "ending_reason": _texto(
-            instancia.get("ending_reason")
-        ),
-        "input_locked": _booleano(
-            instancia.get("input_locked")
-        ),
+        "ending_ready": _booleano(instancia.get("ending_ready")),
+        "ending_sent": _booleano(instancia.get("ending_sent")),
+        "ending_type": _texto(instancia.get("ending_type")),
+        "ending_reason": _texto(instancia.get("ending_reason")),
+        "input_locked": _booleano(instancia.get("input_locked")),
         "show_return_to_menu": _booleano(
             instancia.get("show_return_to_menu")
         ),
@@ -207,7 +155,6 @@ def salvar_instancia_cenario(
         instancia,
         houve_interacao=houve_interacao,
     )
-
     scenario_session_id = registro["scenario_session_id"]
     existente = buscar_registro(
         SCENARIO_SESSIONS_SHEET,
@@ -216,10 +163,7 @@ def salvar_instancia_cenario(
     )
 
     if existente is None:
-        adicionar_registro(
-            SCENARIO_SESSIONS_SHEET,
-            registro,
-        )
+        adicionar_registro(SCENARIO_SESSIONS_SHEET, registro)
     else:
         alteracoes = dict(registro)
         alteracoes.pop("scenario_session_id", None)
@@ -232,10 +176,24 @@ def salvar_instancia_cenario(
         )
 
     instancia["updated_at"] = registro["updated_at"]
-    instancia["last_interaction_at"] = registro[
-        "last_interaction_at"
-    ]
+    instancia["last_interaction_at"] = registro["last_interaction_at"]
     return registro
+
+
+def obter_sessao_cenario(
+    scenario_session_id: str,
+) -> dict[str, Any] | None:
+    scenario_session_id = _texto(scenario_session_id)
+    if not scenario_session_id:
+        return None
+    registro = buscar_registro(
+        SCENARIO_SESSIONS_SHEET,
+        coluna="scenario_session_id",
+        valor=scenario_session_id,
+    )
+    if registro is None:
+        return None
+    return _hidratar_registro_sessao(dict(registro))
 
 
 def listar_sessoes_cenario_usuario(
@@ -250,36 +208,25 @@ def listar_sessoes_cenario_usuario(
 
     status_normalizado = _texto(status).lower()
     scenario_id_normalizado = _texto(scenario_id)
-
-    registros = obter_registros_aba(
-        SCENARIO_SESSIONS_SHEET
-    )
-
+    registros = obter_registros_aba(SCENARIO_SESSIONS_SHEET)
     resultado: list[dict[str, Any]] = []
 
     for registro in registros:
         if _texto(registro.get("user_id")) != user_id:
             continue
-
         if (
             status_normalizado
             and _texto(registro.get("status")).lower()
             != status_normalizado
         ):
             continue
-
         if (
             scenario_id_normalizado
             and _texto(registro.get("scenario_id"))
             != scenario_id_normalizado
         ):
             continue
-
-        resultado.append(
-            _hidratar_registro_sessao(
-                dict(registro)
-            )
-        )
+        resultado.append(_hidratar_registro_sessao(dict(registro)))
 
     resultado.sort(
         key=lambda item: (
@@ -288,7 +235,6 @@ def listar_sessoes_cenario_usuario(
         ),
         reverse=True,
     )
-
     return resultado
 
 
@@ -302,17 +248,36 @@ def obter_sessao_ativa_mais_recente(
         status="active",
         scenario_id=scenario_id,
     )
+    return sessoes[0] if sessoes else None
 
-    if not sessoes:
-        return None
 
-    return sessoes[0]
+def marcar_sessao_cenario_reiniciada(
+    *,
+    scenario_session_id: str,
+    user_id: str,
+) -> bool:
+    sessao = obter_sessao_cenario(scenario_session_id)
+    if sessao is None:
+        return False
+    if _texto(sessao.get("user_id")) != _texto(user_id):
+        raise ValueError("A sessão narrativa não pertence ao usuário atual.")
+    return atualizar_registro(
+        SCENARIO_SESSIONS_SHEET,
+        coluna_chave="scenario_session_id",
+        valor_chave=scenario_session_id,
+        alteracoes={
+            "status": "restarted",
+            "updated_at": utc_now_iso(),
+        },
+    )
 
 
 __all__ = [
     "SCENARIO_SESSIONS_SHEET",
     "listar_sessoes_cenario_usuario",
+    "marcar_sessao_cenario_reiniciada",
     "montar_registro_sessao_cenario",
     "obter_sessao_ativa_mais_recente",
+    "obter_sessao_cenario",
     "salvar_instancia_cenario",
 ]
