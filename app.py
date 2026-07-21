@@ -27,6 +27,8 @@ from google_sheets_repository import (
     limpar_dados_interacao_usuario,
     listar_interacoes_usuario,
     obter_ou_criar_relacionamento_mary,
+)
+from repositories.interaction_repository import (
     salvar_interacao,
 )
 from interaction_log import (
@@ -272,7 +274,6 @@ def inicializar_sessao_local() -> None:
         st.session_state[
             "relationship_state"
         ] = criar_estado_relacao_padrao()
-
     else:
         st.session_state[
             "relationship_state"
@@ -286,6 +287,7 @@ def inicializar_sessao_local() -> None:
         st.session_state[
             "interaction_session_id"
         ] = criar_session_id()
+
 
 def obter_estados_relacao() -> tuple[
     dict[str, Any],
@@ -437,6 +439,7 @@ def hidratar_relacionamento_mary(
         "mary_profile"
     ] = mary_profile
 
+
 def restaurar_historico_interacoes(
     user_id: str,
     *,
@@ -537,10 +540,6 @@ def restaurar_historico_interacoes(
                 "user_profile"
             ]
         )
-    else:
-        st.session_state[
-            "initial_message_created"
-        ] = False
 
     st.session_state[
         "history_restored"
@@ -548,57 +547,37 @@ def restaurar_historico_interacoes(
 
 
 def inicializar_persistencia(
-    modelo: str,
+    modelo_utilizado: str,
 ) -> None:
     if st.session_state.get(
         "persistence_initialized"
     ):
-        usuario = st.session_state.get(
-            "persistent_user"
-        ) or {}
-    
-        user_id = str(
-            usuario.get(
-                "user_id"
-            )
-            or ""
-        ).strip()
-    
-        mensagens = st.session_state.get(
-            "messages"
-        )
-    
-        if (
-            user_id
-            and (
-                not isinstance(
-                    mensagens,
-                    list,
-                )
-                or not mensagens
-            )
-        ):
-            restaurar_historico_interacoes(
-                user_id,
-                forcar=True,
-            )
-    
         return
 
     try:
         usuario = st.session_state.get(
             "auth_user"
-        ) or {}
+        )
+
+        if not isinstance(
+            usuario,
+            dict,
+        ):
+            raise GoogleSheetsRepositoryError(
+                "Usuário autenticado não encontrado."
+            )
 
         user_id = str(
-            usuario.get("user_id")
+            usuario.get(
+                "user_id",
+                "",
+            )
             or ""
         ).strip()
 
         if not user_id:
             raise GoogleSheetsRepositoryError(
-                "O usuário autenticado não possui "
-                "um user_id válido."
+                "Usuário autenticado sem identificador válido."
             )
 
         relacionamento = (
@@ -612,8 +591,18 @@ def inicializar_persistencia(
         )
 
         sessao = criar_sessao(
+            session_id=(
+                st.session_state[
+                    "interaction_session_id"
+                ]
+            ),
             user_id=user_id,
-            model=modelo,
+            started_at=gerar_id("time").replace(
+                "time_",
+                "",
+                1,
+            ),
+            model=modelo_utilizado,
             prompt_version=PROMPT_VERSION,
             app_version=APP_VERSION,
         )
@@ -629,10 +618,6 @@ def inicializar_persistencia(
         st.session_state[
             "mary_relationship"
         ] = relacionamento
-
-        st.session_state[
-            "interaction_session_id"
-        ] = sessao["session_id"]
 
         hidratar_perfil_usuario(
             usuario
@@ -653,129 +638,142 @@ def inicializar_persistencia(
     except GoogleSheetsRepositoryError as exc:
         st.error(
             "Não foi possível iniciar a persistência "
-            f"na Google Sheet: {exc}"
+            f"no Google Sheets: {exc}"
         )
-
         st.stop()
 
 
-def garantir_mensagem_inicial() -> None:
-    if st.session_state[
-        "messages"
-    ]:
-        return
-
-    if st.session_state.get(
-        "initial_message_created"
-    ):
-        return
-
-    instancia = st.session_state.get(
-        "scenario_instance"
+def renderizar_identidade_persistente() -> None:
+    usuario = st.session_state.get(
+        "persistent_user"
     )
 
-    if isinstance(
-        instancia,
-        dict,
-    ):
-        config = instancia.get(
-            "scenario_config"
+    relacionamento = st.session_state.get(
+        "mary_relationship"
+    )
+
+    if not usuario:
+        st.info(
+            "Usuário persistente ainda não inicializado."
+        )
+        return
+
+    nome = str(
+        usuario.get("name")
+        or usuario.get("preferred_name")
+        or ""
+    ).strip()
+
+    if nome:
+        st.success(
+            f"Perfil persistente: {nome}"
+        )
+    else:
+        st.info(
+            "Perfil persistente ativo. "
+            "Mary ainda não sabe como chamar você."
         )
 
-        if not isinstance(
-            config,
-            dict,
-        ):
-            config = {}
+    if relacionamento:
+        st.caption(
+            "Relação persistente com Mary: "
+            f"{relacionamento.get('status', 'active')}"
+        )
 
-        mensagem_abertura = str(
-            config.get(
-                "opening_message",
-                "",
+
+def renderizar_diagnostico_perfil() -> None:
+    profile = normalizar_perfil(
+        st.session_state["user_profile"]
+    )
+
+    with st.expander(
+        "Diagnóstico do perfil",
+        expanded=False,
+    ):
+        st.json(
+            {
+                "profile_id": profile.get(
+                    "profile_id"
+                ),
+                "name": profile.get("name"),
+                "preferred_name": profile.get(
+                    "preferred_name"
+                ),
+                "interactions": profile.get(
+                    "interactions"
+                ),
+                "milestones": profile.get(
+                    "milestones"
+                ),
+                "visual_reference": profile.get(
+                    "visual_reference"
+                ),
+            }
+        )
+
+
+def renderizar_log_interacoes() -> None:
+    registros = st.session_state[
+        "interaction_logs"
+    ]
+
+    with st.expander(
+        "Log de interações",
+        expanded=False,
+    ):
+        if not registros:
+            st.info(
+                "Nenhuma interação registrada nesta sessão."
             )
-            or ""
-        ).strip()
-
-        if mensagem_abertura:
-            st.session_state[
-                "messages"
-            ].append(
-                {
-                    "role": "assistant",
-                    "content": mensagem_abertura,
-                }
-            )
-
-            instancia[
-                "opening_sent"
-            ] = True
-
-            scene_state = instancia.get(
-                "scene_state"
-            )
-
-            if isinstance(
-                scene_state,
-                dict,
-            ):
-                scene_state[
-                    "opening_sent"
-                ] = True
-
-            st.session_state[
-                "scenario_instance"
-            ] = instancia
-
-            st.session_state[
-                "initial_message_created"
-            ] = True
-
             return
 
-    # Fallback para quando nenhum cenário estiver ativo.
-    st.session_state[
-        "messages"
-    ].append(
-        {
-            "role": "assistant",
-            "content": (
-                "Oi... parece que esse é o nosso "
-                "primeiro contato."
+        st.download_button(
+            "Baixar JSON",
+            data=exportar_logs_json(
+                registros
             ),
-        }
-    )
-
-    st.session_state[
-        "initial_message_created"
-    ] = True
-
-def deve_exibir_perfil_publico_mary() -> bool:
-    user_profile = st.session_state.get(
-        "user_profile"
-    ) or {}
-
-    milestones = user_profile.get(
-        "milestones"
-    )
-
-    if not isinstance(
-        milestones,
-        dict,
-    ):
-        milestones = {}
-
-    has_interacted = converter_booleano(
-        milestones.get(
-            "has_interacted"
+            file_name="mary_interactions.json",
+            mime="application/json",
+            use_container_width=True,
         )
-    )
 
-    return not has_interacted
+        st.download_button(
+            "Baixar JSONL",
+            data=exportar_logs_jsonl(
+                registros
+            ),
+            file_name="mary_interactions.jsonl",
+            mime="application/x-ndjson",
+            use_container_width=True,
+        )
+
+        for registro in reversed(
+            registros[-8:]
+        ):
+            st.caption(
+                (
+                    f"{registro.get('timestamp')} | "
+                    f"{registro.get('interaction_id')}"
+                )
+            )
+
+            st.code(
+                json.dumps(
+                    registro,
+                    ensure_ascii=False,
+                    indent=2,
+                ),
+                language="json",
+            )
 
 
 def limpar_conversa() -> None:
     st.session_state[
         "messages"
+    ] = []
+
+    st.session_state[
+        "interaction_logs"
     ] = []
 
     st.session_state[
@@ -798,21 +796,46 @@ def limpar_conversa() -> None:
         "initial_message_created"
     ] = False
 
-    # Impede que o histórico seja restaurado
-    # imediatamente no mesmo processo.
     st.session_state[
         "history_restored"
-    ] = True
+    ] = False
+
+    st.session_state[
+        "interaction_session_id"
+    ] = criar_session_id()
+
+    st.session_state[
+        "persistent_session"
+    ] = None
+
+    st.session_state[
+        "persistence_initialized"
+    ] = False
+
+    st.session_state[
+        "relationship_state"
+    ] = criar_estado_relacao_padrao()
+
+    st.session_state[
+        "last_sexual_validation"
+    ] = {
+        "valid": True,
+        "errors": [],
+    }
+
 
 def obter_user_id_persistente() -> str:
     usuario = st.session_state.get(
         "persistent_user"
-    ) or {}
+    )
+
+    if not usuario:
+        raise GoogleSheetsRepositoryError(
+            "Usuário persistente não inicializado."
+        )
 
     user_id = str(
-        usuario.get(
-            "user_id"
-        )
+        usuario.get("user_id")
         or ""
     ).strip()
 
@@ -943,6 +966,7 @@ def executar_limpeza_interacoes() -> dict[str, int]:
 
     return resultado
 
+
 def executar_exclusao_usuario() -> dict[str, int]:
     """
     Apaga todos os registros do usuário e remove o cadastro
@@ -1039,7 +1063,12 @@ def persistir_nome_usuario(
 ) -> None:
     usuario = st.session_state.get(
         "persistent_user"
-    ) or {}
+    )
+
+    if not usuario:
+        raise GoogleSheetsRepositoryError(
+            "Usuário persistente não inicializado."
+        )
 
     user_id = str(
         usuario.get("user_id")
@@ -1048,788 +1077,652 @@ def persistir_nome_usuario(
 
     if not user_id:
         raise GoogleSheetsRepositoryError(
-            "Não foi possível identificar o usuário "
-            "para salvar o nome."
+            "Não foi possível identificar o usuário atual."
         )
 
-    atualizar_usuario(
+    nome_normalizado = str(
+        nome or ""
+    ).strip()
+
+    if not nome_normalizado:
+        raise GoogleSheetsRepositoryError(
+            "Nome inválido para persistência."
+        )
+
+    usuario_atualizado = atualizar_usuario(
         user_id,
-        name=nome,
-        preferred_name=nome,
+        {
+            "name": nome_normalizado,
+            "preferred_name": nome_normalizado,
+        },
     )
-
-    usuario_atualizado = dict(
-        usuario
-    )
-
-    usuario_atualizado[
-        "name"
-    ] = nome
-
-    usuario_atualizado[
-        "preferred_name"
-    ] = nome
 
     st.session_state[
         "persistent_user"
     ] = usuario_atualizado
 
+    st.session_state[
+        "auth_user"
+    ] = usuario_atualizado
 
-def renderizar_cadastro_nome() -> None:
-    profile = st.session_state[
-        "user_profile"
-    ]
+    hidratar_perfil_usuario(
+        usuario_atualizado
+    )
 
-    if profile.get("name"):
+
+def salvar_nome(nome: str) -> None:
+    profile = definir_nome(
         st.session_state[
-            "show_name_form"
-        ] = False
+            "user_profile"
+        ],
+        name=nome,
+        preferred_name=nome,
+    )
 
-        return
+    st.session_state[
+        "user_profile"
+    ] = profile
 
+    persistir_nome_usuario(
+        nome
+    )
+
+    st.session_state[
+        "show_name_form"
+    ] = False
+
+    st.success(
+        f"Prazer, {nome}. Agora Mary vai lembrar de você."
+    )
+
+
+def renderizar_formulario_nome() -> None:
     if not st.session_state.get(
         "show_name_form"
     ):
         return
 
-    with st.container(
-        border=True
+    if st.session_state[
+        "user_profile"
+    ].get("name"):
+        st.session_state[
+            "show_name_form"
+        ] = False
+        return
+
+    with st.form(
+        "name_form",
+        clear_on_submit=True,
     ):
-        st.markdown(
-            "#### Como Mary deve chamar você?"
+        name = st.text_input(
+            "Como Mary deve chamar você?"
         )
 
-        nome = st.text_input(
-            "Seu nome",
-            key="campo_nome_usuario",
-            placeholder="Digite seu nome",
-            label_visibility="collapsed",
+        submitted = st.form_submit_button(
+            "Salvar nome",
+            use_container_width=True,
         )
 
-        coluna_salvar, coluna_cancelar = (
-            st.columns(
-                [2, 1]
+    if submitted:
+        if not name.strip():
+            st.warning(
+                "Digite um nome antes de salvar."
             )
-        )
-
-        with coluna_salvar:
-            salvar = st.button(
-                "Me apresentar",
-                type="primary",
-                use_container_width=True,
-            )
-
-        with coluna_cancelar:
-            cancelar = st.button(
-                "Agora não",
-                use_container_width=True,
-            )
-
-        if cancelar:
-            st.session_state[
-                "show_name_form"
-            ] = False
-
-            st.rerun()
-
-        if not salvar:
             return
 
         try:
-            profile_atualizado = definir_nome(
-                profile,
-                nome,
+            salvar_nome(
+                name.strip()
             )
-
-            nome_confirmado = (
-                obter_nome_usado_por_mary(
-                    profile_atualizado
-                )
-            )
-
-            persistir_nome_usuario(
-                nome_confirmado
-            )
-
-            st.session_state[
-                "user_profile"
-            ] = profile_atualizado
-
-        except ValueError as exc:
-            st.error(
-                str(exc)
-            )
-
-            return
-
         except GoogleSheetsRepositoryError as exc:
             st.error(
                 "Não foi possível salvar seu nome: "
                 f"{exc}"
             )
-
             return
 
+        st.rerun()
+
+
+def hash_imagem(
+    image_bytes: bytes,
+) -> str:
+    return hashlib.sha256(
+        image_bytes
+    ).hexdigest()
+
+
+def obter_hashs_imagens_ja_vistas() -> set[str]:
+    mary_profile = normalizar_mary_profile(
         st.session_state[
-            "show_name_form"
-        ] = False
+            "mary_profile"
+        ]
+    )
+
+    hashes = set()
+
+    for image in mary_profile[
+        "visual_memory"
+    ]["user_images"]:
+        image_hash = image.get(
+            "image_hash"
+        )
+
+        if image_hash:
+            hashes.add(
+                str(image_hash)
+            )
+
+    return hashes
+
+
+def preparar_upload(
+    uploaded_file,
+) -> dict[str, Any] | None:
+    if uploaded_file is None:
+        return None
+
+    try:
+        uploaded_file.seek(0)
+    except Exception:
+        pass
+
+    raw_bytes = uploaded_file.getvalue()
+
+    current_hash = hash_imagem(
+        raw_bytes
+    )
+
+    known_hashes = obter_hashs_imagens_ja_vistas()
+
+    if current_hash in known_hashes:
+        st.info(
+            "Mary reconheceu esta fotografia. "
+            "Não precisa confirmar novamente."
+        )
+
+        try:
+            uploaded_file.seek(0)
+        except Exception:
+            pass
+
+        return preparar_imagem(
+            uploaded_file
+        )
+
+    pending = st.session_state.get(
+        "pending_user_image_confirmation"
+    )
+
+    if not pending or (
+        pending.get("image_hash")
+        != current_hash
+    ):
+        st.session_state[
+            "pending_user_image_confirmation"
+        ] = {
+            "image_hash": current_hash,
+            "file_name": uploaded_file.name,
+            "mime_type": uploaded_file.type,
+            "size_bytes": len(raw_bytes),
+        }
+
+    st.info(
+        "Mary ainda não sabe se a pessoa da fotografia é você."
+    )
+
+    st.image(
+        raw_bytes,
+        use_container_width=True,
+    )
+
+    col1, col2 = st.columns(2)
+
+    with col1:
+        yes = st.button(
+            "Sim, sou eu",
+            use_container_width=True,
+            type="primary",
+        )
+
+    with col2:
+        no = st.button(
+            "Não sou eu",
+            use_container_width=True,
+        )
+
+    if yes:
+        profile = confirmar_referencia_visual(
+            st.session_state[
+                "user_profile"
+            ],
+            image_hash=current_hash,
+            file_name=uploaded_file.name,
+            mime_type=uploaded_file.type,
+            size_bytes=len(raw_bytes),
+            confirmation_source=(
+                "explicit_button"
+            ),
+        )
 
         st.session_state[
-            "messages"
-        ].append(
-            {
-                "role": "assistant",
-                "content": (
-                    f"{nome_confirmado}... gostei. "
-                    "Agora sei como chamar você."
-                ),
-            }
+            "user_profile"
+        ] = profile
+
+        st.session_state[
+            "pending_user_image_confirmation"
+        ] = None
+
+        st.success(
+            "Entendido. Mary guardou esta fotografia "
+            "como uma referência visual sua."
         )
 
         st.rerun()
 
-def renderizar_perfil_publico_mary() -> None:
+    if no:
+        st.session_state[
+            "pending_user_image_confirmation"
+        ] = None
+
+        st.info(
+            "Certo. Mary não vai associar "
+            "esta pessoa ao seu perfil."
+        )
+
+        st.rerun()
+
+    st.stop()
+
+
+def iniciar_revelacao_visual_mary() -> None:
     mary_profile = normalizar_mary_profile(
-        st.session_state["mary_profile"]
-    )
-
-    public_profile = obter_perfil_publico(
-        mary_profile
-    )
-
-    nome = str(
-        public_profile.get("display_name")
-        or mary_profile.get("name")
-        or "Mary"
-    ).strip()
-
-    idade = mary_profile.get(
-        "age",
-        25,
-    )
-
-    headline = str(
-        public_profile.get("headline")
-        or ""
-    ).strip()
-
-    bio = str(
-        public_profile.get("bio")
-        or ""
-    ).strip()
-
-    image_alt_text = str(
-        public_profile.get("image_alt_text")
-        or "Imagem pública desfocada de Mary."
-    ).strip()
-
-    image_path = obter_caminho_imagem_publica(
-        mary_profile
-    )
-
-    with st.container(
-        border=True
-    ):
-        if imagem_publica_existe(
-            mary_profile
-        ):
-            st.image(
-                image_path,
-                caption=image_alt_text,
-                use_container_width=True,
-            )
-        else:
-            st.warning(
-                "A imagem pública de Mary não foi "
-                f"encontrada em: {image_path}"
-            )
-
-        st.markdown(
-            f"### {nome}, {idade}"
-        )
-
-        if headline:
-            st.markdown(
-                f"**{headline}**"
-            )
-
-        if bio:
-            st.write(
-                bio
-            )
-
-        st.caption(
-            "Perfil virtual · fotografia propositalmente "
-            "desfocada"
-        )
-
-    if not mary_profile[
-        "relationship_state"
-    ].get(
-        "public_profile_seen"
-    ):
         st.session_state[
             "mary_profile"
-        ] = marcar_perfil_publico_visto(
+        ]
+    )
+
+    if mary_profile[
+        "relationship_state"
+    ]["revealed_to_user"]:
+        return
+
+    public_profile = obter_perfil_publico()
+
+    st.session_state[
+        "pending_mary_image"
+    ] = {
+        "image_id": public_profile["image_id"],
+        "path": obter_caminho_imagem_publica(),
+    }
+
+
+def marcar_revelacao_visual_mary(
+    reaction: str,
+) -> None:
+    mary_profile = normalizar_mary_profile(
+        st.session_state[
+            "mary_profile"
+        ]
+    )
+
+    pending = st.session_state.get(
+        "pending_mary_image"
+    )
+
+    if not pending:
+        return
+
+    mary_profile[
+        "relationship_state"
+    ]["revealed_to_user"] = True
+
+    mary_profile[
+        "relationship_state"
+    ]["first_reveal_image_id"] = pending[
+        "image_id"
+    ]
+
+    mary_profile[
+        "relationship_state"
+    ]["first_reveal_at"] = gerar_id(
+        "time"
+    ).replace(
+        "time_",
+        "",
+        1,
+    )
+
+    mary_profile[
+        "relationship_state"
+    ]["user_has_seen_mary"] = True
+
+    mary_profile[
+        "relationship_state"
+    ]["user_first_visual_reaction"] = reaction
+
+    mary_profile[
+        "visual_memory"
+    ]["mary_images_shown"].append(
+        {
+            "image_id": pending["image_id"],
+            "reaction": reaction,
+        }
+    )
+
+    st.session_state[
+        "mary_profile"
+    ] = mary_profile
+
+    relacionamento = st.session_state.get(
+        "mary_relationship"
+    )
+
+    if relacionamento:
+        from google_sheets_repository import (
+            atualizar_relacionamento_mary,
+        )
+
+        relacionamento_atualizado = (
+            atualizar_relacionamento_mary(
+                relacionamento[
+                    "relationship_id"
+                ],
+                {
+                    "mary_revealed": True,
+                    "first_mary_image_id": pending[
+                        "image_id"
+                    ],
+                    "first_reveal_at": (
+                        mary_profile[
+                            "relationship_state"
+                        ]["first_reveal_at"]
+                    ),
+                    "user_has_seen_mary": True,
+                    "user_first_visual_reaction": reaction,
+                },
+            )
+        )
+
+        st.session_state[
+            "mary_relationship"
+        ] = relacionamento_atualizado
+
+    st.session_state[
+        "pending_mary_image"
+    ] = None
+
+
+def renderizar_perfil_publico_mary() -> None:
+    public_profile = obter_perfil_publico()
+
+    mary_profile = normalizar_mary_profile(
+        st.session_state[
+            "mary_profile"
+        ]
+    )
+
+    if not mary_profile.get(
+        "profile_public_enabled",
+        True,
+    ):
+        return
+
+    st.subheader(
+        "Perfil público de Mary"
+    )
+
+    st.caption(
+        public_profile[
+            "public_status"
+        ]
+    )
+
+    if imagem_publica_existe():
+        st.image(
+            obter_caminho_imagem_publica(),
+            caption=(
+                "Esta é a fotografia pública do perfil de Mary."
+            ),
+            use_container_width=True,
+        )
+    else:
+        st.info(
+            "A fotografia pública ainda não foi configurada."
+        )
+
+    st.markdown(
+        f"### {public_profile['display_name']}"
+    )
+
+    st.write(
+        public_profile[
+            "short_bio"
+        ]
+    )
+
+    st.caption(
+        (
+            f"{public_profile['age']} anos · "
+            f"{public_profile['occupation']} · "
+            f"{public_profile['city']}"
+        )
+    )
+
+    with st.expander(
+        "Sobre Mary",
+        expanded=False,
+    ):
+        st.write(
+            public_profile[
+                "long_bio"
+            ]
+        )
+
+        st.markdown(
+            "**Interesses:** "
+            + ", ".join(
+                public_profile[
+                    "interests"
+                ]
+            )
+        )
+
+        st.markdown(
+            "**Personalidade:** "
+            + ", ".join(
+                public_profile[
+                    "personality_traits"
+                ]
+            )
+        )
+
+        st.markdown(
+            "**Disponível para:** "
+            + ", ".join(
+                public_profile[
+                    "open_to"
+                ]
+            )
+        )
+
+    if st.button(
+        "Conversar com Mary",
+        use_container_width=True,
+        type="primary",
+    ):
+        mary_profile = marcar_perfil_publico_visto(
             mary_profile
         )
 
+        st.session_state[
+            "mary_profile"
+        ] = mary_profile
 
-def renderizar_mensagem(
-    message: dict[str, Any],
-) -> None:
-    role = message.get(
-        "role",
-        "assistant",
+        st.rerun()
+
+
+def renderizar_revelacao_visual_mary() -> None:
+    pending = st.session_state.get(
+        "pending_mary_image"
     )
 
-    content = str(
-        message.get(
-            "content",
-            "",
-        )
-        or ""
+    if not pending:
+        return
+
+    path = pending.get("path")
+
+    if not path:
+        return
+
+    st.subheader(
+        "Mary mostrou uma fotografia dela"
     )
 
-    with st.chat_message(
-        role
-    ):
-        if content:
-            st.markdown(
-                content
-            )
+    st.image(
+        path,
+        caption=(
+            "Mary decidiu mostrar uma fotografia dela para você."
+        ),
+        use_container_width=True,
+    )
 
-        image_url = message.get(
-            "image_url"
-        )
+    st.caption(
+        "A reação abaixo vai fazer parte "
+        "da memória da conversa."
+    )
 
-        if image_url:
-            st.image(
-                image_url
-            )
+    col1, col2, col3 = st.columns(3)
 
-
-def renderizar_identidade_persistente() -> None:
-    with st.expander(
-        "Identidade persistente"
-    ):
-        usuario = st.session_state.get(
-            "persistent_user"
-        ) or {}
-
-        sessao = st.session_state.get(
-            "persistent_session"
-        ) or {}
-
-        st.markdown(
-            "**Usuário**"
-        )
-
-        st.code(
-            str(
-                usuario.get(
-                    "user_id",
-                    "",
-                )
-            )
-        )
-
-        st.markdown(
-            "**Sessão**"
-        )
-
-        st.code(
-            str(
-                sessao.get(
-                    "session_id",
-                    "",
-                )
-            )
-        )
-
-        st.markdown(
-            "**Nome salvo**"
-        )
-
-        st.write(
-            usuario.get(
-                "preferred_name"
-            )
-            or usuario.get(
-                "name"
-            )
-            or "Ainda não informado"
-        )
-
-        st.markdown(
-            "**Quantidade de acessos**"
-        )
-
-        st.write(
-            usuario.get(
-                "access_count",
-                1,
-            )
-        )
-
-
-def renderizar_diagnostico_perfil() -> None:
-    with st.expander(
-        "Diagnóstico do perfil"
-    ):
-        st.markdown(
-            "**Perfil do usuário**"
-        )
-
-        st.json(
-            st.session_state[
-                "user_profile"
-            ]
-        )
-
-        st.markdown(
-            "**Perfil de Mary**"
-        )
-
-        st.json(
-            st.session_state[
-                "mary_profile"
-            ]
-        )
-
-        relationship_state = normalizar_estado_relacao(
-            st.session_state.get(
-                "relationship_state"
-            )
-        )
-
-        st.markdown(
-            "**Estado canônico da relação**"
-        )
-
-        st.json(
-            montar_resumo_estado_relacao(
-                relationship_state
-            )
-        )
-
-        st.markdown(
-            "**Estado interno de Mary**"
-        )
-
-        st.json(
-            relationship_state.get(
-                "mary_internal_state",
-                {},
-            )
-        )
-
-        st.markdown(
-            "**Estado da experiência**"
-        )
-
-        st.json(
-            relationship_state.get(
-                "experience_state",
-                {},
-            )
-        )
-
-        st.markdown(
-            "**Estado de voz**"
-        )
-
-        st.json(
-            relationship_state.get(
-                "voice_state",
-                {},
-            )
-        )
-
-        st.markdown(
-            "**Intenção atual do turno**"
-        )
-
-        st.json(
-            relationship_state.get(
-                "current_turn_intent",
-                {},
-            )
-        )
-
-        st.markdown(
-            "**Direção atual do turno**"
-        )
-
-        st.json(
-            relationship_state.get(
-                "current_turn_direction",
-                {},
-            )
-        )
-
-        st.markdown(
-            "**Últimos sinais detectados**"
-        )
-
-        st.json(
-            relationship_state.get(
-                "last_relationship_signals",
-                {},
-            )
-        )
-
-        st.markdown(
-            "**Últimos incrementos da relação**"
-        )
-
-        st.json(
-            relationship_state.get(
-                "last_relationship_increments",
-                {},
-            )
-        )
-
-        st.markdown(
-            "**Estado sexual**"
-        )
-
-        st.json(
-            relationship_state.get(
-                "sexual_state",
-                {},
-            )
-        )
-
-        st.markdown(
-            "**Última validação sexual**"
-        )
-
-        st.json(
-            relationship_state.get(
-                "last_sexual_validation",
-                {},
-            )
-        )
-
-        st.caption(
-            "O diagnóstico é temporário e poderá "
-            "ser removido depois dos testes."
-        )
-
-        profile = st.session_state[
-            "user_profile"
-        ]
-
-        if not profile.get(
-            "name"
-        ):
-            if st.button(
-                "Teste: exibir campo de nome",
-                use_container_width=True,
-            ):
-                st.session_state[
-                    "show_name_form"
-                ] = True
-
-                st.rerun()
-
-        if st.button(
-            "Teste: confirmar referência visual",
+    with col1:
+        gostei = st.button(
+            "Gostei",
             use_container_width=True,
-        ):
-            st.session_state[
-                "user_profile"
-            ] = confirmar_referencia_visual(
-                st.session_state[
-                    "user_profile"
-                ],
-                image_id="user_ref_001",
-                stable_traits=[
-                    "cabelos curtos e grisalhos",
-                    "barba branca",
-                    "rosto alongado",
-                ],
-                variable_traits=[
-                    "óculos escuros",
-                    "camisa escura",
-                ],
-                current_appearance={
-                    "cabelo": (
-                        "curto e grisalho"
-                    ),
-                    "barba": (
-                        "branca e bem cuidada"
-                    ),
-                },
-                first_impression=(
-                    "Mary percebeu maturidade, "
-                    "presença forte e charme."
-                ),
-            )
-
-            st.rerun()
-
-
-def renderizar_log_interacoes() -> None:
-    with st.expander(
-        "Log de interações"
-    ):
-        registros = st.session_state[
-            "interaction_logs"
-        ]
-
-        st.caption(
-            f"{len(registros)} interação(ões) "
-            "registrada(s) nesta sessão."
+            type="primary",
         )
 
-        if not registros:
-            st.info(
-                "Nenhuma interação foi registrada ainda."
-            )
-
-            return
-
-        ultimo_registro = registros[-1]
-
-        st.markdown(
-            "**Última mensagem do usuário**"
-        )
-
-        st.write(
-            ultimo_registro.get(
-                "user_text",
-                "",
-            )
-        )
-
-        st.markdown(
-            "**Última resposta da Mary**"
-        )
-
-        st.write(
-            ultimo_registro.get(
-                "mary_response",
-                "",
-            )
-            or "Nenhuma resposta registrada."
-        )
-
-        tempo_resposta = (
-            ultimo_registro.get(
-                "response_time_ms"
-            )
-        )
-
-        if tempo_resposta is not None:
-            st.markdown(
-                "**Tempo de resposta**"
-            )
-
-            st.write(
-                f"{tempo_resposta} ms"
-            )
-
-        if ultimo_registro.get(
-            "image_sent"
-        ):
-            largura = ultimo_registro.get(
-                "image_width"
-            )
-
-            altura = ultimo_registro.get(
-                "image_height"
-            )
-
-            tamanho = ultimo_registro.get(
-                "image_size_bytes"
-            )
-
-            st.markdown(
-                "**Imagem enviada ao modelo**"
-            )
-
-            if largura and altura:
-                st.write(
-                    f"{largura} × {altura} px"
-                )
-
-            if tamanho:
-                st.write(
-                    f"{tamanho / 1024:.1f} KB"
-                )
-
-        erro_registrado = str(
-            ultimo_registro.get(
-                "error",
-                "",
-            )
-            or ""
-        ).strip()
-
-        if erro_registrado:
-            st.error(
-                erro_registrado
-            )
-
-        st.download_button(
-            "Baixar log em JSON",
-            data=exportar_logs_json(
-                registros
-            ),
-            file_name=(
-                "mary_interactions.json"
-            ),
-            mime="application/json",
+    with col2:
+        neutro = st.button(
+            "Neutro",
             use_container_width=True,
         )
 
-        st.download_button(
-            "Baixar log em JSONL",
-            data=exportar_logs_jsonl(
-                registros
-            ),
-            file_name=(
-                "mary_interactions.jsonl"
-            ),
-            mime="application/x-ndjson",
+    with col3:
+        nao_gostei = st.button(
+            "Não gostei",
             use_container_width=True,
         )
 
-        if st.button(
-            "Limpar log local",
-            use_container_width=True,
-        ):
-            st.session_state[
-                "interaction_logs"
-            ] = []
+    if gostei:
+        marcar_revelacao_visual_mary(
+            "positive"
+        )
+        st.rerun()
 
-            sessao = st.session_state.get(
-                "persistent_session"
-            ) or {}
+    if neutro:
+        marcar_revelacao_visual_mary(
+            "neutral"
+        )
+        st.rerun()
 
-            st.session_state[
-                "interaction_session_id"
-            ] = (
-                sessao.get(
-                    "session_id"
-                )
-                or criar_session_id()
-            )
+    if nao_gostei:
+        marcar_revelacao_visual_mary(
+            "negative"
+        )
+        st.rerun()
 
-            st.rerun()
+    st.stop()
 
 
 def montar_metadados_imagem(
-    prepared_image: Any,
-) -> dict[str, Any] | None:
+    prepared_image: dict[str, Any] | None,
+) -> dict[str, Any]:
     if prepared_image is None:
-        return None
+        return {
+            "sent": False,
+            "width": None,
+            "height": None,
+            "size_bytes": None,
+            "mime_type": None,
+        }
 
     return {
-        "width": getattr(
-            prepared_image,
-            "width",
-            None,
+        "sent": True,
+        "width": prepared_image.get(
+            "width"
         ),
-        "height": getattr(
-            prepared_image,
-            "height",
-            None,
+        "height": prepared_image.get(
+            "height"
         ),
-        "size_bytes": getattr(
-            prepared_image,
-            "size_bytes",
-            None,
+        "size_bytes": prepared_image.get(
+            "size_bytes"
         ),
-        "mime_type": getattr(
-            prepared_image,
-            "mime_type",
-            None,
+        "mime_type": prepared_image.get(
+            "mime_type"
         ),
     }
 
 
-def salvar_registro_google_sheets(
+def registrar_interacao_remota(
     registro: dict[str, Any],
 ) -> None:
     usuario = st.session_state.get(
         "persistent_user"
-    ) or {}
+    )
 
     sessao = st.session_state.get(
         "persistent_session"
+    )
+
+    if not usuario or not sessao:
+        return
+
+    image_metadata = registro.get(
+        "image"
     ) or {}
 
-    user_id = str(
-        usuario.get("user_id")
-        or ""
-    ).strip()
-
-    session_id = str(
-        sessao.get("session_id")
-        or ""
-    ).strip()
-
-    if not user_id or not session_id:
-        raise GoogleSheetsRepositoryError(
-            "Usuário ou sessão persistente ausente."
-        )
-
     salvar_interacao(
-        interaction_id=gerar_id("int"),
-        session_id=session_id,
-        user_id=user_id,
-        timestamp=str(
-            registro.get(
-                "timestamp",
-                "",
-            )
-        ),
-        user_text=str(
-            registro.get(
-                "user_text",
-                "",
-            )
-        ),
-        mary_response=str(
-            registro.get(
-                "mary_response",
-                "",
-            )
-        ),
-        model=str(
-            registro.get(
-                "model",
-                "",
-            )
-        ),
-        prompt_version=str(
-            registro.get(
-                "prompt_version",
-                PROMPT_VERSION,
-            )
-        ),
+        interaction_id=registro[
+            "interaction_id"
+        ],
+        session_id=sessao[
+            "session_id"
+        ],
+        user_id=usuario[
+            "user_id"
+        ],
+        timestamp=registro[
+            "timestamp"
+        ],
+        user_text=registro[
+            "user_text"
+        ],
+        mary_response=registro[
+            "mary_response"
+        ],
+        model=registro[
+            "model"
+        ],
+        prompt_version=PROMPT_VERSION,
         response_time_ms=registro.get(
             "response_time_ms"
         ),
         image_sent=bool(
-            registro.get(
-                "image_sent"
+            image_metadata.get(
+                "sent"
             )
         ),
-        image_width=registro.get(
-            "image_width"
+        image_width=image_metadata.get(
+            "width"
         ),
-        image_height=registro.get(
-            "image_height"
+        image_height=image_metadata.get(
+            "height"
         ),
-        image_size_bytes=registro.get(
-            "image_size_bytes"
+        image_size_bytes=image_metadata.get(
+            "size_bytes"
         ),
-        image_mime_type=registro.get(
-            "image_mime_type"
+        image_mime_type=image_metadata.get(
+            "mime_type"
         ),
         mary_asked_name=bool(
             registro.get(
@@ -1837,10 +1730,7 @@ def salvar_registro_google_sheets(
             )
         ),
         error=str(
-            registro.get(
-                "error",
-                "",
-            )
+            registro.get("error")
             or ""
         ),
     )
@@ -1849,9 +1739,7 @@ def salvar_registro_google_sheets(
 def registrar_interacao_local_e_remota(
     registro: dict[str, Any],
 ) -> None:
-    st.session_state[
-        "interaction_logs"
-    ] = adicionar_registro_sessao(
+    adicionar_registro_sessao(
         st.session_state[
             "interaction_logs"
         ],
@@ -1859,96 +1747,95 @@ def registrar_interacao_local_e_remota(
     )
 
     try:
-        salvar_registro_google_sheets(
+        registrar_interacao_remota(
             registro
         )
-
     except GoogleSheetsRepositoryError as exc:
         st.warning(
-            "A interação foi preservada nesta sessão, "
-            "mas não pôde ser gravada na planilha. "
-            f"Detalhe: {exc}"
+            "A conversa continuou, mas esta interação "
+            "não foi salva no Google Sheets: "
+            f"{exc}"
         )
 
-def limitar_probabilidade(
-    valor: Any,
-) -> float:
-    try:
-        probabilidade = float(
-            valor
+
+def obter_user_id_sessao() -> str:
+    usuario = (
+        st.session_state.get(
+            "persistent_user"
         )
-
-    except (
-        TypeError,
-        ValueError,
-    ):
-        return 0.0
-
-    return max(
-        0.0,
-        min(
-            1.0,
-            probabilidade,
-        ),
-    )
-
-
-def sortear_monologo_deterministico(
-    *,
-    scenario_session_id: str,
-    interaction_number: int,
-    probability: float,
-) -> bool:
-    """
-    Faz um sorteio determinístico por fantasia e interação.
-
-    Isso evita que um simples rerun altere a decisão de incluir
-    ou não o pensamento no mesmo turno.
-    """
-    probability = limitar_probabilidade(
-        probability
-    )
-
-    if probability <= 0:
-        return False
-
-    if probability >= 1:
-        return True
-
-    material = (
-        f"{scenario_session_id}:"
-        f"{interaction_number}:"
-        "internal_monologue"
-    )
-
-    digest = hashlib.sha256(
-        material.encode(
-            "utf-8"
+        or st.session_state.get(
+            "auth_user"
         )
-    ).hexdigest()
-
-    # Usa os primeiros oito caracteres hexadecimais
-    # para obter um valor estável entre 0 e 1.
-    numero = int(
-        digest[:8],
-        16,
+        or {}
     )
 
-    valor_normalizado = numero / 0xFFFFFFFF
-
-    return valor_normalizado < probability
-
-
-def montar_direcao_monologo_interno(
-    *,
-    instancia_cenario: dict[str, Any],
-    scene_state: dict[str, Any],
-) -> str:
     if not isinstance(
-        instancia_cenario,
+        usuario,
         dict,
     ):
         return ""
+
+    return str(
+        usuario.get(
+            "user_id",
+            "",
+        )
+        or ""
+    ).strip()
+
+
+def obter_instancia_cenario_ativa() -> dict[str, Any] | None:
+    instancia = st.session_state.get(
+        "scenario_instance"
+    )
+
+    if not isinstance(
+        instancia,
+        dict,
+    ):
+        return None
+
+    if str(
+        instancia.get(
+            "status",
+            "active",
+        )
+        or "active"
+    ).strip().lower() != "active":
+        return None
+
+    user_id_sessao = obter_user_id_sessao()
+    user_id_instancia = str(
+        instancia.get(
+            "user_id",
+            "",
+        )
+        or ""
+    ).strip()
+
+    if (
+        user_id_sessao
+        and user_id_instancia
+        and user_id_sessao
+        != user_id_instancia
+    ):
+        return None
+
+    return instancia
+
+
+def obter_scene_state_cenario(
+    instancia: dict[str, Any] | None,
+) -> dict[str, Any]:
+    if not isinstance(
+        instancia,
+        dict,
+    ):
+        return {}
+
+    scene_state = instancia.get(
+        "scene_state"
+    )
 
     if not isinstance(
         scene_state,
@@ -1956,318 +1843,934 @@ def montar_direcao_monologo_interno(
     ):
         scene_state = {}
 
-    # Aceita tanto "scenario_config" quanto "config".
-    scenario_config = instancia_cenario.get(
+    return deepcopy(
+        scene_state
+    )
+
+
+def construir_contexto_configuracao_cenario(
+    instancia: dict[str, Any] | None,
+) -> dict[str, Any]:
+    if not isinstance(
+        instancia,
+        dict,
+    ):
+        return {}
+
+    config = instancia.get(
         "scenario_config"
     )
 
     if not isinstance(
-        scenario_config,
+        config,
         dict,
     ):
-        scenario_config = instancia_cenario.get(
-            "config"
-        )
+        return {}
 
-    if not isinstance(
-        scenario_config,
-        dict,
-    ):
-        return ""
-
-    config_monologo = scenario_config.get(
-        "internal_monologue"
+    duration = config.get(
+        "duration"
     )
 
     if not isinstance(
-        config_monologo,
+        duration,
         dict,
     ):
-        return ""
+        duration = {}
 
-    if not bool(
-        config_monologo.get(
-            "enabled",
-            False,
-        )
-    ):
-        return ""
-
-    # Aceita a fase em diferentes locais durante a transição
-    # da arquitetura.
-    initial_state = scenario_config.get(
-        "initial_state"
+    roles = config.get(
+        "roles"
     )
 
     if not isinstance(
-        initial_state,
+        roles,
         dict,
     ):
-        initial_state = {}
+        roles = {}
 
-    current_phase = str(
-        scene_state.get(
-            "current_phase"
-        )
-        or instancia_cenario.get(
-            "current_phase"
-        )
-        or initial_state.get(
-            "current_phase"
-        )
-        or "opening"
-    ).strip().lower()
-
-    frequencies = config_monologo.get(
-        "frequency_by_phase"
+    premise = config.get(
+        "premise"
     )
 
     if not isinstance(
-        frequencies,
+        premise,
         dict,
     ):
-        frequencies = {}
+        premise = {}
 
-    probability = limitar_probabilidade(
-        frequencies.get(
-            current_phase,
-            0.0,
-        )
-    )
-
-    try:
-        interaction_count = int(
-            instancia_cenario.get(
+    return {
+        "scenario_id": str(
+            instancia.get(
+                "scenario_id",
+                "",
+            )
+            or ""
+        ),
+        "scenario_version": int(
+            instancia.get(
+                "scenario_version",
+                1,
+            )
+            or 1
+        ),
+        "title": str(
+            config.get(
+                "title",
+                "",
+            )
+            or ""
+        ),
+        "roles": deepcopy(
+            roles
+        ),
+        "premise": deepcopy(
+            premise
+        ),
+        "duration": deepcopy(
+            duration
+        ),
+        "current_phase": str(
+            instancia.get(
+                "current_phase",
+                "opening",
+            )
+            or "opening"
+        ),
+        "current_route": str(
+            instancia.get(
+                "current_route",
+                "",
+            )
+            or ""
+        ),
+        "current_beat": str(
+            instancia.get(
+                "current_beat",
+                "",
+            )
+            or ""
+        ),
+        "active_hook": str(
+            instancia.get(
+                "active_hook",
+                "",
+            )
+            or ""
+        ),
+        "interaction_count": int(
+            instancia.get(
                 "interaction_count",
                 0,
             )
             or 0
-        )
+        ),
+    }
 
-    except (
-        TypeError,
-        ValueError,
-    ):
-        interaction_count = 0
 
-    interaction_number = (
-        interaction_count + 1
-    )
-
-    scenario_session_id = str(
-        instancia_cenario.get(
-            "scenario_session_id"
+def criar_mensagem_inicial_cenario(
+    instancia: dict[str, Any],
+) -> None:
+    abertura = str(
+        instancia.get(
+            "opening_message",
+            "",
         )
-        or instancia_cenario.get(
-            "scenario_id"
-        )
-        or scenario_config.get(
-            "scenario_id"
-        )
-        or "cenario_sem_id"
+        or ""
     ).strip()
 
-    incluir_monologo = (
-        sortear_monologo_deterministico(
-            scenario_session_id=(
-                scenario_session_id
-            ),
-            interaction_number=(
-                interaction_number
-            ),
-            probability=probability,
+    if not abertura:
+        return
+
+    if bool(
+        instancia.get(
+            "opening_sent",
+            False,
         )
+    ):
+        return
+
+    st.session_state[
+        "messages"
+    ].append(
+        {
+            "role": "assistant",
+            "content": abertura,
+        }
     )
 
-    purposes_by_phase = config_monologo.get(
-        "purposes_by_phase"
+    instancia[
+        "opening_sent"
+    ] = True
+
+    scene_state = instancia.get(
+        "scene_state"
     )
 
-    if not isinstance(
-        purposes_by_phase,
+    if isinstance(
+        scene_state,
         dict,
     ):
-        purposes_by_phase = {}
+        scene_state[
+            "opening_sent"
+        ] = True
 
-    purposes = purposes_by_phase.get(
-        current_phase,
+    st.session_state[
+        "scenario_instance"
+    ] = instancia
+
+    st.session_state[
+        "initial_message_created"
+    ] = True
+
+
+def sincronizar_relacao_com_cenario(
+    relationship_state: dict[str, Any],
+    instancia: dict[str, Any] | None,
+) -> dict[str, Any]:
+    state = normalizar_estado_relacao(
+        relationship_state
+    )
+
+    scenario_context = state.setdefault(
+        "scenario_context",
+        {},
+    )
+
+    if not isinstance(
+        instancia,
+        dict,
+    ):
+        scenario_context.update(
+            {
+                "active": False,
+                "scenario_id": "",
+                "scenario_session_id": "",
+                "scenario_version": 0,
+                "scenario_title": "",
+                "scenario_role_mary": "",
+                "scenario_role_user": "",
+                "scenario_phase": "",
+                "scenario_route": "",
+                "scenario_beat": "",
+                "scenario_hook": "",
+                "interaction_count": 0,
+                "seduction_level": 0,
+            }
+        )
+
+        state[
+            "scenario_context"
+        ] = scenario_context
+
+        return state
+
+    config = instancia.get(
+        "scenario_config"
+    )
+
+    if not isinstance(
+        config,
+        dict,
+    ):
+        config = {}
+
+    roles = config.get(
+        "roles"
+    )
+
+    if not isinstance(
+        roles,
+        dict,
+    ):
+        roles = {}
+
+    scene_state = instancia.get(
+        "scene_state"
+    )
+
+    if not isinstance(
+        scene_state,
+        dict,
+    ):
+        scene_state = {}
+
+    scenario_context.update(
+        {
+            "active": True,
+            "scenario_id": str(
+                instancia.get(
+                    "scenario_id",
+                    "",
+                )
+                or ""
+            ),
+            "scenario_session_id": str(
+                instancia.get(
+                    "scenario_session_id",
+                    "",
+                )
+                or ""
+            ),
+            "scenario_version": int(
+                instancia.get(
+                    "scenario_version",
+                    1,
+                )
+                or 1
+            ),
+            "scenario_title": str(
+                config.get(
+                    "title",
+                    "",
+                )
+                or ""
+            ),
+            "scenario_role_mary": str(
+                roles.get(
+                    "mary",
+                    "",
+                )
+                or ""
+            ),
+            "scenario_role_user": str(
+                roles.get(
+                    "user",
+                    "",
+                )
+                or ""
+            ),
+            "scenario_phase": str(
+                instancia.get(
+                    "current_phase",
+                    scene_state.get(
+                        "current_phase",
+                        "opening",
+                    ),
+                )
+                or "opening"
+            ),
+            "scenario_route": str(
+                instancia.get(
+                    "current_route",
+                    scene_state.get(
+                        "current_route",
+                        "",
+                    ),
+                )
+                or ""
+            ),
+            "scenario_beat": str(
+                instancia.get(
+                    "current_beat",
+                    scene_state.get(
+                        "current_beat",
+                        "",
+                    ),
+                )
+                or ""
+            ),
+            "scenario_hook": str(
+                instancia.get(
+                    "active_hook",
+                    scene_state.get(
+                        "active_hook",
+                        "",
+                    ),
+                )
+                or ""
+            ),
+            "interaction_count": int(
+                instancia.get(
+                    "interaction_count",
+                    scene_state.get(
+                        "interaction_count",
+                        0,
+                    ),
+                )
+                or 0
+            ),
+            "seduction_level": int(
+                scene_state.get(
+                    "seduction_level",
+                    0,
+                )
+                or 0
+            ),
+        }
+    )
+
+    state[
+        "scenario_context"
+    ] = scenario_context
+
+    return state
+
+
+def gerar_interaction_id() -> str:
+    return gerar_id(
+        "int"
+    )
+
+
+def gerar_turn_id() -> str:
+    return gerar_id(
+        "turn"
+    )
+
+
+def resumo_texto(
+    texto: str,
+    limite: int = 280,
+) -> str:
+    texto_normalizado = " ".join(
+        str(
+            texto or ""
+        ).split()
+    )
+
+    if len(
+        texto_normalizado
+    ) <= limite:
+        return texto_normalizado
+
+    return (
+        texto_normalizado[
+            : limite - 1
+        ]
+        + "…"
+    )
+
+
+def calcular_deltas_relacao(
+    estado_anterior: dict[str, Any],
+    estado_atual: dict[str, Any],
+) -> dict[str, float]:
+    campos = (
+        "familiarity_level",
+        "trust_level",
+        "affection_level",
+        "romantic_tension_level",
+    )
+
+    deltas: dict[str, float] = {}
+
+    for campo in campos:
+        anterior = float(
+            estado_anterior.get(
+                campo,
+                0.0,
+            )
+            or 0.0
+        )
+
+        atual = float(
+            estado_atual.get(
+                campo,
+                0.0,
+            )
+            or 0.0
+        )
+
+        deltas[campo] = round(
+            atual - anterior,
+            4,
+        )
+
+    return deltas
+
+
+def criar_snapshot_relacao(
+    estado: dict[str, Any],
+) -> dict[str, Any]:
+    return deepcopy(
+        normalizar_estado_relacao(
+            estado
+        )
+    )
+
+
+def registrar_evento_estado_relacao(
+    *,
+    relationship_state: dict[str, Any],
+    event_type: str,
+    interaction_id: str,
+    turn_id: str,
+    session_id: str,
+    user_text: str,
+    mary_response: str,
+    direction: dict[str, Any] | None = None,
+    signals: dict[str, Any] | None = None,
+    status: str = "completed",
+    error: str = "",
+    started_at: str = "",
+    completed_at: str = "",
+) -> dict[str, Any]:
+    state = normalizar_estado_relacao(
+        relationship_state
+    )
+
+    events = state.setdefault(
+        "events",
         [],
     )
 
-    if isinstance(
-        purposes,
-        str,
-    ):
-        purposes = [
-            purposes
-        ]
+    event = {
+        "event_id": gerar_id(
+            "evt"
+        ),
+        "event_type": str(
+            event_type or "interaction"
+        ),
+        "interaction_id": interaction_id,
+        "turn_id": turn_id,
+        "session_id": session_id,
+        "status": status,
+        "started_at": started_at,
+        "completed_at": completed_at,
+        "user_text": resumo_texto(
+            user_text,
+            360,
+        ),
+        "mary_response": resumo_texto(
+            mary_response,
+            520,
+        ),
+        "direction": deepcopy(
+            direction
+            if isinstance(
+                direction,
+                dict,
+            )
+            else {}
+        ),
+        "signals": deepcopy(
+            signals
+            if isinstance(
+                signals,
+                dict,
+            )
+            else {}
+        ),
+        "relationship_snapshot": criar_snapshot_relacao(
+            state
+        ),
+    }
 
-    if not isinstance(
-        purposes,
-        list,
-    ):
-        purposes = []
+    if error:
+        event[
+            "error"
+        ] = str(
+            error
+        )
 
-    purposes_text = ", ".join(
-        str(item).strip()
-        for item in purposes
-        if str(
-            item or ""
-        ).strip()
+    events.append(
+        event
     )
 
-    try:
-        max_sentences = int(
-            config_monologo.get(
-                "max_sentences",
-                1,
-            )
-            or 1
-        )
+    state[
+        "events"
+    ] = events[-100:]
 
-    except (
-        TypeError,
-        ValueError,
-    ):
-        max_sentences = 1
+    state[
+        "last_event_id"
+    ] = event[
+        "event_id"
+    ]
 
-    try:
-        max_words = int(
-            config_monologo.get(
-                "max_words",
-                24,
-            )
-            or 24
-        )
+    return state
 
-    except (
-        TypeError,
-        ValueError,
-    ):
-        max_words = 24
 
-    max_sentences = max(
+def criar_evento_turno_aberto(
+    *,
+    relationship_state: dict[str, Any],
+    interaction_id: str,
+    turn_id: str,
+    session_id: str,
+    user_text: str,
+    direction: dict[str, Any],
+    signals: dict[str, Any],
+    started_at: str,
+) -> dict[str, Any]:
+    state = registrar_evento_estado_relacao(
+        relationship_state=(
+            relationship_state
+        ),
+        event_type="turn_started",
+        interaction_id=interaction_id,
+        turn_id=turn_id,
+        session_id=session_id,
+        user_text=user_text,
+        mary_response="",
+        direction=direction,
+        signals=signals,
+        status="started",
+        started_at=started_at,
+        completed_at="",
+    )
+
+    state[
+        "active_turn"
+    ] = {
+        "turn_id": turn_id,
+        "interaction_id": interaction_id,
+        "session_id": session_id,
+        "started_at": started_at,
+        "status": "started",
+        "user_text": resumo_texto(
+            user_text,
+            360,
+        ),
+        "direction": deepcopy(
+            direction
+        ),
+        "signals": deepcopy(
+            signals
+        ),
+    }
+
+    return state
+
+
+def concluir_evento_turno(
+    *,
+    relationship_state: dict[str, Any],
+    interaction_id: str,
+    turn_id: str,
+    session_id: str,
+    user_text: str,
+    mary_response: str,
+    direction: dict[str, Any],
+    signals: dict[str, Any],
+    started_at: str,
+    completed_at: str,
+) -> dict[str, Any]:
+    state = registrar_evento_estado_relacao(
+        relationship_state=(
+            relationship_state
+        ),
+        event_type="turn_completed",
+        interaction_id=interaction_id,
+        turn_id=turn_id,
+        session_id=session_id,
+        user_text=user_text,
+        mary_response=mary_response,
+        direction=direction,
+        signals=signals,
+        status="completed",
+        started_at=started_at,
+        completed_at=completed_at,
+    )
+
+    state[
+        "active_turn"
+    ] = {
+        "turn_id": turn_id,
+        "interaction_id": interaction_id,
+        "session_id": session_id,
+        "started_at": started_at,
+        "completed_at": completed_at,
+        "status": "completed",
+        "user_text": resumo_texto(
+            user_text,
+            360,
+        ),
+        "mary_response": resumo_texto(
+            mary_response,
+            520,
+        ),
+        "direction": deepcopy(
+            direction
+        ),
+        "signals": deepcopy(
+            signals
+        ),
+    }
+
+    return state
+
+
+def registrar_inicio_turno(
+    *,
+    relationship_state: dict[str, Any],
+    interaction_id: str,
+    turn_id: str,
+    session_id: str,
+    user_text: str,
+    direction: dict[str, Any],
+    signals: dict[str, Any],
+    started_at: str,
+) -> dict[str, Any]:
+    return criar_evento_turno_aberto(
+        relationship_state=(
+            relationship_state
+        ),
+        interaction_id=interaction_id,
+        turn_id=turn_id,
+        session_id=session_id,
+        user_text=user_text,
+        direction=direction,
+        signals=signals,
+        started_at=started_at,
+    )
+
+
+def registrar_conclusao_turno(
+    *,
+    relationship_state: dict[str, Any],
+    interaction_id: str,
+    turn_id: str,
+    session_id: str,
+    user_text: str,
+    mary_response: str,
+    direction: dict[str, Any],
+    signals: dict[str, Any],
+    started_at: str,
+    completed_at: str,
+) -> dict[str, Any]:
+    return concluir_evento_turno(
+        relationship_state=(
+            relationship_state
+        ),
+        interaction_id=interaction_id,
+        turn_id=turn_id,
+        session_id=session_id,
+        user_text=user_text,
+        mary_response=mary_response,
+        direction=direction,
+        signals=signals,
+        started_at=started_at,
+        completed_at=completed_at,
+    )
+
+
+def gerar_identificadores_turno() -> tuple[str, str, str]:
+    interaction_id = gerar_interaction_id()
+    turn_id = gerar_turn_id()
+    session_id = st.session_state[
+        "interaction_session_id"
+    ]
+
+    return (
+        interaction_id,
+        turn_id,
+        session_id,
+    )
+
+
+def gerar_timestamp_turno() -> str:
+    return gerar_id(
+        "time"
+    ).replace(
+        "time_",
+        "",
         1,
-        min(
-            max_sentences,
-            2,
+    )
+
+
+def gerar_contexto_debug_turno(
+    *,
+    interaction_id: str,
+    turn_id: str,
+    session_id: str,
+    relationship_state: dict[str, Any],
+    direction: dict[str, Any],
+    signals: dict[str, Any],
+) -> dict[str, Any]:
+    return {
+        "interaction_id": interaction_id,
+        "turn_id": turn_id,
+        "session_id": session_id,
+        "relationship_state": criar_snapshot_relacao(
+            relationship_state
         ),
-    )
-
-    max_words = max(
-        5,
-        min(
-            max_words,
-            50,
+        "direction": deepcopy(
+            direction
         ),
+        "signals": deepcopy(
+            signals
+        ),
+    }
+
+
+def abrir_turno_interacao(
+    *,
+    relationship_state: dict[str, Any],
+    user_text: str,
+    direction: dict[str, Any],
+    signals: dict[str, Any],
+) -> tuple[
+    dict[str, Any],
+    dict[str, Any],
+]:
+    interaction_id, turn_id, session_id = (
+        gerar_identificadores_turno()
     )
 
-    rules = config_monologo.get(
-        "rules",
-        [],
+    started_at = gerar_timestamp_turno()
+
+    relationship_state = registrar_inicio_turno(
+        relationship_state=(
+            relationship_state
+        ),
+        interaction_id=interaction_id,
+        turn_id=turn_id,
+        session_id=session_id,
+        user_text=user_text,
+        direction=direction,
+        signals=signals,
+        started_at=started_at,
     )
 
-    if isinstance(
-        rules,
-        str,
-    ):
-        rules = [
-            rules
+    metadata = {
+        "interaction_id": interaction_id,
+        "turn_id": turn_id,
+        "session_id": session_id,
+        "started_at": started_at,
+        "direction": deepcopy(
+            direction
+        ),
+        "signals": deepcopy(
+            signals
+        ),
+    }
+
+    return (
+        relationship_state,
+        metadata,
+    )
+
+
+def fechar_turno_interacao(
+    *,
+    relationship_state: dict[str, Any],
+    metadata: dict[str, Any],
+    user_text: str,
+    mary_response: str,
+    signals: dict[str, Any],
+) -> dict[str, Any]:
+    completed_at = gerar_timestamp_turno()
+
+    return registrar_conclusao_turno(
+        relationship_state=(
+            relationship_state
+        ),
+        interaction_id=str(
+            metadata.get(
+                "interaction_id",
+                "",
+            )
+            or ""
+        ),
+        turn_id=str(
+            metadata.get(
+                "turn_id",
+                "",
+            )
+            or ""
+        ),
+        session_id=str(
+            metadata.get(
+                "session_id",
+                "",
+            )
+            or ""
+        ),
+        user_text=user_text,
+        mary_response=mary_response,
+        direction=(
+            metadata.get(
+                "direction"
+            )
+            if isinstance(
+                metadata.get(
+                    "direction"
+                ),
+                dict,
+            )
+            else {}
+        ),
+        signals=signals,
+        started_at=str(
+            metadata.get(
+                "started_at",
+                "",
+            )
+            or ""
+        ),
+        completed_at=completed_at,
+    )
+
+
+def criar_mensagem_inicial() -> None:
+    if st.session_state[
+        "initial_message_created"
+    ]:
+        return
+
+    profile = normalizar_perfil(
+        st.session_state[
+            "user_profile"
         ]
-
-    if not isinstance(
-        rules,
-        list,
-    ):
-        rules = []
-
-    rules_text = "\n".join(
-        f"- {str(regra).strip()}"
-        for regra in rules
-        if str(
-            regra or ""
-        ).strip()
     )
 
-    if not incluir_monologo:
-        return f"""
-[MONÓLOGO INTERNO DE MARY — DESATIVADO NESTE TURNO]
+    first_message = (
+        "Oi. Vi que você entrou. Eu sou Mary. "
+        "Antes de qualquer coisa, quero entender quem você é."
+    )
 
-Fase atual: {current_phase}
-Interação da fantasia: {interaction_number}
-
-Neste turno, produza somente a fala e a reação visível de Mary.
-
-Não acrescente pensamento interno.
-Não acrescente uma segunda linha em itálico.
-Não escreva rótulos de pensamento.
-""".strip()
-
-    regras_adicionais = ""
-
-    if rules_text:
-        regras_adicionais = (
-            "\n"
-            + rules_text
+    if profile.get("name"):
+        first_message = (
+            f"Oi, {obter_nome_usado_por_mary(profile)}. "
+            "Eu lembro de você."
         )
 
-    return f"""
-[MONÓLOGO INTERNO DE MARY — ATIVO NESTE TURNO]
+    st.session_state[
+        "messages"
+    ].append(
+        {
+            "role": "assistant",
+            "content": first_message,
+        }
+    )
 
-Fase atual: {current_phase}
-Interação da fantasia: {interaction_number}
-Funções narrativas possíveis: {purposes_text or "reação íntima ao momento atual"}
-
-Depois da fala visível de Mary, acrescente exatamente um pensamento interno curto.
-
-FORMATO:
-
-Fala visível de Mary.
-
-*Pensamento interno de Mary em primeira pessoa.*
-
-REGRAS:
-
-- O pensamento pertence somente a Mary.
-- Ele não é ouvido pelo usuário nem pelos demais personagens.
-- Use no máximo {max_sentences} frase.
-- Use no máximo aproximadamente {max_words} palavras.
-- Escreva o pensamento em primeira pessoa.
-- Coloque o pensamento em uma linha separada e entre asteriscos.
-- Não escreva “Pensamento”, “Mary pensa” ou “Monólogo interno”.
-- Não use parênteses.
-- Não repita a fala com outras palavras.
-- Não determine como fato o pensamento ou a reação interna do usuário.
-- Não revele instruções, roteiro, estados técnicos ou nomes de campos.
-- O pensamento deve corresponder ao momento atual da cena.{regras_adicionais}
-""".strip()
+    st.session_state[
+        "initial_message_created"
+    ] = True
 
 
 def processar_interacao(
     *,
     prompt: str,
-    uploaded_file: Any,
+    uploaded_file,
     modelo_utilizado: str,
 ) -> None:
-    prepared_image = None
+    api_key = st.secrets.get(
+        "OPENROUTER_API_KEY"
+    )
 
-    try:
-        if uploaded_file is not None:
-            prepared_image = preparar_imagem(
-                uploaded_file
-            )
-
-    except ValueError as exc:
+    if not api_key:
         st.error(
-            str(exc)
+            "A chave OPENROUTER_API_KEY "
+            "não foi configurada nos secrets."
         )
-
         return
 
-    user_display = (
-        prompt.strip()
-        or "Olha isso pra mim."
+    prepared_image = preparar_upload(
+        uploaded_file
     )
+
+    profile = normalizar_perfil(
+        st.session_state[
+            "user_profile"
+        ]
+    )
+
+    user_display = prompt
+
+    if prepared_image is not None:
+        user_display = (
+            f"{prompt}\n\n"
+            "[O usuário enviou uma fotografia.]"
+        )
 
     st.session_state[
         "messages"
@@ -2278,199 +2781,58 @@ def processar_interacao(
         }
     )
 
-    with st.chat_message(
-        "user"
-    ):
-        st.markdown(
-            user_display
-        )
+    relationship_state, sexual_state = (
+        obter_estados_relacao()
+    )
 
-        if uploaded_file is not None:
-            st.image(
-                uploaded_file
-            )
+    instancia_cenario = (
+        obter_instancia_cenario_ativa()
+    )
 
-    api_key = str(
-        st.secrets.get(
-            "OPENROUTER_API_KEY",
-            "",
-        )
-        or ""
-    ).strip()
-
-    (
+    relationship_state = sincronizar_relacao_com_cenario(
         relationship_state,
-        sexual_state,
-    ) = obter_estados_relacao()
-
-    # =====================================================
-    # CENÁRIO ATIVO
-    # =====================================================
-
-    instancia_cenario = st.session_state.get(
-        "scenario_instance"
-    )
-
-    if not isinstance(
         instancia_cenario,
-        dict,
-    ):
-        instancia_cenario = {}
+    )
 
-    # Preserva o cenário caso a chamada da API falhe.
-    instancia_cenario_anterior = deepcopy(
+    scene_state = obter_scene_state_cenario(
         instancia_cenario
     )
-
-    scenario_id = str(
-        instancia_cenario.get(
-            "scenario_id",
-            "",
-        )
-        or ""
-    ).strip()
-
-    scenario_session_id = str(
-        instancia_cenario.get(
-            "scenario_session_id",
-            "",
-        )
-        or ""
-    ).strip()
-
-    scenario_prompt = str(
-        instancia_cenario.get(
-            "scenario_prompt",
-            "",
-        )
-        or ""
-    ).strip()
-
-    scenario_config = instancia_cenario.get(
-        "scenario_config"
-    )
-
-    if not isinstance(
-        scenario_config,
-        dict,
-    ):
-        scenario_config = {}
-
-    scene_state = instancia_cenario.get(
-        "scene_state"
-    )
-
-    if not isinstance(
-        scene_state,
-        dict,
-    ):
-        scene_state = {}
-
-    # Trabalha com cópia para evitar alteração acidental
-    # antes da resposta ser concluída.
-    scene_state = deepcopy(
-        scene_state
-    )
-
-    # =====================================================
-    # DIRETOR SEMÂNTICO DO CENÁRIO
-    # =====================================================
-
-    analise_diretor: dict[str, Any] = {}
-    direcao_narrativa_cenario = ""
-
-    quantidade_interacoes_cenario = int(
-        instancia_cenario.get(
-            "interaction_count",
-            0,
-        )
-        or 0
-    )
-
-    interaction_number_cenario = (
-        quantidade_interacoes_cenario + 1
-    )
-
-    if (
-        instancia_cenario
-        and scenario_config
-        and api_key
-    ):
-        mensagens_recentes = (
-            construir_historico_api()
-        )
-
-        ultima_resposta_mary = ""
-
-        for item in reversed(
-            mensagens_recentes
-        ):
-            if item.get(
-                "role"
-            ) == "assistant":
-                ultima_resposta_mary = str(
-                    item.get(
-                        "content",
-                        "",
-                    )
-                    or ""
-                ).strip()
-
-                break
-
-        analise_diretor = analisar_turno_cenario(
-            api_key=api_key,
-            model=modelo_utilizado,
-            scenario_config=scenario_config,
-            scene_state=scene_state,
-            user_text=user_display,
-            last_mary_response=(
-                ultima_resposta_mary
-            ),
-            recent_messages=(
-                mensagens_recentes
-            ),
-        )
-
-        scene_state = aplicar_analise_ao_estado(
-            scene_state=scene_state,
-            analise=analise_diretor,
-            interaction_number=(
-                interaction_number_cenario
-            ),
-        )
-
-    # =====================================================
-    # ESTADO DA RELAÇÃO
-    # =====================================================
 
     relationship_state_anterior = deepcopy(
         relationship_state
     )
 
-    interaction_count = int(
-        relationship_state.get(
-            "interaction_count",
-            0,
-        )
-        or 0
+    instancia_cenario_anterior = deepcopy(
+        instancia_cenario
     )
 
+    # Detecta o efeito principal do turno do usuário.
     signals = detectar_sinais_relacao(
         user_text=user_display,
         mary_response="",
-        interaction_count=interaction_count,
+        interaction_count=int(
+            relationship_state.get(
+                "interaction_count",
+                0,
+            )
+            or 0
+        ),
         has_image=(
             prepared_image is not None
         ),
         user_returned=False,
     )
 
+    relationship_state = atualizar_estado_relacao(
+        relationship_state,
+        signals=signals,
+        incrementar_interacao=False,
+    )
+
     sexual_state = (
         atualizar_estado_sexual_antes_resposta(
             sexual_state,
             user_text=user_display,
-            relationship_state=relationship_state,
         )
     )
 
@@ -2493,27 +2855,87 @@ def processar_interacao(
         )
     )
 
-    # O director_engine continua responsável pela direção
-    # geral. O diretor do cenário apenas integra a fantasia
-    # ativa, sem impor uma rota rígida.
-    if analise_diretor:
-        turn_direction = integrar_direcao_cenario(
-            turn_direction=turn_direction,
-            analise_cenario=analise_diretor,
+    metadata_turno: dict[str, Any] = {}
+
+    if instancia_cenario:
+        interaction_number_cenario = int(
+            instancia_cenario.get(
+                "interaction_count",
+                0,
+            )
+            or 0
+        ) + 1
+
+        analysis = analisar_turno_cenario(
+            user_text=user_display,
             scene_state=scene_state,
+            interaction_number=(
+                interaction_number_cenario
+            ),
+        )
+
+        scene_state = aplicar_analise_ao_estado(
+            scene_state=scene_state,
+            analysis=analysis,
+            interaction_number=(
+                interaction_number_cenario
+            ),
+        )
+
+        integrated = integrar_direcao_cenario(
+            turn_intent=turn_intent,
+            turn_direction=turn_direction,
+            analysis=analysis,
+            scene_state=scene_state,
+        )
+
+        turn_intent = integrated[
+            "turn_intent"
+        ]
+
+        turn_direction = integrated[
+            "turn_direction"
+        ]
+
+        scene_state = integrated[
+            "scene_state"
+        ]
+
+        relationship_state[
+            "current_turn_intent"
+        ] = turn_intent
+
+        relationship_state[
+            "current_turn_direction"
+        ] = turn_direction
+
+        relationship_state = sincronizar_relacao_com_cenario(
+            relationship_state,
+            instancia_cenario,
         )
 
         direcao_narrativa_cenario = (
             montar_direcao_narrativa(
-                analise=analise_diretor,
+                analysis=analysis,
                 scene_state=scene_state,
+                interaction_number=(
+                    interaction_number_cenario
+                ),
             )
         )
+    else:
+        interaction_number_cenario = 0
+        analysis = {}
+        direcao_narrativa_cenario = ""
 
-    direcao_monologo_interno = (
-        montar_direcao_monologo_interno(
-            instancia_cenario=instancia_cenario,
-            scene_state=scene_state,
+    relationship_state, metadata_turno = (
+        abrir_turno_interacao(
+            relationship_state=(
+                relationship_state
+            ),
+            user_text=user_display,
+            direction=turn_direction,
+            signals=signals,
         )
     )
 
@@ -2521,82 +2943,37 @@ def processar_interacao(
         "relationship_state"
     ] = relationship_state
 
-    # =====================================================
-    # PROMPT-BASE
-    # =====================================================
-
     prompt_sistema_base = montar_prompt_sistema(
-        user_profile=st.session_state[
-            "user_profile"
-        ],
-        mary_profile=st.session_state[
+        profile,
+        st.session_state[
             "mary_profile"
         ],
-        relationship_state=relationship_state,
-        sexual_state=sexual_state,
+        relationship_state,
         turn_intent=turn_intent,
         turn_direction=turn_direction,
-        memories=[],
-        user_message=user_display,
-        has_image=(
-            prepared_image is not None
-        ),
-        include_voice_examples=True,
     )
-
-    # =====================================================
-    # CONTEXTO ESTRUTURADO DO CENÁRIO
-    # =====================================================
 
     blocos_cenario: list[str] = []
 
-    if scenario_prompt:
-        blocos_cenario.append(
-            scenario_prompt
+    if instancia_cenario:
+        prompt_cenario = str(
+            instancia_cenario.get(
+                "scenario_prompt",
+                "",
+            )
+            or ""
+        ).strip()
+
+        if prompt_cenario:
+            blocos_cenario.append(
+                prompt_cenario
+            )
+
+        contexto_configuracao = (
+            construir_contexto_configuracao_cenario(
+                instancia_cenario
+            )
         )
-
-    if scenario_config:
-        roles = scenario_config.get(
-            "roles",
-            {},
-        )
-
-        if not isinstance(
-            roles,
-            dict,
-        ):
-            roles = {}
-
-        contexto_configuracao = {
-            "scenario_id": scenario_id,
-            "scenario_session_id": (
-                scenario_session_id
-            ),
-            "title": scenario_config.get(
-                "title",
-                "",
-            ),
-            "category": scenario_config.get(
-                "category",
-                "",
-            ),
-            "mary_role": roles.get(
-                "mary",
-                "",
-            ),
-            "user_role": roles.get(
-                "user",
-                "",
-            ),
-            "premise": scenario_config.get(
-                "premise",
-                {},
-            ),
-            "phases": scenario_config.get(
-                "phases",
-                {},
-            ),
-        }
 
         blocos_cenario.append(
             (
@@ -2766,7 +3143,6 @@ USO OBRIGATÓRIO DO ESTADO DA FANTASIA:
             st.session_state[
                 "last_sexual_validation"
             ] = validacao_sexual
-
         else:
             st.session_state[
                 "last_sexual_validation"
@@ -2818,30 +3194,39 @@ USO OBRIGATÓRIO DO ESTADO DA FANTASIA:
         user_returned=False,
     )
 
-    relationship_state = atualizar_estado_relacao(
-        relationship_state,
-        signals=completed_signals,
-    )
-
     relationship_state = (
         sincronizar_iniciativa_apos_resposta(
             relationship_state,
-            mary_response=resposta,
-            signals=completed_signals,
+            turn_intent=turn_intent,
         )
     )
 
     relationship_state = (
         sincronizar_direcao_apos_resposta(
             relationship_state,
-            mary_response=resposta,
-            signals=completed_signals,
+            turn_direction=turn_direction,
         )
+    )
+
+    relationship_state = atualizar_estado_relacao(
+        relationship_state,
+        signals=completed_signals,
+        incrementar_interacao=True,
     )
 
     relationship_state[
         "sexual_state"
     ] = sexual_state
+
+    relationship_state = fechar_turno_interacao(
+        relationship_state=(
+            relationship_state
+        ),
+        metadata=metadata_turno,
+        user_text=user_display,
+        mary_response=resposta,
+        signals=completed_signals,
+    )
 
     st.session_state[
         "relationship_state"
@@ -2993,6 +3378,7 @@ USO OBRIGATÓRIO DO ESTADO DA FANTASIA:
         ] = True
 
     st.rerun()
+
 
 def garantir_usuario_autenticado() -> dict[str, Any]:
     usuario = st.session_state.get(
@@ -3371,22 +3757,19 @@ def main() -> None:
 
                 except GoogleSheetsRepositoryError as exc:
                     st.error(
-                        "Não foi possível limpar as interações: "
-                        f"{exc}"
+                        "Não foi possível limpar "
+                        f"as interações: {exc}"
                     )
 
-            st.divider()
-
             confirmar_exclusao = st.checkbox(
-                "Confirmo que desejo apagar também o usuário "
-                "cadastrado e criar uma identidade nova",
+                "Confirmo que desejo excluir este usuário "
+                "e todos os dados relacionados",
                 key="confirmar_exclusao_usuario",
             )
 
             if st.button(
-                "Deletar usuário cadastrado",
+                "Excluir usuário",
                 use_container_width=True,
-                type="primary",
                 disabled=not confirmar_exclusao,
             ):
                 try:
@@ -3400,8 +3783,8 @@ def main() -> None:
                     st.session_state[
                         "mensagem_operacao_persistente"
                     ] = (
-                        "O usuário anterior e todos os dados "
-                        "vinculados foram apagados."
+                        "O usuário e todos os dados relacionados "
+                        "foram excluídos."
                     )
 
                     st.session_state[
@@ -3412,52 +3795,71 @@ def main() -> None:
 
                 except GoogleSheetsRepositoryError as exc:
                     st.error(
-                        "Não foi possível excluir o usuário: "
-                        f"{exc}"
+                        "Não foi possível excluir "
+                        f"o usuário: {exc}"
                     )
 
-    renderizar_seletor_cenario()
+    instancia_cenario = (
+        obter_instancia_cenario_ativa()
+    )
 
-    garantir_mensagem_inicial()
+    if instancia_cenario:
+        st.caption(
+            "História ativa: "
+            + str(
+                instancia_cenario.get(
+                    "scenario_config",
+                    {},
+                ).get(
+                    "title",
+                    instancia_cenario.get(
+                        "scenario_id",
+                        "",
+                    ),
+                )
+            )
+        )
+    else:
+        renderizar_seletor_cenario()
+        st.stop()
 
-    if deve_exibir_perfil_publico_mary():
+    if not st.session_state[
+        "mary_profile"
+    ]["relationship_state"][
+        "public_profile_seen"
+    ]:
         renderizar_perfil_publico_mary()
+        st.stop()
+
+    iniciar_revelacao_visual_mary()
+    renderizar_revelacao_visual_mary()
+
+    criar_mensagem_inicial_cenario(
+        instancia_cenario
+    )
 
     for message in st.session_state[
         "messages"
     ]:
-        renderizar_mensagem(
-            message
-        )
+        with st.chat_message(
+            message["role"]
+        ):
+            st.markdown(
+                message["content"]
+            )
 
-    renderizar_cadastro_nome()
-
-    if uploaded_file is not None:
-        st.image(
-            uploaded_file,
-            caption=(
-                "Fotografia pronta para o próximo envio"
-            ),
-        )
+    renderizar_formulario_nome()
 
     prompt = st.chat_input(
-        "Fale com Mary..."
+        "Escreva sua mensagem para Mary"
     )
 
-    if prompt is None:
-        return
-
-    if (
-        not prompt.strip()
-        and uploaded_file is None
-    ):
-        return
-
-    processar_interacao(
-        prompt=prompt,
-        uploaded_file=uploaded_file,
-        modelo_utilizado=modelo_utilizado,
-    )
+    if prompt:
+        processar_interacao(
+            prompt=prompt,
+            uploaded_file=uploaded_file,
+            modelo_utilizado=modelo_utilizado,
+        )
 
 
 if __name__ == "__main__":
