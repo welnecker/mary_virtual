@@ -57,9 +57,6 @@ def analisar_turno_cenario(
             ),
         )
 
-    # O app restaurado não fornece credenciais nem configuração ao diretor.
-    # Nesse contrato, produzimos uma análise conservadora e estruturalmente
-    # completa, sem inventar fatos nem avançar fases por contagem de turnos.
     analysis = _current.criar_analise_diretor_padrao(state)
     text = str(user_text or "").strip()
     analysis["user_action"] = text[:500]
@@ -86,14 +83,13 @@ def aplicar_analise_ao_estado(
 ) -> dict[str, Any]:
     """Aceita tanto `analise` quanto o alias antigo `analysis`."""
 
+    state = scene_state if isinstance(scene_state, dict) else {}
     selected = analise if isinstance(analise, dict) else analysis
     if not isinstance(selected, dict):
-        selected = _current.criar_analise_diretor_padrao(
-            scene_state if isinstance(scene_state, dict) else {}
-        )
+        selected = _current.criar_analise_diretor_padrao(state)
 
     return _aplicar_atual(
-        scene_state=(scene_state if isinstance(scene_state, dict) else {}),
+        scene_state=state,
         analise=selected,
         interaction_number=interaction_number,
     )
@@ -118,12 +114,13 @@ def integrar_direcao_cenario(
     if not isinstance(selected, dict):
         selected = {}
 
+    state = deepcopy(scene_state) if isinstance(scene_state, dict) else {}
     direction = _integrar_atual(
         turn_direction=(
             turn_direction if isinstance(turn_direction, dict) else {}
         ),
         analise_cenario=selected,
-        scene_state=(scene_state if isinstance(scene_state, dict) else {}),
+        scene_state=state,
     )
 
     if turn_intent is None:
@@ -143,6 +140,7 @@ def integrar_direcao_cenario(
     return {
         "turn_intent": intent,
         "turn_direction": direction,
+        "scene_state": state,
     }
 
 
