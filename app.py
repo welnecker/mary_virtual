@@ -3,6 +3,7 @@ import time
 import unicodedata
 
 from copy import deepcopy
+from datetime import datetime, timezone
 from typing import Any
 
 import streamlit as st
@@ -30,6 +31,9 @@ from google_sheets_repository import (
 )
 from repositories.interaction_repository import (
     salvar_interacao,
+)
+from repositories.scenario_session_repository import (
+    salvar_instancia_cenario,
 )
 from interaction_log import (
     adicionar_registro_sessao,
@@ -2238,6 +2242,33 @@ def gerar_interaction_id() -> str:
     )
 
 
+def utc_now_iso() -> str:
+    return datetime.now(
+        timezone.utc
+    ).isoformat()
+
+
+def voltar_ao_menu_historias() -> None:
+    st.session_state[
+        "scenario_instance"
+    ] = None
+    st.session_state[
+        "selected_scenario_id"
+    ] = ""
+    st.session_state[
+        "scenario_selector_visible"
+    ] = True
+    st.session_state[
+        "messages"
+    ] = []
+    st.session_state[
+        "initial_message_created"
+    ] = False
+    st.session_state[
+        "history_restored"
+    ] = True
+
+
 def gerar_turn_id() -> str:
     return gerar_id(
         "turn"
@@ -3363,6 +3394,117 @@ USO OBRIGATÓRIO DO ESTADO DA FANTASIA:
             or ""
         )
 
+        for campo_booleano in (
+            "climax_reached",
+            "satisfaction_detected",
+            "ending_ready",
+        ):
+            instancia_cenario[
+                campo_booleano
+            ] = bool(
+                scene_state.get(
+                    campo_booleano,
+                    instancia_cenario.get(
+                        campo_booleano,
+                        False,
+                    ),
+                )
+            )
+
+        ending_ready = bool(
+            instancia_cenario.get(
+                "ending_ready",
+                False,
+            )
+            or analysis.get(
+                "ending_signal",
+                False,
+            )
+        )
+
+        if ending_ready:
+            ending_type = str(
+                scene_state.get(
+                    "ending_type",
+                    instancia_cenario.get(
+                        "ending_type",
+                        "",
+                    ),
+                )
+                or ""
+            ).strip()
+
+            if not ending_type:
+                if bool(
+                    analysis.get(
+                        "user_disengaged",
+                        False,
+                    )
+                ):
+                    ending_type = "withdrawal"
+                elif bool(
+                    analysis.get(
+                        "satisfaction_signal",
+                        False,
+                    )
+                ):
+                    ending_type = "intimate"
+                else:
+                    ending_type = "neutral"
+
+            ending_reason = str(
+                scene_state.get(
+                    "ending_reason",
+                    instancia_cenario.get(
+                        "ending_reason",
+                        "",
+                    ),
+                )
+                or ""
+            ).strip()
+
+            if not ending_reason:
+                ending_reason = (
+                    "narrative_ending_signal"
+                )
+
+            instancia_cenario.update(
+                {
+                    "status": "completed",
+                    "completed_at": utc_now_iso(),
+                    "ending_ready": True,
+                    "ending_sent": True,
+                    "ending_type": ending_type,
+                    "ending_reason": ending_reason,
+                    "input_locked": True,
+                    "show_return_to_menu": True,
+                    "summary": resumo_texto(
+                        resposta,
+                        520,
+                    ),
+                }
+            )
+
+            scene_state.update(
+                {
+                    "ending_ready": True,
+                    "ending_sent": True,
+                    "ending_type": ending_type,
+                    "ending_reason": ending_reason,
+                    "input_locked": True,
+                    "show_return_to_menu": True,
+                }
+            )
+
+            instancia_cenario[
+                "scene_state"
+            ] = scene_state
+
+        salvar_instancia_cenario(
+            instancia_cenario,
+            houve_interacao=True,
+        )
+
         st.session_state[
             "scenario_instance"
         ] = instancia_cenario
@@ -3849,45 +3991,47 @@ def main() -> None:
                         f"o usuário: {exc}"
                     )
 
-    instancia_cenario = (
-        obter_instancia_cenario_ativa()
+    instancia_cenario = st.session_state.get(
+        "scenario_instance"
     )
 
-    if instancia_cenario:
-        titulo_cenario = str(
-            instancia_cenario.get(
-                "scenario_config",
-                {},
-            ).get(
-                "title",
-                instancia_cenario.get(
-                    "scenario_id",
-                    "",
-                ),
-            )
-            or ""
-        ).strip()
+    if not isinstance(
+        instancia_cenario,
+        dict,
+    ):
+        renderizar_seletor_cenario()
+        st.stop()
 
-        total_interacoes = int(
-            instancia_cenario.get(
-                "interaction_count",
-                0,
-            )
-            or 0
+    status_cenario = str(
+        instancia_cenario.get(
+            "status",
+            "active",
         )
+        or "active"
+    ).strip().lower()
 
-        rotulo_interacoes = (
-            "1 interação"
-            if total_interacoes == 1
-            else f"{total_interacoes} interações"
+    titulo_cenario = str(
+        instancia_cenario.get(
+            "scenario_config",
+            {},
+        ).get(
+            "title",
+            instancia_cenario.get(
+                "scenario_id",
+                "",
+            ),
         )
+        or ""
+    ).strip()
 
+    if status_cenario == "completed":
+        st.caption(
+            f"História concluída: {titulo_cenario}"
+        )
+    else:
         st.caption(
             f"História ativa: {titulo_cenario}"
         )
-    else:
-        renderizar_seletor_cenario()
-        st.stop()
 
     if not st.session_state[
         "mary_profile"
@@ -3944,6 +4088,35 @@ def main() -> None:
                 )
 
     renderizar_formulario_nome()
+
+    input_locked = bool(
+        instancia_cenario.get(
+            "input_locked",
+            False,
+        )
+    )
+
+    show_return_to_menu = bool(
+        instancia_cenario.get(
+            "show_return_to_menu",
+            False,
+        )
+    )
+
+    if input_locked:
+        st.caption(
+            "Esta história foi concluída."
+        )
+
+        if show_return_to_menu and st.button(
+            "Voltar às histórias",
+            use_container_width=True,
+            type="primary",
+        ):
+            voltar_ao_menu_historias()
+            st.rerun()
+
+        return
 
     prompt = st.chat_input(
         "Escreva sua mensagem para Mary"
