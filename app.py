@@ -3051,11 +3051,6 @@ USO OBRIGATÓRIO DO ESTADO DA FANTASIA:
             direcao_narrativa_cenario
         )
 
-    if direcao_monologo_interno:
-        partes_prompt_sistema.append(
-            direcao_monologo_interno
-        )
-
     prompt_sistema_completo = "\n\n".join(
         str(parte).strip()
         for parte in partes_prompt_sistema
