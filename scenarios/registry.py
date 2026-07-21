@@ -5,55 +5,45 @@ from datetime import datetime, timezone
 from typing import Any, Callable
 from uuid import uuid4
 
-from scenarios.vizinha_porta_trancada import (
+from scenarios.schema import (
+    SCENARIO_STATUS_ACTIVE,
+    normalizar_config_cenario,
+)
+from scenarios.stories.vizinha_porta_trancada.config import (
     SCENARIO_ID as VIZINHA_SCENARIO_ID,
-    obter_configuracao,
-    obter_encerramentos,
-    obter_recuperacoes,
-    obter_rotas,
+    obter_configuracao as obter_configuracao_vizinha,
+)
+
+# Compatibilidade temporária durante a migração da história da vizinha.
+# Rotas, recuperações e encerramentos continuam no arquivo antigo até
+# que os respectivos módulos da nova pasta sejam preenchidos.
+from scenarios.vizinha_porta_trancada import (
+    obter_encerramentos as obter_encerramentos_vizinha,
+    obter_recuperacoes as obter_recuperacoes_vizinha,
+    obter_rotas as obter_rotas_vizinha,
 )
 
 
-ScenarioLoader = Callable[
-    [],
-    dict[str, Any],
-]
+ScenarioLoader = Callable[[], dict[str, Any]]
 
-
-def utc_now_iso() -> str:
-    return datetime.now(
-        timezone.utc
-    ).isoformat()
-
-
-# =========================================================
-# REGISTRO DE FANTASIAS
-# =========================================================
-#
-# Cada nova fantasia deverá acrescentar uma nova entrada
-# neste dicionário.
-#
-# Exemplo futuro:
-#
-# "casada_encontro_secreto": {
-#     "config_loader": obter_configuracao_casada,
-#     "routes_loader": obter_rotas_casada,
-#     "recoveries_loader": obter_recuperacoes_casada,
-#     "endings_loader": obter_encerramentos_casada,
-# },
-# =========================================================
 
 SCENARIO_LOADERS: dict[
     str,
     dict[str, ScenarioLoader],
 ] = {
     VIZINHA_SCENARIO_ID: {
-        "config_loader": obter_configuracao,
-        "routes_loader": obter_rotas,
-        "recoveries_loader": obter_recuperacoes,
-        "endings_loader": obter_encerramentos,
+        "config_loader": obter_configuracao_vizinha,
+        "routes_loader": obter_rotas_vizinha,
+        "recoveries_loader": obter_recuperacoes_vizinha,
+        "endings_loader": obter_encerramentos_vizinha,
     },
 }
+
+
+def utc_now_iso() -> str:
+    return datetime.now(
+        timezone.utc
+    ).isoformat()
 
 
 def _normalizar_scenario_id(
@@ -113,9 +103,58 @@ def _executar_loader_opcional(
     )
 
 
+def _carregar_configuracao(
+    *,
+    scenario_id: str,
+    loaders: dict[str, ScenarioLoader],
+) -> dict[str, Any]:
+    config_loader = _obter_loader(
+        loaders,
+        "config_loader",
+    )
+
+    if config_loader is None:
+        raise ValueError(
+            "O cenário não possui um carregador de configuração válido."
+        )
+
+    config = config_loader()
+
+    if not isinstance(
+        config,
+        dict,
+    ):
+        raise ValueError(
+            "A configuração do cenário é inválida."
+        )
+
+    config = normalizar_config_cenario(
+        deepcopy(
+            config
+        )
+    )
+
+    scenario_id_config = str(
+        config.get(
+            "scenario_id",
+            "",
+        )
+        or ""
+    ).strip()
+
+    if scenario_id_config != scenario_id:
+        raise ValueError(
+            "O scenario_id da configuração não corresponde "
+            "ao scenario_id registrado."
+        )
+
+    return config
+
+
 # =========================================================
 # PROMPT NARRATIVO GENÉRICO
 # =========================================================
+
 
 def montar_prompt_cenario(
     *,
@@ -165,6 +204,8 @@ def montar_prompt_cenario(
     ):
         premise = {}
 
+    contexto: list[str] = []
+
     local = str(
         premise.get(
             "location",
@@ -188,8 +229,6 @@ def montar_prompt_cenario(
         )
         or ""
     ).strip()
-
-    contexto = []
 
     if local:
         contexto.append(
@@ -246,50 +285,51 @@ REGRAS DO CENÁRIO:
 # CATÁLOGO
 # =========================================================
 
+
 def listar_cenarios_disponiveis(
 ) -> list[dict[str, Any]]:
-    cenarios: list[
-        dict[str, Any]
-    ] = []
+    cenarios: list[dict[str, Any]] = []
 
-    for (
-        scenario_id,
-        loaders,
-    ) in SCENARIO_LOADERS.items():
-        config_loader = _obter_loader(
-            loaders,
-            "config_loader",
+    for scenario_id, loaders in SCENARIO_LOADERS.items():
+        try:
+            config = _carregar_configuracao(
+                scenario_id=scenario_id,
+                loaders=loaders,
+            )
+        except ValueError:
+            # Um cenário inválido não pode derrubar o catálogo inteiro.
+            # A validação explícita continuará disponível em obter_cenario().
+            continue
+
+        if config.get(
+            "status"
+        ) != SCENARIO_STATUS_ACTIVE:
+            continue
+
+        card = deepcopy(
+            config.get(
+                "card",
+                {},
+            )
         )
 
-        if config_loader is None:
-            continue
-
-        config = config_loader()
-
-        if not isinstance(
-            config,
-            dict,
-        ):
-            continue
-
-        status = str(
+        duration = deepcopy(
             config.get(
-                "status",
-                "active",
+                "duration",
+                {},
             )
-            or "active"
-        ).strip().lower()
+        )
 
-        # Cenários inativos permanecem cadastrados,
-        # mas não aparecem no menu.
-        if status != "active":
-            continue
+        commerce = deepcopy(
+            config.get(
+                "commerce",
+                {},
+            )
+        )
 
         cenarios.append(
             {
-                "scenario_id": (
-                    scenario_id
-                ),
+                "scenario_id": scenario_id,
                 "scenario_version": int(
                     config.get(
                         "scenario_version",
@@ -324,19 +364,129 @@ def listar_cenarios_disponiveis(
                         False,
                     )
                 ),
-                "max_interactions": int(
-                    config.get(
-                        "max_interactions",
-                        100,
-                    )
-                    or 100
-                ),
                 "display_order": int(
                     config.get(
                         "display_order",
                         999,
                     )
                     or 999
+                ),
+
+                # Metadados completos usados pelo menu de cards.
+                "card": card,
+                "duration": duration,
+                "commerce": commerce,
+
+                # Campos achatados para facilitar a integração atual do app.
+                "card_title": str(
+                    card.get(
+                        "title",
+                        "",
+                    )
+                    or ""
+                ),
+                "card_subtitle": str(
+                    card.get(
+                        "subtitle",
+                        "",
+                    )
+                    or ""
+                ),
+                "card_image": str(
+                    card.get(
+                        "image",
+                        "",
+                    )
+                    or ""
+                ),
+                "card_badge": str(
+                    card.get(
+                        "badge",
+                        "",
+                    )
+                    or ""
+                ),
+                "button_label_free": str(
+                    card.get(
+                        "button_label_free",
+                        "Jogar gratuitamente",
+                    )
+                    or "Jogar gratuitamente"
+                ),
+                "button_label_locked": str(
+                    card.get(
+                        "button_label_locked",
+                        "Desbloquear",
+                    )
+                    or "Desbloquear"
+                ),
+                "button_label_unlocked": str(
+                    card.get(
+                        "button_label_unlocked",
+                        "Jogar",
+                    )
+                    or "Jogar"
+                ),
+                "access_type": str(
+                    commerce.get(
+                        "access_type",
+                        "paid",
+                    )
+                    or "paid"
+                ),
+                "price_cents": int(
+                    commerce.get(
+                        "price_cents",
+                        0,
+                    )
+                    or 0
+                ),
+                "currency": str(
+                    commerce.get(
+                        "currency",
+                        "BRL",
+                    )
+                    or "BRL"
+                ),
+                "product_id": str(
+                    commerce.get(
+                        "product_id",
+                        "",
+                    )
+                    or ""
+                ),
+                "target_interactions": int(
+                    duration.get(
+                        "target_interactions",
+                        48,
+                    )
+                    or 48
+                ),
+                "soft_ending_start": int(
+                    duration.get(
+                        "soft_ending_start",
+                        40,
+                    )
+                    or 40
+                ),
+                "hard_ending_limit": int(
+                    duration.get(
+                        "hard_ending_limit",
+                        58,
+                    )
+                    or 58
+                ),
+
+                # Compatibilidade com componentes antigos.
+                "max_interactions": int(
+                    config.get(
+                        "max_interactions",
+                        duration.get(
+                            "hard_ending_limit",
+                            58,
+                        ),
+                    )
+                    or 58
                 ),
             }
         )
@@ -365,6 +515,7 @@ def listar_cenarios_disponiveis(
 # CARREGAMENTO DE UM CENÁRIO
 # =========================================================
 
+
 def obter_cenario(
     scenario_id: str,
 ) -> dict[str, Any]:
@@ -386,48 +537,10 @@ def obter_cenario(
             f"Cenário desconhecido: {scenario_id!r}."
         )
 
-    config_loader = _obter_loader(
-        loaders,
-        "config_loader",
+    config = _carregar_configuracao(
+        scenario_id=scenario_id,
+        loaders=loaders,
     )
-
-    if config_loader is None:
-        raise ValueError(
-            "O cenário não possui um carregador "
-            "de configuração válido."
-        )
-
-    config = config_loader()
-
-    if not isinstance(
-        config,
-        dict,
-    ):
-        raise ValueError(
-            "A configuração do cenário é inválida."
-        )
-
-    config = deepcopy(
-        config
-    )
-
-    scenario_id_config = str(
-        config.get(
-            "scenario_id",
-            "",
-        )
-        or ""
-    ).strip()
-
-    if (
-        scenario_id_config
-        and scenario_id_config
-        != scenario_id
-    ):
-        raise ValueError(
-            "O scenario_id da configuração não corresponde "
-            "ao scenario_id registrado."
-        )
 
     routes = _executar_loader_opcional(
         loaders,
@@ -461,6 +574,7 @@ def obter_cenario(
 # ESTADO INICIAL
 # =========================================================
 
+
 def montar_estado_inicial_cenario(
     config: dict[str, Any],
 ) -> dict[str, Any]:
@@ -484,12 +598,6 @@ def montar_estado_inicial_cenario(
     ):
         initial_scene_state = {}
 
-    # initial_state contém a progressão geral.
-    # initial_scene_state contém os fatos concretos da cena.
-    #
-    # A união permite que o app encontre current_phase,
-    # current_route, current_beat e active_hook diretamente
-    # em scene_state.
     scene_state = deepcopy(
         initial_state
     )
@@ -500,95 +608,38 @@ def montar_estado_inicial_cenario(
         )
     )
 
-    scene_state.setdefault(
-        "status",
-        "active",
-    )
+    defaults: dict[str, Any] = {
+        "status": "active",
+        "scene_active": True,
+        "fantasy_established": True,
+        "current_phase": "opening",
+        "current_route": "",
+        "current_beat": "",
+        "active_hook": "",
+        "interaction_count": 0,
+        "opening_sent": False,
+        "completed_beats": [],
+        "failed_beats": [],
+        "pending_events": [],
+        "last_user_action": "",
+        "last_director_decision": "",
+        "climax_reached": False,
+        "satisfaction_detected": False,
+        "ending_ready": False,
+        "ending_sent": False,
+        "ending_type": "",
+        "ending_reason": "",
+        "input_locked": False,
+        "show_return_to_menu": False,
+    }
 
-    scene_state.setdefault(
-        "scene_active",
-        True,
-    )
-
-    scene_state.setdefault(
-        "fantasy_established",
-        True,
-    )
-
-    scene_state.setdefault(
-        "current_phase",
-        "opening",
-    )
-
-    scene_state.setdefault(
-        "current_route",
-        "",
-    )
-
-    scene_state.setdefault(
-        "current_beat",
-        "",
-    )
-
-    scene_state.setdefault(
-        "active_hook",
-        "",
-    )
-
-    scene_state.setdefault(
-        "interaction_count",
-        0,
-    )
-
-    scene_state.setdefault(
-        "opening_sent",
-        False,
-    )
-
-    scene_state.setdefault(
-        "completed_beats",
-        [],
-    )
-
-    scene_state.setdefault(
-        "failed_beats",
-        [],
-    )
-
-    scene_state.setdefault(
-        "pending_events",
-        [],
-    )
-
-    scene_state.setdefault(
-        "last_user_action",
-        "",
-    )
-
-    scene_state.setdefault(
-        "last_director_decision",
-        "",
-    )
-
-    scene_state.setdefault(
-        "climax_reached",
-        False,
-    )
-
-    scene_state.setdefault(
-        "satisfaction_detected",
-        False,
-    )
-
-    scene_state.setdefault(
-        "ending_ready",
-        False,
-    )
-
-    scene_state.setdefault(
-        "ending_sent",
-        False,
-    )
+    for key, value in defaults.items():
+        scene_state.setdefault(
+            key,
+            deepcopy(
+                value
+            ),
+        )
 
     return scene_state
 
@@ -596,6 +647,7 @@ def montar_estado_inicial_cenario(
 # =========================================================
 # CRIAÇÃO DE INSTÂNCIA POR USUÁRIO
 # =========================================================
+
 
 def iniciar_instancia_cenario(
     *,
@@ -625,11 +677,27 @@ def iniciar_instancia_cenario(
     )
 
     config = deepcopy(
-        pacote["config"]
+        pacote[
+            "config"
+        ]
     )
 
     scene_state = montar_estado_inicial_cenario(
         config
+    )
+
+    duration = deepcopy(
+        config.get(
+            "duration",
+            {},
+        )
+    )
+
+    commerce = deepcopy(
+        config.get(
+            "commerce",
+            {},
+        )
     )
 
     agora = utc_now_iso()
@@ -642,12 +710,15 @@ def iniciar_instancia_cenario(
         or 1
     )
 
-    max_interactions = int(
-        config.get(
-            "max_interactions",
-            100,
+    hard_ending_limit = int(
+        duration.get(
+            "hard_ending_limit",
+            config.get(
+                "max_interactions",
+                58,
+            ),
         )
-        or 100
+        or 58
     )
 
     opening_message = str(
@@ -659,32 +730,54 @@ def iniciar_instancia_cenario(
     ).strip()
 
     return {
-        # Identidade da instância.
         "scenario_session_id": (
             f"scn_{uuid4().hex}"
         ),
         "user_id": user_id,
         "scenario_id": scenario_id,
-        "scenario_version": (
-            scenario_version
-        ),
+        "scenario_version": scenario_version,
 
-        # Datas.
         "created_at": agora,
         "updated_at": agora,
         "last_interaction_at": "",
         "completed_at": "",
 
-        # Estado geral.
         "status": "active",
         "opening_sent": False,
         "interaction_count": 0,
-        "max_interactions": (
-            max_interactions
+
+        # Nova duração estruturada.
+        "duration": duration,
+        "target_interactions": int(
+            duration.get(
+                "target_interactions",
+                48,
+            )
+            or 48
+        ),
+        "soft_ending_start": int(
+            duration.get(
+                "soft_ending_start",
+                40,
+            )
+            or 40
+        ),
+        "hard_ending_limit": hard_ending_limit,
+
+        # Compatibilidade com código antigo.
+        "max_interactions": hard_ending_limit,
+
+        # Informação comercial é carregada, mas ainda não autoriza acesso.
+        # A autorização ficará no service.py da próxima etapa.
+        "commerce": commerce,
+        "access_type": str(
+            commerce.get(
+                "access_type",
+                "paid",
+            )
+            or "paid"
         ),
 
-        # Facilita consultas no app sem precisar
-        # entrar sempre em scene_state.
         "current_phase": str(
             scene_state.get(
                 "current_phase",
@@ -714,36 +807,38 @@ def iniciar_instancia_cenario(
             or ""
         ),
 
-        # Encerramento.
         "climax_reached": False,
         "satisfaction_detected": False,
         "ending_ready": False,
         "ending_sent": False,
         "ending_type": "",
         "ending_reason": "",
+        "input_locked": False,
+        "show_return_to_menu": False,
 
-        # Conteúdo reutilizável do cenário.
-        "opening_message": (
-            opening_message
-        ),
+        "opening_message": opening_message,
         "scenario_config": config,
         "scenario_prompt": pacote[
             "prompt"
         ],
         "scenario_routes": deepcopy(
-            pacote["routes"]
+            pacote[
+                "routes"
+            ]
         ),
         "scenario_recoveries": deepcopy(
-            pacote["recoveries"]
+            pacote[
+                "recoveries"
+            ]
         ),
         "scenario_endings": deepcopy(
-            pacote["endings"]
+            pacote[
+                "endings"
+            ]
         ),
 
-        # Estado exclusivo deste usuário.
         "scene_state": scene_state,
 
-        # Campos futuros de persistência.
         "story_progress": {
             "completed_routes": [],
             "completed_beats": [],
@@ -753,3 +848,13 @@ def iniciar_instancia_cenario(
         },
         "summary": "",
     }
+
+
+__all__ = [
+    "SCENARIO_LOADERS",
+    "iniciar_instancia_cenario",
+    "listar_cenarios_disponiveis",
+    "montar_estado_inicial_cenario",
+    "montar_prompt_cenario",
+    "obter_cenario",
+]
