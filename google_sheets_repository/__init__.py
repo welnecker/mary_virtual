@@ -63,3 +63,40 @@ def criar_sessao(
         sessao,
     )
     return sessao
+
+
+def atualizar_relacionamento_mary(
+    user_id: str,
+    alteracoes: dict[str, Any] | None = None,
+    **campos: Any,
+) -> dict[str, Any]:
+    """Atualiza MARY_RELATIONSHIP aceitando a interface antiga do app."""
+
+    user_id_normalizado = str(user_id or "").strip()
+    if not user_id_normalizado:
+        raise _base.GoogleSheetsRepositoryError(
+            "O user_id não foi informado."
+        )
+
+    dados: dict[str, Any] = {}
+    if isinstance(alteracoes, dict):
+        dados.update(alteracoes)
+    dados.update(campos)
+    dados.pop("user_id", None)
+    dados["updated_at"] = _base.utc_now_iso()
+
+    existente = _base.obter_ou_criar_relacionamento_mary(
+        user_id_normalizado
+    )
+
+    _base.atualizar_registro(
+        _base.MARY_RELATIONSHIP_SHEET,
+        coluna_chave="user_id",
+        valor_chave=user_id_normalizado,
+        alteracoes=dados,
+    )
+
+    atualizado = dict(existente)
+    atualizado.update(dados)
+    atualizado["user_id"] = user_id_normalizado
+    return atualizado
