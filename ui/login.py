@@ -124,7 +124,6 @@ def _renderizar_form_cadastro(
             "Criar conta",
             type="primary",
             use_container_width=True,
-            disabled=not aceitar_termos,
         )
 
     if not enviar:
