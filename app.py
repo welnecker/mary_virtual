@@ -1671,14 +1671,35 @@ def registrar_interacao_remota(
     if not usuario or not sessao:
         return
 
-    image_metadata = registro.get(
-        "image"
-    ) or {}
+    interaction_id = str(
+        registro.get("interaction_id")
+        or gerar_interaction_id()
+    ).strip()
+
+    registro["interaction_id"] = interaction_id
+
+    image_metadata = registro.get("image")
+    if not isinstance(image_metadata, dict):
+        image_metadata = {
+            "sent": bool(
+                registro.get("image_sent")
+            ),
+            "width": registro.get(
+                "image_width"
+            ),
+            "height": registro.get(
+                "image_height"
+            ),
+            "size_bytes": registro.get(
+                "image_size_bytes"
+            ),
+            "mime_type": registro.get(
+                "image_mime_type"
+            ),
+        }
 
     salvar_interacao(
-        interaction_id=registro[
-            "interaction_id"
-        ],
+        interaction_id=interaction_id,
         session_id=sessao[
             "session_id"
         ],
@@ -1733,7 +1754,19 @@ def registrar_interacao_remota(
 def registrar_interacao_local_e_remota(
     registro: dict[str, Any],
 ) -> None:
-    adicionar_registro_sessao(
+    if not isinstance(registro, dict):
+        raise ValueError(
+            "O registro de interação é inválido."
+        )
+
+    registro.setdefault(
+        "interaction_id",
+        gerar_interaction_id(),
+    )
+
+    st.session_state[
+        "interaction_logs"
+    ] = adicionar_registro_sessao(
         st.session_state[
             "interaction_logs"
         ],
