@@ -2965,11 +2965,12 @@ def processar_interacao(
     ] = relationship_state
 
     prompt_sistema_base = montar_prompt_sistema(
-        profile,
-        st.session_state[
+        user_profile=profile,
+        mary_profile=st.session_state[
             "mary_profile"
         ],
-        relationship_state,
+        relationship_state=relationship_state,
+        sexual_state=sexual_state,
         turn_intent=turn_intent,
         turn_direction=turn_direction,
     )
