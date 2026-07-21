@@ -29,10 +29,6 @@ from google_sheets_repository import (
     obter_ou_criar_relacionamento_mary,
     salvar_interacao,
 )
-from identity_service import (
-    obter_ou_criar_usuario_atual,
-    remover_token_url,
-)
 from interaction_log import (
     adicionar_registro_sessao,
     criar_registro_interacao,
@@ -87,6 +83,9 @@ from scenarios.service import (
     ScenarioAccessError,
     iniciar_cenario_para_usuario,
     listar_cenarios_para_usuario,
+)
+from ui.login import (
+    renderizar_tela_login,
 )
 from ui.scenario_menu import (
     ACTION_PLAY,
@@ -163,6 +162,16 @@ def inicializar_sessao_local() -> None:
 
     st.session_state.setdefault(
         "scenario_instance",
+        None,
+    )
+
+    st.session_state.setdefault(
+        "authenticated",
+        False,
+    )
+
+    st.session_state.setdefault(
+        "auth_user",
         None,
     )
     
@@ -577,7 +586,9 @@ def inicializar_persistencia(
         return
 
     try:
-        usuario = obter_ou_criar_usuario_atual()
+        usuario = st.session_state.get(
+            "auth_user"
+        ) or {}
 
         user_id = str(
             usuario.get("user_id")
@@ -586,8 +597,8 @@ def inicializar_persistencia(
 
         if not user_id:
             raise GoogleSheetsRepositoryError(
-                "O usuário persistente foi criado "
-                "sem um user_id válido."
+                "O usuário autenticado não possui "
+                "um user_id válido."
             )
 
         relacionamento = (
@@ -817,84 +828,66 @@ def resetar_estado_local_relacionamento(
     *,
     preservar_usuario: bool,
 ) -> None:
-    """
-    Limpa os estados locais ligados à conversa e à relação.
-
-    Quando preservar_usuario for verdadeiro, o cadastro e
-    o token atuais permanecem disponíveis para que uma nova
-    sessão seja criada para o mesmo usuário.
-
-    A autenticação por senha do aplicativo é preservada.
-    """
+    """Limpa os estados locais ligados à conversa e à relação."""
 
     usuario_atual = st.session_state.get(
-        "persistent_user"
-    )
-
-    token_atual = st.session_state.get(
-        "persistent_user_token"
+        "auth_user"
     )
 
     st.session_state[
         "messages"
     ] = []
-
     st.session_state[
         "interaction_logs"
     ] = []
-
     st.session_state[
         "pending_image"
     ] = None
-
     st.session_state[
         "pending_user_image_confirmation"
     ] = None
-
     st.session_state[
         "pending_mary_image"
     ] = None
-
     st.session_state[
         "show_name_form"
     ] = False
-
     st.session_state[
         "initial_message_created"
     ] = False
-
     st.session_state[
         "history_restored"
     ] = False
-
     st.session_state[
         "persistence_initialized"
     ] = False
-
     st.session_state[
         "persistent_session"
     ] = None
-
     st.session_state[
         "mary_relationship"
     ] = None
-
+    st.session_state[
+        "scenario_instance"
+    ] = None
+    st.session_state[
+        "selected_scenario_id"
+    ] = ""
+    st.session_state[
+        "scenario_selector_visible"
+    ] = True
     st.session_state[
         "interaction_session_id"
     ] = criar_session_id()
-
     st.session_state[
         "relationship_state"
     ] = criar_estado_relacao_padrao()
-
     st.session_state[
         "mary_profile"
     ] = criar_mary_profile_padrao()
-
     st.session_state[
         "user_profile"
     ] = criar_perfil_padrao()
-
     st.session_state[
         "last_sexual_validation"
     ] = {
@@ -904,26 +897,38 @@ def resetar_estado_local_relacionamento(
 
     if preservar_usuario:
         st.session_state[
+            "auth_user"
+        ] = usuario_atual
+        st.session_state[
             "persistent_user"
         ] = usuario_atual
-
         st.session_state[
-            "persistent_user_token"
-        ] = token_atual
-
+            "authenticated"
+        ] = bool(usuario_atual)
     else:
+        st.session_state[
+            "auth_user"
+        ] = None
         st.session_state[
             "persistent_user"
         ] = None
-
         st.session_state[
-            "persistent_user_token"
-        ] = None
+            "authenticated"
+        ] = False
+
+
+def encerrar_login_local() -> None:
+    """Encerra apenas a sessão local, sem apagar a conta."""
+
+    resetar_estado_local_relacionamento(
+        preservar_usuario=False,
+    )
+
 
 def executar_limpeza_interacoes() -> dict[str, int]:
     """
     Apaga da planilha todos os dados de conversa do
-    usuário atual, preservando o cadastro e o token.
+    usuário atual, preservando o cadastro.
     """
 
     user_id = obter_user_id_persistente()
@@ -940,8 +945,8 @@ def executar_limpeza_interacoes() -> dict[str, int]:
 
 def executar_exclusao_usuario() -> dict[str, int]:
     """
-    Apaga todos os registros do usuário, remove o cadastro
-    da aba USERS e descarta o token da URL.
+    Apaga todos os registros do usuário e remove o cadastro
+    da aba USERS.
     """
 
     user_id = obter_user_id_persistente()
@@ -953,8 +958,6 @@ def executar_exclusao_usuario() -> dict[str, int]:
     resetar_estado_local_relacionamento(
         preservar_usuario=False,
     )
-
-    remover_token_url()
 
     return resultado
 
@@ -2763,6 +2766,7 @@ USO OBRIGATÓRIO DO ESTADO DA FANTASIA:
             st.session_state[
                 "last_sexual_validation"
             ] = validacao_sexual
+
         else:
             st.session_state[
                 "last_sexual_validation"
@@ -2816,14 +2820,14 @@ USO OBRIGATÓRIO DO ESTADO DA FANTASIA:
 
     relationship_state = atualizar_estado_relacao(
         relationship_state,
-        completed_signals,
+        signals=completed_signals,
     )
 
     relationship_state = (
         sincronizar_iniciativa_apos_resposta(
             relationship_state,
             mary_response=resposta,
-            turn_intent=turn_intent,
+            signals=completed_signals,
         )
     )
 
@@ -2831,7 +2835,7 @@ USO OBRIGATÓRIO DO ESTADO DA FANTASIA:
         sincronizar_direcao_apos_resposta(
             relationship_state,
             mary_response=resposta,
-            turn_direction=turn_direction,
+            signals=completed_signals,
         )
     )
 
@@ -2839,21 +2843,31 @@ USO OBRIGATÓRIO DO ESTADO DA FANTASIA:
         "sexual_state"
     ] = sexual_state
 
-    relationship_state[
-        "last_sexual_validation"
-    ] = st.session_state[
-        "last_sexual_validation"
-    ]
-
     st.session_state[
         "relationship_state"
     ] = relationship_state
 
     # =====================================================
-    # PERSISTE O ESTADO DO CENÁRIO APÓS RESPOSTA VÁLIDA
+    # SINCRONIZAÇÃO DO CENÁRIO APÓS RESPOSTA
     # =====================================================
 
     if instancia_cenario:
+        scene_state = deepcopy(
+            scene_state
+        )
+
+        scene_state[
+            "last_user_action"
+        ] = user_display
+
+        scene_state[
+            "last_mary_response"
+        ] = resposta
+
+        scene_state[
+            "interaction_count"
+        ] = interaction_number_cenario
+
         instancia_cenario[
             "scene_state"
         ] = scene_state
@@ -2861,14 +2875,6 @@ USO OBRIGATÓRIO DO ESTADO DA FANTASIA:
         instancia_cenario[
             "interaction_count"
         ] = interaction_number_cenario
-
-        instancia_cenario[
-            "last_interaction_at"
-        ] = utc_now_iso()
-
-        instancia_cenario[
-            "updated_at"
-        ] = utc_now_iso()
 
         instancia_cenario[
             "current_phase"
@@ -2922,83 +2928,13 @@ USO OBRIGATÓRIO DO ESTADO DA FANTASIA:
             or ""
         )
 
-        instancia_cenario[
-            "climax_reached"
-        ] = bool(
-            scene_state.get(
-                "climax_reached",
-                instancia_cenario.get(
-                    "climax_reached",
-                    False,
-                ),
-            )
-        )
-
-        instancia_cenario[
-            "satisfaction_detected"
-        ] = bool(
-            scene_state.get(
-                "satisfaction_detected",
-                instancia_cenario.get(
-                    "satisfaction_detected",
-                    False,
-                ),
-            )
-        )
-
-        instancia_cenario[
-            "ending_ready"
-        ] = bool(
-            scene_state.get(
-                "ending_ready",
-                instancia_cenario.get(
-                    "ending_ready",
-                    False,
-                ),
-            )
-        )
-
-        instancia_cenario[
-            "ending_sent"
-        ] = bool(
-            scene_state.get(
-                "ending_sent",
-                instancia_cenario.get(
-                    "ending_sent",
-                    False,
-                ),
-            )
-        )
-
-        instancia_cenario[
-            "ending_type"
-        ] = str(
-            scene_state.get(
-                "ending_type",
-                instancia_cenario.get(
-                    "ending_type",
-                    "",
-                ),
-            )
-            or ""
-        )
-
-        instancia_cenario[
-            "ending_reason"
-        ] = str(
-            scene_state.get(
-                "ending_reason",
-                instancia_cenario.get(
-                    "ending_reason",
-                    "",
-                ),
-            )
-            or ""
-        )
-
         st.session_state[
             "scenario_instance"
         ] = instancia_cenario
+
+    # =====================================================
+    # PERFIL DO USUÁRIO E REGISTRO
+    # =====================================================
 
     st.session_state[
         "messages"
@@ -3007,6 +2943,14 @@ USO OBRIGATÓRIO DO ESTADO DA FANTASIA:
             "role": "assistant",
             "content": resposta,
         }
+    )
+
+    st.session_state[
+        "user_profile"
+    ] = marcar_interacao_realizada(
+        st.session_state[
+            "user_profile"
+        ]
     )
 
     perguntou_nome = mary_perguntou_nome(
@@ -3050,6 +2994,89 @@ USO OBRIGATÓRIO DO ESTADO DA FANTASIA:
 
     st.rerun()
 
+def garantir_usuario_autenticado() -> dict[str, Any]:
+    usuario = st.session_state.get(
+        "auth_user"
+    )
+
+    user_id = ""
+
+    if isinstance(
+        usuario,
+        dict,
+    ):
+        user_id = str(
+            usuario.get(
+                "user_id",
+                "",
+            )
+            or ""
+        ).strip()
+
+    if (
+        st.session_state.get(
+            "authenticated"
+        ) is True
+        and user_id
+    ):
+        return usuario
+
+    resultado = renderizar_tela_login()
+
+    if not isinstance(
+        resultado,
+        dict,
+    ) or not resultado.get(
+        "authenticated"
+    ):
+        st.stop()
+
+    usuario = resultado.get(
+        "user"
+    )
+
+    if not isinstance(
+        usuario,
+        dict,
+    ):
+        st.error(
+            "Não foi possível concluir a autenticação."
+        )
+        st.stop()
+
+    user_id = str(
+        usuario.get(
+            "user_id",
+            "",
+        )
+        or ""
+    ).strip()
+
+    if not user_id:
+        st.error(
+            "A conta autenticada não possui um identificador válido."
+        )
+        st.stop()
+
+    st.session_state[
+        "auth_user"
+    ] = usuario
+    st.session_state[
+        "persistent_user"
+    ] = usuario
+    st.session_state[
+        "authenticated"
+    ] = True
+    st.session_state[
+        "persistence_initialized"
+    ] = False
+    st.session_state[
+        "history_restored"
+    ] = False
+
+    st.rerun()
+
+
 def renderizar_seletor_cenario() -> None:
     instancia_atual = st.session_state.get(
         "scenario_instance"
@@ -3068,7 +3095,7 @@ def renderizar_seletor_cenario() -> None:
 
     usuario = (
         st.session_state.get(
-            "persistent_user"
+            "auth_user"
         )
         or {}
     )
@@ -3087,9 +3114,6 @@ def renderizar_seletor_cenario() -> None:
         )
         st.stop()
 
-    # Nesta etapa ainda não há cobrança integrada.
-    # A lista vazia significa que apenas histórias gratuitas
-    # ficam disponíveis para iniciar.
     unlocked_scenario_ids: set[str] = set()
 
     try:
@@ -3174,25 +3198,18 @@ def renderizar_seletor_cenario() -> None:
     st.session_state[
         "scenario_instance"
     ] = instancia
-
     st.session_state[
         "selected_scenario_id"
     ] = scenario_id
-
     st.session_state[
         "scenario_selector_visible"
     ] = False
-
     st.session_state[
         "messages"
     ] = []
-
     st.session_state[
         "initial_message_created"
     ] = False
-
-    # Impede que o histórico geral seja restaurado
-    # sobre a nova sessão narrativa nesta mesma execução.
     st.session_state[
         "history_restored"
     ] = True
@@ -3207,7 +3224,6 @@ def main() -> None:
         layout="centered",
     )
 
-    exigir_senha_app()
     inicializar_sessao_local()
 
     st.title(
@@ -3217,6 +3233,8 @@ def main() -> None:
     st.caption(
         APP_CAPTION
     )
+
+    garantir_usuario_autenticado()
 
     mensagem_operacao = st.session_state.pop(
         "mensagem_operacao_persistente",
@@ -3248,6 +3266,32 @@ def main() -> None:
         st.subheader(
             "Configuração"
         )
+
+        usuario_logado = st.session_state.get(
+            "auth_user"
+        ) or {}
+
+        email_logado = str(
+            usuario_logado.get(
+                "email",
+                "",
+            )
+            or ""
+        ).strip()
+
+        if email_logado:
+            st.caption(
+                f"Conectado como {email_logado}"
+            )
+
+        if st.button(
+            "Sair",
+            use_container_width=True,
+        ):
+            encerrar_login_local()
+            st.rerun()
+
+        st.divider()
 
         model = st.text_input(
             "Modelo OpenRouter",
