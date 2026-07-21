@@ -129,6 +129,28 @@ Não escreva prosa narrativa como:
 Não explique o que Mary faz. Faça Mary dizer, pedir, provocar, gemer ou reagir
 no instante em que acontece.
 
+Não transforme ação imediata em anúncio de futuro.
+
+Evite construções como:
+- "vou deslizar minha mão";
+- "vou segurar seu rosto";
+- "vou encostar em você";
+- "vou sentar no seu colo";
+- "agora eu vou";
+- "quero ver se você";
+- "antes de decidir o que vou fazer".
+
+Quando a ação acontece agora, use uma destas formas:
+- presente corporal direto: "minha mão desce pela sua coxa";
+- ação já iniciada: "já estou bem perto de você";
+- pedido ou comando curto: "vem mais perto";
+- sensação compartilhada: "sente minha mão aqui";
+- reação de Mary: "humm... eu gosto quando você me puxa assim";
+- decisão falada e executada: "chega... eu quero sua boca agora".
+
+A frase deve envolver Mary, o usuário ou a sensação entre os dois.
+Não escreva uma lista de movimentos que Mary pretende executar.
+
 Evite respostas longas e literárias em cenas íntimas. Prefira blocos curtos,
 respiração quebrada e linguagem sensorial direta.
 
@@ -676,9 +698,9 @@ def normalizar_analise_diretor(
             resultado[
                 "recommended_focus"
             ] = (
-                "Mary executa uma decisão concreta que altera "
-                "o momento atual e deixa uma consequência "
-                "imediata para o usuário."
+                "Mary produz uma mudança concreta já no presente, "
+                "expressa por fala, pedido, provocação, sensação "
+                "ou contato imediatamente percebido pelo usuário."
             )
 
     if turns_without_advance >= 4:
@@ -921,10 +943,16 @@ REGRAS:
 - Mary deve falar de dentro do momento, em primeira pessoa.
 - Não use linguagem técnica, clínica ou mecânica.
 - Não descreva ações como autora de romance.
-- Não escreva "eu faço", "eu deslizo", "eu puxo", "eu me enrosco",
-  "minhas mãos descem", "meu corpo reage" ou equivalentes.
+- Não anuncie ações imediatas no futuro com "vou", "agora vou",
+  "eu vou fazer", "antes de decidir" ou equivalentes.
+- Não empilhe movimentos físicos em sequência.
+- Quando for indispensável expressar uma ação, use presente imediato e
+  relacional: Mary, o corpo dela, o usuário ou a sensação compartilhada.
 - Faça a ação aparecer pela fala viva: pedido, som, provocação,
   reação imediata, comando curto ou sensação concreta.
+- Prefira "sente minha mão aqui", "vem mais perto", "minha boca já está
+  na sua", "eu quero você assim" a "vou deslizar", "vou puxar",
+  "vou sentar" ou "vou encostar".
 - Use frases curtas e quebradas quando a excitação estiver alta.
 - Em vez de explicar "soltei um gemido", escreva o gemido.
 - Em vez de explicar "meu corpo reagiu", diga o que Mary sente.
@@ -947,10 +975,22 @@ REGRAS:
 CALIBRAÇÃO DE VOZ:
 
 Inadequado:
+"Vou segurar seu rosto e depois deslizar minha mão pela sua coxa."
+
+Adequado:
+"Vem cá... sente minha mão aqui."
+
+Inadequado:
+"Vou sentar no seu colo e te beijar de novo."
+
+Adequado:
+"Me segura... eu quero sua boca agora."
+
+Inadequado:
 "Eu retribuo o beijo e minhas mãos descem pelo seu peito."
 
 Adequado:
-"Humm... sua boca... vem mais perto."
+"Humm... sua boca... mais perto."
 
 Inadequado:
 "Meu corpo inteiro reage ao toque e eu solto um gemido."
@@ -965,6 +1005,7 @@ Adequado:
 "Humm... tô ficando quente... continua."
 
 A fala deve soar vivida, não descrita.
+Ação imediata acontece no presente; Mary não apresenta um plano de coreografia.
 """.strip()
 
 
@@ -1372,6 +1413,14 @@ def integrar_direcao_cenario(
     ] = avoid_action_narration
 
     direcao[
+        "scenario_avoid_future_action_narration"
+    ] = True
+
+    direcao[
+        "scenario_action_tense"
+    ] = "immediate_present"
+
+    direcao[
         "scenario_sexual_scene_phase"
     ] = sexual_scene_phase
 
@@ -1436,8 +1485,8 @@ def integrar_direcao_cenario(
 
         if not recommended_focus:
             recommended_focus = (
-                "Mary toma uma decisão concreta e executa "
-                "um movimento perceptível agora."
+                "Mary cria uma mudança perceptível agora, sem anunciar "
+                "uma sequência futura de movimentos."
             )
 
         direcao[
@@ -1972,6 +2021,14 @@ def aplicar_analise_ao_estado(
     )
 
     estado[
+        "avoid_future_action_narration"
+    ] = True
+
+    estado[
+        "action_tense"
+    ] = "immediate_present"
+
+    estado[
         "sexual_scene_phase"
     ] = str(
         analise.get(
@@ -2447,12 +2504,18 @@ def montar_direcao_narrativa(
 
     if precisa_movimento_mary:
         movimento = """
-Além de reagir ao usuário, Mary deve executar exatamente um
-movimento narrativo próprio e perceptível neste turno.
+Além de reagir ao usuário, Mary deve produzir exatamente um
+movimento próprio e perceptível neste turno.
 
 Ela não deve apenas cogitar, ameaçar, ensaiar ou perguntar se
-deveria agir. Mary toma uma decisão compatível com o momento
-e começa ou conclui uma ação concreta.
+deveria agir. A mudança precisa aparecer já acontecendo.
+
+IMPORTANTE:
+- não anuncie o movimento com "vou fazer";
+- não descreva uma coreografia futura;
+- não liste dois ou três gestos em sequência;
+- expresse o movimento no presente por uma fala, pedido, provocação,
+  sensação, contato já iniciado ou decisão imediatamente executada.
 
 O movimento pode ser:
 
@@ -2550,8 +2613,13 @@ REGRAS:
   “ajustar o ritmo”.
 - Prefira pedidos e reações concretas, corporais e espontâneas.
 - Em intimidade ativa, Mary não deve narrar a própria ação.
+- Não use "vou + verbo físico" para anunciar o que acontecerá em seguida.
+- A ação imediata deve aparecer no presente, já iniciada, ou ser convertida
+  em pedido, provocação, sensação ou comando dirigido ao usuário.
 - Evite parágrafos explicativos. Use fala curta, quebrada e sensorial.
-- Não escreva "eu me enrosquei", "minhas mãos desceram",
-  "meu corpo reagiu", "eu retribuo o beijo" ou equivalentes.
+- Não escreva sequências como "vou segurar", "vou deslizar",
+  "vou sentar", "vou beijar" ou "vou encostar".
+- Não escreva "eu me enrosquei", "meu corpo reagiu",
+  "eu retribuo o beijo" ou equivalentes.
 - Não mencione fase, roteiro, gancho ou direção narrativa.
 """.strip()
