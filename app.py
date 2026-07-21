@@ -83,9 +83,15 @@ from vision_utils import (
     preparar_imagem,
 )
 
-from scenarios import (
-    iniciar_instancia_cenario,
-    listar_cenarios_disponiveis,
+from scenarios.service import (
+    ScenarioAccessError,
+    iniciar_cenario_para_usuario,
+    listar_cenarios_para_usuario,
+)
+from ui.scenario_menu import (
+    ACTION_PLAY,
+    ACTION_UNLOCK,
+    renderizar_menu_cenarios,
 )
 from relationship.scenario_director import (
     analisar_turno_cenario,
@@ -2757,7 +2763,6 @@ USO OBRIGATÓRIO DO ESTADO DA FANTASIA:
             st.session_state[
                 "last_sexual_validation"
             ] = validacao_sexual
-
         else:
             st.session_state[
                 "last_sexual_validation"
@@ -2809,9 +2814,15 @@ USO OBRIGATÓRIO DO ESTADO DA FANTASIA:
         user_returned=False,
     )
 
+    relationship_state = atualizar_estado_relacao(
+        relationship_state,
+        completed_signals,
+    )
+
     relationship_state = (
         sincronizar_iniciativa_apos_resposta(
             relationship_state,
+            mary_response=resposta,
             turn_intent=turn_intent,
         )
     )
@@ -2819,42 +2830,45 @@ USO OBRIGATÓRIO DO ESTADO DA FANTASIA:
     relationship_state = (
         sincronizar_direcao_apos_resposta(
             relationship_state,
+            mary_response=resposta,
             turn_direction=turn_direction,
         )
     )
 
-    relationship_state = atualizar_estado_relacao(
-        relationship_state,
-        signals=completed_signals,
-        incrementar_interacao=True,
-    )
+    relationship_state[
+        "sexual_state"
+    ] = sexual_state
 
     relationship_state[
         "last_sexual_validation"
-    ] = deepcopy(
-        validacao_sexual
-    )
+    ] = st.session_state[
+        "last_sexual_validation"
+    ]
 
     st.session_state[
         "relationship_state"
     ] = relationship_state
 
     # =====================================================
-    # ATUALIZAÇÃO LOCAL DO CENÁRIO
+    # PERSISTE O ESTADO DO CENÁRIO APÓS RESPOSTA VÁLIDA
     # =====================================================
 
     if instancia_cenario:
-        instancia_cenario[
-            "interaction_count"
-        ] = interaction_number_cenario
-
         instancia_cenario[
             "scene_state"
         ] = scene_state
 
         instancia_cenario[
-            "opening_sent"
-        ] = True
+            "interaction_count"
+        ] = interaction_number_cenario
+
+        instancia_cenario[
+            "last_interaction_at"
+        ] = utc_now_iso()
+
+        instancia_cenario[
+            "updated_at"
+        ] = utc_now_iso()
 
         instancia_cenario[
             "current_phase"
@@ -2944,38 +2958,47 @@ USO OBRIGATÓRIO DO ESTADO DA FANTASIA:
             )
         )
 
-        if scene_state:
-            scene_state[
-                "opening_sent"
-            ] = True
+        instancia_cenario[
+            "ending_sent"
+        ] = bool(
+            scene_state.get(
+                "ending_sent",
+                instancia_cenario.get(
+                    "ending_sent",
+                    False,
+                ),
+            )
+        )
 
-            scene_state[
-                "scene_active"
-            ] = True
+        instancia_cenario[
+            "ending_type"
+        ] = str(
+            scene_state.get(
+                "ending_type",
+                instancia_cenario.get(
+                    "ending_type",
+                    "",
+                ),
+            )
+            or ""
+        )
 
-            scene_state[
-                "fantasy_established"
-            ] = True
-
-            scene_state[
-                "last_user_message"
-            ] = user_display
-
-            scene_state[
-                "last_mary_response"
-            ] = resposta
-
-            scene_state[
-                "interaction_count"
-            ] = interaction_number_cenario
+        instancia_cenario[
+            "ending_reason"
+        ] = str(
+            scene_state.get(
+                "ending_reason",
+                instancia_cenario.get(
+                    "ending_reason",
+                    "",
+                ),
+            )
+            or ""
+        )
 
         st.session_state[
             "scenario_instance"
         ] = instancia_cenario
-
-    # =====================================================
-    # HISTÓRICO VISUAL
-    # =====================================================
 
     st.session_state[
         "messages"
@@ -2984,14 +3007,6 @@ USO OBRIGATÓRIO DO ESTADO DA FANTASIA:
             "role": "assistant",
             "content": resposta,
         }
-    )
-
-    st.session_state[
-        "user_profile"
-    ] = marcar_interacao_realizada(
-        st.session_state[
-            "user_profile"
-        ]
     )
 
     perguntou_nome = mary_perguntou_nome(
@@ -3040,111 +3055,149 @@ def renderizar_seletor_cenario() -> None:
         "scenario_instance"
     )
 
-    if isinstance(
-        instancia_atual,
-        dict,
-    ) and instancia_atual.get(
-        "status"
-    ) == "active":
+    if (
+        isinstance(
+            instancia_atual,
+            dict,
+        )
+        and instancia_atual.get(
+            "status"
+        ) == "active"
+    ):
         return
 
-    st.markdown(
-        "## Escolha sua experiência com Mary"
+    usuario = (
+        st.session_state.get(
+            "persistent_user"
+        )
+        or {}
     )
 
-    st.caption(
-        "Cada experiência inicia uma fantasia diferente "
-        "e mantém sua própria continuidade."
+    user_id = str(
+        usuario.get(
+            "user_id",
+            "",
+        )
+        or ""
+    ).strip()
+
+    if not user_id:
+        st.error(
+            "O usuário atual ainda não foi identificado."
+        )
+        st.stop()
+
+    # Nesta etapa ainda não há cobrança integrada.
+    # A lista vazia significa que apenas histórias gratuitas
+    # ficam disponíveis para iniciar.
+    unlocked_scenario_ids: set[str] = set()
+
+    try:
+        cenarios = listar_cenarios_para_usuario(
+            user_id=user_id,
+            unlocked_scenario_ids=(
+                unlocked_scenario_ids
+            ),
+        )
+    except ValueError as exc:
+        st.error(
+            str(exc)
+        )
+        st.stop()
+
+    acao = renderizar_menu_cenarios(
+        cenarios,
+        titulo=(
+            "Escolha sua experiência com Mary"
+        ),
+        descricao=(
+            "Cada experiência inicia uma fantasia diferente "
+            "e mantém sua própria continuidade."
+        ),
+        quantidade_colunas=2,
     )
 
-    cenarios = listar_cenarios_disponiveis()
+    if acao is None:
+        st.stop()
 
-    for cenario in cenarios:
-        scenario_id = str(
-            cenario.get(
-                "scenario_id",
-                "",
-            )
+    tipo_acao = str(
+        acao.get(
+            "action",
+            "",
         )
+        or ""
+    ).strip()
 
-        titulo = str(
-            cenario.get(
-                "title",
-                scenario_id,
-            )
+    scenario_id = str(
+        acao.get(
+            "scenario_id",
+            "",
         )
+        or ""
+    ).strip()
 
-        descricao = str(
-            cenario.get(
-                "short_description",
-                "",
-            )
+    if not scenario_id:
+        st.error(
+            "Não foi possível identificar a história escolhida."
         )
+        st.stop()
 
-        with st.container(
-            border=True
-        ):
-            st.markdown(
-                f"### {titulo}"
-            )
+    if tipo_acao == ACTION_UNLOCK:
+        st.info(
+            "O desbloqueio de novas histórias será conectado "
+            "ao sistema de cobrança em uma etapa posterior."
+        )
+        st.stop()
 
-            if descricao:
-                st.write(
-                    descricao
-                )
+    if tipo_acao != ACTION_PLAY:
+        st.stop()
 
-            if st.button(
-                "Iniciar esta experiência",
-                key=f"iniciar_{scenario_id}",
-                use_container_width=True,
-                type="primary",
-            ):
-                usuario = (
-                    st.session_state.get(
-                        "persistent_user"
-                    )
-                    or {}
-                )
+    try:
+        instancia = iniciar_cenario_para_usuario(
+            scenario_id=scenario_id,
+            user_id=user_id,
+            unlocked_scenario_ids=(
+                unlocked_scenario_ids
+            ),
+        )
+    except ScenarioAccessError as exc:
+        st.error(
+            str(exc)
+        )
+        st.stop()
+    except ValueError as exc:
+        st.error(
+            str(exc)
+        )
+        st.stop()
 
-                user_id = str(
-                    usuario.get(
-                        "user_id",
-                        "",
-                    )
-                    or ""
-                ).strip()
+    st.session_state[
+        "scenario_instance"
+    ] = instancia
 
-                if not user_id:
-                    st.error(
-                        "O usuário atual ainda não foi identificado."
-                    )
+    st.session_state[
+        "selected_scenario_id"
+    ] = scenario_id
 
-                    return
+    st.session_state[
+        "scenario_selector_visible"
+    ] = False
 
-                instancia = iniciar_instancia_cenario(
-                    scenario_id=scenario_id,
-                    user_id=user_id,
-                )
+    st.session_state[
+        "messages"
+    ] = []
 
-                st.session_state[
-                    "scenario_instance"
-                ] = instancia
+    st.session_state[
+        "initial_message_created"
+    ] = False
 
-                st.session_state[
-                    "selected_scenario_id"
-                ] = scenario_id
+    # Impede que o histórico geral seja restaurado
+    # sobre a nova sessão narrativa nesta mesma execução.
+    st.session_state[
+        "history_restored"
+    ] = True
 
-                st.session_state[
-                    "messages"
-                ] = []
-
-                st.session_state[
-                    "initial_message_created"
-                ] = False
-
-                st.rerun()
-
-    st.stop()
+    st.rerun()
 
 
 def main() -> None:
