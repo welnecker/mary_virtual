@@ -120,14 +120,23 @@ ACTIVE_ACTION_TERMS = (
     "mais rapido", "mais rápido", "continua", "nao para", "não para",
 )
 
-USER_ORGASM_TERMS = (
-    "vou gozar", "to gozando", "tô gozando", "gozei", "eu gozei",
-    "cheguei la", "cheguei lá", "meu orgasmo",
+USER_ORGASM_WARNING_TERMS = (
+    "vou gozar", "to quase", "tô quase", "quase gozando",
 )
 
-MARY_ORGASM_TERMS = (
-    "vou gozar", "eu vou gozar", "to gozando", "tô gozando",
-    "gozei", "eu gozei", "me fez gozar", "me fazendo gozar",
+USER_ORGASM_DONE_TERMS = (
+    "to gozando", "tô gozando", "gozei", "eu gozei", "cheguei la",
+    "cheguei lá", "meu orgasmo veio",
+)
+
+MARY_PRE_ORGASM_TERMS = (
+    "vou gozar", "eu vou gozar", "to quase", "tô quase", "nao para",
+    "não para", "continua", "mais forte",
+)
+
+MARY_ORGASM_DONE_TERMS = (
+    "to gozando", "tô gozando", "gozei", "eu gozei", "me fez gozar",
+    "estou gozando", "eu gozo", "gozando agora",
 )
 
 STOP_TERMS = (
@@ -396,10 +405,22 @@ def atualizar_estado_sexual_antes_resposta(
 
     sexual_signal = contem_algum(text, SEXUAL_TERMS)
     active_action = contem_algum(text, ACTIVE_ACTION_TERMS)
-    user_orgasm = contem_algum(text, USER_ORGASM_TERMS)
+    user_warning = contem_algum(text, USER_ORGASM_WARNING_TERMS)
+    user_done = contem_algum(text, USER_ORGASM_DONE_TERMS)
 
-    if user_orgasm:
+    if user_warning:
+        state["user_orgasm_warning"] = True
+        state["user_near_orgasm"] = True
+        state["user_orgasm_pending"] = True
+        state["user_arousal_estimate"] = max(
+            state["user_arousal_estimate"],
+            0.88,
+        )
+
+    if user_done:
         state["user_orgasm_done"] = True
+        state["user_orgasm_warning"] = False
+        state["user_near_orgasm"] = False
         state["user_orgasm_pending"] = False
         state["user_arousal_estimate"] = 1.0
 
@@ -494,25 +515,11 @@ def atualizar_estado_sexual_antes_resposta(
 
 def detectar_orgasmo_mary_na_resposta(mary_response: str) -> bool:
     text = normalizar_texto(mary_response)
-    return contem_algum(text, MARY_ORGASM_TERMS) and not (
-        "nao vou gozar" in text or "não vou gozar" in mary_response.lower()
-    )
+    return contem_algum(text, MARY_ORGASM_DONE_TERMS)
 
 
 def detectar_pre_orgasmo_mary_na_resposta(mary_response: str) -> bool:
-    text = normalizar_texto(mary_response)
-    return any(
-        term in text
-        for term in (
-            "vou gozar",
-            "to quase",
-            "tô quase",
-            "nao para",
-            "não para",
-            "continua",
-            "mais forte",
-        )
-    )
+    return contem_algum(mary_response, MARY_PRE_ORGASM_TERMS)
 
 
 def confirmar_orgasmo_mary_apos_resposta(
@@ -543,8 +550,15 @@ def sincronizar_climax_usuario_apos_resposta(
     *,
     user_text: str,
 ) -> None:
-    if contem_algum(user_text, USER_ORGASM_TERMS):
+    if contem_algum(user_text, USER_ORGASM_WARNING_TERMS):
+        state["user_orgasm_warning"] = True
+        state["user_near_orgasm"] = True
+        state["user_orgasm_pending"] = True
+
+    if contem_algum(user_text, USER_ORGASM_DONE_TERMS):
         state["user_orgasm_done"] = True
+        state["user_orgasm_warning"] = False
+        state["user_near_orgasm"] = False
         state["user_orgasm_pending"] = False
 
 
