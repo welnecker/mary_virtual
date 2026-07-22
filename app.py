@@ -2253,6 +2253,100 @@ def utc_now_iso() -> str:
     ).isoformat()
 
 
+def sincronizar_contagem_cenario_com_historico(
+    *,
+    instancia_cenario: dict[str, Any],
+    mensagens: list[dict[str, Any]],
+) -> dict[str, Any]:
+    instancia = deepcopy(
+        instancia_cenario
+        if isinstance(instancia_cenario, dict)
+        else {}
+    )
+
+    if not instancia:
+        return instancia
+
+    total_real = sum(
+        1
+        for mensagem in mensagens
+        if (
+            isinstance(mensagem, dict)
+            and mensagem.get("role") == "user"
+            and str(
+                mensagem.get("content", "")
+                or ""
+            ).strip()
+        )
+    )
+
+    total_registrado = int(
+        instancia.get("interaction_count", 0)
+        or 0
+    )
+
+    if total_real == total_registrado:
+        return instancia
+
+    instancia["interaction_count"] = total_real
+
+    scene_state = instancia.get("scene_state")
+    if not isinstance(scene_state, dict):
+        scene_state = {}
+
+    scene_state = deepcopy(scene_state)
+    scene_state["interaction_count"] = total_real
+
+    # Desfaz apenas encerramento criado pelo limite numérico,
+    # quando a contagem real ficou abaixo do limite.
+    ending_trigger = str(
+        scene_state.get(
+            "ending_trigger",
+            instancia.get("ending_reason", ""),
+        )
+        or ""
+    ).strip()
+
+    if (
+        total_real < ENDING_INTERACTION_LIMIT
+        and ending_trigger == "interaction_limit"
+        and str(
+            instancia.get("status", "active")
+            or "active"
+        ).strip().lower() == "active"
+    ):
+        for campo in (
+            "ending_ready",
+            "ending_sent",
+            "ending_forced",
+            "input_locked",
+            "show_return_to_menu",
+        ):
+            scene_state[campo] = False
+            instancia[campo] = False
+
+        for campo in (
+            "ending_trigger",
+            "ending_reason",
+            "completed_at",
+        ):
+            scene_state[campo] = ""
+            instancia[campo] = ""
+
+        scene_state[
+            "ending_trigger_interaction"
+        ] = 0
+
+    instancia["scene_state"] = scene_state
+
+    salvar_instancia_cenario(
+        instancia,
+        houve_interacao=False,
+    )
+
+    return instancia
+
+
 def aplicar_politica_encerramento_por_interacoes(
     *,
     scene_state: dict[str, Any],
@@ -3010,13 +3104,43 @@ def processar_interacao(
     metadata_turno: dict[str, Any] = {}
 
     if instancia_cenario:
-        interaction_number_cenario = int(
-            instancia_cenario.get(
-                "interaction_count",
-                0,
+        mensagens_atuais = st.session_state.get(
+            "messages",
+            [],
+        )
+
+        if not isinstance(
+            mensagens_atuais,
+            list,
+        ):
+            mensagens_atuais = []
+
+        total_real_antes_turno = sum(
+            1
+            for mensagem in mensagens_atuais
+            if (
+                isinstance(mensagem, dict)
+                and mensagem.get("role") == "user"
+                and str(
+                    mensagem.get("content", "")
+                    or ""
+                ).strip()
             )
-            or 0
-        ) + 1
+        )
+
+        # A mensagem atual já foi adicionada ao histórico antes
+        # desta etapa. Portanto, ela própria define o número do turno.
+        interaction_number_cenario = max(
+            1,
+            total_real_antes_turno,
+        )
+
+        instancia_cenario[
+            "interaction_count"
+        ] = max(
+            0,
+            interaction_number_cenario - 1,
+        )
 
         scenario_config = instancia_cenario.get(
             "scenario_config"
@@ -4334,6 +4458,17 @@ def main() -> None:
     mensagens_tela = st.session_state[
         "messages"
     ]
+
+    instancia_cenario = (
+        sincronizar_contagem_cenario_com_historico(
+            instancia_cenario=instancia_cenario,
+            mensagens=mensagens_tela,
+        )
+    )
+
+    st.session_state[
+        "scenario_instance"
+    ] = instancia_cenario
 
     total_mensagens_usuario = sum(
         1
