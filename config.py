@@ -4,7 +4,11 @@ MARY_SPREADSHEET_ID = (
     "1lOd92EhC-UZmK48kYS-Q_HYO9qpRU5BxpM2uUlVWD-g"
 )
 
-MAX_HISTORY_MESSAGES = 24
+# Uma historinha pode chegar a aproximadamente 50 interações.
+# Cada interação produz duas mensagens (usuário + Mary), além da abertura.
+# A margem evita que o início da história seja removido do contexto antes
+# do encerramento, inclusive quando o limite rígido do cenário é utilizado.
+MAX_HISTORY_MESSAGES = 120
 
 MAX_IMAGE_SIZE_MB = 8
 MAX_IMAGE_DIMENSION = 1024
