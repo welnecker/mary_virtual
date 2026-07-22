@@ -16,7 +16,7 @@ from voice.elevenlabs_tts import (
 
 
 ELEVENLABS_VOICE_INTEGRATION_VERSION = (
-    "elevenlabs-voice-integration-v1-click-cache-fallback"
+    "elevenlabs-voice-integration-v2-safe-wrapper-order"
 )
 
 _INSTALLED = False
@@ -154,6 +154,10 @@ def install_elevenlabs_voice_integration() -> None:
     global _INSTALLED, _ORIGINAL_RENDER_VOICE_PLAYER
     if _INSTALLED:
         return
+
+    # Instala primeiro a camada visual que captura os métodos originais do
+    # Streamlit. As demais integrações globais poderão envolvê-la depois.
+    professional_experience.install_professional_experience()
 
     original = getattr(professional_experience, "_render_voice_player", None)
     if not callable(original):
