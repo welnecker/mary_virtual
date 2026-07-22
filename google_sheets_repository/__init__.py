@@ -1,8 +1,19 @@
 from __future__ import annotations
 
+"""API pública estável do repositório Google Sheets.
+
+A implementação histórica permanece no arquivo ``google_sheets_repository.py``.
+Este pacote funciona como ponte de compatibilidade, mas não reexporta mais todos
+os nomes internos do módulo-base. Correções locais de leitura, sessão e relação
+prevalecem explicitamente sobre a implementação antiga.
+"""
+
 import importlib.util
 from pathlib import Path
 from typing import Any
+
+
+GOOGLE_SHEETS_REPOSITORY_VERSION = "google-sheets-repository-v3-explicit-api"
 
 _BASE_PATH = Path(__file__).resolve().parent.parent / "google_sheets_repository.py"
 _SPEC = importlib.util.spec_from_file_location(
@@ -16,8 +27,64 @@ if _SPEC is None or _SPEC.loader is None:
 _base = importlib.util.module_from_spec(_SPEC)
 _SPEC.loader.exec_module(_base)
 
-# Mantém referência ao leitor cacheado original para que o restante do código
-# continue podendo chamar obter_registros_aba.clear().
+
+# Nomes do módulo-base que fazem parte do contrato público real do projeto.
+# A lista é explícita para impedir que imports como gspread, hashlib, json, st e
+# helpers privados sejam expostos acidentalmente.
+_BASE_PUBLIC_NAMES = (
+    # Exceção e constantes de abas.
+    "GoogleSheetsRepositoryError",
+    "USERS_SHEET",
+    "SESSIONS_SHEET",
+    "INTERACTIONS_SHEET",
+    "USER_VISUAL_PROFILE_SHEET",
+    "MARY_RELATIONSHIP_SHEET",
+    "MEMORIES_SHEET",
+    # Utilidades estáveis.
+    "utc_now_iso",
+    "gerar_id",
+    "gerar_token_usuario",
+    "gerar_hash_token",
+    "serializar_json",
+    # Infraestrutura genérica de planilha.
+    "obter_planilha",
+    "obter_aba",
+    "obter_cabecalhos",
+    "montar_linha_por_cabecalho",
+    "adicionar_registro",
+    "buscar_registro",
+    "buscar_linha",
+    "atualizar_registro",
+    # Usuários.
+    "criar_usuario_anonimo",
+    "obter_usuario_por_token",
+    "registrar_novo_acesso_usuario",
+    "atualizar_usuario",
+    # Sessões.
+    "atualizar_atividade_sessao",
+    "encerrar_sessao",
+    "encerrar_sessoes_ativas_usuario",
+    # Interações e perfis.
+    "salvar_interacao",
+    "salvar_perfil_visual_usuario",
+    # Memória legada. Novos fluxos devem preferir repositories.memory_repository.
+    "salvar_memoria",
+    # Reset e exclusão.
+    "normalizar_user_id",
+    "excluir_linhas_por_valor",
+    "limpar_dados_interacao_usuario",
+    "deletar_usuario_e_dados",
+)
+
+for _name in _BASE_PUBLIC_NAMES:
+    if not hasattr(_base, _name):
+        raise ImportError(
+            f"A implementação do Google Sheets não possui a API esperada: {_name!r}."
+        )
+    globals()[_name] = getattr(_base, _name)
+
+
+# Mantém referência ao leitor cacheado original para preservar .clear().
 _obter_registros_cacheado_original = _base.obter_registros_aba
 
 
@@ -27,15 +94,15 @@ def _limpar_cache_registros() -> None:
         clear()
 
 
-def _obter_registros_compativeis(nome_aba: str) -> list[dict[str, Any]]:
-    """Lê uma aba mesmo quando a linha 1 contém cabeçalhos duplicados.
+def obter_registros_aba(nome_aba: str) -> list[dict[str, Any]]:
+    """Lê uma aba tolerando cabeçalhos vazios ou duplicados.
 
-    A primeira ocorrência de cada cabeçalho é preservada. Cabeçalhos vazios e
-    ocorrências posteriores repetidas são ignorados.
+    A primeira ocorrência de cada cabeçalho é preservada. Isso mantém o app
+    operacional durante migrações graduais da planilha sem permitir que duas
+    colunas homônimas sobrescrevam silenciosamente uma à outra.
     """
 
     worksheet = _base.obter_aba(nome_aba)
-
     try:
         valores = worksheet.get_all_values()
     except Exception as exc:
@@ -57,23 +124,21 @@ def _obter_registros_compativeis(nome_aba: str) -> list[dict[str, Any]]:
         colunas_unicas.append((cabecalho, indice))
 
     registros: list[dict[str, Any]] = []
-
     for linha in valores[1:]:
         if not any(str(valor).strip() for valor in linha):
             continue
-
-        registro: dict[str, Any] = {}
-        for cabecalho, indice in colunas_unicas:
-            registro[cabecalho] = linha[indice] if indice < len(linha) else ""
-        registros.append(registro)
-
+        registros.append(
+            {
+                cabecalho: linha[indice] if indice < len(linha) else ""
+                for cabecalho, indice in colunas_unicas
+            }
+        )
     return registros
 
 
-# Compatibilidade com as chamadas existentes em adicionar_registro(),
-# atualizar_registro() e outras rotinas do módulo-base.
-_obter_registros_compativeis.clear = _limpar_cache_registros  # type: ignore[attr-defined]
-_base.obter_registros_aba = _obter_registros_compativeis
+obter_registros_aba.clear = _limpar_cache_registros  # type: ignore[attr-defined]
+# As funções genéricas do módulo-base chamam este leitor em tempo de execução.
+_base.obter_registros_aba = obter_registros_aba
 
 
 def listar_interacoes_usuario(
@@ -85,29 +150,16 @@ def listar_interacoes_usuario(
     if not user_id_normalizado:
         return []
 
-    registros = _obter_registros_compativeis(_base.INTERACTIONS_SHEET)
     interacoes = [
         dict(registro)
-        for registro in registros
+        for registro in obter_registros_aba(_base.INTERACTIONS_SHEET)
         if str(registro.get("user_id") or "").strip() == user_id_normalizado
     ]
     interacoes.sort(key=lambda registro: str(registro.get("timestamp") or ""))
-
-    limite_normalizado = max(1, int(limite or 50))
-    return interacoes[-limite_normalizado:]
+    return interacoes[-max(1, int(limite or 50)) :]
 
 
 _base.listar_interacoes_usuario = listar_interacoes_usuario
-
-# Reexporta a API completa do arquivo-base.
-for _nome in dir(_base):
-    if not _nome.startswith("__"):
-        globals()[_nome] = getattr(_base, _nome)
-
-# Garante que os wrappers locais prevaleçam sobre a reexportação.
-globals()["obter_registros_aba"] = _obter_registros_compativeis
-globals()["listar_interacoes_usuario"] = listar_interacoes_usuario
-
 _criar_sessao_original = _base.criar_sessao
 _criar_relacionamento_original = _base.criar_relacionamento_mary
 _obter_relacionamento_original = _base.obter_ou_criar_relacionamento_mary
@@ -123,7 +175,7 @@ def criar_sessao(
     started_at: str | None = None,
     **_: Any,
 ) -> dict[str, Any]:
-    """Aceita a assinatura atual e a usada pelo app restaurado."""
+    """Aceita tanto a assinatura atual quanto a usada pelo app restaurado."""
 
     if not session_id and not started_at:
         return _criar_sessao_original(
@@ -145,7 +197,6 @@ def criar_sessao(
         "app_version": app_version,
         "status": "active",
     }
-
     _base.adicionar_registro(_base.SESSIONS_SHEET, sessao)
     return sessao
 
@@ -179,12 +230,10 @@ def criar_relacionamento_mary(*, user_id: str) -> dict[str, Any]:
     if not user_id_normalizado:
         raise _base.GoogleSheetsRepositoryError("O user_id não foi informado.")
 
-    criado = _criar_relacionamento_original(user_id=user_id_normalizado)
     normalizado = _normalizar_relacionamento(
-        criado,
+        _criar_relacionamento_original(user_id=user_id_normalizado),
         user_id=user_id_normalizado,
     )
-
     _base.atualizar_registro(
         _base.MARY_RELATIONSHIP_SHEET,
         coluna_chave="user_id",
@@ -204,13 +253,11 @@ def obter_ou_criar_relacionamento_mary(user_id: str) -> dict[str, Any]:
         existente,
         user_id=user_id_normalizado,
     )
-
-    relationship_id_existente = ""
-    if isinstance(existente, dict):
-        relationship_id_existente = str(
-            existente.get("relationship_id", "") or ""
-        ).strip()
-
+    relationship_id_existente = (
+        str(existente.get("relationship_id") or "").strip()
+        if isinstance(existente, dict)
+        else ""
+    )
     if not relationship_id_existente:
         _base.atualizar_registro(
             _base.MARY_RELATIONSHIP_SHEET,
@@ -218,7 +265,6 @@ def obter_ou_criar_relacionamento_mary(user_id: str) -> dict[str, Any]:
             valor_chave=user_id_normalizado,
             alteracoes={"relationship_id": normalizado["relationship_id"]},
         )
-
     return normalizado
 
 
@@ -233,14 +279,10 @@ def _resolver_user_id_por_identificador(identificador: str) -> str:
         valor=valor,
     )
     if isinstance(por_relacionamento, dict):
-        encontrado = str(por_relacionamento.get("user_id", "") or "").strip()
+        encontrado = str(por_relacionamento.get("user_id") or "").strip()
         if encontrado:
             return encontrado
-
-    if valor.startswith("rel_"):
-        return valor[4:]
-
-    return valor
+    return valor[4:] if valor.startswith("rel_") else valor
 
 
 def atualizar_relacionamento_mary(
@@ -248,7 +290,7 @@ def atualizar_relacionamento_mary(
     alteracoes: dict[str, Any] | None = None,
     **campos: Any,
 ) -> dict[str, Any]:
-    """Aceita relationship_id ou user_id e a interface antiga do app."""
+    """Aceita relationship_id ou user_id e a interface histórica do app."""
 
     user_id_normalizado = _resolver_user_id_por_identificador(identificador)
     if not user_id_normalizado:
@@ -264,7 +306,6 @@ def atualizar_relacionamento_mary(
     dados["updated_at"] = _base.utc_now_iso()
 
     existente = obter_ou_criar_relacionamento_mary(user_id_normalizado)
-
     _base.atualizar_registro(
         _base.MARY_RELATIONSHIP_SHEET,
         coluna_chave="user_id",
@@ -275,8 +316,23 @@ def atualizar_relacionamento_mary(
     atualizado = dict(existente)
     atualizado.update(dados)
     atualizado["user_id"] = user_id_normalizado
-    atualizado.setdefault(
-        "relationship_id",
-        _relationship_id_padrao(user_id_normalizado),
-    )
+    atualizado.setdefault("relationship_id", _relationship_id_padrao(user_id_normalizado))
     return atualizado
+
+
+# Garante que chamadas internas futuras do módulo-base também usem os wrappers.
+_base.criar_sessao = criar_sessao
+_base.criar_relacionamento_mary = criar_relacionamento_mary
+_base.obter_ou_criar_relacionamento_mary = obter_ou_criar_relacionamento_mary
+
+
+__all__ = [
+    "GOOGLE_SHEETS_REPOSITORY_VERSION",
+    *_BASE_PUBLIC_NAMES,
+    "obter_registros_aba",
+    "listar_interacoes_usuario",
+    "criar_sessao",
+    "criar_relacionamento_mary",
+    "obter_ou_criar_relacionamento_mary",
+    "atualizar_relacionamento_mary",
+]
