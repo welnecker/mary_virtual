@@ -1753,6 +1753,11 @@ def registrar_interacao_remota(
             registro.get("error")
             or ""
         ),
+        interaction_number=(
+            registro.get(
+                "interaction_number"
+            )
+        ),
     )
 
 
@@ -3547,6 +3552,10 @@ USO OBRIGATÓRIO DO ESTADO DA FANTASIA:
                     )
                 )
 
+                registro_erro[
+                    "interaction_number"
+                ] = interaction_number_cenario
+
                 registrar_interacao_local_e_remota(
                     registro_erro
                 )
@@ -3908,6 +3917,10 @@ USO OBRIGATÓRIO DO ESTADO DA FANTASIA:
         mary_asked_name=perguntou_nome,
         response_time_ms=response_time_ms,
     )
+
+    registro[
+        "interaction_number"
+    ] = interaction_number_cenario
 
     registrar_interacao_local_e_remota(
         registro
