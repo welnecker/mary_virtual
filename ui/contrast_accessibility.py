@@ -5,7 +5,7 @@ from typing import Any, Callable
 import streamlit as st
 
 
-CONTRAST_ACCESSIBILITY_VERSION = "contrast-accessibility-v1-dark-inputs"
+CONTRAST_ACCESSIBILITY_VERSION = "contrast-accessibility-v2-dark-chat-footer"
 
 _INSTALLED = False
 _ORIGINAL_TITLE: Callable[..., Any] | None = None
@@ -20,6 +20,7 @@ CONTRAST_CSS = r"""
     --mary-input-border-focus: #d44878;
     --mary-input-text: #ffffff;
     --mary-input-muted: #aaa3b0;
+    --mary-footer-bg: #08090d;
 }
 
 /* Inputs comuns, inclusive login e campos BaseWeb internos. */
@@ -114,16 +115,43 @@ CONTRAST_CSS = r"""
     border: 1px solid var(--mary-input-border) !important;
 }
 
-/* Barra inferior e caixa onde o usuário escreve o prompt. */
+/*
+Barra inferior completa. O Streamlit usa wrappers diferentes conforme a versão.
+Todos recebem o mesmo fundo para impedir a faixa branca nas laterais do chat input.
+*/
+[data-testid="stBottomBlockContainer"],
+[data-testid="stBottomBlockContainer"] > div,
+[data-testid="stBottomBlockContainer"] > div > div,
+[data-testid="stBottom"],
+[data-testid="stBottom"] > div,
+[data-testid="stBottom"] > div > div,
+.stChatFloatingInputContainer,
+.stChatFloatingInputContainer > div,
+div[class*="stBottomBlockContainer"],
+div[class*="stChatFloatingInputContainer"] {
+    background: var(--mary-footer-bg) !important;
+    background-color: var(--mary-footer-bg) !important;
+    box-shadow: none !important;
+}
+
+/* Remove gradientes/pseudo-elementos claros criados pelo rodapé. */
+[data-testid="stBottomBlockContainer"]::before,
+[data-testid="stBottomBlockContainer"]::after,
+[data-testid="stBottom"]::before,
+[data-testid="stBottom"]::after,
+.stChatFloatingInputContainer::before,
+.stChatFloatingInputContainer::after {
+    background: var(--mary-footer-bg) !important;
+    background-color: var(--mary-footer-bg) !important;
+    box-shadow: none !important;
+}
+
+/* Garante cobertura integral da largura e elimina bordas claras residuais. */
 [data-testid="stBottomBlockContainer"],
 [data-testid="stBottom"],
 .stChatFloatingInputContainer {
-    background: linear-gradient(
-        180deg,
-        rgba(8, 9, 13, 0) 0%,
-        rgba(8, 9, 13, 0.94) 22%,
-        #08090d 100%
-    ) !important;
+    border: 0 !important;
+    outline: 0 !important;
 }
 
 [data-testid="stChatInput"],
@@ -132,6 +160,7 @@ CONTRAST_CSS = r"""
 [data-testid="stChatInput"] [data-baseweb="base-input"] {
     color: var(--mary-input-text) !important;
     background: #111219 !important;
+    background-color: #111219 !important;
     border-color: var(--mary-input-border) !important;
 }
 
