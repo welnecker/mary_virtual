@@ -2,12 +2,16 @@ from __future__ import annotations
 
 import sys
 from copy import deepcopy
+from functools import wraps
 from typing import Any, Callable
 
 import streamlit as st
 
+from memory_persistence import invalidar_cache_memorias
+from memory_store import limpar_memorias_usuario
 
-APP_RUNTIME_INTEGRATION_VERSION = "app-runtime-integration-v1-adaptive-pacing"
+
+APP_RUNTIME_INTEGRATION_VERSION = "app-runtime-integration-v2-cache-lifecycle"
 
 _INSTALLED = False
 _ORIGINAL_TITLE: Callable[..., Any] | None = None
@@ -18,6 +22,10 @@ def _safe_int(value: Any, default: int) -> int:
         return int(value)
     except (TypeError, ValueError):
         return default
+
+
+def _texto(value: Any) -> str:
+    return str(value or "").strip()
 
 
 def _resolve_duration() -> dict[str, int | bool]:
@@ -80,12 +88,7 @@ def aplicar_politica_adaptativa_encerramento(
     scene_state: dict[str, Any],
     interaction_number: int,
 ) -> dict[str, Any]:
-    """Substitui o antigo corte 45/50 por janela narrativa configurável.
-
-    A contagem orienta o ritmo. Encerramento forçado só ocorre no teto de
-    segurança e, antes dele, apenas sinais de resolução ou repetição autorizam
-    a preparação do final.
-    """
+    """Substitui o corte 45/50 por uma janela narrativa configurável."""
 
     state = deepcopy(scene_state if isinstance(scene_state, dict) else {})
     count = max(0, _safe_int(interaction_number, 0))
@@ -175,6 +178,7 @@ def _patch_prompt_builder(module: Any) -> None:
     if not callable(original) or getattr(original, "_mary_runtime_wrapped", False):
         return
 
+    @wraps(original)
     def wrapper(*args: Any, **kwargs: Any) -> str:
         instance = st.session_state.get("scenario_instance")
         scene_state: dict[str, Any] = {}
@@ -212,18 +216,87 @@ def _patch_prompt_builder(module: Any) -> None:
     setattr(module, "montar_prompt_sistema", wrapper)
 
 
+def _invalidar_memoria_usuario(user_id: Any) -> None:
+    uid = _texto(user_id)
+    if not uid:
+        return
+    limpar_memorias_usuario(uid)
+    invalidar_cache_memorias(uid)
+
+
+def _patch_cleanup_function(module: Any, function_name: str) -> None:
+    original = getattr(module, function_name, None)
+    if not callable(original) or getattr(original, "_mary_cache_wrapped", False):
+        return
+
+    @wraps(original)
+    def wrapper(user_id: str, *args: Any, **kwargs: Any) -> Any:
+        result = original(user_id, *args, **kwargs)
+        _invalidar_memoria_usuario(user_id)
+        return result
+
+    wrapper._mary_cache_wrapped = True  # type: ignore[attr-defined]
+    setattr(module, function_name, wrapper)
+
+
+def _patch_cleanup_functions(module: Any) -> None:
+    _patch_cleanup_function(module, "limpar_dados_interacao_usuario")
+    _patch_cleanup_function(module, "deletar_usuario_e_dados")
+
+
+def _resolver_usuario_atual() -> str:
+    for key in ("persistent_user", "authenticated_user", "user"):
+        candidate = st.session_state.get(key)
+        if isinstance(candidate, dict):
+            uid = _texto(
+                candidate.get("user_id")
+                or candidate.get("profile_id")
+                or candidate.get("id")
+            )
+            if uid:
+                return uid
+
+    profile = st.session_state.get("user_profile")
+    if isinstance(profile, dict):
+        return _texto(
+            profile.get("profile_id")
+            or profile.get("user_id")
+            or profile.get("id")
+        )
+    return ""
+
+
+def _sincronizar_dono_cache_sessao() -> None:
+    current = _resolver_usuario_atual()
+    previous = _texto(st.session_state.get("_mary_memory_cache_user_id"))
+
+    if previous and previous != current:
+        _invalidar_memoria_usuario(previous)
+
+    if current:
+        st.session_state["_mary_memory_cache_user_id"] = current
+    else:
+        st.session_state.pop("_mary_memory_cache_user_id", None)
+
+
 def aplicar_integracao_runtime() -> None:
     module = sys.modules.get("__main__")
     if module is None:
         return
 
-    setattr(module, "aplicar_politica_encerramento_por_interacoes", aplicar_politica_adaptativa_encerramento)
+    setattr(
+        module,
+        "aplicar_politica_encerramento_por_interacoes",
+        aplicar_politica_adaptativa_encerramento,
+    )
 
     duration = _resolve_duration()
     setattr(module, "ENDING_COUNTDOWN_START", int(duration["soft_start"]))
     setattr(module, "ENDING_INTERACTION_LIMIT", int(duration["hard_limit"]))
 
     _patch_prompt_builder(module)
+    _patch_cleanup_functions(module)
+    _sincronizar_dono_cache_sessao()
 
 
 def install_app_runtime_integration() -> None:
