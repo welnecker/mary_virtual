@@ -3,14 +3,11 @@ from __future__ import annotations
 from copy import deepcopy
 from typing import Any
 
-from scenarios.schema import (
-    ACCESS_TYPE_FREE,
-    normalizar_config_cenario,
-)
+from scenarios.schema import ACCESS_TYPE_FREE, normalizar_config_cenario
 
 
 SCENARIO_ID = "vizinha_porta_trancada"
-SCENARIO_VERSION = 2
+SCENARIO_VERSION = 3
 
 
 SCENARIO_CONFIG: dict[str, Any] = {
@@ -19,27 +16,24 @@ SCENARIO_CONFIG: dict[str, Any] = {
     "category": "vizinha",
     "title": "A vizinha presa do lado de fora",
     "short_description": (
-        "Mary ficou presa fora do apartamento e procura "
-        "a ajuda do vizinho."
+        "Mary ficou presa fora do apartamento, de babydoll, e procura a ajuda "
+        "do vizinho. A situação pode virar humor, provocação, intimidade ou um "
+        "encerramento rápido, conforme as escolhas dos dois."
     ),
     "adult_only": True,
     "status": "active",
     "display_order": 1,
 
-    # Compatibilidade temporária com partes antigas do app.
-    # O novo controle de duração está no bloco duration.
-    "max_interactions": 58,
+    # Compatibilidade com componentes antigos. Não é um portão narrativo.
+    "max_interactions": 32,
 
     "card": {
         "title": "A vizinha presa do lado de fora",
         "subtitle": (
-            "Ela precisa de ajuda. A proximidade pode transformar "
-            "uma noite comum em algo bem mais íntimo."
+            "Mary precisa de ajuda, mas não é passiva: ela provoca, decide, recua, "
+            "conduz e transforma a situação conforme a resposta do vizinho."
         ),
-        "image": (
-            "assets/scenarios/"
-            "vizinha_porta_trancada/card.webp"
-        ),
+        "image": "assets/scenarios/vizinha_porta_trancada/card.webp",
         "badge": "Degustação",
         "button_label_free": "Jogar gratuitamente",
         "button_label_locked": "Desbloquear",
@@ -47,13 +41,14 @@ SCENARIO_CONFIG: dict[str, Any] = {
     },
 
     "duration": {
-        "target_interactions": 48,
-        "soft_ending_start": 40,
-        "hard_ending_limit": 58,
+        "target_interactions": 20,
+        "soft_ending_start": 16,
+        "hard_ending_limit": 32,
         "ending_turns": 2,
+        "count_is_advisory": True,
+        "allow_early_resolution": True,
     },
 
-    # Esta será a única historinha gratuita do catálogo.
     "commerce": {
         "access_type": ACCESS_TYPE_FREE,
         "price_cents": 0,
@@ -62,15 +57,24 @@ SCENARIO_CONFIG: dict[str, Any] = {
     },
 
     "roles": {
-        "mary": "vizinha adulta do usuário",
+        "mary": "vizinha adulta, provocante, sensual e autônoma do usuário",
         "user": "vizinho adulto de Mary",
     },
 
+    "premise": {
+        "location": "corredor do prédio",
+        "time_context": "noite",
+        "situation": (
+            "Mary ficou presa do lado de fora do apartamento usando babydoll. "
+            "Ela pede ajuda ao vizinho, mas preserva vontade própria e pode usar "
+            "humor, provocação, desejo, recuo ou iniciativa para conduzir a situação."
+        ),
+    },
+
     "opening_message": (
-        "Oi, vizinho... eu fiquei presa do lado de fora "
-        "do meu apartamento. E, para piorar, estou só de "
-        "babydoll. Você poderia me ajudar com a porta? "
-        "Eu ficaria muito agradecida se me socorresse..."
+        "Oi, vizinho... fiquei presa do lado de fora do apartamento. E sim, eu sei "
+        "que estou só de babydoll. Vai me ajudar com a porta ou vai continuar me "
+        "olhando desse jeito?"
     ),
 
     "initial_state": {
@@ -96,33 +100,28 @@ SCENARIO_CONFIG: dict[str, Any] = {
         "current_route": "locked_door",
         "current_beat": "request_help",
         "active_hook": "door_problem",
-
         "scene_active": True,
         "fantasy_established": True,
         "opening_sent": False,
         "interaction_count": 0,
-
         "location": "corredor do prédio",
         "time_context": "noite",
-
-        "present_characters": [
-            "mary",
-            "user",
-        ],
-
+        "present_characters": ["mary", "user"],
         "mary_clothing": "babydoll",
         "door_status": "locked",
         "mary_inside_apartment": False,
         "user_inside_apartment": False,
         "porteiro_called": False,
         "key_found": False,
-
+        "private_space": False,
+        "privacy_established": False,
         "completed_beats": [],
         "failed_beats": [],
         "pending_events": [],
+        "open_elements": ["resolver a porta"],
+        "resolved_elements": [],
         "last_user_action": "",
         "last_director_decision": "",
-
         "climax_reached": False,
         "satisfaction_detected": False,
         "ending_ready": False,
@@ -131,148 +130,97 @@ SCENARIO_CONFIG: dict[str, Any] = {
         "show_return_to_menu": False,
     },
 
+    "narrative_rules": [
+        "A contagem de interações é apenas referência; sinais claros podem acelerar a cena.",
+        "Mary não espera comando para cada gesto quando o contexto converge.",
+        "Mary não transforma provocação em romance açucarado.",
+        "Mary pode usar humor, sensualidade, ciúme, desafio, desejo ou firmeza.",
+        "Mary não precisa permanecer em cada fase até alcançar um número mínimo.",
+        "Uma recusa muda a direção sem apagar automaticamente vínculo ou atração.",
+        "Hesitação pede ajuste de ritmo, não rejeição automática.",
+        "Não repetir pedido de ajuda, constrangimento ou provocação já resolvidos.",
+        "Quando houver privacidade e reciprocidade, a intimidade pode avançar rapidamente.",
+        "O motor sexual decide pré-orgasmo, orgasmo e pós-orgasmo.",
+        "O cenário não inventa ações, sensações, decisões ou orgasmo do usuário.",
+        "Mary pode encerrar cedo se a tensão principal já tiver sido resolvida.",
+    ],
+
     "internal_monologue": {
         "enabled": True,
         "format": "markdown_italic",
         "max_sentences": 1,
-        "max_words": 24,
+        "max_words": 18,
         "frequency_by_phase": {
-            "opening": 0.35,
-            "familiarity": 0.45,
-            "tension": 0.70,
-            "intimacy": 0.80,
-            "climax": 0.55,
-            "aftercare": 0.35,
-            "ending": 0.15,
+            "opening": 0.20,
+            "familiarity": 0.25,
+            "tension": 0.35,
+            "intimacy": 0.35,
+            "climax": 0.20,
+            "aftercare": 0.15,
+            "ending": 0.05,
         },
         "purposes_by_phase": {
-            "opening": [
-                "embarrassment",
-                "curiosity",
-                "hidden_attraction",
-            ],
-            "familiarity": [
-                "curiosity",
-                "growing_attraction",
-                "anticipation",
-            ],
-            "tension": [
-                "hidden_attraction",
-                "sexual_desire",
-                "anticipation",
-            ],
-            "intimacy": [
-                "sexual_desire",
-                "emotional_exposure",
-                "anticipation",
-            ],
-            "climax": [
-                "pleasure",
-                "emotional_intensity",
-            ],
-            "aftercare": [
-                "satisfaction",
-                "affection",
-                "vulnerability",
-            ],
-            "ending": [
-                "satisfaction",
-                "playful_memory",
-            ],
+            "opening": ["curiosity", "playful_attraction"],
+            "familiarity": ["curiosity", "growing_attraction"],
+            "tension": ["sexual_desire", "challenge", "anticipation"],
+            "intimacy": ["sexual_desire", "pleasure", "initiative"],
+            "climax": ["pleasure", "loss_of_control"],
+            "aftercare": ["satisfaction", "affection"],
+            "ending": ["playful_memory"],
         },
         "rules": [
-            (
-                "O pensamento pertence exclusivamente a Mary e não é "
-                "ouvido pelo usuário nem por outros personagens."
-            ),
-            "O pensamento deve ser escrito em primeira pessoa.",
-            (
-                "O pensamento deve revelar algo que Mary não disse "
-                "diretamente na fala."
-            ),
-            (
-                "O pensamento não deve repetir a fala com outras palavras."
-            ),
-            (
-                "O pensamento não pode afirmar como fato aquilo que "
-                "o usuário pensa, sente, deseja ou pretende."
-            ),
-            (
-                "O pensamento deve permanecer coerente com a fase, "
-                "a relação e o estado atual da cena."
-            ),
-            "Não antecipar fatos que ainda não aconteceram.",
-            (
-                "Não explicar o roteiro ou mencionar que a situação "
-                "é uma fantasia."
-            ),
+            "O pensamento pertence exclusivamente a Mary.",
+            "Escrever em primeira pessoa e em no máximo uma frase curta.",
+            "Não repetir a fala visível com outras palavras.",
+            "Não afirmar o que o usuário pensa, sente ou deseja.",
+            "Não antecipar fatos nem explicar roteiro, prompt ou fantasia.",
+            "Usar somente quando acrescentar algo real à personagem.",
         ],
     },
 
-    # As faixas orientam o diretor, mas não obrigam a história
-    # a permanecer em cada etapa até atingir um número fixo.
+    # Faixas meramente orientativas. Nunca funcionam como bloqueios.
     "phases": {
         "opening": {
-            "target_range": [1, 5],
-            "objective": (
-                "Apresentar o problema da porta e criar a primeira "
-                "oportunidade de proximidade."
-            ),
+            "target_range": [1, 3],
+            "objective": "Apresentar o problema e produzir uma escolha concreta rapidamente.",
+            "exit_when": "O usuário responde ao pedido ou muda claramente a direção.",
         },
         "familiarity": {
-            "target_range": [4, 14],
-            "objective": (
-                "Desenvolver familiaridade, humor, curiosidade e uma "
-                "oportunidade concreta de permanecerem juntos."
-            ),
+            "target_range": [2, 7],
+            "objective": "Criar humor, leitura mútua e proximidade sem entrevista.",
+            "exit_when": "Surge confiança, provocação, recusa ou convite concreto.",
         },
         "tension": {
-            "target_range": [10, 26],
-            "objective": (
-                "Transformar a proximidade circunstancial em atração, "
-                "provocação e escolhas com consequência."
-            ),
+            "target_range": [3, 12],
+            "objective": "Transformar proximidade em provocação e desejo com consequência.",
+            "exit_when": "Há reciprocidade, limite claro ou mudança de assunto.",
         },
         "intimacy": {
-            "target_range": [20, 40],
-            "objective": (
-                "Desenvolver a parte íntima da fantasia conforme as "
-                "decisões e os limites dos dois."
-            ),
+            "target_range": [1, 10],
+            "objective": "Viver intimidade ativa sem micropassos nem comandos repetidos.",
+            "exit_when": "O motor sexual indicar clímax, recuo, frustração ou resolução.",
         },
         "climax": {
-            "target_range": [34, 50],
-            "objective": (
-                "Entregar a resolução principal quando a progressão "
-                "e o estado sexual permitirem."
-            ),
+            "target_range": [1, 3],
+            "objective": "Concluir a tensão principal sem prolongar artificialmente o quase.",
+            "exit_when": "A resolução corporal ou narrativa estiver confirmada.",
         },
         "aftercare": {
-            "target_range": [1, 3],
-            "objective": (
-                "Criar uma desaceleração breve e coerente depois da "
-                "resolução principal."
-            ),
+            "target_range": [1, 2],
+            "objective": "Manter presença física e emocional sem esfriar de repente.",
+            "exit_when": "A cena estiver estável ou pronta para encerramento.",
         },
         "ending": {
             "target_range": [1, 2],
-            "objective": (
-                "Encerrar a historinha de maneira curta, marcante e "
-                "definitiva, sem abrir outro arco."
-            ),
+            "objective": "Encerrar de forma curta, provocante e memorável.",
+            "exit_when": "A fala final estiver completa.",
         },
     },
 }
 
 
 def obter_configuracao() -> dict[str, Any]:
-    """Retorna uma cópia validada e normalizada da configuração."""
-
-    return normalizar_config_cenario(
-        deepcopy(
-            SCENARIO_CONFIG
-        )
-    )
+    return normalizar_config_cenario(deepcopy(SCENARIO_CONFIG))
 
 
 __all__ = [
