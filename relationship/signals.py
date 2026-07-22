@@ -6,19 +6,11 @@ from copy import deepcopy
 from typing import Any, Iterable
 
 
-# ==========================================================
-# ESTADO PADRÃO DOS SINAIS
-# ==========================================================
-
-
 DEFAULT_RELATIONSHIP_SIGNALS: dict[str, Any] = {
-    # Existência e contexto do turno.
     "interaction_exists": False,
     "image_shared": False,
     "user_returned": False,
     "repeated_interaction": False,
-
-    # Sinais provenientes do usuário.
     "personal_disclosure": False,
     "emotional_disclosure": False,
     "affection_signal": False,
@@ -31,189 +23,81 @@ DEFAULT_RELATIONSHIP_SIGNALS: dict[str, Any] = {
     "boundary_signal": False,
     "rejection_signal": False,
     "hostility_signal": False,
-
-    # Intensidades provenientes do usuário.
+    "hesitation_signal": False,
+    "playful_signal": False,
+    "analytical_signal": False,
+    "user_orgasm_warning": False,
+    "user_orgasm_done": False,
     "affection_strength": 0.0,
     "romantic_strength": 0.0,
     "sexual_strength": 0.0,
     "trust_strength": 0.0,
     "negative_strength": 0.0,
-
-    # Observação da resposta de Mary.
-    # Esses sinais não devem evoluir a relação por conta própria.
     "mary_affection_response": False,
     "mary_romantic_response": False,
     "mary_sexual_response": False,
     "mary_explicit_sexual_response": False,
     "mary_personal_share_response": False,
     "mary_boundary_response": False,
-
-    # Metadados e diagnóstico.
+    "mary_orgasm_warning": False,
+    "mary_orgasm_done": False,
     "matched_user_terms": {},
     "matched_mary_terms": {},
     "signal_strength": 0.0,
 }
 
 
-# ==========================================================
-# NORMALIZAÇÃO
-# ==========================================================
-
-
-def remover_acentos(
-    texto: str,
-) -> str:
-    normalizado = unicodedata.normalize(
-        "NFKD",
-        str(texto or ""),
-    )
-
+def remover_acentos(texto: str) -> str:
+    normalized = unicodedata.normalize("NFKD", str(texto or ""))
     return "".join(
-        caractere
-        for caractere in normalizado
-        if not unicodedata.combining(
-            caractere
-        )
+        character
+        for character in normalized
+        if not unicodedata.combining(character)
     )
 
 
-def normalizar_texto(
-    valor: Any,
-) -> str:
-    texto = remover_acentos(
-        str(
-            valor or ""
-        )
-        .strip()
-        .lower()
-    )
-
-    texto = re.sub(
-        r"\s+",
-        " ",
-        texto,
-    )
-
-    return texto.strip()
+def normalizar_texto(valor: Any) -> str:
+    text = remover_acentos(str(valor or "").strip().lower())
+    return re.sub(r"\s+", " ", text).strip()
 
 
-def normalizar_termo(
-    termo: Any,
-) -> str:
-    return normalizar_texto(
-        termo
-    )
+def normalizar_termo(termo: Any) -> str:
+    return normalizar_texto(termo)
 
 
 def criar_sinais_relacao_padrao() -> dict[str, Any]:
-    return deepcopy(
-        DEFAULT_RELATIONSHIP_SIGNALS
-    )
+    return deepcopy(DEFAULT_RELATIONSHIP_SIGNALS)
 
 
-# ==========================================================
-# CORRESPONDÊNCIA DE TERMOS
-# ==========================================================
-
-
-def criar_padrao_termo(
-    termo: str,
-) -> re.Pattern[str] | None:
-    termo_normalizado = normalizar_termo(
-        termo
-    )
-
-    if not termo_normalizado:
+def criar_padrao_termo(termo: str) -> re.Pattern[str] | None:
+    normalized = normalizar_termo(termo)
+    if not normalized:
         return None
-
-    palavras = termo_normalizado.split()
-
-    partes = [
-        re.escape(
-            palavra
-        )
-        for palavra in palavras
-    ]
-
-    corpo = r"\s+".join(
-        partes
-    )
-
-    return re.compile(
-        rf"(?<!\w){corpo}(?!\w)",
-        flags=re.IGNORECASE,
-    )
+    body = r"\s+".join(re.escape(word) for word in normalized.split())
+    return re.compile(rf"(?<!\w){body}(?!\w)", flags=re.IGNORECASE)
 
 
-def termo_presente(
-    texto_normalizado: str,
-    termo: str,
-) -> bool:
-    padrao = criar_padrao_termo(
-        termo
-    )
-
-    if padrao is None:
-        return False
-
-    return bool(
-        padrao.search(
-            texto_normalizado
-        )
-    )
+def termo_presente(texto_normalizado: str, termo: str) -> bool:
+    pattern = criar_padrao_termo(termo)
+    return bool(pattern and pattern.search(normalizar_texto(texto_normalizado)))
 
 
-def encontrar_termos(
-    texto: str,
-    termos: Iterable[str],
-) -> list[str]:
-    texto_normalizado = normalizar_texto(
-        texto
-    )
-
-    encontrados: list[str] = []
-
-    for termo in termos:
-        termo_original = str(
-            termo or ""
-        ).strip()
-
-        if not termo_original:
-            continue
-
-        if termo_presente(
-            texto_normalizado,
-            termo_original,
-        ):
-            encontrados.append(
-                termo_original
-            )
-
-    return encontrados
+def encontrar_termos(texto: str, termos: Iterable[str]) -> list[str]:
+    normalized = normalizar_texto(texto)
+    matches: list[str] = []
+    for term in termos:
+        original = str(term or "").strip()
+        if original and termo_presente(normalized, original):
+            matches.append(original)
+    return matches
 
 
-def contem_algum(
-    texto: str,
-    termos: Iterable[str],
-) -> bool:
-    return bool(
-        encontrar_termos(
-            texto,
-            termos,
-        )
-    )
+def contem_algum(texto: str, termos: Iterable[str]) -> bool:
+    return bool(encontrar_termos(texto, termos))
 
 
-def contar_ocorrencias(
-    texto: str,
-    termos: Iterable[str],
-) -> int:
-    return len(
-        encontrar_termos(
-            texto,
-            termos,
-        )
-    )
+def contar_ocorrencias(texto: str, termos: Iterable[str]) -> int:
+    return len(encontrar_termos(texto, termos))
 
 
 def calcular_intensidade_termos(
@@ -224,563 +108,241 @@ def calcular_intensidade_termos(
 ) -> float:
     if not encontrados:
         return 0.0
-
-    divisor = max(
-        1.0,
-        float(
-            divisor
-        ),
-    )
-
-    valor = len(
-        encontrados
-    ) / divisor
-
     return max(
         minimum_when_present,
-        min(
-            1.0,
-            valor,
-        ),
+        min(1.0, len(encontrados) / max(1.0, float(divisor))),
     )
 
 
-# ==========================================================
-# VOCABULÁRIOS DO USUÁRIO
-# ==========================================================
-
-
-PERSONAL_DISCLOSURE_TERMS: tuple[str, ...] = (
-    "eu trabalho",
-    "eu estudo",
-    "minha familia",
-    "meu pai",
-    "minha mae",
-    "meu filho",
-    "minha filha",
-    "meu passado",
-    "quando eu era",
-    "aconteceu comigo",
-    "eu moro",
-    "minha cidade",
-    "meu nome",
-    "eu tenho",
-    "eu gosto de",
-    "eu nao gosto de",
-    "eu costumo",
-    "eu sempre",
-    "eu nunca",
+PERSONAL_DISCLOSURE_TERMS = (
+    "meu nome", "eu trabalho", "eu estudo", "eu moro", "minha familia",
+    "meu pai", "minha mae", "meu filho", "minha filha", "meu passado",
+    "aconteceu comigo", "quando eu era", "eu gosto de", "eu nao gosto de",
     "na minha vida",
-    "quando eu era criança",
 )
 
-
-EMOTIONAL_DISCLOSURE_TERMS: tuple[str, ...] = (
-    "estou triste",
-    "to triste",
-    "estou feliz",
-    "to feliz",
-    "estou cansado",
-    "to cansado",
-    "estou preocupado",
-    "to preocupado",
-    "estou com medo",
-    "tenho medo",
-    "me sinto",
-    "sinto falta",
-    "estou nervoso",
-    "to nervoso",
-    "estou ansioso",
-    "to ansioso",
-    "estou sozinho",
-    "to sozinho",
-    "me machucou",
-    "fiquei magoado",
-    "fiquei chateado",
-    "estou apaixonado",
-    "to apaixonado",
-    "estou confuso",
-    "to confuso",
+EMOTIONAL_DISCLOSURE_TERMS = (
+    "estou triste", "to triste", "estou feliz", "to feliz", "estou cansado",
+    "to cansado", "estou preocupado", "estou com medo", "tenho medo",
+    "me sinto", "sinto falta", "estou nervoso", "estou ansioso",
+    "estou sozinho", "fiquei magoado", "fiquei chateado", "estou confuso",
     "estou com saudade",
 )
 
-
-AFFECTION_TERMS: tuple[str, ...] = (
-    "gosto de voce",
-    "gosto muito de voce",
-    "gosto da mary",
-    "tenho carinho por voce",
-    "tenho carinho pela mary",
-    "querida",
-    "meu amor",
-    "amor da minha vida",
-    "voce e linda",
-    "voce é linda",
-    "voce e fofa",
-    "voce é fofa",
-    "senti sua falta",
-    "estou com saudade",
-    "to com saudade",
-    "adoro falar com voce",
-    "adoro conversar com voce",
-    "adoro voce",
-    "amo voce",
-    "eu te amo",
-    "te adoro",
+AFFECTION_TERMS = (
+    "gosto de voce", "adoro voce", "amo voce", "eu te amo", "te adoro",
+    "meu amor", "querida", "voce e linda", "voce e fofa",
+    "senti sua falta", "estou com saudade", "tenho carinho por voce",
 )
 
-
-ROMANTIC_TERMS: tuple[str, ...] = (
-    "estou apaixonado",
-    "to apaixonado",
-    "apaixonei por voce",
-    "apaixonei pela mary",
-    "quero namorar voce",
-    "quero namorar com voce",
-    "minha namorada",
-    "nosso relacionamento",
-    "quero ficar com voce",
-    "quero beijar voce",
-    "quero te beijar",
-    "sair com voce",
-    "quero sair com voce",
-    "ser um casal",
-    "nos dois juntos",
-    "tenho ciumes",
-    "fiquei com ciumes",
-    "voce e minha",
-    "voce é minha",
+ROMANTIC_TERMS = (
+    "estou apaixonado", "to apaixonado", "apaixonei por voce",
+    "quero namorar", "quero ficar com voce", "quero te beijar",
+    "quero beijar voce", "quero sair com voce", "ser um casal",
+    "tenho ciumes", "fiquei com ciumes",
 )
 
-
-SEXUAL_TERMS: tuple[str, ...] = (
-    "estou com tesao",
-    "to com tesao",
-    "voce me da tesao",
-    "voce me deixa excitado",
-    "estou excitado",
-    "to excitado",
-    "eu te desejo",
-    "desejo voce",
-    "voce e sensual",
-    "voce é sensual",
-    "voce e sexy",
-    "voce é sexy",
-    "minha fantasia",
-    "fantasia com voce",
-    "voce e provocante",
-    "voce é provocante",
-    "quero provocar voce",
-    "estou com vontade de voce",
-    "to com vontade de voce",
-    "quero seu corpo",
-    "quero tocar voce",
-    "quero sentir voce",
-    "sua bunda",
-    "seus seios",
-    "seus peitos",
-    "sua buceta",
-    "sua xoxota",
+SEXUAL_TERMS = (
+    "tesao", "excitado", "excitada", "sensual", "sexy", "provocante",
+    "desejo voce", "eu te desejo", "quero seu corpo", "quero tocar voce",
+    "quero sentir voce", "molhada", "duro", "bunda", "peito", "peitos",
+    "buceta", "xoxota", "pau", "cu", "gemer", "rebolar",
 )
 
-
-EXPLICIT_SEXUAL_TERMS: tuple[str, ...] = (
-    "quero transar",
-    "transar com voce",
-    "quero fazer sexo",
-    "sexo com voce",
-    "quero gozar",
-    "fazer voce gozar",
-    "te fazer gozar",
-    "quero seu orgasmo",
-    "penetrar voce",
-    "penetracao",
-    "sexo oral",
-    "te chupar",
-    "chupar voce",
-    "lamber voce",
-    "masturbar voce",
-    "masturbacao",
-    "quero te foder",
-    "foder voce",
-    "meter em voce",
-    "quero meter",
-    "quero sua buceta",
-    "quero sua xoxota",
-    "quero seu cu",
+EXPLICIT_SEXUAL_TERMS = (
+    "quero transar", "fazer sexo", "transar com voce", "quero te foder",
+    "foder voce", "quero meter", "meter em voce", "penetrar voce",
+    "penetracao", "sexo oral", "te chupar", "chupar voce", "lamber voce",
+    "masturbar voce", "quero gozar", "fazer voce gozar", "te fazer gozar",
+    "quero sua buceta", "quero sua xoxota", "quero seu cu",
 )
 
-
-TRUST_TERMS: tuple[str, ...] = (
-    "confio em voce",
-    "posso confiar em voce",
-    "nunca contei isso",
-    "nao conto isso pra ninguem",
-    "vou te contar uma coisa",
-    "quero ser sincero",
-    "vou ser sincero",
-    "posso te contar",
-    "isso e segredo",
-    "isso é segredo",
-    "fica entre nos",
-    "fica entre nós",
-    "so contei pra voce",
-    "só contei pra você",
+USER_ORGASM_WARNING_TERMS = (
+    "vou gozar", "eu vou gozar", "to quase", "tô quase", "quase gozando",
 )
 
-
-CONTINUITY_TERMS: tuple[str, ...] = (
-    "como te falei",
-    "como eu disse",
-    "lembra do que",
-    "voce lembra",
-    "ontem a gente",
-    "da outra vez",
-    "na nossa conversa",
-    "quando conversamos",
-    "continuando aquilo",
-    "voltando ao assunto",
-    "sobre aquilo",
-    "como combinamos",
-    "como prometi",
-    "eu voltei",
-    "voltei pra falar",
+USER_ORGASM_DONE_TERMS = (
+    "to gozando", "tô gozando", "estou gozando", "gozei", "eu gozei",
+    "cheguei la", "cheguei lá", "meu orgasmo veio",
 )
 
-
-RESPECT_TERMS: tuple[str, ...] = (
-    "eu respeito voce",
-    "respeito seu limite",
-    "vamos devagar",
-    "no seu tempo",
-    "nao precisa responder",
-    "nao precisa fazer isso",
-    "desculpa por isso",
-    "me desculpa por isso",
-    "entendi seu limite",
-    "tudo bem parar",
-    "sem problema parar",
-    "nao vou insistir",
-    "não vou insistir",
+TRUST_TERMS = (
+    "confio em voce", "posso confiar em voce", "nunca contei isso",
+    "vou te contar uma coisa", "quero ser sincero", "posso te contar",
+    "isso e segredo", "fica entre nos", "so contei pra voce",
 )
 
-
-BOUNDARY_TERMS: tuple[str, ...] = (
-    "nao quero isso",
-    "não quero isso",
-    "nao quero continuar",
-    "não quero continuar",
-    "pare com isso",
-    "para com isso",
-    "pode parar",
-    "quero parar",
-    "vamos parar",
-    "muda de assunto",
-    "mude de assunto",
-    "nao gosto disso",
-    "não gosto disso",
-    "nao estou confortavel",
-    "não estou confortável",
-    "isso me deixa desconfortavel",
-    "isso me deixa desconfortável",
-    "nao fale disso",
-    "não fale disso",
-    "chega desse assunto",
+CONTINUITY_TERMS = (
+    "como te falei", "como eu disse", "lembra do que", "voce lembra",
+    "da outra vez", "na nossa conversa", "continuando aquilo",
+    "voltando ao assunto", "como combinamos", "eu voltei",
 )
 
+RESPECT_TERMS = (
+    "eu respeito voce", "respeito seu limite", "vamos devagar",
+    "no seu tempo", "nao precisa fazer isso", "desculpa por isso",
+    "entendi seu limite", "tudo bem parar", "nao vou insistir",
+)
 
-REJECTION_TERMS: tuple[str, ...] = (
-    "nao gosto de voce",
-    "não gosto de você",
-    "nao quero falar com voce",
-    "não quero falar com você",
+BOUNDARY_TERMS = (
+    "para", "pare", "pode parar", "quero parar", "vamos parar",
+    "nao quero isso", "nao quero continuar", "nao gosto disso",
+    "nao estou confortavel", "isso me deixa desconfortavel",
+    "muda de assunto", "mude de assunto", "nao fale disso", "chega",
+)
+
+REJECTION_TERMS = (
+    "nao gosto de voce", "nao quero falar com voce", "me deixa em paz",
+    "nao quero mais voce", "nao quero mais falar", "acabou entre nos",
     "vai embora",
-    "me deixa em paz",
-    "nao quero mais voce",
-    "não quero mais você",
-    "nao quero mais falar",
-    "não quero mais falar",
-    "acabou entre nos",
-    "acabou entre nós",
+)
+
+HOSTILITY_TERMS = (
+    "voce e idiota", "sua idiota", "voce e burra", "sua burra",
+    "voce e inutil", "sua inutil", "voce e ridicula", "sua ridicula",
+    "odeio voce", "cala a boca",
+)
+
+HESITATION_TERMS = (
+    "calma", "devagar", "espera", "nao sei", "talvez", "estou em duvida",
+    "preciso pensar", "um pouco mais devagar", "ainda nao",
+)
+
+PLAYFUL_TERMS = (
+    "haha", "kkk", "rsrs", "brincadeira", "to brincando", "duvido",
+    "quero ver", "e mesmo", "provoca", "atrevida", "safada",
+)
+
+ANALYTICAL_TERMS = (
+    "como funciona", "por que", "qual a logica", "explique", "me explica",
+    "o que isso significa", "vamos analisar", "tecnicamente",
+)
+
+MARY_PERSONAL_SHARE_TERMS = (
+    "eu gosto", "eu nao gosto", "eu penso", "eu sinto", "eu fiquei",
+    "eu quero", "eu tenho vontade", "eu decidi",
+)
+
+MARY_BOUNDARY_TERMS = (
+    "nao quero continuar", "vamos parar", "quero mudar de assunto",
+    "isso passou do meu limite", "nao fale assim comigo", "nao vou aceitar",
+)
+
+MARY_ORGASM_WARNING_TERMS = USER_ORGASM_WARNING_TERMS
+MARY_ORGASM_DONE_TERMS = USER_ORGASM_DONE_TERMS + (
+    "me fez gozar", "eu gozo", "gozando agora",
 )
 
 
-HOSTILITY_TERMS: tuple[str, ...] = (
-    "voce e idiota",
-    "você é idiota",
-    "sua idiota",
-    "voce e burra",
-    "você é burra",
-    "sua burra",
-    "voce e inutil",
-    "você é inútil",
-    "sua inutil",
-    "voce e ridicula",
-    "você é ridícula",
-    "sua ridicula",
-    "odeio voce",
-    "odeio você",
-    "cala a boca",
-    "vai se foder",
-    "vai tomar no cu",
-)
-
-
-# ==========================================================
-# VOCABULÁRIOS DE OBSERVAÇÃO DE MARY
-# ==========================================================
-
-
-MARY_PERSONAL_SHARE_TERMS: tuple[str, ...] = (
-    "eu gosto",
-    "eu nao gosto",
-    "eu pensei",
-    "eu estava pensando",
-    "eu tava pensando",
-    "eu queria te contar",
-    "eu sinto",
-    "eu fiquei",
-    "eu tenho vontade",
-)
-
-
-MARY_BOUNDARY_TERMS: tuple[str, ...] = (
-    "nao quero continuar",
-    "não quero continuar",
-    "vamos parar",
-    "quero mudar de assunto",
-    "isso passou do meu limite",
-    "nao fale assim comigo",
-    "não fale assim comigo",
-    "nao vou aceitar",
-    "não vou aceitar",
-)
-
-
-# ==========================================================
-# DETECÇÃO E FORÇA
-# ==========================================================
-
-
-def calcular_forca_sinais(
-    signals: dict[str, Any],
-) -> float:
-    """
-    Calcula somente a força dos sinais provenientes do usuário.
-
-    As respostas de Mary são observadas separadamente e não entram nesta
-    pontuação para impedir progressão autorreferente.
-    """
-
-    score = 0.0
-
-    pesos = {
-        "personal_disclosure": 0.08,
-        "emotional_disclosure": 0.12,
-        "affection_signal": 0.14,
-        "romantic_signal": 0.14,
-        "sexual_signal": 0.10,
-        "explicit_sexual_signal": 0.12,
-        "trust_signal": 0.14,
-        "continuity_signal": 0.06,
-        "respect_signal": 0.08,
-    }
-
-    for campo, peso in pesos.items():
-        if bool(
-            signals.get(campo)
-        ):
-            score += peso
-
-    score += (
-        float(
-            signals.get(
-                "affection_strength",
-                0.0,
-            )
-        )
-        * 0.05
-    )
-
-    score += (
-        float(
-            signals.get(
-                "romantic_strength",
-                0.0,
-            )
-        )
-        * 0.05
-    )
-
-    score += (
-        float(
-            signals.get(
-                "sexual_strength",
-                0.0,
-            )
-        )
-        * 0.04
-    )
-
-    score += (
-        float(
-            signals.get(
-                "trust_strength",
-                0.0,
-            )
-        )
-        * 0.05
-    )
-
-    if signals.get(
-        "boundary_signal"
-    ):
-        score -= 0.18
-
-    if signals.get(
-        "rejection_signal"
-    ):
-        score -= 0.42
-
-    if signals.get(
-        "hostility_signal"
-    ):
-        score -= 0.52
-
-    return max(
-        -1.0,
-        min(
-            1.0,
-            score,
-        ),
-    )
+def _detectar_grupos(
+    text: str,
+    groups: dict[str, tuple[str, ...]],
+) -> tuple[dict[str, bool], dict[str, list[str]]]:
+    flags: dict[str, bool] = {}
+    matched: dict[str, list[str]] = {}
+    for name, terms in groups.items():
+        found = encontrar_termos(text, terms)
+        flags[name] = bool(found)
+        if found:
+            matched[name] = found
+    return flags, matched
 
 
 def detectar_sinais_usuario(
     texto_usuario: str,
-) -> tuple[
-    dict[str, bool],
-    dict[str, list[str]],
-]:
-    grupos: dict[
-        str,
-        tuple[str, ...]
-    ] = {
-        "personal_disclosure": (
-            PERSONAL_DISCLOSURE_TERMS
-        ),
-        "emotional_disclosure": (
-            EMOTIONAL_DISCLOSURE_TERMS
-        ),
-        "affection_signal": (
-            AFFECTION_TERMS
-        ),
-        "romantic_signal": (
-            ROMANTIC_TERMS
-        ),
-        "sexual_signal": (
-            SEXUAL_TERMS
-        ),
-        "explicit_sexual_signal": (
-            EXPLICIT_SEXUAL_TERMS
-        ),
-        "trust_signal": (
-            TRUST_TERMS
-        ),
-        "continuity_signal": (
-            CONTINUITY_TERMS
-        ),
-        "respect_signal": (
-            RESPECT_TERMS
-        ),
-        "boundary_signal": (
-            BOUNDARY_TERMS
-        ),
-        "rejection_signal": (
-            REJECTION_TERMS
-        ),
-        "hostility_signal": (
-            HOSTILITY_TERMS
-        ),
+) -> tuple[dict[str, bool], dict[str, list[str]]]:
+    groups = {
+        "personal_disclosure": PERSONAL_DISCLOSURE_TERMS,
+        "emotional_disclosure": EMOTIONAL_DISCLOSURE_TERMS,
+        "affection_signal": AFFECTION_TERMS,
+        "romantic_signal": ROMANTIC_TERMS,
+        "sexual_signal": SEXUAL_TERMS,
+        "explicit_sexual_signal": EXPLICIT_SEXUAL_TERMS,
+        "trust_signal": TRUST_TERMS,
+        "continuity_signal": CONTINUITY_TERMS,
+        "respect_signal": RESPECT_TERMS,
+        "boundary_signal": BOUNDARY_TERMS,
+        "rejection_signal": REJECTION_TERMS,
+        "hostility_signal": HOSTILITY_TERMS,
+        "hesitation_signal": HESITATION_TERMS,
+        "playful_signal": PLAYFUL_TERMS,
+        "analytical_signal": ANALYTICAL_TERMS,
+        "user_orgasm_warning": USER_ORGASM_WARNING_TERMS,
+        "user_orgasm_done": USER_ORGASM_DONE_TERMS,
     }
+    flags, matched = _detectar_grupos(texto_usuario, groups)
 
-    flags: dict[str, bool] = {}
-    encontrados: dict[
-        str,
-        list[str]
-    ] = {}
+    # Prioridade semântica: hesitação não é recusa, limite não é rejeição pessoal.
+    if flags.get("hostility_signal"):
+        flags["rejection_signal"] = True
+    if flags.get("rejection_signal"):
+        flags["boundary_signal"] = True
+    if flags.get("boundary_signal"):
+        flags["hesitation_signal"] = False
 
-    for nome, termos in grupos.items():
-        matches = encontrar_termos(
-            texto_usuario,
-            termos,
-        )
+    # "Vou gozar" é pré-orgasmo, nunca conclusão.
+    if flags.get("user_orgasm_done"):
+        flags["user_orgasm_warning"] = False
+    if flags.get("user_orgasm_warning") or flags.get("user_orgasm_done"):
+        flags["sexual_signal"] = True
+        flags["explicit_sexual_signal"] = True
 
-        flags[nome] = bool(
-            matches
-        )
-
-        if matches:
-            encontrados[nome] = matches
-
-    return flags, encontrados
+    return flags, matched
 
 
 def detectar_sinais_mary(
     texto_mary: str,
-) -> tuple[
-    dict[str, bool],
-    dict[str, list[str]],
-]:
-    grupos: dict[
-        str,
-        tuple[str, ...]
-    ] = {
-        "mary_affection_response": (
-            AFFECTION_TERMS
-        ),
-        "mary_romantic_response": (
-            ROMANTIC_TERMS
-        ),
-        "mary_sexual_response": (
-            SEXUAL_TERMS
-        ),
-        "mary_explicit_sexual_response": (
-            EXPLICIT_SEXUAL_TERMS
-        ),
-        "mary_personal_share_response": (
-            MARY_PERSONAL_SHARE_TERMS
-        ),
-        "mary_boundary_response": (
-            MARY_BOUNDARY_TERMS
-        ),
+) -> tuple[dict[str, bool], dict[str, list[str]]]:
+    groups = {
+        "mary_affection_response": AFFECTION_TERMS,
+        "mary_romantic_response": ROMANTIC_TERMS,
+        "mary_sexual_response": SEXUAL_TERMS,
+        "mary_explicit_sexual_response": EXPLICIT_SEXUAL_TERMS,
+        "mary_personal_share_response": MARY_PERSONAL_SHARE_TERMS,
+        "mary_boundary_response": MARY_BOUNDARY_TERMS,
+        "mary_orgasm_warning": MARY_ORGASM_WARNING_TERMS,
+        "mary_orgasm_done": MARY_ORGASM_DONE_TERMS,
     }
-
-    flags: dict[str, bool] = {}
-    encontrados: dict[
-        str,
-        list[str]
-    ] = {}
-
-    for nome, termos in grupos.items():
-        matches = encontrar_termos(
-            texto_mary,
-            termos,
-        )
-
-        flags[nome] = bool(
-            matches
-        )
-
-        if matches:
-            encontrados[nome] = matches
-
-    return flags, encontrados
+    flags, matched = _detectar_grupos(texto_mary, groups)
+    if flags.get("mary_orgasm_done"):
+        flags["mary_orgasm_warning"] = False
+    if flags.get("mary_orgasm_warning") or flags.get("mary_orgasm_done"):
+        flags["mary_sexual_response"] = True
+        flags["mary_explicit_sexual_response"] = True
+    return flags, matched
 
 
-# ==========================================================
-# DETECTOR PRINCIPAL
-# ==========================================================
+def calcular_forca_sinais(signals: dict[str, Any]) -> float:
+    score = 0.0
+    weights = {
+        "personal_disclosure": 0.08,
+        "emotional_disclosure": 0.12,
+        "affection_signal": 0.14,
+        "romantic_signal": 0.16,
+        "sexual_signal": 0.12,
+        "explicit_sexual_signal": 0.18,
+        "trust_signal": 0.14,
+        "continuity_signal": 0.06,
+        "respect_signal": 0.08,
+        "playful_signal": 0.04,
+    }
+    for field, weight in weights.items():
+        if signals.get(field):
+            score += weight
+    score += float(signals.get("affection_strength", 0.0) or 0.0) * 0.05
+    score += float(signals.get("romantic_strength", 0.0) or 0.0) * 0.06
+    score += float(signals.get("sexual_strength", 0.0) or 0.0) * 0.08
+    score += float(signals.get("trust_strength", 0.0) or 0.0) * 0.05
+
+    if signals.get("hesitation_signal"):
+        score -= 0.03
+    if signals.get("boundary_signal"):
+        score -= 0.12
+    if signals.get("rejection_signal"):
+        score -= 0.30
+    if signals.get("hostility_signal"):
+        score -= 0.52
+    return max(-1.0, min(1.0, score))
 
 
 def detectar_sinais_relacao(
@@ -791,292 +353,89 @@ def detectar_sinais_relacao(
     has_image: bool = False,
     user_returned: bool | None = None,
 ) -> dict[str, Any]:
-    texto_usuario = normalizar_texto(
-        user_text
-    )
-
-    texto_mary = normalizar_texto(
-        mary_response
-    )
-
     signals = criar_sinais_relacao_padrao()
+    user_text = normalizar_texto(user_text)
+    mary_response = normalizar_texto(mary_response)
 
-    signals[
-        "interaction_exists"
-    ] = bool(
-        texto_usuario
-    )
+    signals["interaction_exists"] = bool(user_text)
+    signals["image_shared"] = bool(has_image)
+    signals["repeated_interaction"] = max(0, int(interaction_count or 0)) > 0
+    signals["user_returned"] = bool(user_returned) if user_returned is not None else False
 
-    signals[
-        "image_shared"
-    ] = bool(
-        has_image
-    )
+    user_flags, user_matches = detectar_sinais_usuario(user_text)
+    mary_flags, mary_matches = detectar_sinais_mary(mary_response)
+    signals.update(user_flags)
+    signals.update(mary_flags)
+    signals["matched_user_terms"] = user_matches
+    signals["matched_mary_terms"] = mary_matches
 
-    interaction_count = max(
-        0,
-        int(
-            interaction_count or 0
-        ),
-    )
-
-    signals[
-        "repeated_interaction"
-    ] = interaction_count > 0
-
-    # user_returned deve representar retorno real entre sessões quando o
-    # aplicativo conseguir fornecer essa informação.
-    signals[
-        "user_returned"
-    ] = (
-        bool(
-            user_returned
-        )
-        if user_returned is not None
-        else False
-    )
-
-    (
-        user_flags,
-        matched_user_terms,
-    ) = detectar_sinais_usuario(
-        texto_usuario
-    )
-
-    signals.update(
-        user_flags
-    )
-
-    (
-        mary_flags,
-        matched_mary_terms,
-    ) = detectar_sinais_mary(
-        texto_mary
-    )
-
-    signals.update(
-        mary_flags
-    )
-
-    signals[
-        "matched_user_terms"
-    ] = matched_user_terms
-
-    signals[
-        "matched_mary_terms"
-    ] = matched_mary_terms
-
-    affection_matches = (
-        matched_user_terms.get(
-            "affection_signal",
-            [],
-        )
-    )
-
-    romantic_matches = (
-        matched_user_terms.get(
-            "romantic_signal",
-            [],
-        )
-    )
-
+    affection_matches = user_matches.get("affection_signal", [])
+    romantic_matches = user_matches.get("romantic_signal", [])
     sexual_matches = [
-        *matched_user_terms.get(
-            "sexual_signal",
-            [],
-        ),
-        *matched_user_terms.get(
-            "explicit_sexual_signal",
-            [],
-        ),
+        *user_matches.get("sexual_signal", []),
+        *user_matches.get("explicit_sexual_signal", []),
+        *user_matches.get("user_orgasm_warning", []),
+        *user_matches.get("user_orgasm_done", []),
     ]
-
-    trust_matches = (
-        matched_user_terms.get(
-            "trust_signal",
-            [],
-        )
-    )
-
+    trust_matches = user_matches.get("trust_signal", [])
     negative_matches = [
-        *matched_user_terms.get(
-            "boundary_signal",
-            [],
-        ),
-        *matched_user_terms.get(
-            "rejection_signal",
-            [],
-        ),
-        *matched_user_terms.get(
-            "hostility_signal",
-            [],
-        ),
+        *user_matches.get("boundary_signal", []),
+        *user_matches.get("rejection_signal", []),
+        *user_matches.get("hostility_signal", []),
     ]
 
-    signals[
-        "affection_strength"
-    ] = calcular_intensidade_termos(
-        affection_matches,
-        divisor=3.0,
-    )
-
-    signals[
-        "romantic_strength"
-    ] = calcular_intensidade_termos(
-        romantic_matches,
-        divisor=3.0,
-    )
-
-    signals[
-        "sexual_strength"
-    ] = calcular_intensidade_termos(
+    signals["affection_strength"] = calcular_intensidade_termos(affection_matches)
+    signals["romantic_strength"] = calcular_intensidade_termos(romantic_matches)
+    signals["sexual_strength"] = calcular_intensidade_termos(
         sexual_matches,
-        divisor=4.0,
-    )
-
-    signals[
-        "trust_strength"
-    ] = calcular_intensidade_termos(
-        trust_matches,
         divisor=3.0,
+        minimum_when_present=0.40,
     )
-
-    signals[
-        "negative_strength"
-    ] = calcular_intensidade_termos(
+    signals["trust_strength"] = calcular_intensidade_termos(trust_matches)
+    signals["negative_strength"] = calcular_intensidade_termos(
         negative_matches,
         divisor=2.0,
     )
 
-    signals[
-        "signal_strength"
-    ] = calcular_forca_sinais(
-        signals
-    )
+    if signals.get("explicit_sexual_signal"):
+        signals["sexual_strength"] = max(0.70, signals["sexual_strength"])
+    if signals.get("user_orgasm_warning"):
+        signals["sexual_strength"] = max(0.90, signals["sexual_strength"])
+    if signals.get("user_orgasm_done"):
+        signals["sexual_strength"] = 1.0
 
+    signals["signal_strength"] = calcular_forca_sinais(signals)
     return signals
 
 
-# ==========================================================
-# RESUMO PARA DIAGNÓSTICO
-# ==========================================================
-
-
-def montar_resumo_sinais(
-    signals: dict[str, Any] | None,
-) -> dict[str, Any]:
-    if not isinstance(
-        signals,
-        dict,
-    ):
-        signals = {}
-
-    sinais_usuario_ativos = [
-        campo
-        for campo in (
-            "personal_disclosure",
-            "emotional_disclosure",
-            "affection_signal",
-            "romantic_signal",
-            "sexual_signal",
-            "explicit_sexual_signal",
-            "trust_signal",
-            "continuity_signal",
-            "respect_signal",
-            "boundary_signal",
-            "rejection_signal",
-            "hostility_signal",
-        )
-        if bool(
-            signals.get(
-                campo
-            )
-        )
-    ]
-
-    sinais_mary_ativos = [
-        campo
-        for campo in (
-            "mary_affection_response",
-            "mary_romantic_response",
-            "mary_sexual_response",
-            "mary_explicit_sexual_response",
-            "mary_personal_share_response",
-            "mary_boundary_response",
-        )
-        if bool(
-            signals.get(
-                campo
-            )
-        )
-    ]
-
+def montar_resumo_sinais(signals: dict[str, Any] | None) -> dict[str, Any]:
+    data = signals if isinstance(signals, dict) else {}
+    user_fields = (
+        "personal_disclosure", "emotional_disclosure", "affection_signal",
+        "romantic_signal", "sexual_signal", "explicit_sexual_signal",
+        "trust_signal", "continuity_signal", "respect_signal",
+        "boundary_signal", "rejection_signal", "hostility_signal",
+        "hesitation_signal", "playful_signal", "analytical_signal",
+        "user_orgasm_warning", "user_orgasm_done",
+    )
+    mary_fields = (
+        "mary_affection_response", "mary_romantic_response",
+        "mary_sexual_response", "mary_explicit_sexual_response",
+        "mary_personal_share_response", "mary_boundary_response",
+        "mary_orgasm_warning", "mary_orgasm_done",
+    )
     return {
-        "interaction_exists": bool(
-            signals.get(
-                "interaction_exists"
-            )
-        ),
-        "user_signals": (
-            sinais_usuario_ativos
-        ),
-        "mary_response_signals": (
-            sinais_mary_ativos
-        ),
-        "affection_strength": float(
-            signals.get(
-                "affection_strength",
-                0.0,
-            )
-            or 0.0
-        ),
-        "romantic_strength": float(
-            signals.get(
-                "romantic_strength",
-                0.0,
-            )
-            or 0.0
-        ),
-        "sexual_strength": float(
-            signals.get(
-                "sexual_strength",
-                0.0,
-            )
-            or 0.0
-        ),
-        "trust_strength": float(
-            signals.get(
-                "trust_strength",
-                0.0,
-            )
-            or 0.0
-        ),
-        "negative_strength": float(
-            signals.get(
-                "negative_strength",
-                0.0,
-            )
-            or 0.0
-        ),
-        "signal_strength": float(
-            signals.get(
-                "signal_strength",
-                0.0,
-            )
-            or 0.0
-        ),
-        "matched_user_terms": deepcopy(
-            signals.get(
-                "matched_user_terms",
-                {}
-            )
-        ),
-        "matched_mary_terms": deepcopy(
-            signals.get(
-                "matched_mary_terms",
-                {}
-            )
-        ),
+        "interaction_exists": bool(data.get("interaction_exists")),
+        "user_signals": [field for field in user_fields if data.get(field)],
+        "mary_response_signals": [field for field in mary_fields if data.get(field)],
+        "affection_strength": float(data.get("affection_strength", 0.0) or 0.0),
+        "romantic_strength": float(data.get("romantic_strength", 0.0) or 0.0),
+        "sexual_strength": float(data.get("sexual_strength", 0.0) or 0.0),
+        "trust_strength": float(data.get("trust_strength", 0.0) or 0.0),
+        "negative_strength": float(data.get("negative_strength", 0.0) or 0.0),
+        "signal_strength": float(data.get("signal_strength", 0.0) or 0.0),
+        "matched_user_terms": deepcopy(data.get("matched_user_terms", {})),
+        "matched_mary_terms": deepcopy(data.get("matched_mary_terms", {})),
     }
 
 
