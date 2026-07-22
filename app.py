@@ -2368,6 +2368,40 @@ def aplicar_politica_encerramento_por_interacoes(
     ):
         return estado
 
+    ending_requested_by_user = bool(
+        estado.get(
+            "ending_requested_by_user",
+            False,
+        )
+    )
+
+    ending_requested_at = int(
+        estado.get(
+            "ending_requested_at_interaction",
+            0,
+        )
+        or 0
+    )
+
+    if (
+        ending_requested_by_user
+        and interaction_number > ending_requested_at
+    ):
+        estado.update(
+            {
+                "current_phase": "ending",
+                "ending_ready": True,
+                "ending_forced": True,
+                "ending_trigger": "user_button",
+                "ending_trigger_interaction": (
+                    interaction_number
+                ),
+                "ending_countdown_visible": False,
+                "ending_countdown_remaining": 0,
+            }
+        )
+        return estado
+
     if interaction_number >= ENDING_INTERACTION_LIMIT:
         estado.update(
             {
@@ -2418,8 +2452,24 @@ def montar_instrucao_encerramento_forcado(
     ):
         return ""
 
-    return """
+    ending_trigger = str(
+        scene_state.get(
+            "ending_trigger",
+            "",
+        )
+        or ""
+    ).strip()
+
+    origem = (
+        "O usuário solicitou explicitamente o encerramento."
+        if ending_trigger == "user_button"
+        else "A história atingiu o limite máximo de interações."
+    )
+
+    return f"""
 [ENCERRAMENTO OBRIGATÓRIO DESTA HISTÓRIA]
+
+{origem}
 
 Esta é a resposta final da história.
 
@@ -2433,6 +2483,66 @@ Mary deve:
 
 Depois desta resposta, a história será marcada como concluída.
 """.strip()
+
+
+def solicitar_encerramento_historia(
+    *,
+    instancia_cenario: dict[str, Any],
+    interaction_count: int,
+) -> dict[str, Any]:
+    instancia = deepcopy(
+        instancia_cenario
+        if isinstance(instancia_cenario, dict)
+        else {}
+    )
+
+    if not instancia:
+        return instancia
+
+    interaction_count = max(
+        0,
+        int(interaction_count or 0),
+    )
+
+    instancia[
+        "ending_requested_by_user"
+    ] = True
+    instancia[
+        "ending_requested_at_interaction"
+    ] = interaction_count
+
+    scene_state = instancia.get(
+        "scene_state"
+    )
+    if not isinstance(
+        scene_state,
+        dict,
+    ):
+        scene_state = {}
+
+    scene_state = deepcopy(
+        scene_state
+    )
+    scene_state.update(
+        {
+            "ending_requested_by_user": True,
+            "ending_requested_at_interaction": (
+                interaction_count
+            ),
+            "ending_trigger": "user_button_pending",
+        }
+    )
+
+    instancia[
+        "scene_state"
+    ] = scene_state
+
+    salvar_instancia_cenario(
+        instancia,
+        houve_interacao=False,
+    )
+
+    return instancia
 
 
 def voltar_ao_menu_historias() -> None:
@@ -3722,6 +3832,7 @@ USO OBRIGATÓRIO DO ESTADO DA FANTASIA:
                     "ending_sent": True,
                     "ending_type": ending_type,
                     "ending_reason": ending_reason,
+                    "ending_requested_by_user": False,
                     "input_locked": True,
                     "show_return_to_menu": True,
                     "summary": resumo_texto(
@@ -3737,6 +3848,7 @@ USO OBRIGATÓRIO DO ESTADO DA FANTASIA:
                     "ending_sent": True,
                     "ending_type": ending_type,
                     "ending_reason": ending_reason,
+                    "ending_requested_by_user": False,
                     "input_locked": True,
                     "show_return_to_menu": True,
                 }
@@ -4535,6 +4647,52 @@ def main() -> None:
             st.rerun()
 
         return
+
+    scene_state_atual = instancia_cenario.get(
+        "scene_state"
+    )
+    if not isinstance(
+        scene_state_atual,
+        dict,
+    ):
+        scene_state_atual = {}
+
+    encerramento_solicitado = bool(
+        scene_state_atual.get(
+            "ending_requested_by_user",
+            instancia_cenario.get(
+                "ending_requested_by_user",
+                False,
+            ),
+        )
+    )
+
+    if encerramento_solicitado:
+        st.caption(
+            "Encerramento solicitado. Sua próxima mensagem receberá a resposta final de Mary."
+        )
+    else:
+        if st.button(
+            "Finalizar história",
+            key="scenario_request_ending",
+            use_container_width=True,
+        ):
+            instancia_cenario = (
+                solicitar_encerramento_historia(
+                    instancia_cenario=(
+                        instancia_cenario
+                    ),
+                    interaction_count=(
+                        total_interacoes_cenario
+                    ),
+                )
+            )
+
+            st.session_state[
+                "scenario_instance"
+            ] = instancia_cenario
+
+            st.rerun()
 
     interacoes_restantes = max(
         0,
