@@ -9,12 +9,19 @@ from ui.interaction_rerun_optimizer import (
     aplicar_otimizacao_rerun,
     install_interaction_rerun_optimizer,
 )
+from ui.diagnostic_log_controls import (
+    DIAGNOSTIC_LOG_CONTROLS_VERSION,
+    aplicar_controles_log_diagnostico,
+    install_diagnostic_log_controls,
+    log_diagnostico_ativado,
+)
 
 
 # O pacote ui é carregado antes de main(). Os instaladores envolvem st.title;
 # a integração real acontece depois que app.py já definiu todas as funções.
 install_app_runtime_integration()
 install_interaction_rerun_optimizer()
+install_diagnostic_log_controls()
 
 
 from ui.login import (
@@ -28,11 +35,15 @@ from ui.login import (
 __all__ = [
     "APP_RUNTIME_INTEGRATION_VERSION",
     "INTERACTION_RERUN_OPTIMIZER_VERSION",
+    "DIAGNOSTIC_LOG_CONTROLS_VERSION",
     "aplicar_integracao_runtime",
     "aplicar_otimizacao_rerun",
+    "aplicar_controles_log_diagnostico",
     "aplicar_politica_adaptativa_encerramento",
     "install_app_runtime_integration",
     "install_interaction_rerun_optimizer",
+    "install_diagnostic_log_controls",
+    "log_diagnostico_ativado",
     "AUTH_ACTION_LOGIN",
     "AUTH_ACTION_REGISTER",
     "AuthenticationResult",
