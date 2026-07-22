@@ -8,10 +8,12 @@ from datetime import datetime, timezone
 from hashlib import sha1
 from typing import Any, Iterable
 
+from config import MEMORY_MAX_PER_USER, MEMORY_PROMPT_LIMIT
 
-MEMORY_STORE_VERSION = "memory-store-v1-fast-relevant"
-DEFAULT_MAX_MEMORIES_PER_USER = 120
-DEFAULT_PROMPT_LIMIT = 8
+
+MEMORY_STORE_VERSION = "memory-store-v2-centralized-config"
+DEFAULT_MAX_MEMORIES_PER_USER = MEMORY_MAX_PER_USER
+DEFAULT_PROMPT_LIMIT = MEMORY_PROMPT_LIMIT
 
 MEMORY_TYPES = {
     "identity",
@@ -50,11 +52,6 @@ TEXT_FIELDS = (
 )
 
 
-# ==========================================================
-# NORMALIZAÇÃO
-# ==========================================================
-
-
 def utc_now_iso() -> str:
     return datetime.now(timezone.utc).isoformat()
 
@@ -84,7 +81,12 @@ def safe_float(value: Any, default: float = 0.0) -> float:
         return default
 
 
-def limitar_float(value: Any, minimum: float = 0.0, maximum: float = 1.0) -> float:
+def limitar_float(
+    value: Any,
+    *,
+    minimum: float = 0.0,
+    maximum: float = 1.0,
+) -> float:
     return max(minimum, min(maximum, safe_float(value, minimum)))
 
 
@@ -95,22 +97,30 @@ def normalizar_bool(value: Any, *, default: bool = False) -> bool:
         return default
     if isinstance(value, (int, float)):
         return bool(value)
-    text = normalizar_para_busca(value)
+    text = str(value).strip().lower()
     if text in {"true", "1", "yes", "sim", "s", "verdadeiro"}:
         return True
-    if text in {"false", "0", "no", "nao", "n", "falso", ""}:
+    if text in {"false", "0", "no", "nao", "não", "n", "falso", ""}:
         return False
     return default
 
 
-def normalizar_lista(value: Any) -> list[Any]:
-    if isinstance(value, list):
-        return deepcopy(value)
-    if isinstance(value, tuple):
-        return list(deepcopy(value))
-    if value in (None, ""):
+def normalizar_lista(value: Any) -> list[str]:
+    if isinstance(value, str):
+        values = re.split(r"[,;|]", value)
+    elif isinstance(value, (list, tuple, set)):
+        values = list(value)
+    else:
         return []
-    return [deepcopy(value)]
+    result: list[str] = []
+    seen: set[str] = set()
+    for item in values:
+        text = normalizar_texto(item)
+        key = normalizar_para_busca(text)
+        if text and key and key not in seen:
+            seen.add(key)
+            result.append(text)
+    return result
 
 
 def tokenizar(value: Any) -> set[str]:
@@ -126,8 +136,8 @@ def extrair_texto_memoria(memory: Any) -> str:
         return limitar_texto(memory)
     if not isinstance(memory, dict):
         return ""
-    for field in TEXT_FIELDS:
-        text = limitar_texto(memory.get(field))
+    for field_name in TEXT_FIELDS:
+        text = limitar_texto(memory.get(field_name))
         if text:
             return text
     return ""
@@ -136,19 +146,19 @@ def extrair_texto_memoria(memory: Any) -> str:
 def gerar_memory_key(
     *,
     user_id: str,
-    text: str,
+    memory_text: str,
     memory_type: str = "general",
     subject: str = "",
 ) -> str:
-    basis = "|".join(
+    canonical = "|".join(
         (
             normalizar_para_busca(user_id),
-            normalizar_para_busca(memory_type),
+            normalizar_para_busca(memory_type or "general"),
             normalizar_para_busca(subject),
-            normalizar_para_busca(text),
+            normalizar_para_busca(memory_text),
         )
     )
-    return sha1(basis.encode("utf-8")).hexdigest()[:20]
+    return sha1(canonical.encode("utf-8")).hexdigest()[:20]
 
 
 def normalizar_memoria(
@@ -156,171 +166,146 @@ def normalizar_memoria(
     *,
     user_id: str = "",
 ) -> dict[str, Any]:
-    raw = deepcopy(memory) if isinstance(memory, dict) else {}
-    text = extrair_texto_memoria(memory)
+    source = dict(memory) if isinstance(memory, dict) else {"memory_text": memory}
+    text = extrair_texto_memoria(source)
     if not text:
         return {}
 
-    resolved_user_id = normalizar_texto(raw.get("user_id") or user_id)
+    uid = normalizar_texto(source.get("user_id") or user_id)
     memory_type = normalizar_para_busca(
-        raw.get("memory_type") or raw.get("type") or raw.get("category")
+        source.get("memory_type") or source.get("type") or source.get("category")
     ) or "general"
     if memory_type not in MEMORY_TYPES:
         memory_type = "general"
 
-    subject = limitar_texto(raw.get("subject") or raw.get("topic"), max_chars=120)
-    importance = limitar_float(
-        raw.get("importance", raw.get("priority", TYPE_WEIGHTS[memory_type])),
-        0.0,
-        1.0,
-    )
-    confidence = limitar_float(raw.get("confidence", 1.0), 0.0, 1.0)
-    active = not normalizar_bool(raw.get("deleted"), default=False)
-    active = active and normalizar_bool(raw.get("active"), default=True)
-    confirmed = normalizar_bool(raw.get("confirmed"), default=True)
-
-    key = normalizar_texto(raw.get("memory_key") or raw.get("memory_id"))
+    subject = normalizar_texto(source.get("subject"))
+    key = normalizar_texto(source.get("memory_key") or source.get("memory_id"))
     if not key:
         key = gerar_memory_key(
-            user_id=resolved_user_id,
-            text=text,
+            user_id=uid,
+            memory_text=text,
             memory_type=memory_type,
             subject=subject,
         )
 
-    created_at = normalizar_texto(raw.get("created_at") or raw.get("timestamp"))
-    updated_at = normalizar_texto(raw.get("updated_at"))
-
-    tags = []
-    seen_tags: set[str] = set()
-    for tag in normalizar_lista(raw.get("tags")):
-        normalized = normalizar_para_busca(tag)
-        if normalized and normalized not in seen_tags:
-            seen_tags.add(normalized)
-            tags.append(normalized)
-
-    result = deepcopy(raw)
-    result.update(
+    now = utc_now_iso()
+    normalized = dict(source)
+    normalized.update(
         {
             "memory_key": key,
-            "user_id": resolved_user_id,
+            "user_id": uid,
             "memory_text": text,
             "memory_type": memory_type,
             "subject": subject,
-            "importance": importance,
-            "confidence": confidence,
-            "active": active,
-            "confirmed": confirmed,
-            "tags": tags,
-            "created_at": created_at or utc_now_iso(),
-            "updated_at": updated_at or created_at or utc_now_iso(),
+            "importance": limitar_float(source.get("importance", 0.5)),
+            "confidence": limitar_float(source.get("confidence", 0.8)),
+            "active": normalizar_bool(source.get("active"), default=True),
+            "confirmed": normalizar_bool(source.get("confirmed"), default=True),
+            "pinned": normalizar_bool(source.get("pinned"), default=False),
+            "tags": normalizar_lista(source.get("tags")),
+            "created_at": normalizar_texto(source.get("created_at")) or now,
+            "updated_at": normalizar_texto(source.get("updated_at")) or now,
         }
     )
-    result["_search_text"] = normalizar_para_busca(
-        " ".join((text, subject, memory_type, " ".join(tags)))
+    normalized["_search_text"] = normalizar_para_busca(
+        " ".join((text, subject, " ".join(normalized["tags"])))
     )
-    result["_tokens"] = sorted(tokenizar(result["_search_text"]))
-    return result
+    normalized["_tokens"] = tokenizar(normalized["_search_text"])
+    return normalized
 
 
-# ==========================================================
-# PONTUAÇÃO E SELEÇÃO
-# ==========================================================
+def _public_memory(memory: dict[str, Any]) -> dict[str, Any]:
+    return {
+        key: deepcopy(value)
+        for key, value in memory.items()
+        if not key.startswith("_")
+    }
 
 
 def calcular_relevancia_memoria(
     memory: dict[str, Any],
     *,
     query: str = "",
-    active_scenario_id: str = "",
     preferred_types: Iterable[str] | None = None,
+    active_scenario_id: str = "",
 ) -> float:
     if not memory.get("active", True) or not memory.get("confirmed", True):
         return -1.0
 
-    score = (
-        0.42 * limitar_float(memory.get("importance"), 0.0, 1.0)
-        + 0.18 * limitar_float(memory.get("confidence"), 0.0, 1.0)
-        + 0.18 * TYPE_WEIGHTS.get(str(memory.get("memory_type")), 0.60)
-    )
-
-    query_tokens = tokenizar(query)
-    memory_tokens = set(memory.get("_tokens") or tokenizar(memory.get("_search_text")))
-    if query_tokens:
-        overlap = len(query_tokens & memory_tokens) / max(1, len(query_tokens))
-        score += 0.42 * overlap
-
-    normalized_query = normalizar_para_busca(query)
-    normalized_text = normalizar_para_busca(memory.get("memory_text"))
-    if normalized_query and normalized_query in normalized_text:
-        score += 0.20
+    memory_type = str(memory.get("memory_type") or "general")
+    score = TYPE_WEIGHTS.get(memory_type, TYPE_WEIGHTS["general"])
+    score += limitar_float(memory.get("importance", 0.5)) * 0.50
+    score += limitar_float(memory.get("confidence", 0.8)) * 0.20
+    if memory.get("pinned"):
+        score += 0.75
 
     preferred = {
         normalizar_para_busca(item)
         for item in (preferred_types or [])
         if normalizar_para_busca(item)
     }
-    if memory.get("memory_type") in preferred:
-        score += 0.16
+    if memory_type in preferred:
+        score += 0.35
 
-    scenario_id = normalizar_texto(
-        memory.get("scenario_id") or memory.get("scenario_session_id")
-    )
-    if active_scenario_id and scenario_id == normalizar_texto(active_scenario_id):
-        score += 0.24
+    scenario_id = normalizar_texto(memory.get("scenario_id"))
+    if scenario_id:
+        if active_scenario_id and scenario_id == active_scenario_id:
+            score += 0.35
+        elif active_scenario_id and scenario_id != active_scenario_id:
+            return -1.0
 
-    if normalizar_bool(memory.get("pinned"), default=False):
-        score += 0.30
+    query_normalized = normalizar_para_busca(query)
+    if query_normalized:
+        query_tokens = tokenizar(query_normalized)
+        memory_tokens = set(memory.get("_tokens") or ())
+        overlap = query_tokens & memory_tokens
+        if query_tokens:
+            score += (len(overlap) / len(query_tokens)) * 1.20
+        search_text = str(memory.get("_search_text") or "")
+        if query_normalized in search_text or search_text in query_normalized:
+            score += 0.80
 
-    return score
+    return round(score, 6)
 
 
 def selecionar_memorias_relevantes(
-    memories: Iterable[dict[str, Any]],
+    memories: Iterable[Any],
     *,
+    user_id: str = "",
     query: str = "",
     limit: int = DEFAULT_PROMPT_LIMIT,
-    active_scenario_id: str = "",
     preferred_types: Iterable[str] | None = None,
+    active_scenario_id: str = "",
 ) -> list[dict[str, Any]]:
-    scored: list[tuple[float, str, dict[str, Any]]] = []
-    seen: set[str] = set()
-
+    best_by_key: dict[str, tuple[float, dict[str, Any]]] = {}
     for memory in memories:
-        normalized = normalizar_memoria(memory)
+        normalized = normalizar_memoria(memory, user_id=user_id)
         if not normalized:
             continue
-        key = normalized["memory_key"]
-        if key in seen:
-            continue
-        seen.add(key)
-
         score = calcular_relevancia_memoria(
             normalized,
             query=query,
-            active_scenario_id=active_scenario_id,
             preferred_types=preferred_types,
+            active_scenario_id=active_scenario_id,
         )
         if score < 0:
             continue
-        scored.append((score, normalized.get("updated_at", ""), normalized))
+        key = normalized["memory_key"]
+        current = best_by_key.get(key)
+        if current is None or score > current[0]:
+            best_by_key[key] = (score, normalized)
 
-    scored.sort(key=lambda item: (item[0], item[1]), reverse=True)
-    selected: list[dict[str, Any]] = []
-    for score, _, memory in scored[: max(0, int(limit))]:
-        clean = {
-            key: deepcopy(value)
-            for key, value in memory.items()
-            if not key.startswith("_")
-        }
-        clean["relevance_score"] = round(score, 4)
-        selected.append(clean)
-    return selected
-
-
-# ==========================================================
-# ARMAZENAMENTO EM MEMÓRIA DA SESSÃO
-# ==========================================================
+    ranked = sorted(
+        best_by_key.values(),
+        key=lambda item: (item[0], str(item[1].get("updated_at") or "")),
+        reverse=True,
+    )
+    result: list[dict[str, Any]] = []
+    for score, memory in ranked[: max(0, int(limit))]:
+        public = _public_memory(memory)
+        public["relevance_score"] = score
+        result.append(public)
+    return result
 
 
 @dataclass
@@ -328,90 +313,79 @@ class MemoryStore:
     max_memories_per_user: int = DEFAULT_MAX_MEMORIES_PER_USER
     _by_user: dict[str, dict[str, dict[str, Any]]] = field(default_factory=dict)
 
-    def clear(self, user_id: str | None = None) -> None:
-        if user_id is None:
+    def clear(self, user_id: str = "") -> None:
+        uid = normalizar_texto(user_id)
+        if uid:
+            self._by_user.pop(uid, None)
+        else:
             self._by_user.clear()
-            return
-        self._by_user.pop(normalizar_texto(user_id), None)
 
     def load(
         self,
         user_id: str,
-        memories: Iterable[dict[str, Any] | str],
+        memories: Iterable[Any],
         *,
         replace: bool = True,
     ) -> list[dict[str, Any]]:
         uid = normalizar_texto(user_id)
-        if replace or uid not in self._by_user:
+        if not uid:
+            return []
+        if replace:
             self._by_user[uid] = {}
-
+        bucket = self._by_user.setdefault(uid, {})
         for memory in memories:
             normalized = normalizar_memoria(memory, user_id=uid)
             if normalized:
-                self._by_user[uid][normalized["memory_key"]] = normalized
-
+                bucket[normalized["memory_key"]] = normalized
         self._trim(uid)
         return self.list(uid)
 
-    def upsert(
-        self,
-        user_id: str,
-        memory: dict[str, Any] | str,
-    ) -> dict[str, Any]:
+    def upsert(self, user_id: str, memory: Any) -> dict[str, Any]:
         uid = normalizar_texto(user_id)
         normalized = normalizar_memoria(memory, user_id=uid)
-        if not normalized:
+        if not uid or not normalized:
             return {}
-
         bucket = self._by_user.setdefault(uid, {})
         current = bucket.get(normalized["memory_key"])
         if current:
-            merged = deepcopy(current)
-            merged.update(normalized)
-            merged["created_at"] = current.get("created_at") or normalized["created_at"]
-            merged["updated_at"] = utc_now_iso()
-            normalized = normalizar_memoria(merged, user_id=uid)
-
+            normalized["created_at"] = current.get("created_at") or normalized["created_at"]
+            normalized["updated_at"] = utc_now_iso()
         bucket[normalized["memory_key"]] = normalized
         self._trim(uid)
-        return self.get(uid, normalized["memory_key"])
+        return _public_memory(normalized)
 
     def remove(self, user_id: str, memory_key: str) -> bool:
         uid = normalizar_texto(user_id)
-        bucket = self._by_user.get(uid, {})
-        return bucket.pop(normalizar_texto(memory_key), None) is not None
+        key = normalizar_texto(memory_key)
+        return bool(self._by_user.get(uid, {}).pop(key, None))
 
-    def deactivate(self, user_id: str, memory_key: str) -> dict[str, Any]:
+    def deactivate(self, user_id: str, memory_key: str) -> bool:
         uid = normalizar_texto(user_id)
-        bucket = self._by_user.get(uid, {})
-        memory = bucket.get(normalizar_texto(memory_key))
+        memory = self._by_user.get(uid, {}).get(normalizar_texto(memory_key))
         if not memory:
-            return {}
+            return False
         memory["active"] = False
         memory["updated_at"] = utc_now_iso()
-        return self.get(uid, memory_key)
+        return True
 
-    def get(self, user_id: str, memory_key: str) -> dict[str, Any]:
+    def get(self, user_id: str, memory_key: str) -> dict[str, Any] | None:
         memory = self._by_user.get(normalizar_texto(user_id), {}).get(
             normalizar_texto(memory_key)
         )
-        return self._clean(memory) if memory else {}
+        return _public_memory(memory) if memory else None
 
-    def list(
-        self,
-        user_id: str,
-        *,
-        active_only: bool = False,
-    ) -> list[dict[str, Any]]:
-        memories = list(self._by_user.get(normalizar_texto(user_id), {}).values())
-        if active_only:
-            memories = [
-                memory
-                for memory in memories
-                if memory.get("active", True) and memory.get("confirmed", True)
-            ]
-        memories.sort(key=lambda item: item.get("updated_at", ""), reverse=True)
-        return [self._clean(memory) for memory in memories]
+    def list(self, user_id: str, *, active_only: bool = False) -> list[dict[str, Any]]:
+        memories = self._by_user.get(normalizar_texto(user_id), {}).values()
+        selected = [
+            _public_memory(memory)
+            for memory in memories
+            if not active_only or memory.get("active", True)
+        ]
+        return sorted(
+            selected,
+            key=lambda item: str(item.get("updated_at") or ""),
+            reverse=True,
+        )
 
     def select(
         self,
@@ -419,103 +393,132 @@ class MemoryStore:
         *,
         query: str = "",
         limit: int = DEFAULT_PROMPT_LIMIT,
-        active_scenario_id: str = "",
         preferred_types: Iterable[str] | None = None,
+        active_scenario_id: str = "",
     ) -> list[dict[str, Any]]:
+        uid = normalizar_texto(user_id)
         return selecionar_memorias_relevantes(
-            self._by_user.get(normalizar_texto(user_id), {}).values(),
+            self._by_user.get(uid, {}).values(),
+            user_id=uid,
             query=query,
             limit=limit,
-            active_scenario_id=active_scenario_id,
             preferred_types=preferred_types,
+            active_scenario_id=active_scenario_id,
         )
 
-    def stats(self, user_id: str) -> dict[str, Any]:
-        memories = list(self._by_user.get(normalizar_texto(user_id), {}).values())
-        by_type: dict[str, int] = {}
-        active = 0
-        for memory in memories:
-            memory_type = str(memory.get("memory_type") or "general")
-            by_type[memory_type] = by_type.get(memory_type, 0) + 1
-            if memory.get("active", True) and memory.get("confirmed", True):
-                active += 1
+    def prompt_context(
+        self,
+        user_id: str,
+        *,
+        query: str = "",
+        limit: int = DEFAULT_PROMPT_LIMIT,
+        preferred_types: Iterable[str] | None = None,
+        active_scenario_id: str = "",
+    ) -> str:
+        selected = self.select(
+            user_id,
+            query=query,
+            limit=limit,
+            preferred_types=preferred_types,
+            active_scenario_id=active_scenario_id,
+        )
+        if not selected:
+            return ""
+        lines = ["[MEMÓRIAS RELEVANTES]"]
+        for memory in selected:
+            kind = memory.get("memory_type", "general")
+            lines.append(f"- ({kind}) {memory.get('memory_text', '')}")
+        return "\n".join(lines)
+
+    def stats(self, user_id: str = "") -> dict[str, Any]:
+        uid = normalizar_texto(user_id)
+        if uid:
+            memories = list(self._by_user.get(uid, {}).values())
+            return {
+                "user_id": uid,
+                "total": len(memories),
+                "active": sum(bool(item.get("active", True)) for item in memories),
+            }
         return {
-            "version": MEMORY_STORE_VERSION,
-            "total": len(memories),
-            "active": active,
-            "inactive": len(memories) - active,
-            "by_type": by_type,
+            "users": len(self._by_user),
+            "total": sum(len(bucket) for bucket in self._by_user.values()),
         }
 
     def _trim(self, user_id: str) -> None:
         bucket = self._by_user.get(user_id, {})
-        limit = max(1, int(self.max_memories_per_user))
-        if len(bucket) <= limit:
+        maximum = max(1, int(self.max_memories_per_user))
+        if len(bucket) <= maximum:
             return
-
         ranked = sorted(
             bucket.values(),
             key=lambda item: (
-                normalizar_bool(item.get("pinned"), default=False),
-                limitar_float(item.get("importance")),
-                item.get("updated_at", ""),
+                bool(item.get("pinned", False)),
+                limitar_float(item.get("importance", 0.5)),
+                str(item.get("updated_at") or ""),
             ),
             reverse=True,
         )
         self._by_user[user_id] = {
-            item["memory_key"]: item
-            for item in ranked[:limit]
-        }
-
-    @staticmethod
-    def _clean(memory: dict[str, Any] | None) -> dict[str, Any]:
-        if not memory:
-            return {}
-        return {
-            key: deepcopy(value)
-            for key, value in memory.items()
-            if not key.startswith("_")
+            memory["memory_key"]: memory
+            for memory in ranked[:maximum]
         }
 
 
-DEFAULT_MEMORY_STORE = MemoryStore()
+_GLOBAL_MEMORY_STORE = MemoryStore()
 
 
 def carregar_memorias_usuario(
     user_id: str,
-    memories: Iterable[dict[str, Any] | str],
+    memories: Iterable[Any],
     *,
     replace: bool = True,
 ) -> list[dict[str, Any]]:
-    return DEFAULT_MEMORY_STORE.load(user_id, memories, replace=replace)
+    return _GLOBAL_MEMORY_STORE.load(user_id, memories, replace=replace)
 
 
-def registrar_memoria_usuario(
+def registrar_memoria_usuario(user_id: str, memory: Any) -> dict[str, Any]:
+    return _GLOBAL_MEMORY_STORE.upsert(user_id, memory)
+
+
+def remover_memoria_usuario(user_id: str, memory_key: str) -> bool:
+    return _GLOBAL_MEMORY_STORE.remove(user_id, memory_key)
+
+
+def desativar_memoria_usuario(user_id: str, memory_key: str) -> bool:
+    return _GLOBAL_MEMORY_STORE.deactivate(user_id, memory_key)
+
+
+def listar_memorias_cache_usuario(
     user_id: str,
-    memory: dict[str, Any] | str,
-) -> dict[str, Any]:
-    return DEFAULT_MEMORY_STORE.upsert(user_id, memory)
+    *,
+    active_only: bool = False,
+) -> list[dict[str, Any]]:
+    return _GLOBAL_MEMORY_STORE.list(user_id, active_only=active_only)
 
 
 def obter_memorias_para_turno(
     user_id: str,
     *,
-    user_message: str = "",
+    query: str = "",
     limit: int = DEFAULT_PROMPT_LIMIT,
-    active_scenario_id: str = "",
     preferred_types: Iterable[str] | None = None,
+    active_scenario_id: str = "",
 ) -> list[dict[str, Any]]:
-    return DEFAULT_MEMORY_STORE.select(
+    return _GLOBAL_MEMORY_STORE.select(
         user_id,
-        query=user_message,
+        query=query,
         limit=limit,
-        active_scenario_id=active_scenario_id,
         preferred_types=preferred_types,
+        active_scenario_id=active_scenario_id,
     )
 
 
-def limpar_memorias_usuario(user_id: str | None = None) -> None:
-    DEFAULT_MEMORY_STORE.clear(user_id)
+def limpar_memorias_usuario(user_id: str = "") -> None:
+    _GLOBAL_MEMORY_STORE.clear(user_id)
+
+
+def obter_estatisticas_memoria(user_id: str = "") -> dict[str, Any]:
+    return _GLOBAL_MEMORY_STORE.stats(user_id)
 
 
 __all__ = [
@@ -524,21 +527,20 @@ __all__ = [
     "DEFAULT_PROMPT_LIMIT",
     "MEMORY_TYPES",
     "TYPE_WEIGHTS",
-    "utc_now_iso",
+    "MemoryStore",
     "normalizar_texto",
     "normalizar_para_busca",
-    "limitar_texto",
-    "normalizar_bool",
-    "tokenizar",
     "extrair_texto_memoria",
     "gerar_memory_key",
     "normalizar_memoria",
     "calcular_relevancia_memoria",
     "selecionar_memorias_relevantes",
-    "MemoryStore",
-    "DEFAULT_MEMORY_STORE",
     "carregar_memorias_usuario",
     "registrar_memoria_usuario",
+    "remover_memoria_usuario",
+    "desativar_memoria_usuario",
+    "listar_memorias_cache_usuario",
     "obter_memorias_para_turno",
     "limpar_memorias_usuario",
+    "obter_estatisticas_memoria",
 ]
