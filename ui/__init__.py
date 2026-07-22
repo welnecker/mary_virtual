@@ -30,10 +30,15 @@ from ui.contrast_accessibility import (
     aplicar_contraste_acessivel,
     install_contrast_accessibility,
 )
+from ui.scenario_catalog_extension import (
+    SCENARIO_CATALOG_EXTENSION_VERSION,
+    install_scenario_catalog_extension,
+)
 
 
 # O pacote ui é carregado antes de main(). Os instaladores envolvem st.title;
 # a integração real acontece depois que app.py já definiu todas as funções.
+install_scenario_catalog_extension()
 install_app_runtime_integration()
 install_interaction_rerun_optimizer()
 install_diagnostic_log_controls()
@@ -57,6 +62,7 @@ __all__ = [
     "ONOMATOPOEIA_INTEGRATION_VERSION",
     "COMPLETED_HISTORY_VISIBILITY_VERSION",
     "CONTRAST_ACCESSIBILITY_VERSION",
+    "SCENARIO_CATALOG_EXTENSION_VERSION",
     "aplicar_integracao_runtime",
     "aplicar_otimizacao_rerun",
     "aplicar_controles_log_diagnostico",
@@ -64,6 +70,7 @@ __all__ = [
     "aplicar_contraste_acessivel",
     "aplicar_politica_adaptativa_encerramento",
     "ocultar_historias_concluidas_do_catalogo",
+    "install_scenario_catalog_extension",
     "install_app_runtime_integration",
     "install_interaction_rerun_optimizer",
     "install_diagnostic_log_controls",
