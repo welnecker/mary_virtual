@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import html
 from pathlib import Path
 from typing import Any
 
@@ -9,6 +10,14 @@ from scenarios.service import (
     continuar_cenario_para_usuario,
     reiniciar_cenario_para_usuario,
 )
+from ui.professional_experience import install_professional_experience
+
+
+# O app.py importa este módulo em toda execução. A instalação apenas substitui
+# pontos de apresentação do Streamlit; não executa componentes antes do
+# st.set_page_config e não interfere nos motores narrativos.
+install_professional_experience()
+
 
 ACTION_PLAY = "play"
 ACTION_UNLOCK = "unlock"
@@ -97,9 +106,7 @@ def _imagem_existe(image_path: str) -> bool:
 
 
 def _rotulo_acesso(cenario: dict[str, Any]) -> str:
-    access_status = _texto(
-        cenario.get("access_status")
-    ).lower()
+    access_status = _texto(cenario.get("access_status")).lower()
     if access_status == "free":
         return "Acesso gratuito"
     if access_status == "unlocked":
@@ -122,9 +129,7 @@ def _rotulo_botao(
     cenario: dict[str, Any],
     card: dict[str, str],
 ) -> str:
-    access_status = _texto(
-        cenario.get("access_status")
-    ).lower()
+    access_status = _texto(cenario.get("access_status")).lower()
     if access_status == "free":
         return card["button_label_free"]
     if access_status == "unlocked":
@@ -142,9 +147,7 @@ def _continuar_historia(
         return
 
     user_id = _texto(sessao.get("user_id"))
-    scenario_session_id = _texto(
-        sessao.get("scenario_session_id")
-    )
+    scenario_session_id = _texto(sessao.get("scenario_session_id"))
     if not user_id or not scenario_session_id:
         st.error("A sessão narrativa está incompleta.")
         return
@@ -181,9 +184,7 @@ def _preparar_reinicio(
         return True
 
     user_id = _texto(sessao.get("user_id"))
-    scenario_session_id = _texto(
-        sessao.get("scenario_session_id")
-    )
+    scenario_session_id = _texto(sessao.get("scenario_session_id"))
     if not user_id or not scenario_session_id:
         return True
 
@@ -196,6 +197,29 @@ def _preparar_reinicio(
         st.error(str(exc))
         return False
     return True
+
+
+def _render_card_copy(
+    *,
+    card: dict[str, str],
+    access_label: str,
+) -> None:
+    badge = html.escape(card["badge"] or "História")
+    title = html.escape(card["title"])
+    subtitle = html.escape(card["subtitle"])
+    access = html.escape(access_label)
+
+    st.markdown(
+        (
+            '<div class="mary-card-shell">'
+            f'<span class="mary-card-badge">{badge}</span>'
+            f'<div class="mary-card-title">{title}</div>'
+            f'<div class="mary-card-copy">{subtitle}</div>'
+            f'<div class="mary-card-access">{access}</div>'
+            "</div>"
+        ),
+        unsafe_allow_html=True,
+    )
 
 
 def _renderizar_card(
@@ -216,20 +240,15 @@ def _renderizar_card(
         if _imagem_existe(card["image"]):
             st.image(card["image"], use_container_width=True)
 
-        if card["badge"]:
-            st.caption(card["badge"].upper())
-
-        st.markdown(f"### {card['title']}")
-        if card["subtitle"]:
-            st.write(card["subtitle"])
-        st.caption(_rotulo_acesso(cenario))
+        _render_card_copy(
+            card=card,
+            access_label=_rotulo_acesso(cenario),
+        )
 
         if can_continue:
-            interaction_count = _inteiro(
-                cenario.get("interaction_count")
-            )
+            interaction_count = _inteiro(cenario.get("interaction_count"))
             st.caption(
-                f"História em andamento · {interaction_count} interações"
+                f"Em andamento · {interaction_count} interações"
             )
             coluna_continuar, coluna_reiniciar = st.columns(2)
 
@@ -295,9 +314,18 @@ def renderizar_menu_cenarios(
     ),
     quantidade_colunas: int = 2,
 ) -> ScenarioMenuAction | None:
-    st.markdown(f"## {_texto(titulo) or 'Escolha uma história'}")
-    if _texto(descricao):
-        st.caption(_texto(descricao))
+    title = html.escape(_texto(titulo) or "Escolha uma história")
+    copy = html.escape(_texto(descricao))
+    st.markdown(
+        (
+            '<section class="mary-catalog-hero">'
+            '<div class="mary-catalog-eyebrow">Experiências com Mary</div>'
+            f'<div class="mary-catalog-title">{title}</div>'
+            f'<div class="mary-catalog-copy">{copy}</div>'
+            "</section>"
+        ),
+        unsafe_allow_html=True,
+    )
 
     if not isinstance(cenarios, list) or not cenarios:
         st.info("Nenhuma história está disponível neste momento.")
@@ -310,7 +338,7 @@ def renderizar_menu_cenarios(
             4,
         ),
     )
-    colunas = st.columns(quantidade_colunas)
+    colunas = st.columns(quantidade_colunas, gap="large")
 
     for indice, cenario in enumerate(cenarios):
         if not isinstance(cenario, dict):
