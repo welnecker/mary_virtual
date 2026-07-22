@@ -4,6 +4,7 @@ import re
 from copy import deepcopy
 from typing import Any
 
+from config import MEMORY_EXPLICIT_CAPTURE_ENABLED, MEMORY_PROMPT_LIMIT
 from google_sheets_repository import GoogleSheetsRepositoryError
 from memory_store import (
     carregar_memorias_usuario,
@@ -19,14 +20,22 @@ from repositories.memory_repository import (
 )
 
 
-MEMORY_PERSISTENCE_VERSION = "memory-persistence-v2-resilient-lazy-session"
+MEMORY_PERSISTENCE_VERSION = "memory-persistence-v3-configured-api-aligned"
 
 _LOADED_USERS: set[str] = set()
 _FAILED_LOAD_USERS: set[str] = set()
 
 _EXPLICIT_MEMORY_PATTERNS = (
-    re.compile(r"\b(?:lembre|lembra|não esqueça|nao esqueca|guarde|anote)\s+(?:de\s+)?que\s+(.+)", re.I),
-    re.compile(r"\bquero que (?:você|voce|mary) (?:lembre|guarde|saiba)\s+(?:de\s+)?que\s+(.+)", re.I),
+    re.compile(
+        r"\b(?:lembre|lembra|não esqueça|nao esqueca|guarde|anote)\s+"
+        r"(?:de\s+)?que\s+(.+)",
+        re.I,
+    ),
+    re.compile(
+        r"\bquero que (?:você|voce|mary) (?:lembre|guarde|saiba)\s+"
+        r"(?:de\s+)?que\s+(.+)",
+        re.I,
+    ),
     re.compile(r"\buma coisa importante sobre mim(?: é| e)\s+(.+)", re.I),
 )
 
@@ -51,7 +60,6 @@ def _resolver_user_message(
         return explicit
     if not isinstance(relationship_state, dict):
         return ""
-
     for field in ("active_turn", "current_turn"):
         turn = relationship_state.get(field)
         if isinstance(turn, dict):
@@ -78,7 +86,6 @@ def garantir_memorias_carregadas(user_id: str) -> list[dict[str, Any]]:
     try:
         memories = listar_memorias_usuario(uid, active_only=False)
     except GoogleSheetsRepositoryError:
-        # A conversa não pode depender da disponibilidade momentânea da planilha.
         _FAILED_LOAD_USERS.add(uid)
         carregar_memorias_usuario(uid, [], replace=False)
         return []
@@ -95,6 +102,9 @@ def extrair_memorias_explicitas(
     source_interaction_id: str = "",
     scenario_id: str = "",
 ) -> list[dict[str, Any]]:
+    if not MEMORY_EXPLICIT_CAPTURE_ENABLED:
+        return []
+
     uid = normalizar_texto(user_id)
     message = normalizar_texto(user_message)
     if not uid or not message:
@@ -118,16 +128,25 @@ def extrair_memorias_explicitas(
         seen.add(normalized_content)
 
         memory_type = "preference"
-        if any(term in normalized_content for term in ("nao quero", "limite", "nunca", "pare")):
+        if any(
+            term in normalized_content
+            for term in ("nao quero", "limite", "nunca", "pare")
+        ):
             memory_type = "boundary"
-        elif any(term in normalized_content for term in ("sou ", "meu nome", "minha idade", "moro ")):
+        elif any(
+            term in normalized_content
+            for term in ("sou ", "meu nome", "minha idade", "moro ")
+        ):
             memory_type = "identity"
-        elif any(term in normalized_content for term in ("prometi", "promessa", "vamos ")):
+        elif any(
+            term in normalized_content
+            for term in ("prometi", "promessa", "vamos ")
+        ):
             memory_type = "promise"
 
         memory_key = gerar_memory_key(
             user_id=uid,
-            text=content,
+            memory_text=content,
             memory_type=memory_type,
             subject="explicit_user_memory",
         )
@@ -171,7 +190,6 @@ def registrar_memorias_explicitas_turno(
         try:
             persisted = salvar_ou_atualizar_memoria(local or memory)
         except GoogleSheetsRepositoryError:
-            # Mantém a memória na sessão mesmo quando a gravação remota falhar.
             persisted = local or memory
         if persisted:
             registrar_memoria_usuario(user_id, persisted)
@@ -185,11 +203,12 @@ def resolver_memorias_para_prompt(
     relationship_state: dict[str, Any] | None,
     user_message: str = "",
     provided_memories: list[dict[str, Any]] | None = None,
-    limit: int = 8,
+    limit: int = MEMORY_PROMPT_LIMIT,
 ) -> list[dict[str, Any]]:
+    resolved_limit = max(1, int(limit or MEMORY_PROMPT_LIMIT))
     uid = _resolver_user_id(user_profile)
     if not uid:
-        return deepcopy(provided_memories or [])[: max(0, int(limit))]
+        return deepcopy(provided_memories or [])[:resolved_limit]
 
     garantir_memorias_carregadas(uid)
     message = _resolver_user_message(
@@ -198,14 +217,18 @@ def resolver_memorias_para_prompt(
     )
     scenario_id = _resolver_scenario_id(relationship_state)
 
-    active_turn = relationship_state.get("active_turn") if isinstance(relationship_state, dict) else {}
+    active_turn = (
+        relationship_state.get("active_turn")
+        if isinstance(relationship_state, dict)
+        else {}
+    )
     source_interaction_id = (
         normalizar_texto(active_turn.get("interaction_id"))
         if isinstance(active_turn, dict)
         else ""
     )
 
-    if message:
+    if message and MEMORY_EXPLICIT_CAPTURE_ENABLED:
         registrar_memorias_explicitas_turno(
             user_id=uid,
             user_message=message,
@@ -215,10 +238,16 @@ def resolver_memorias_para_prompt(
 
     selected = obter_memorias_para_turno(
         uid,
-        user_message=message,
-        limit=max(1, int(limit or 8)),
+        query=message,
+        limit=resolved_limit,
         active_scenario_id=scenario_id,
-        preferred_types=("boundary", "identity", "relationship", "preference", "promise"),
+        preferred_types=(
+            "boundary",
+            "identity",
+            "relationship",
+            "preference",
+            "promise",
+        ),
     )
 
     merged: list[dict[str, Any]] = []
@@ -228,12 +257,14 @@ def resolver_memorias_para_prompt(
             continue
         key = normalizar_texto(memory.get("memory_key") or memory.get("memory_id"))
         if not key:
-            key = normalizar_para_busca(memory.get("memory_text") or memory.get("content"))
+            key = normalizar_para_busca(
+                memory.get("memory_text") or memory.get("content")
+            )
         if not key or key in seen:
             continue
         seen.add(key)
         merged.append(deepcopy(memory))
-        if len(merged) >= max(0, int(limit)):
+        if len(merged) >= resolved_limit:
             break
     return merged
 
