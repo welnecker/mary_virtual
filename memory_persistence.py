@@ -4,6 +4,7 @@ import re
 from copy import deepcopy
 from typing import Any
 
+from google_sheets_repository import GoogleSheetsRepositoryError
 from memory_store import (
     carregar_memorias_usuario,
     gerar_memory_key,
@@ -18,9 +19,10 @@ from repositories.memory_repository import (
 )
 
 
-MEMORY_PERSISTENCE_VERSION = "memory-persistence-v1-lazy-session"
+MEMORY_PERSISTENCE_VERSION = "memory-persistence-v2-resilient-lazy-session"
 
 _LOADED_USERS: set[str] = set()
+_FAILED_LOAD_USERS: set[str] = set()
 
 _EXPLICIT_MEMORY_PATTERNS = (
     re.compile(r"\b(?:lembre|lembra|não esqueça|nao esqueca|guarde|anote)\s+(?:de\s+)?que\s+(.+)", re.I),
@@ -47,19 +49,15 @@ def _resolver_user_message(
     explicit = normalizar_texto(user_message)
     if explicit:
         return explicit
-
     if not isinstance(relationship_state, dict):
         return ""
 
-    active_turn = relationship_state.get("active_turn")
-    if isinstance(active_turn, dict):
-        text = normalizar_texto(active_turn.get("user_text"))
-        if text:
-            return text
-
-    current = relationship_state.get("current_turn")
-    if isinstance(current, dict):
-        return normalizar_texto(current.get("user_text"))
+    for field in ("active_turn", "current_turn"):
+        turn = relationship_state.get(field)
+        if isinstance(turn, dict):
+            text = normalizar_texto(turn.get("user_text"))
+            if text:
+                return text
     return ""
 
 
@@ -74,12 +72,17 @@ def _resolver_scenario_id(relationship_state: dict[str, Any] | None) -> str:
 
 def garantir_memorias_carregadas(user_id: str) -> list[dict[str, Any]]:
     uid = normalizar_texto(user_id)
-    if not uid:
-        return []
-    if uid in _LOADED_USERS:
+    if not uid or uid in _LOADED_USERS or uid in _FAILED_LOAD_USERS:
         return []
 
-    memories = listar_memorias_usuario(uid, active_only=False)
+    try:
+        memories = listar_memorias_usuario(uid, active_only=False)
+    except GoogleSheetsRepositoryError:
+        # A conversa não pode depender da disponibilidade momentânea da planilha.
+        _FAILED_LOAD_USERS.add(uid)
+        carregar_memorias_usuario(uid, [], replace=False)
+        return []
+
     carregar_memorias_usuario(uid, memories, replace=True)
     _LOADED_USERS.add(uid)
     return memories
@@ -165,7 +168,11 @@ def registrar_memorias_explicitas_turno(
         scenario_id=scenario_id,
     ):
         local = registrar_memoria_usuario(user_id, memory)
-        persisted = salvar_ou_atualizar_memoria(local or memory)
+        try:
+            persisted = salvar_ou_atualizar_memoria(local or memory)
+        except GoogleSheetsRepositoryError:
+            # Mantém a memória na sessão mesmo quando a gravação remota falhar.
+            persisted = local or memory
         if persisted:
             registrar_memoria_usuario(user_id, persisted)
             saved.append(persisted)
@@ -185,7 +192,6 @@ def resolver_memorias_para_prompt(
         return deepcopy(provided_memories or [])[: max(0, int(limit))]
 
     garantir_memorias_carregadas(uid)
-
     message = _resolver_user_message(
         user_message=user_message,
         relationship_state=relationship_state,
@@ -222,9 +228,7 @@ def resolver_memorias_para_prompt(
             continue
         key = normalizar_texto(memory.get("memory_key") or memory.get("memory_id"))
         if not key:
-            key = normalizar_para_busca(
-                memory.get("memory_text") or memory.get("content")
-            )
+            key = normalizar_para_busca(memory.get("memory_text") or memory.get("content"))
         if not key or key in seen:
             continue
         seen.add(key)
@@ -238,8 +242,10 @@ def invalidar_cache_memorias(user_id: str = "") -> None:
     uid = normalizar_texto(user_id)
     if uid:
         _LOADED_USERS.discard(uid)
+        _FAILED_LOAD_USERS.discard(uid)
     else:
         _LOADED_USERS.clear()
+        _FAILED_LOAD_USERS.clear()
 
 
 __all__ = [
