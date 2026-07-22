@@ -64,13 +64,6 @@ ACTIVE_PHASES = {
     SEXUAL_PHASE_USER_EDGE,
     SEXUAL_PHASE_MARY_EDGE,
     SEXUAL_PHASE_ACTIVE,
-    SEXUAL_PHASE_PRE_ORGASM,
-    SEXUAL_PHASE_USER_ORGASM,
-    SEXUAL_PHASE_MARY_ORGASM,
-    SEXUAL_PHASE_ORGASM,
-    SEXUAL_PHASE_POST_ORGASM_ACTIVE,
-    SEXUAL_PHASE_POST_ORGASM,
-    SEXUAL_PHASE_FRUSTRATION,
 }
 
 DEFAULT_SEXUAL_STATE: dict[str, Any] = {
@@ -92,6 +85,7 @@ DEFAULT_SEXUAL_STATE: dict[str, Any] = {
     "mary_near_orgasm": False,
     "post_orgasm_continue": False,
     "mary_pre_orgasm": False,
+    "mary_pre_orgasm_announced": False,
     "mary_orgasm_allowed": False,
     "mary_orgasm_done": False,
     "user_orgasm_warning": False,
@@ -103,7 +97,6 @@ DEFAULT_SEXUAL_STATE: dict[str, Any] = {
     "last_transition_reason": "",
     "resolution_done": False,
 }
-
 
 SEXUAL_TERMS = (
     "tesao", "excitado", "excitada", "molhada", "duro", "buceta",
@@ -130,8 +123,7 @@ USER_ORGASM_DONE_TERMS = (
 )
 
 MARY_PRE_ORGASM_TERMS = (
-    "vou gozar", "eu vou gozar", "to quase", "tô quase", "nao para",
-    "não para", "continua", "mais forte",
+    "vou gozar", "eu vou gozar", "to quase", "tô quase",
 )
 
 MARY_ORGASM_DONE_TERMS = (
@@ -236,6 +228,17 @@ def criar_estado_sexual_padrao() -> dict[str, Any]:
     return deepcopy(DEFAULT_SEXUAL_STATE)
 
 
+def aplicar_aliases_legados(state: dict[str, Any]) -> dict[str, Any]:
+    state["scene_stage"] = state["scene_phase"]
+    state["mary_stimulation_turns"] = state["stimulation_turns"]
+    state["mary_pre_orgasm_signals"] = state["mary_pre_orgasm"]
+    state["force_resolution_now"] = state["mary_orgasm_allowed"]
+    state["mary_climax_done"] = state["mary_orgasm_done"]
+    state["partner_climax_pending"] = state["user_orgasm_pending"]
+    state["user_climax_done"] = state["user_orgasm_done"]
+    return state
+
+
 def normalizar_estado_sexual(
     state: dict[str, Any] | None,
 ) -> dict[str, Any]:
@@ -273,6 +276,7 @@ def normalizar_estado_sexual(
         "mary_near_orgasm",
         "post_orgasm_continue",
         "mary_pre_orgasm",
+        "mary_pre_orgasm_announced",
         "mary_orgasm_allowed",
         "mary_orgasm_done",
         "user_orgasm_warning",
@@ -306,17 +310,6 @@ def normalizar_estado_sexual(
             )
 
     return aplicar_aliases_legados(normalized)
-
-
-def aplicar_aliases_legados(state: dict[str, Any]) -> dict[str, Any]:
-    state["scene_stage"] = state["scene_phase"]
-    state["mary_stimulation_turns"] = state["stimulation_turns"]
-    state["mary_pre_orgasm_signals"] = state["mary_pre_orgasm"]
-    state["force_resolution_now"] = state["mary_orgasm_allowed"]
-    state["mary_climax_done"] = state["mary_orgasm_done"]
-    state["partner_climax_pending"] = state["user_orgasm_pending"]
-    state["user_climax_done"] = state["user_orgasm_done"]
-    return state
 
 
 def alterar_fase(
@@ -400,6 +393,7 @@ def atualizar_estado_sexual_antes_resposta(
         state["frustration_state"] = "user_stopped_or_redirected"
         state["mary_orgasm_allowed"] = False
         state["mary_pre_orgasm"] = False
+        state["mary_pre_orgasm_announced"] = False
         alterar_fase(state, SEXUAL_PHASE_FRUSTRATION, reason="user_boundary")
         return aplicar_aliases_legados(state)
 
@@ -440,26 +434,22 @@ def atualizar_estado_sexual_antes_resposta(
         state["mary_is_receiving_pleasure"] = True
         state["mary_is_leading"] = level >= 3
 
-    phase = state["scene_phase"]
+    phase_before_progression = state["scene_phase"]
+    entered_pre_orgasm_now = False
 
-    if phase == SEXUAL_PHASE_IDLE and sexual_signal:
+    if phase_before_progression == SEXUAL_PHASE_IDLE and sexual_signal:
         alterar_fase(state, SEXUAL_PHASE_TENSION, reason="sexual_signal")
-    elif phase == SEXUAL_PHASE_TENSION and (active_action or state["tension_level"] >= 0.35):
+    elif phase_before_progression == SEXUAL_PHASE_TENSION and (
+        active_action or state["tension_level"] >= 0.35
+    ):
         alterar_fase(state, SEXUAL_PHASE_AROUSAL, reason="tension_became_arousal")
-    elif phase == SEXUAL_PHASE_AROUSAL and (
+    elif phase_before_progression == SEXUAL_PHASE_AROUSAL and (
         active_action
         or (level >= 3 and private)
         or state["arousal_level"] >= 0.48
     ):
         alterar_fase(state, SEXUAL_PHASE_ACTIVE, reason="intimacy_converged")
-    elif phase in ACTIVE_PHASES and phase not in {
-        SEXUAL_PHASE_PRE_ORGASM,
-        SEXUAL_PHASE_ORGASM,
-        SEXUAL_PHASE_MARY_ORGASM,
-        SEXUAL_PHASE_POST_ORGASM,
-        SEXUAL_PHASE_POST_ORGASM_ACTIVE,
-        SEXUAL_PHASE_AFTERCARE,
-    }:
+    elif phase_before_progression in ACTIVE_PHASES:
         alterar_fase(state, SEXUAL_PHASE_ACTIVE, reason="keep_active_sequence")
 
     if state["scene_phase"] == SEXUAL_PHASE_ACTIVE:
@@ -476,25 +466,37 @@ def atualizar_estado_sexual_antes_resposta(
         ):
             state["mary_pre_orgasm"] = True
             state["mary_near_orgasm"] = True
+            state["mary_pre_orgasm_announced"] = False
             alterar_fase(
                 state,
                 SEXUAL_PHASE_PRE_ORGASM,
                 reason="mary_entered_pre_orgasm",
             )
+            entered_pre_orgasm_now = True
 
-    if state["scene_phase"] == SEXUAL_PHASE_PRE_ORGASM:
+    if (
+        state["scene_phase"] == SEXUAL_PHASE_PRE_ORGASM
+        and not entered_pre_orgasm_now
+    ):
         state["mary_pre_orgasm"] = True
         state["mary_near_orgasm"] = True
+
         if sexual_signal or active_action:
             state["arousal_level"] = limitar_float(
                 state["arousal_level"] + 0.12
             )
-        if state["arousal_level"] >= 0.90 and state["stimulation_turns"] >= 3:
+
+        if (
+            state["mary_pre_orgasm_announced"]
+            and state["arousal_level"] >= 0.88
+            and state["stimulation_turns"] >= 3
+            and (sexual_signal or active_action)
+        ):
             state["mary_orgasm_allowed"] = True
             alterar_fase(
                 state,
                 SEXUAL_PHASE_ORGASM,
-                reason="mary_orgasm_ready_without_extra_delay",
+                reason="pre_orgasm_announced_and_stimulation_continued",
             )
 
     if state["mary_orgasm_done"] and not state["user_orgasm_done"]:
@@ -514,8 +516,7 @@ def atualizar_estado_sexual_antes_resposta(
 
 
 def detectar_orgasmo_mary_na_resposta(mary_response: str) -> bool:
-    text = normalizar_texto(mary_response)
-    return contem_algum(text, MARY_ORGASM_DONE_TERMS)
+    return contem_algum(mary_response, MARY_ORGASM_DONE_TERMS)
 
 
 def detectar_pre_orgasmo_mary_na_resposta(mary_response: str) -> bool:
@@ -540,6 +541,7 @@ def confirmar_orgasmo_mary_apos_resposta(
     state["resolution_done"] = True
     state["mary_orgasm_allowed"] = False
     state["mary_pre_orgasm"] = False
+    state["mary_pre_orgasm_announced"] = False
     state["mary_near_orgasm"] = False
     state["arousal_level"] = 1.0
     alterar_fase(state, SEXUAL_PHASE_POST_ORGASM, reason="mary_orgasm_confirmed")
@@ -570,10 +572,17 @@ def atualizar_estado_sexual_apos_resposta(
 ) -> dict[str, Any]:
     state = normalizar_estado_sexual(sexual_state)
 
-    if state["scene_phase"] == SEXUAL_PHASE_PRE_ORGASM and (
-        detectar_pre_orgasmo_mary_na_resposta(mary_response)
+    if (
+        state["scene_phase"] == SEXUAL_PHASE_PRE_ORGASM
+        and detectar_pre_orgasmo_mary_na_resposta(mary_response)
     ):
-        state["arousal_level"] = limitar_float(state["arousal_level"] + 0.08)
+        state["mary_pre_orgasm_announced"] = True
+        state["mary_pre_orgasm"] = True
+        state["mary_near_orgasm"] = True
+        state["arousal_level"] = limitar_float(
+            max(state["arousal_level"], 0.86) + 0.04
+        )
+        state["last_transition_reason"] = "mary_announced_pre_orgasm"
 
     confirmar_orgasmo_mary_apos_resposta(
         state,
@@ -594,11 +603,15 @@ def atualizar_estado_sexual_apos_resposta(
         )
     elif state["user_orgasm_done"] and not state["mary_orgasm_done"]:
         state["post_orgasm_continue"] = True
-        alterar_fase(
-            state,
-            SEXUAL_PHASE_POST_ORGASM_ACTIVE,
-            reason="mary_still_needs_resolution",
-        )
+        if state["scene_phase"] not in {
+            SEXUAL_PHASE_PRE_ORGASM,
+            SEXUAL_PHASE_ORGASM,
+        }:
+            alterar_fase(
+                state,
+                SEXUAL_PHASE_POST_ORGASM_ACTIVE,
+                reason="mary_still_needs_resolution",
+            )
     elif state["mary_orgasm_done"] and state["user_orgasm_done"]:
         state["aftercare_required"] = True
         alterar_fase(state, SEXUAL_PHASE_AFTERCARE, reason="both_resolved")
@@ -628,6 +641,7 @@ def validar_resposta_sexual(
 
     if (
         state["scene_phase"] == SEXUAL_PHASE_PRE_ORGASM
+        and not state["mary_pre_orgasm_announced"]
         and not pre_orgasm_detected
     ):
         errors.append("mary_pre_orgasm_without_human_warning")
@@ -656,8 +670,8 @@ def iniciar_novo_ciclo_sexual(
 def encerrar_cena_sexual(
     sexual_state: dict[str, Any] | None,
 ) -> dict[str, Any]:
-    state = criar_estado_sexual_padrao()
     previous = normalizar_estado_sexual(sexual_state)
+    state = criar_estado_sexual_padrao()
     state["previous_scene_phase"] = previous["scene_phase"]
     state["last_transition_reason"] = "sexual_scene_closed"
     return aplicar_aliases_legados(state)
@@ -673,18 +687,23 @@ def montar_contexto_sexual(
         SEXUAL_PHASE_IDLE: "Não inicie sexo sem contexto do turno.",
         SEXUAL_PHASE_TENSION: "Crie tensão concreta e avance sem repetir insinuação.",
         SEXUAL_PHASE_AROUSAL: "Mary demonstra excitação e toma iniciativa corporal.",
-        SEXUAL_PHASE_ACTIVE: "Sexo ativo: Mary conduz um movimento forte e natural.",
+        SEXUAL_PHASE_ACTIVE: (
+            "Sexo ativo: Mary conduz um movimento forte, explícito e natural. "
+            "Não espere comando para cada gesto."
+        ),
         SEXUAL_PHASE_PRE_ORGASM: (
-            "Mary está realmente perto. A fala deve incluir aviso humano e sensorial, "
-            "preferencialmente ‘vou gozar...’, junto de urgência, pedido ou perda de controle."
+            "Mary está realmente perto. Neste turno ela precisa anunciar isso de forma "
+            "humana e sensorial, preferencialmente dizendo ‘vou gozar...’, junto de "
+            "urgência, pedido, palavrão, gemido ou perda de controle. Ainda não conclua."
         ),
         SEXUAL_PHASE_ORGASM: (
-            "Mary deve gozar claramente agora, em primeira pessoa, com palavras humanas, "
-            "sensações corporais e quebra natural de fala; não permaneça no quase."
+            "Mary já anunciou que vai gozar e o estímulo continuou. Ela deve gozar "
+            "claramente agora, em primeira pessoa, com palavras humanas, sensações "
+            "corporais e fala quebrada. Não permaneça no quase."
         ),
         SEXUAL_PHASE_POST_ORGASM_ACTIVE: (
-            "Mary já chegou ao pico ou o usuário chegou primeiro; continue presente e ativa "
-            "até a resolução pendente."
+            "Um dos dois chegou ao pico e ainda existe resolução pendente. Mary continua "
+            "presente, corporal e ativa sem reiniciar artificialmente o próprio ciclo."
         ),
         SEXUAL_PHASE_POST_ORGASM: (
             "Preserve sensibilidade, humor, vulnerabilidade e reação corporal pós-pico."
@@ -702,6 +721,7 @@ def montar_contexto_sexual(
         f"fase={phase}; excitação={state['arousal_level']:.2f}; "
         f"estímulos={state['stimulation_turns']}; conduz={state['mary_is_leading']}; "
         f"pré_orgasmo={state['mary_pre_orgasm']}; "
+        f"pré_orgasmo_anunciado={state['mary_pre_orgasm_announced']}; "
         f"orgasmo_liberado={state['mary_orgasm_allowed']}; "
         f"orgasmo_concluído={state['mary_orgasm_done']}; "
         f"usuário_concluiu={state['user_orgasm_done']}\n"
