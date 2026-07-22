@@ -16,9 +16,93 @@ if _SPEC is None or _SPEC.loader is None:
 _base = importlib.util.module_from_spec(_SPEC)
 _SPEC.loader.exec_module(_base)
 
+
+def _obter_registros_compativeis(nome_aba: str) -> list[dict[str, Any]]:
+    """Lê uma aba mesmo quando a linha 1 contém cabeçalhos duplicados.
+
+    A primeira ocorrência de cada cabeçalho é preservada. Cabeçalhos vazios e
+    ocorrências posteriores repetidas são ignorados. Isso evita a exceção do
+    ``get_all_records`` sem alterar os dados já existentes na planilha.
+    """
+
+    worksheet = _base.obter_aba(nome_aba)
+
+    try:
+        valores = worksheet.get_all_values()
+    except Exception as exc:
+        raise _base.GoogleSheetsRepositoryError(
+            f"Não foi possível ler a aba {nome_aba!r}: {exc}"
+        ) from exc
+
+    if not valores:
+        return []
+
+    cabecalhos = [str(valor).strip() for valor in valores[0]]
+    colunas_unicas: list[tuple[str, int]] = []
+    vistos: set[str] = set()
+
+    for indice, cabecalho in enumerate(cabecalhos):
+        if not cabecalho or cabecalho in vistos:
+            continue
+        vistos.add(cabecalho)
+        colunas_unicas.append((cabecalho, indice))
+
+    registros: list[dict[str, Any]] = []
+
+    for linha in valores[1:]:
+        if not any(str(valor).strip() for valor in linha):
+            continue
+
+        registro: dict[str, Any] = {}
+        for cabecalho, indice in colunas_unicas:
+            registro[cabecalho] = linha[indice] if indice < len(linha) else ""
+        registros.append(registro)
+
+    return registros
+
+
+# Substitui o leitor genérico do módulo-base. Todas as funções internas que
+# consultam abas passam a tolerar cabeçalhos duplicados.
+_base.obter_registros_aba = _obter_registros_compativeis
+
+
+# A função original chama worksheet.get_all_records diretamente. Ela precisa
+# de um wrapper próprio porque não passa pelo leitor genérico acima.
+def listar_interacoes_usuario(
+    user_id: str,
+    *,
+    limite: int = 50,
+) -> list[dict[str, Any]]:
+    user_id_normalizado = str(user_id or "").strip()
+    if not user_id_normalizado:
+        return []
+
+    registros = _obter_registros_compativeis(_base.INTERACTIONS_SHEET)
+
+    interacoes = [
+        dict(registro)
+        for registro in registros
+        if str(registro.get("user_id") or "").strip() == user_id_normalizado
+    ]
+
+    interacoes.sort(
+        key=lambda registro: str(registro.get("timestamp") or "")
+    )
+
+    limite_normalizado = max(1, int(limite or 50))
+    return interacoes[-limite_normalizado:]
+
+
+# Também substitui a referência usada dentro do módulo-base.
+_base.listar_interacoes_usuario = listar_interacoes_usuario
+
+
 for _nome in dir(_base):
     if not _nome.startswith("__"):
         globals()[_nome] = getattr(_base, _nome)
+
+# Garante que o wrapper local não seja sobrescrito pela exportação acima.
+globals()["listar_interacoes_usuario"] = listar_interacoes_usuario
 
 _criar_sessao_original = _base.criar_sessao
 _criar_relacionamento_original = _base.criar_relacionamento_mary
