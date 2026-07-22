@@ -2,6 +2,10 @@ from __future__ import annotations
 
 from typing import Any, Iterable
 
+from memory_persistence import (
+    MEMORY_PERSISTENCE_VERSION,
+    resolver_memorias_para_prompt,
+)
 from prompts.composer import (
     PROMPT_COMPOSER_VERSION,
     montar_contexto_mary,
@@ -19,7 +23,9 @@ from prompts.continuity import (
 
 
 MARY_PROMPT_VERSION = (
-    f"{PROMPT_COMPOSER_VERSION}+{CONTINUITY_PROMPT_VERSION}"
+    f"{PROMPT_COMPOSER_VERSION}+"
+    f"{CONTINUITY_PROMPT_VERSION}+"
+    f"{MEMORY_PERSISTENCE_VERSION}"
 )
 
 
@@ -60,14 +66,20 @@ def montar_prompt_sistema(
     last_mary_response: str = "",
     include_continuity: bool = True,
 ) -> str:
-    """Monta o prompt canônico de Mary com continuidade opcional.
+    """Monta o prompt canônico com continuidade e memória persistente.
 
-    Compatibilidade:
-    - chamadas antigas continuam válidas;
-    - cena e histórico recente são opcionais;
-    - memórias persistentes permanecem sob responsabilidade do compositor;
-    - continuidade não decide o rumo narrativo, apenas preserva fatos e estado.
+    A resolução de memória é preguiçosa: a aba MEMORIES é carregada uma vez por
+    usuário durante a sessão do processo. Nos turnos seguintes, a seleção ocorre
+    no índice local de ``memory_store.py``.
     """
+
+    resolved_memories = resolver_memorias_para_prompt(
+        user_profile=user_profile,
+        relationship_state=relationship_state,
+        user_message=user_message,
+        provided_memories=memories,
+        limit=max_memories,
+    )
 
     blocks = _normalizar_blocos_extras(extra_blocks)
 
@@ -75,7 +87,7 @@ def montar_prompt_sistema(
         continuity_block = montar_contexto_continuidade(
             relationship_state=relationship_state,
             scene_state=scene_state,
-            # Memórias já entram no bloco próprio do compositor. Não as repetimos.
+            # As memórias persistentes entram apenas no bloco do compositor.
             memories=None,
             recent_messages=recent_messages,
             last_mary_response=last_mary_response,
@@ -94,7 +106,7 @@ def montar_prompt_sistema(
         sexual_state=sexual_state,
         turn_intent=turn_intent,
         turn_direction=turn_direction,
-        memories=memories,
+        memories=resolved_memories,
         user_message=user_message,
         has_image=has_image,
         image_context=image_context,
@@ -116,10 +128,16 @@ def montar_diagnostico_prompt(
     scene_state: dict[str, Any] | None = None,
     include_voice_examples: bool = True,
 ) -> dict[str, Any]:
-    """Combina diagnóstico do compositor e da continuidade."""
+    resolved_memories = resolver_memorias_para_prompt(
+        user_profile=user_profile,
+        relationship_state=relationship_state,
+        provided_memories=memories,
+        limit=8,
+    )
 
     return {
         "version": MARY_PROMPT_VERSION,
+        "memory_count": len(resolved_memories),
         "composition": montar_diagnostico_composicao(
             mary_profile=mary_profile,
             user_profile=user_profile,
@@ -127,13 +145,13 @@ def montar_diagnostico_prompt(
             sexual_state=sexual_state,
             turn_intent=turn_intent,
             turn_direction=turn_direction,
-            memories=memories,
+            memories=resolved_memories,
             include_voice_examples=include_voice_examples,
         ),
         "continuity": montar_diagnostico_continuidade(
             relationship_state=relationship_state,
             scene_state=scene_state,
-            memories=memories,
+            memories=resolved_memories,
         ),
     }
 
@@ -141,6 +159,7 @@ def montar_diagnostico_prompt(
 __all__ = [
     "PROMPT_COMPOSER_VERSION",
     "CONTINUITY_PROMPT_VERSION",
+    "MEMORY_PERSISTENCE_VERSION",
     "MARY_PROMPT_VERSION",
     "montar_contexto_mary",
     "montar_contexto_usuario",
