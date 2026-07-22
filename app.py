@@ -2243,10 +2243,102 @@ def gerar_interaction_id() -> str:
     )
 
 
+ENDING_COUNTDOWN_START = 45
+ENDING_INTERACTION_LIMIT = 50
+
+
 def utc_now_iso() -> str:
     return datetime.now(
         timezone.utc
     ).isoformat()
+
+
+def aplicar_politica_encerramento_por_interacoes(
+    *,
+    scene_state: dict[str, Any],
+    interaction_number: int,
+) -> dict[str, Any]:
+    estado = deepcopy(
+        scene_state
+        if isinstance(scene_state, dict)
+        else {}
+    )
+
+    interaction_number = max(
+        0,
+        int(interaction_number or 0),
+    )
+
+    if bool(
+        estado.get("ending_sent", False)
+    ):
+        return estado
+
+    if interaction_number >= ENDING_INTERACTION_LIMIT:
+        estado.update(
+            {
+                "current_phase": "ending",
+                "ending_ready": True,
+                "ending_forced": True,
+                "ending_trigger": "interaction_limit",
+                "ending_trigger_interaction": (
+                    interaction_number
+                ),
+                "ending_countdown_visible": False,
+                "ending_countdown_remaining": 0,
+            }
+        )
+        return estado
+
+    if interaction_number >= ENDING_COUNTDOWN_START:
+        estado.update(
+            {
+                "ending_countdown_visible": True,
+                "ending_countdown_remaining": max(
+                    0,
+                    ENDING_INTERACTION_LIMIT
+                    - interaction_number,
+                ),
+                "ending_pressure": "soft",
+            }
+        )
+    else:
+        estado.update(
+            {
+                "ending_countdown_visible": False,
+                "ending_countdown_remaining": 0,
+            }
+        )
+
+    return estado
+
+
+def montar_instrucao_encerramento_forcado(
+    scene_state: dict[str, Any],
+) -> str:
+    if not isinstance(scene_state, dict):
+        return ""
+
+    if not bool(
+        scene_state.get("ending_forced", False)
+    ):
+        return ""
+
+    return """
+[ENCERRAMENTO OBRIGATÓRIO DESTA HISTÓRIA]
+
+Esta é a resposta final da história.
+
+Mary deve:
+- encerrar a cena de forma natural e coerente com o que aconteceu;
+- permanecer em primeira pessoa e dentro da experiência;
+- não criar novo conflito, promessa, tarefa, convite ou gancho;
+- não pedir que o usuário continue;
+- não anunciar regras, limite de interações ou funcionamento do aplicativo;
+- produzir uma fala final completa, humana e compatível com o tom da cena.
+
+Depois desta resposta, a história será marcada como concluída.
+""".strip()
 
 
 def voltar_ao_menu_historias() -> None:
@@ -2984,6 +3076,15 @@ def processar_interacao(
             ),
         )
 
+        scene_state = (
+            aplicar_politica_encerramento_por_interacoes(
+                scene_state=scene_state,
+                interaction_number=(
+                    interaction_number_cenario
+                ),
+            )
+        )
+
         turn_direction = integrar_direcao_cenario(
             turn_direction=turn_direction,
             analise_cenario=analysis,
@@ -3114,6 +3215,17 @@ USO OBRIGATÓRIO DO ESTADO DA FANTASIA:
     if direcao_narrativa_cenario:
         partes_prompt_sistema.append(
             direcao_narrativa_cenario
+        )
+
+    instrucao_encerramento_forcado = (
+        montar_instrucao_encerramento_forcado(
+            scene_state
+        )
+    )
+
+    if instrucao_encerramento_forcado:
+        partes_prompt_sistema.append(
+            instrucao_encerramento_forcado
         )
 
     prompt_sistema_completo = "\n\n".join(
@@ -3463,6 +3575,15 @@ USO OBRIGATÓRIO DO ESTADO DA FANTASIA:
                 )
                 or ""
             ).strip()
+
+            if not ending_reason:
+                ending_reason = str(
+                    scene_state.get(
+                        "ending_trigger",
+                        "",
+                    )
+                    or ""
+                ).strip()
 
             if not ending_reason:
                 ending_reason = (
@@ -4279,6 +4400,30 @@ def main() -> None:
             st.rerun()
 
         return
+
+    interacoes_restantes = max(
+        0,
+        ENDING_INTERACTION_LIMIT
+        - total_interacoes_cenario,
+    )
+
+    if (
+        ENDING_COUNTDOWN_START
+        <= total_interacoes_cenario
+        < ENDING_INTERACTION_LIMIT
+    ):
+        rotulo_restante = (
+            "1 interação"
+            if interacoes_restantes == 1
+            else f"{interacoes_restantes} interações"
+        )
+
+        st.button(
+            f"Finaliza em até {rotulo_restante}",
+            key="scenario_ending_countdown",
+            disabled=True,
+            use_container_width=True,
+        )
 
     prompt = st.chat_input(
         "Escreva sua mensagem para Mary"
