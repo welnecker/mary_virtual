@@ -9,12 +9,16 @@ import streamlit as st
 
 from memory_persistence import invalidar_cache_memorias
 from memory_store import limpar_memorias_usuario
+from repositories.scenario_rollback_repository import (
+    apagar_ultimos_turnos_cenario,
+)
 
 
-APP_RUNTIME_INTEGRATION_VERSION = "app-runtime-integration-v2-cache-lifecycle"
+APP_RUNTIME_INTEGRATION_VERSION = "app-runtime-integration-v3-safe-story-controls"
 
 _INSTALLED = False
 _ORIGINAL_TITLE: Callable[..., Any] | None = None
+_ORIGINAL_BUTTON: Callable[..., Any] | None = None
 
 
 def _safe_int(value: Any, default: int) -> int:
@@ -165,6 +169,7 @@ def aplicar_politica_adaptativa_encerramento(
             {
                 "ending_countdown_visible": False,
                 "ending_countdown_remaining": 0,
+                "ending_pressure": "",
                 "seek_narrative_resolution": False,
                 "avoid_repetition": True,
             }
@@ -245,7 +250,7 @@ def _patch_cleanup_functions(module: Any) -> None:
 
 
 def _resolver_usuario_atual() -> str:
-    for key in ("persistent_user", "authenticated_user", "user"):
+    for key in ("auth_user", "persistent_user", "authenticated_user", "user"):
         candidate = st.session_state.get(key)
         if isinstance(candidate, dict):
             uid = _texto(
@@ -279,10 +284,168 @@ def _sincronizar_dono_cache_sessao() -> None:
         st.session_state.pop("_mary_memory_cache_user_id", None)
 
 
+def _render_rollback_controls() -> None:
+    if st.session_state.get("_mary_rollback_rendered"):
+        return
+    st.session_state["_mary_rollback_rendered"] = True
+
+    instance = st.session_state.get("scenario_instance")
+    if not isinstance(instance, dict):
+        return
+    if _texto(instance.get("status")).lower() == "completed":
+        return
+
+    total = max(0, _safe_int(instance.get("interaction_count"), 0))
+    session_id = _texto(instance.get("scenario_session_id"))
+    user_id = _resolver_usuario_atual()
+    if total < 1 or not session_id or not user_id:
+        return
+
+    assert _ORIGINAL_BUTTON is not None
+    with st.expander("Corrigir últimos turnos", expanded=False):
+        st.caption(
+            "Remove os últimos turnos da história e sincroniza as abas "
+            "INTERACTIONS e SCENARIO_SESSIONS."
+        )
+        quantity = int(
+            st.number_input(
+                "Quantidade de turnos",
+                min_value=1,
+                max_value=min(20, total),
+                value=1,
+                step=1,
+                key="scenario_rollback_quantity",
+            )
+        )
+
+        pending = bool(st.session_state.get("scenario_rollback_pending"))
+        if not pending:
+            if _ORIGINAL_BUTTON(
+                f"Apagar últimos {quantity} turno(s)",
+                key="scenario_rollback_request",
+                use_container_width=True,
+            ):
+                st.session_state["scenario_rollback_pending"] = True
+                st.rerun()
+            return
+
+        st.warning(
+            f"Isso apagará definitivamente os últimos {quantity} turno(s) "
+            "desta história e fará a contagem recuar."
+        )
+        confirm_col, cancel_col = st.columns(2)
+        with confirm_col:
+            confirmed = _ORIGINAL_BUTTON(
+                "Confirmar exclusão",
+                key="scenario_rollback_confirm",
+                type="primary",
+                use_container_width=True,
+            )
+        with cancel_col:
+            cancelled = _ORIGINAL_BUTTON(
+                "Cancelar",
+                key="scenario_rollback_cancel",
+                use_container_width=True,
+            )
+
+        if cancelled:
+            st.session_state.pop("scenario_rollback_pending", None)
+            st.rerun()
+
+        if confirmed:
+            with st.spinner("Recuando a história e sincronizando os dados..."):
+                result = apagar_ultimos_turnos_cenario(
+                    user_id=user_id,
+                    scenario_session_id=session_id,
+                    quantidade=quantity,
+                )
+
+            session = result.get("session")
+            if isinstance(session, dict):
+                session["scenario_config"] = instance.get("scenario_config", {})
+                st.session_state["scenario_instance"] = session
+
+            messages = result.get("messages")
+            if isinstance(messages, list):
+                st.session_state["messages"] = messages
+
+            st.session_state["history_restored"] = True
+            st.session_state["initial_message_created"] = bool(messages)
+            st.session_state.pop("scenario_rollback_pending", None)
+            st.session_state.pop("scenario_finish_confirmation_pending", None)
+            st.session_state["mensagem_operacao_persistente"] = (
+                f"{result.get('deleted_turns', 0)} turno(s) removido(s). "
+                f"A história voltou para {result.get('remaining_turns', 0)} interação(ões)."
+            )
+            st.rerun()
+
+
+def _handle_story_finish_button(
+    args: tuple[Any, ...],
+    kwargs: dict[str, Any],
+) -> bool:
+    assert _ORIGINAL_BUTTON is not None
+    _render_rollback_controls()
+
+    pending = bool(
+        st.session_state.get("scenario_finish_confirmation_pending")
+    )
+    if not pending:
+        clicked = bool(_ORIGINAL_BUTTON(*args, **kwargs))
+        if clicked:
+            st.session_state["scenario_finish_confirmation_pending"] = True
+            st.rerun()
+        return False
+
+    st.warning(
+        "Deseja realmente terminar esta história? A próxima mensagem receberá "
+        "a resposta final de Mary e a história será bloqueada."
+    )
+    confirm_col, cancel_col = st.columns(2)
+    with confirm_col:
+        confirmed = bool(
+            _ORIGINAL_BUTTON(
+                "Sim, terminar",
+                key="scenario_finish_confirm",
+                type="primary",
+                use_container_width=True,
+            )
+        )
+    with cancel_col:
+        cancelled = bool(
+            _ORIGINAL_BUTTON(
+                "Continuar história",
+                key="scenario_finish_cancel",
+                use_container_width=True,
+            )
+        )
+
+    if cancelled:
+        st.session_state.pop("scenario_finish_confirmation_pending", None)
+        st.rerun()
+
+    if confirmed:
+        st.session_state.pop("scenario_finish_confirmation_pending", None)
+        return True
+
+    return False
+
+
+def _patched_button(*args: Any, **kwargs: Any) -> Any:
+    key = _texto(kwargs.get("key"))
+    if key == "scenario_request_ending":
+        return _handle_story_finish_button(args, kwargs)
+
+    assert _ORIGINAL_BUTTON is not None
+    return _ORIGINAL_BUTTON(*args, **kwargs)
+
+
 def aplicar_integracao_runtime() -> None:
     module = sys.modules.get("__main__")
     if module is None:
         return
+
+    st.session_state.pop("_mary_rollback_rendered", None)
 
     setattr(
         module,
@@ -300,11 +463,12 @@ def aplicar_integracao_runtime() -> None:
 
 
 def install_app_runtime_integration() -> None:
-    global _INSTALLED, _ORIGINAL_TITLE
+    global _INSTALLED, _ORIGINAL_TITLE, _ORIGINAL_BUTTON
     if _INSTALLED:
         return
 
     _ORIGINAL_TITLE = st.title
+    _ORIGINAL_BUTTON = st.button
 
     def patched_title(*args: Any, **kwargs: Any) -> Any:
         aplicar_integracao_runtime()
@@ -312,6 +476,7 @@ def install_app_runtime_integration() -> None:
         return _ORIGINAL_TITLE(*args, **kwargs)
 
     st.title = patched_title
+    st.button = _patched_button
     _INSTALLED = True
 
 
