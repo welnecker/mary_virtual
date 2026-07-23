@@ -12,7 +12,9 @@ from relationship.onomatopoeia import (
 )
 
 
-ONOMATOPOEIA_INTEGRATION_VERSION = "onomatopoeia-integration-v1-runtime"
+ONOMATOPOEIA_INTEGRATION_VERSION = (
+    "onomatopoeia-integration-v2-controlled-expression"
+)
 
 
 _INSTALLED = False
@@ -73,8 +75,6 @@ def _patch_prompt_builder(module: Any) -> None:
         context = montar_contexto_onomatopeias(
             _resolver_texto_usuario(kwargs)
         )
-        if not context:
-            return prompt
         return f"{prompt.rstrip()}\n\n{context}\n"
 
     wrapper._mary_onomatopoeia_wrapped = True  # type: ignore[attr-defined]
