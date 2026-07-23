@@ -34,6 +34,11 @@ from ui.scenario_catalog_extension import (
     SCENARIO_CATALOG_EXTENSION_VERSION,
     install_scenario_catalog_extension,
 )
+from ui.scenario_duration_extension import (
+    SCENARIO_DURATION_EXTENSION_VERSION,
+    dobrar_duracao_configuracao,
+    install_scenario_duration_extension,
+)
 from ui.elevenlabs_voice_integration import (
     ELEVENLABS_VOICE_INTEGRATION_VERSION,
     install_elevenlabs_voice_integration,
@@ -43,6 +48,7 @@ from ui.elevenlabs_voice_integration import (
 # O pacote ui é carregado antes de main(). Os instaladores envolvem st.title;
 # a integração real acontece depois que app.py já definiu todas as funções.
 install_scenario_catalog_extension()
+install_scenario_duration_extension()
 install_elevenlabs_voice_integration()
 install_app_runtime_integration()
 install_interaction_rerun_optimizer()
@@ -68,6 +74,7 @@ __all__ = [
     "COMPLETED_HISTORY_VISIBILITY_VERSION",
     "CONTRAST_ACCESSIBILITY_VERSION",
     "SCENARIO_CATALOG_EXTENSION_VERSION",
+    "SCENARIO_DURATION_EXTENSION_VERSION",
     "ELEVENLABS_VOICE_INTEGRATION_VERSION",
     "aplicar_integracao_runtime",
     "aplicar_otimizacao_rerun",
@@ -76,7 +83,9 @@ __all__ = [
     "aplicar_contraste_acessivel",
     "aplicar_politica_adaptativa_encerramento",
     "ocultar_historias_concluidas_do_catalogo",
+    "dobrar_duracao_configuracao",
     "install_scenario_catalog_extension",
+    "install_scenario_duration_extension",
     "install_elevenlabs_voice_integration",
     "install_app_runtime_integration",
     "install_interaction_rerun_optimizer",
