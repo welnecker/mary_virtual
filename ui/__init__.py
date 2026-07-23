@@ -20,6 +20,11 @@ from ui.onomatopoeia_integration import (
     aplicar_integracao_onomatopeias,
     install_onomatopoeia_integration,
 )
+from ui.casada_frustrada_intimacy_integration import (
+    CASADA_FRUSTRADA_INTIMACY_VERSION,
+    aplicar_integracao_intimidade_casada_frustrada,
+    install_casada_frustrada_intimacy_integration,
+)
 from ui.completed_history_visibility import (
     COMPLETED_HISTORY_VISIBILITY_VERSION,
     install_completed_history_visibility,
@@ -54,6 +59,7 @@ install_app_runtime_integration()
 install_interaction_rerun_optimizer()
 install_diagnostic_log_controls()
 install_onomatopoeia_integration()
+install_casada_frustrada_intimacy_integration()
 install_completed_history_visibility()
 install_contrast_accessibility()
 
@@ -71,6 +77,7 @@ __all__ = [
     "INTERACTION_RERUN_OPTIMIZER_VERSION",
     "DIAGNOSTIC_LOG_CONTROLS_VERSION",
     "ONOMATOPOEIA_INTEGRATION_VERSION",
+    "CASADA_FRUSTRADA_INTIMACY_VERSION",
     "COMPLETED_HISTORY_VISIBILITY_VERSION",
     "CONTRAST_ACCESSIBILITY_VERSION",
     "SCENARIO_CATALOG_EXTENSION_VERSION",
@@ -80,6 +87,7 @@ __all__ = [
     "aplicar_otimizacao_rerun",
     "aplicar_controles_log_diagnostico",
     "aplicar_integracao_onomatopeias",
+    "aplicar_integracao_intimidade_casada_frustrada",
     "aplicar_contraste_acessivel",
     "aplicar_politica_adaptativa_encerramento",
     "ocultar_historias_concluidas_do_catalogo",
@@ -91,6 +99,7 @@ __all__ = [
     "install_interaction_rerun_optimizer",
     "install_diagnostic_log_controls",
     "install_onomatopoeia_integration",
+    "install_casada_frustrada_intimacy_integration",
     "install_completed_history_visibility",
     "install_contrast_accessibility",
     "log_diagnostico_ativado",
