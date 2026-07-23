@@ -9,11 +9,14 @@ import streamlit as st
 
 
 DIAGNOSTIC_LOG_CONTROLS_VERSION = (
-    "diagnostic-log-controls-v2-bounded-lightweight-render"
+    "diagnostic-log-controls-v3-bounded-chat-session"
 )
 
 LOG_ENABLED_KEY = "diagnostic_interaction_log_enabled"
 MAX_LOCAL_DETAILED_LOGS = 2
+MAX_SESSION_MESSAGES = 16
+PRUNED_USER_COUNT_KEY = "pruned_user_message_count"
+SYNTHETIC_COUNT_KEY = "_mary_synthetic_count_message"
 
 _INSTALLED = False
 _ORIGINAL_TITLE: Callable[..., Any] | None = None
@@ -22,6 +25,80 @@ _ORIGINAL_TITLE: Callable[..., Any] | None = None
 def log_diagnostico_ativado() -> bool:
     """Retorna a preferência da sessão; o padrão é não gerar log pesado."""
     return bool(st.session_state.get(LOG_ENABLED_KEY, False))
+
+
+def _mensagem_sintetica() -> dict[str, Any]:
+    return {
+        "role": "user",
+        "content": ".",
+        SYNTHETIC_COUNT_KEY: True,
+    }
+
+
+def _eh_mensagem_sintetica(item: Any) -> bool:
+    return bool(
+        isinstance(item, dict)
+        and item.get(SYNTHETIC_COUNT_KEY) is True
+    )
+
+
+def _limitar_historico_sessao() -> None:
+    """Mantém somente a janela recente no WebSocket do Streamlit.
+
+    O histórico completo continua persistido remotamente. A quantidade de
+    mensagens de usuário removidas é guardada separadamente para preservar a
+    numeração e as regras de duração dos cenários.
+    """
+    mensagens = st.session_state.get("messages", [])
+    if not isinstance(mensagens, list):
+        st.session_state["messages"] = []
+        st.session_state.setdefault(PRUNED_USER_COUNT_KEY, 0)
+        return
+
+    mensagens = [
+        item for item in mensagens
+        if not _eh_mensagem_sintetica(item)
+    ]
+
+    if len(mensagens) <= MAX_SESSION_MESSAGES:
+        st.session_state["messages"] = mensagens
+        st.session_state.setdefault(PRUNED_USER_COUNT_KEY, 0)
+        return
+
+    removidas = mensagens[:-MAX_SESSION_MESSAGES]
+    mantidas = mensagens[-MAX_SESSION_MESSAGES:]
+    usuarios_removidos = sum(
+        1
+        for item in removidas
+        if (
+            isinstance(item, dict)
+            and item.get("role") == "user"
+            and str(item.get("content") or "").strip()
+        )
+    )
+
+    total_anterior = int(
+        st.session_state.get(PRUNED_USER_COUNT_KEY, 0) or 0
+    )
+    st.session_state[PRUNED_USER_COUNT_KEY] = (
+        total_anterior + usuarios_removidos
+    )
+    st.session_state["messages"] = mantidas
+
+
+def _mensagens_com_contagem_preservada(
+    mensagens: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    quantidade = max(
+        0,
+        int(st.session_state.get(PRUNED_USER_COUNT_KEY, 0) or 0),
+    )
+    if quantidade <= 0:
+        return list(mensagens)
+    return [
+        *(_mensagem_sintetica() for _ in range(quantidade)),
+        *list(mensagens),
+    ]
 
 
 def _patch_log_record_builder(module: Any) -> None:
@@ -36,9 +113,6 @@ def _patch_log_record_builder(module: Any) -> None:
     @wraps(original)
     def wrapper(*args: Any, **kwargs: Any) -> dict[str, Any]:
         if not log_diagnostico_ativado():
-            # O registro mínimo ainda é criado e persistido para manter
-            # histórico, contagem, retomada e rollback. Apenas o conteúdo
-            # diagnóstico pesado deixa de ser duplicado na sessão local.
             kwargs = dict(kwargs)
             kwargs["raw_messages"] = []
 
@@ -74,15 +148,117 @@ def _patch_local_log_accumulator(module: Any) -> None:
         atualizados = original(list(registros or []), registro)
         if not isinstance(atualizados, list):
             return []
-
-        # Prompts e mensagens brutas podem ter dezenas de milhares de
-        # caracteres. Manter oito registros completos fazia o WebSocket do
-        # Streamlit crescer até desconectar. Dois registros são suficientes
-        # para comparar o turno atual com o anterior.
         return atualizados[-MAX_LOCAL_DETAILED_LOGS:]
 
     wrapper._mary_diagnostic_log_wrapped = True  # type: ignore[attr-defined]
     setattr(module, "adicionar_registro_sessao", wrapper)
+
+
+def _patch_history_restore(module: Any) -> None:
+    original = getattr(module, "restaurar_historico_interacoes", None)
+    if not callable(original) or getattr(
+        original,
+        "_mary_chat_history_wrapped",
+        False,
+    ):
+        return
+
+    @wraps(original)
+    def wrapper(*args: Any, **kwargs: Any) -> Any:
+        resultado = original(*args, **kwargs)
+        _limitar_historico_sessao()
+        return resultado
+
+    wrapper._mary_chat_history_wrapped = True  # type: ignore[attr-defined]
+    setattr(module, "restaurar_historico_interacoes", wrapper)
+
+
+def _patch_scenario_history_counter(module: Any) -> None:
+    original = getattr(
+        module,
+        "sincronizar_contagem_cenario_com_historico",
+        None,
+    )
+    if not callable(original) or getattr(
+        original,
+        "_mary_chat_history_wrapped",
+        False,
+    ):
+        return
+
+    @wraps(original)
+    def wrapper(*args: Any, **kwargs: Any) -> Any:
+        novos_kwargs = dict(kwargs)
+        mensagens = novos_kwargs.get("mensagens")
+        if isinstance(mensagens, list):
+            novos_kwargs["mensagens"] = (
+                _mensagens_com_contagem_preservada(mensagens)
+            )
+        return original(*args, **novos_kwargs)
+
+    wrapper._mary_chat_history_wrapped = True  # type: ignore[attr-defined]
+    setattr(
+        module,
+        "sincronizar_contagem_cenario_com_historico",
+        wrapper,
+    )
+
+
+def _patch_api_history(module: Any) -> None:
+    original = getattr(module, "construir_historico_api", None)
+    if not callable(original) or getattr(
+        original,
+        "_mary_chat_history_wrapped",
+        False,
+    ):
+        return
+
+    @wraps(original)
+    def wrapper(*args: Any, **kwargs: Any) -> list[dict[str, Any]]:
+        resultado = original(*args, **kwargs)
+        if not isinstance(resultado, list):
+            return []
+        return [
+            item for item in resultado
+            if not _eh_mensagem_sintetica(item)
+        ]
+
+    wrapper._mary_chat_history_wrapped = True  # type: ignore[attr-defined]
+    setattr(module, "construir_historico_api", wrapper)
+
+
+def _patch_interaction_processor(module: Any) -> None:
+    original = getattr(module, "processar_interacao", None)
+    if not callable(original) or getattr(
+        original,
+        "_mary_chat_history_wrapped",
+        False,
+    ):
+        return
+
+    @wraps(original)
+    def wrapper(*args: Any, **kwargs: Any) -> Any:
+        mensagens_reais = st.session_state.get("messages", [])
+        if not isinstance(mensagens_reais, list):
+            mensagens_reais = []
+
+        st.session_state["messages"] = (
+            _mensagens_com_contagem_preservada(mensagens_reais)
+        )
+        try:
+            return original(*args, **kwargs)
+        finally:
+            mensagens_atuais = st.session_state.get("messages", [])
+            if not isinstance(mensagens_atuais, list):
+                mensagens_atuais = []
+            st.session_state["messages"] = [
+                item for item in mensagens_atuais
+                if not _eh_mensagem_sintetica(item)
+            ]
+            _limitar_historico_sessao()
+
+    wrapper._mary_chat_history_wrapped = True  # type: ignore[attr-defined]
+    setattr(module, "processar_interacao", wrapper)
 
 
 def _resumo_registro(registro: dict[str, Any]) -> dict[str, Any]:
@@ -130,8 +306,6 @@ def _patch_log_renderer(module: Any) -> None:
         )
 
         if not enabled:
-            # Remove imediatamente qualquer carga pesada remanescente de uma
-            # execução anterior ou de uma versão antiga do aplicativo.
             st.session_state["interaction_logs"] = []
             st.caption(
                 "Log detalhado desativado. O histórico mínimo da história "
@@ -195,9 +369,19 @@ def aplicar_controles_log_diagnostico() -> None:
         return
 
     st.session_state.setdefault(LOG_ENABLED_KEY, False)
+    st.session_state.setdefault(PRUNED_USER_COUNT_KEY, 0)
+
     _patch_log_record_builder(module)
     _patch_local_log_accumulator(module)
+    _patch_history_restore(module)
+    _patch_scenario_history_counter(module)
+    _patch_api_history(module)
+    _patch_interaction_processor(module)
     _patch_log_renderer(module)
+
+    # Em cada rerun, descarta imediatamente mensagens antigas que ainda possam
+    # ter vindo de uma versão anterior do aplicativo.
+    _limitar_historico_sessao()
 
 
 def install_diagnostic_log_controls() -> None:
@@ -221,6 +405,7 @@ __all__ = [
     "DIAGNOSTIC_LOG_CONTROLS_VERSION",
     "LOG_ENABLED_KEY",
     "MAX_LOCAL_DETAILED_LOGS",
+    "MAX_SESSION_MESSAGES",
     "aplicar_controles_log_diagnostico",
     "install_diagnostic_log_controls",
     "log_diagnostico_ativado",
