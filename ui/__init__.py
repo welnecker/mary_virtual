@@ -25,6 +25,11 @@ from ui.casada_frustrada_intimacy_integration import (
     aplicar_integracao_intimidade_casada_frustrada,
     install_casada_frustrada_intimacy_integration,
 )
+from ui.casada_frustrada_supermarket_calibration import (
+    CASADA_FRUSTRADA_SUPERMARKET_VERSION,
+    aplicar_calibracao_supermercado_casada_frustrada,
+    install_casada_frustrada_supermarket_calibration,
+)
 from ui.pix_test_commerce_integration import (
     PIX_TEST_COMMERCE_VERSION,
     aplicar_integracao_pix_teste,
@@ -69,6 +74,7 @@ install_interaction_rerun_optimizer()
 install_diagnostic_log_controls()
 install_onomatopoeia_integration()
 install_casada_frustrada_intimacy_integration()
+install_casada_frustrada_supermarket_calibration()
 install_pix_test_commerce_integration()
 install_pix_continue_access_fix()
 install_completed_history_visibility()
@@ -89,6 +95,7 @@ __all__ = [
     "DIAGNOSTIC_LOG_CONTROLS_VERSION",
     "ONOMATOPOEIA_INTEGRATION_VERSION",
     "CASADA_FRUSTRADA_INTIMACY_VERSION",
+    "CASADA_FRUSTRADA_SUPERMARKET_VERSION",
     "PIX_TEST_COMMERCE_VERSION",
     "PIX_CONTINUE_ACCESS_FIX_VERSION",
     "COMPLETED_HISTORY_VISIBILITY_VERSION",
@@ -101,6 +108,7 @@ __all__ = [
     "aplicar_controles_log_diagnostico",
     "aplicar_integracao_onomatopeias",
     "aplicar_integracao_intimidade_casada_frustrada",
+    "aplicar_calibracao_supermercado_casada_frustrada",
     "aplicar_integracao_pix_teste",
     "aplicar_contraste_acessivel",
     "aplicar_politica_adaptativa_encerramento",
@@ -114,6 +122,7 @@ __all__ = [
     "install_diagnostic_log_controls",
     "install_onomatopoeia_integration",
     "install_casada_frustrada_intimacy_integration",
+    "install_casada_frustrada_supermarket_calibration",
     "install_pix_test_commerce_integration",
     "install_pix_continue_access_fix",
     "install_completed_history_visibility",
