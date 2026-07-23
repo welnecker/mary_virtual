@@ -4,10 +4,31 @@ import re
 from typing import Any
 
 
-ONOMATOPOEIA_VERSION = "onomatopoeia-v1-action-markers"
+ONOMATOPOEIA_VERSION = "onomatopoeia-v2-controlled-laughter-and-sounds"
 
 
 ONOMATOPOEIA_ACTIONS: dict[str, dict[str, Any]] = {
+    "KKK": {
+        "action": "gargalhada",
+        "description": "gargalhada aberta, espontânea ou debochada",
+        "sexual": False,
+        "explicit": False,
+        "tone": "open_laughter",
+    },
+    "RSRS": {
+        "action": "riso_contido",
+        "description": "riso contido, tímido, provocador ou incrédulo",
+        "sexual": False,
+        "explicit": False,
+        "tone": "contained_laughter",
+    },
+    "SNIFF": {
+        "action": "cheirar",
+        "description": "som curto de inspirar pelo nariz ou cheirar algo ou alguém",
+        "sexual": False,
+        "explicit": False,
+        "tone": "smell",
+    },
     "CHUP": {
         "action": "chupada",
         "description": "som de chupada ou sucção com a boca",
@@ -72,13 +93,38 @@ ONOMATOPOEIA_ACTIONS: dict[str, dict[str, Any]] = {
 
 
 _TOKEN_PATTERN = re.compile(
-    r"(?<![\w])(?:CHU+P|SLU+P|SU+CK|PO+P|FLO+P|GLU+B|HU+N+F+|PLA+F|NHA+M|FA+P)(?![\w])",
+    r"(?<![\w])(?:K{3,}|(?:RS){2,}|SNI+F+|CHU+P|SLU+P|SU+CK|PO+P|FLO+P|GLU+B|HU+N+F+|PLA+F|NHA+M|FA+P)(?![\w])",
     flags=re.IGNORECASE,
 )
 
 
+CONTROLLED_USAGE_PROMPT = """
+USO CONTROLADO DE RISOS E ONOMATOPEIAS
+
+- Mary pode usar onomatopeias curtas dentro da própria fala quando o som realmente estiver acontecendo no instante.
+- “kkkk”, “kkkkk” ou “kkkkkk” representam gargalhada aberta, espontânea, debochada ou divertida.
+- “rsrs”, “rsrsrs” ou “rsrsrsrs” representam riso contido, tímido, provocador ou incrédulo.
+- “sniff!” representa uma inspiração curta pelo nariz ou o ato de cheirar; combine com algo concreto que Mary percebe.
+- CHUP, SLUP, SUCK, POP, FLOP, GLUB, HUNFF, PLAF, NHAM e FAP representam os sons físicos correspondentes ao ato atual.
+- Use no máximo uma família de onomatopeia por resposta comum e, em cena física intensa, no máximo duas ocorrências curtas da mesma família.
+- Não comece toda resposta com som. Não repita o mesmo som em turnos consecutivos sem motivo real.
+- O som deve vir colado a uma fala natural de Mary, nunca sozinho e nunca como legenda de roteiro.
+- Risos só aparecem quando algo foi engraçado, absurdo, provocador, embaraçoso ou deliciosamente inesperado.
+- Onomatopeias sexuais só aparecem quando o ato correspondente já está acontecendo ou foi claramente iniciado na cena.
+- Não use uma onomatopeia para inventar ação do usuário. Mary pode produzir o próprio som, reagir ao ato confirmado ou pedir continuidade.
+- Preserve oralidade. Prefira exemplos como “kkkkk... você não tem jeito”, “rsrsrs... tá brincando, né?”, “sniff! Você tem um cheiro tão bom” ou “GLUB... engoli tudinho”.
+- Evite explicar o som depois de usá-lo. A fala seguinte deve expressar desejo, humor, sensação ou reação imediata.
+""".strip()
+
+
 def _canonicalize(token: str) -> str:
     text = str(token or "").upper()
+    if re.fullmatch(r"K{3,}", text):
+        return "KKK"
+    if re.fullmatch(r"(?:RS){2,}", text):
+        return "RSRS"
+    if text.startswith("SNI"):
+        return "SNIFF"
     if text.startswith("CH"):
         return "CHUP"
     if text.startswith("SL"):
@@ -143,13 +189,18 @@ def detectar_onomatopeias(texto: str) -> list[dict[str, Any]]:
 
 def montar_contexto_onomatopeias(texto: str) -> str:
     detected = detectar_onomatopeias(texto)
-    if not detected:
-        return ""
+    lines = [CONTROLLED_USAGE_PROMPT]
 
-    lines = [
-        "INTERPRETAÇÃO DE ONOMATOPEIAS DO TURNO:",
-        "Trate os sons abaixo como ações realizadas ou descritas pelo usuário, não como palavras aleatórias.",
-    ]
+    if not detected:
+        return "\n".join(lines)
+
+    lines.extend(
+        [
+            "",
+            "INTERPRETAÇÃO DE ONOMATOPEIAS DO TURNO DO USUÁRIO:",
+            "Trate os sons abaixo como ações ou tons realmente expressos no turno, não como palavras aleatórias.",
+        ]
+    )
 
     for item in detected:
         lines.append(
@@ -158,8 +209,8 @@ def montar_contexto_onomatopeias(texto: str) -> str:
 
     lines.extend(
         [
-            "Mary deve reagir ao gesto e à parte do corpo já estabelecida pela continuidade da cena.",
-            "Não repetir mecanicamente todas as onomatopeias na resposta; use-as apenas quando soarem naturais.",
+            "Mary deve reagir ao gesto, ao humor e à parte do corpo já estabelecida pela continuidade da cena.",
+            "Ela pode ecoar o riso do usuário quando isso soar espontâneo, mas não deve copiar mecanicamente todos os sons.",
             "Não inventar penetração, tapa ou ato sexual se a continuidade e o consentimento da cena não sustentarem essa leitura.",
         ]
     )
@@ -179,6 +230,17 @@ def enriquecer_sinais_com_onomatopeias(
     actions = [str(item["action"]) for item in detected]
     result["onomatopoeia_actions"] = actions
     result["onomatopoeia_tokens"] = [str(item["token"]) for item in detected]
+
+    if any(item.get("tone") == "open_laughter" for item in detected):
+        result["user_laughed"] = True
+        result["laughter_style"] = "open"
+
+    if any(item.get("tone") == "contained_laughter" for item in detected):
+        result["user_laughed"] = True
+        result["laughter_style"] = "contained"
+
+    if any(item.get("tone") == "smell" for item in detected):
+        result["smell_action"] = True
 
     if any(bool(item.get("sexual")) for item in detected):
         result["sexual_signal"] = True
@@ -206,6 +268,7 @@ def enriquecer_sinais_com_onomatopeias(
 __all__ = [
     "ONOMATOPOEIA_VERSION",
     "ONOMATOPOEIA_ACTIONS",
+    "CONTROLLED_USAGE_PROMPT",
     "detectar_onomatopeias",
     "montar_contexto_onomatopeias",
     "enriquecer_sinais_com_onomatopeias",
