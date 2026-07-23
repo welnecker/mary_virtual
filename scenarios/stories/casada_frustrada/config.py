@@ -68,8 +68,8 @@ SCENARIO_CONFIG: dict[str, Any] = {
     },
     "opening_message": (
         "Desculpa... eu estava olhando a prateleira e quase passei por cima de você "
-        "com o carrinho. Pelo menos me diz que não quebrei nada. Você sempre faz "
-        "compras nesse horário ou eu dei sorte hoje?"
+        "com o carrinho. Pelo menos me diz que não quebrei nada."
+        
     ),
     "initial_state": {
         "status": "active",
