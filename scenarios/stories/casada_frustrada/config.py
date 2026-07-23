@@ -3,7 +3,7 @@ from __future__ import annotations
 from copy import deepcopy
 from typing import Any
 
-from scenarios.schema import ACCESS_TYPE_FREE, normalizar_config_cenario
+from scenarios.schema import ACCESS_TYPE_PAID, normalizar_config_cenario
 
 
 SCENARIO_ID = "casada_frustrada"
@@ -32,7 +32,7 @@ SCENARIO_CONFIG: dict[str, Any] = {
         "image": "",
         "badge": "Encontro secreto",
         "button_label_free": "Começar a história",
-        "button_label_locked": "Desbloquear",
+        "button_label_locked": "Desbloquear por Pix",
         "button_label_unlocked": "Jogar",
     },
     "duration": {
@@ -44,10 +44,10 @@ SCENARIO_CONFIG: dict[str, Any] = {
         "allow_early_resolution": True,
     },
     "commerce": {
-        "access_type": ACCESS_TYPE_FREE,
-        "price_cents": 0,
+        "access_type": ACCESS_TYPE_PAID,
+        "price_cents": 990,
         "currency": "BRL",
-        "product_id": "",
+        "product_id": "story_casada_frustrada_v1",
     },
     "roles": {
         "mary": (
