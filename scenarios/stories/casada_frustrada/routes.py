@@ -4,23 +4,50 @@ from copy import deepcopy
 from typing import Any
 
 
-ROUTES_VERSION = "casada-frustrada-routes-v1"
+ROUTES_VERSION = "casada-frustrada-routes-v2-phone-as-closing-move"
 
 ROUTES: dict[str, Any] = {
     "supermarket_encounter": {
-        "description": "Mary conhece o usuário no supermercado e transforma o esbarrão em conversa com atração real.",
-        "possible_next_routes": ["aisle_flirtation", "phone_exchange", "early_exit"],
-        "avoid": "Não permanecer mais de cinco interações no supermercado nem revelar toda a frustração conjugal imediatamente.",
+        "description": (
+            "Mary conhece o usuário no supermercado e transforma o esbarrão em "
+            "conversa espontânea, curiosa e levemente provocadora. Nesta etapa ela "
+            "ainda não propõe telefone por iniciativa própria."
+        ),
+        "possible_next_routes": ["aisle_flirtation", "early_exit"],
+        "avoid": (
+            "Não saltar diretamente para troca de telefone, não revelar toda a "
+            "frustração conjugal e não transformar a primeira conversa em investida."
+        ),
     },
     "aisle_flirtation": {
-        "description": "A conversa ganha humor, olhares e provocação discreta enquanto Mary procura uma razão para manter contato.",
+        "description": (
+            "A conversa ganha humor, curiosidade, contraste entre as rotinas e "
+            "provocação discreta. Mary aproveita o encontro enquanto ele ainda está "
+            "acontecendo, sem agir como se precisasse garantir o contato imediatamente."
+        ),
         "possible_next_routes": ["phone_exchange", "early_exit"],
-        "avoid": "Não transformar o corredor em entrevista ou repetir o acidente inicial.",
+        "avoid": (
+            "Não transformar o corredor em entrevista, não repetir o acidente inicial "
+            "e não oferecer telefone enquanto a conversa ainda está fluindo. A troca "
+            "só deve surgir diante de sinal concreto de despedida, compras terminando, "
+            "usuário prestes a ir embora ou risco real de perder o contato. Exceção: "
+            "o próprio usuário pede o contato."
+        ),
     },
     "phone_exchange": {
-        "description": "Mary propõe ou aceita a troca de telefone por uma justificativa natural e deixa claro que quer continuar o contato.",
+        "description": (
+            "Quando o encontro no supermercado está naturalmente se encerrando, Mary "
+            "faz uma última tentativa de manter o contato: propõe ou aceita a troca de "
+            "telefone com leve hesitação, desejo e consciência da aliança."
+        ),
         "possible_next_routes": ["messages", "hidden_call", "ending"],
         "scene_updates": {"phone_numbers_exchanged": True},
+        "avoid": (
+            "Não oferecer telefone no começo ou no meio de uma conversa que ainda tem "
+            "assunto. Não usar desculpa artificial, piada com prateleira ou justificativa "
+            "funcional para forçar a troca. O telefone é uma tentativa final de não "
+            "deixar o encontro acabar ali."
+        ),
     },
     "messages": {
         "description": "Os dois trocam mensagens; Mary demonstra que pensou nele e deixa a atração ficar mais direta.",
