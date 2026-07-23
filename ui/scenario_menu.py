@@ -148,7 +148,10 @@ def _continuar_historia(
 
     user_id = _texto(sessao.get("user_id"))
     scenario_session_id = _texto(sessao.get("scenario_session_id"))
-    if not user_id or not scenario_session_id:
+    scenario_id = _texto(sessao.get("scenario_id")) or _texto(
+        cenario.get("scenario_id")
+    )
+    if not user_id or not scenario_session_id or not scenario_id:
         st.error("A sessão narrativa está incompleta.")
         return
 
@@ -156,7 +159,10 @@ def _continuar_historia(
         instancia, mensagens = continuar_cenario_para_usuario(
             user_id=user_id,
             scenario_session_id=scenario_session_id,
-            unlocked_scenario_ids=set(),
+            # Uma sessão ativa já foi iniciada com acesso válido. Ao continuar,
+            # o próprio cenário da sessão deve permanecer autorizado; não se
+            # exige um novo crédito Pix antes do encerramento.
+            unlocked_scenario_ids={scenario_id},
         )
     except (ValueError, PermissionError) as exc:
         st.error(str(exc))
