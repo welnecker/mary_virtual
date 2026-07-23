@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import re
+from functools import wraps
 from typing import Any, Callable
 
 import streamlit as st
@@ -17,16 +18,18 @@ from voice.elevenlabs_tts import (
 
 
 ELEVENLABS_VOICE_INTEGRATION_VERSION = (
-    "elevenlabs-voice-integration-v4-latest-response-single-audio"
+    "elevenlabs-voice-integration-v5-latest-response-one-player"
 )
 
 _INSTALLED = False
 _ORIGINAL_RENDER_VOICE_PLAYER: Callable[..., Any] | None = None
+_ORIGINAL_RENDER_SHELL: Callable[..., Any] | None = None
 
 _ACTIVE_AUDIO_TOKEN_KEY = "_mary_active_neural_audio_token"
 _ACTIVE_AUDIO_BYTES_KEY = "_mary_active_neural_audio_bytes"
 _ACTIVE_AUDIO_ERROR_KEY = "_mary_active_neural_audio_error"
 _AUTOPLAY_DONE_KEY = "_mary_neural_autoplay_done"
+_RENDERED_THIS_RUN_KEY = "_mary_latest_voice_rendered_this_run"
 
 
 def _texto(value: Any) -> str:
@@ -83,6 +86,10 @@ def _activate_latest_audio(token: str) -> None:
     st.session_state[_ACTIVE_AUDIO_TOKEN_KEY] = token
 
 
+def _reset_voice_render_guard() -> None:
+    st.session_state.pop(_RENDERED_THIS_RUN_KEY, None)
+
+
 def _render_browser_fallback(
     text: str,
     *,
@@ -126,6 +133,12 @@ def _render_neural_voice_player(
     # na resposta mais recente de Mary.
     if not _is_latest_speech(clean_text):
         return
+
+    # Protege contra duas respostas idênticas no histórico: somente a primeira
+    # ocorrência elegível deste rerun cria widget e player.
+    if st.session_state.get(_RENDERED_THIS_RUN_KEY):
+        return
+    st.session_state[_RENDERED_THIS_RUN_KEY] = True
 
     profile_name = _profile_name()
     token = _audio_token(text=clean_text, profile_name=profile_name)
@@ -204,12 +217,31 @@ def _render_neural_voice_player(
         )
 
 
+def _install_shell_reset() -> None:
+    global _ORIGINAL_RENDER_SHELL
+
+    original = getattr(professional_experience, "_render_professional_shell", None)
+    if not callable(original) or getattr(original, "_mary_voice_guard_wrapped", False):
+        return
+
+    _ORIGINAL_RENDER_SHELL = original
+
+    @wraps(original)
+    def wrapped(*args: Any, **kwargs: Any) -> Any:
+        _reset_voice_render_guard()
+        return original(*args, **kwargs)
+
+    setattr(wrapped, "_mary_voice_guard_wrapped", True)
+    professional_experience._render_professional_shell = wrapped
+
+
 def install_elevenlabs_voice_integration() -> None:
     global _INSTALLED, _ORIGINAL_RENDER_VOICE_PLAYER
     if _INSTALLED:
         return
 
     professional_experience.install_professional_experience()
+    _install_shell_reset()
 
     original = getattr(professional_experience, "_render_voice_player", None)
     if not callable(original):
