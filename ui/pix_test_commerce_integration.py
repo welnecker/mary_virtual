@@ -11,7 +11,11 @@ import streamlit as st
 import ui.scenario_menu as scenario_menu
 
 
-PIX_TEST_COMMERCE_VERSION = "pix-test-commerce-v1-session-entitlements"
+PIX_TEST_COMMERCE_VERSION = "pix-test-commerce-v2-casada-frustrada-gated"
+
+CASADA_FRUSTRADA_ID = "casada_frustrada"
+CASADA_FRUSTRADA_PRODUCT_ID = "story_casada_frustrada_v1"
+CASADA_FRUSTRADA_PRICE_CENTS = 990
 
 _INSTALLED = False
 _ORIGINAL_TITLE: Callable[..., Any] | None = None
@@ -63,6 +67,33 @@ def _criar_txid(*, user_id: str, scenario_id: str) -> str:
     material = f"{user_id}|{scenario_id}|{nonce}".encode("utf-8")
     digest = hashlib.sha256(material).hexdigest()[:10].upper()
     return f"MARY{digest}"
+
+
+def _aplicar_produto_teste(cenario: dict[str, Any]) -> dict[str, Any]:
+    item = dict(cenario)
+    if _texto(item.get("scenario_id")) != CASADA_FRUSTRADA_ID:
+        return item
+
+    unlocked = CASADA_FRUSTRADA_ID in _entitlements()
+    item.update(
+        {
+            "access_type": "paid",
+            "price_cents": CASADA_FRUSTRADA_PRICE_CENTS,
+            "currency": "BRL",
+            "product_id": CASADA_FRUSTRADA_PRODUCT_ID,
+            "allowed": unlocked,
+            "access_status": "unlocked" if unlocked else "locked",
+            "access_reason": "pix_test_entitlement" if unlocked else "purchase_required",
+            "can_continue": bool(item.get("active_session")) and unlocked,
+        }
+    )
+    card = item.get("card")
+    if isinstance(card, dict):
+        card = dict(card)
+        card["button_label_locked"] = "Desbloquear por Pix"
+        card["button_label_unlocked"] = "Jogar"
+        item["card"] = card
+    return item
 
 
 def _obter_ou_criar_compra(
@@ -154,6 +185,7 @@ def _renderizar_checkout_teste(cenario: dict[str, Any]) -> None:
             unlocked.add(scenario_id)
             _salvar_entitlements(unlocked)
             st.session_state["pix_test_last_unlocked"] = scenario_id
+            st.session_state.pop("pix_test_checkout_scenario_id", None)
             st.rerun()
 
         if st.button(
@@ -165,23 +197,51 @@ def _renderizar_checkout_teste(cenario: dict[str, Any]) -> None:
             st.rerun()
 
 
-def _adicionar_desbloqueios(kwargs: dict[str, Any]) -> dict[str, Any]:
-    result = dict(kwargs)
-    current = result.get("unlocked_scenario_ids")
-    unlocked = set(current) if isinstance(current, (set, list, tuple)) else set()
-    unlocked.update(_entitlements())
-    result["unlocked_scenario_ids"] = unlocked
-    return result
+def _patch_listar_cenarios(module: Any) -> None:
+    original = getattr(module, "listar_cenarios_para_usuario", None)
+    if not callable(original) or getattr(original, "_mary_pix_test_wrapped", False):
+        return
+
+    @wraps(original)
+    def wrapper(*args: Any, **kwargs: Any) -> list[dict[str, Any]]:
+        result = original(*args, **kwargs)
+        if not isinstance(result, list):
+            return result
+        return [
+            _aplicar_produto_teste(item)
+            if isinstance(item, dict)
+            else item
+            for item in result
+        ]
+
+    wrapper._mary_pix_test_wrapped = True  # type: ignore[attr-defined]
+    setattr(module, "listar_cenarios_para_usuario", wrapper)
 
 
-def _patch_access_function(module: Any, name: str) -> None:
+def _patch_start_or_continue(module: Any, name: str) -> None:
     original = getattr(module, name, None)
     if not callable(original) or getattr(original, "_mary_pix_test_wrapped", False):
         return
 
     @wraps(original)
     def wrapper(*args: Any, **kwargs: Any) -> Any:
-        return original(*args, **_adicionar_desbloqueios(kwargs))
+        scenario_id = _texto(kwargs.get("scenario_id"))
+        if name == "continuar_cenario_para_usuario" and not scenario_id:
+            session_id = _texto(kwargs.get("scenario_session_id"))
+            instancia = st.session_state.get("scenario_instance")
+            if isinstance(instancia, dict) and _texto(
+                instancia.get("scenario_session_id")
+            ) == session_id:
+                scenario_id = _texto(instancia.get("scenario_id"))
+
+        if (
+            scenario_id == CASADA_FRUSTRADA_ID
+            and CASADA_FRUSTRADA_ID not in _entitlements()
+        ):
+            raise PermissionError(
+                "Casada frustrada precisa ser desbloqueada por Pix antes de iniciar."
+            )
+        return original(*args, **kwargs)
 
     wrapper._mary_pix_test_wrapped = True  # type: ignore[attr-defined]
     setattr(module, name, wrapper)
@@ -234,12 +294,9 @@ def aplicar_integracao_pix_teste() -> None:
     if module is None:
         return
 
-    for function_name in (
-        "listar_cenarios_para_usuario",
-        "iniciar_cenario_para_usuario",
-    ):
-        _patch_access_function(module, function_name)
-
+    _patch_listar_cenarios(module)
+    _patch_start_or_continue(module, "iniciar_cenario_para_usuario")
+    _patch_start_or_continue(module, "continuar_cenario_para_usuario")
     _patch_menu_renderer(module)
 
 
