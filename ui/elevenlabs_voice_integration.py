@@ -17,11 +17,16 @@ from voice.elevenlabs_tts import (
 
 
 ELEVENLABS_VOICE_INTEGRATION_VERSION = (
-    "elevenlabs-voice-integration-v3-visible-safe-diagnostics"
+    "elevenlabs-voice-integration-v4-latest-response-single-audio"
 )
 
 _INSTALLED = False
 _ORIGINAL_RENDER_VOICE_PLAYER: Callable[..., Any] | None = None
+
+_ACTIVE_AUDIO_TOKEN_KEY = "_mary_active_neural_audio_token"
+_ACTIVE_AUDIO_BYTES_KEY = "_mary_active_neural_audio_bytes"
+_ACTIVE_AUDIO_ERROR_KEY = "_mary_active_neural_audio_error"
+_AUTOPLAY_DONE_KEY = "_mary_neural_autoplay_done"
 
 
 def _texto(value: Any) -> str:
@@ -59,9 +64,23 @@ def _is_latest_speech(text: str) -> bool:
     return bool(text and text == _latest_assistant_speech())
 
 
-def _autoplay_token(*, text: str, profile_name: str) -> str:
+def _audio_token(*, text: str, profile_name: str) -> str:
     material = f"{ELEVENLABS_MODEL_ID}|{profile_name}|{text}"
     return hashlib.sha256(material.encode("utf-8")).hexdigest()
+
+
+def _clear_active_audio() -> None:
+    st.session_state.pop(_ACTIVE_AUDIO_BYTES_KEY, None)
+    st.session_state.pop(_ACTIVE_AUDIO_ERROR_KEY, None)
+
+
+def _activate_latest_audio(token: str) -> None:
+    previous = _texto(st.session_state.get(_ACTIVE_AUDIO_TOKEN_KEY))
+    if previous == token:
+        return
+
+    _clear_active_audio()
+    st.session_state[_ACTIVE_AUDIO_TOKEN_KEY] = token
 
 
 def _render_browser_fallback(
@@ -103,32 +122,36 @@ def _render_neural_voice_player(
     if not clean_text or not st.session_state.get("mary_voice_enabled", True):
         return
 
+    # O histórico permanece somente em texto. O controle de voz existe apenas
+    # na resposta mais recente de Mary.
+    if not _is_latest_speech(clean_text):
+        return
+
+    profile_name = _profile_name()
+    token = _audio_token(text=clean_text, profile_name=profile_name)
+    _activate_latest_audio(token)
+
     if not elevenlabs_configurada():
         _render_configuration_problem()
         _render_browser_fallback(
             clean_text,
             autoplay=autoplay,
-            key_seed=key_seed,
+            key_seed="latest_" + _component_key(key_seed),
         )
         return
 
-    profile_name = _profile_name()
-    component_key = _component_key(key_seed)
-    audio_state_key = f"_mary_neural_audio_{component_key}_{profile_name}"
-    error_state_key = f"_mary_neural_audio_error_{component_key}_{profile_name}"
+    autoplay_done = st.session_state.get(_AUTOPLAY_DONE_KEY) == token
+    should_autoplay = bool(autoplay and not autoplay_done)
 
-    should_autoplay = bool(autoplay and _is_latest_speech(clean_text))
-    autoplay_key = _autoplay_token(text=clean_text, profile_name=profile_name)
-    autoplay_done = st.session_state.get("_mary_neural_autoplay_done") == autoplay_key
-
+    # Chave única e estável: só há um botão de áudio por rerun.
     play_clicked = st.button(
         f"▶ Ouvir Mary · {profile_name}",
-        key=f"mary_neural_voice_{component_key}_{profile_name}",
+        key=f"mary_neural_voice_latest_{profile_name}",
         help="Voz neural em português pela ElevenLabs.",
     )
 
-    should_generate = bool(play_clicked or (should_autoplay and not autoplay_done))
-    audio = st.session_state.get(audio_state_key)
+    should_generate = bool(play_clicked or should_autoplay)
+    audio = st.session_state.get(_ACTIVE_AUDIO_BYTES_KEY)
 
     if should_generate and not isinstance(audio, bytes):
         try:
@@ -137,14 +160,14 @@ def _render_neural_voice_player(
                     text=clean_text,
                     profile_name=profile_name,
                 )
-            st.session_state[audio_state_key] = audio
-            st.session_state.pop(error_state_key, None)
+            st.session_state[_ACTIVE_AUDIO_BYTES_KEY] = audio
+            st.session_state.pop(_ACTIVE_AUDIO_ERROR_KEY, None)
         except ElevenLabsTTSError as exc:
-            st.session_state[error_state_key] = str(exc)
+            st.session_state[_ACTIVE_AUDIO_ERROR_KEY] = str(exc)
             audio = None
 
     if should_autoplay and should_generate:
-        st.session_state["_mary_neural_autoplay_done"] = autoplay_key
+        st.session_state[_AUTOPLAY_DONE_KEY] = token
 
     if isinstance(audio, bytes) and audio:
         st.audio(
@@ -154,7 +177,7 @@ def _render_neural_voice_player(
         )
         return
 
-    error_message = _texto(st.session_state.get(error_state_key))
+    error_message = _texto(st.session_state.get(_ACTIVE_AUDIO_ERROR_KEY))
     if error_message:
         st.error("A voz neural não pôde ser gerada.")
         with st.expander("Ver diagnóstico da ElevenLabs", expanded=True):
@@ -177,7 +200,7 @@ def _render_neural_voice_player(
         _render_browser_fallback(
             clean_text,
             autoplay=bool(should_autoplay and should_generate),
-            key_seed=key_seed,
+            key_seed="latest_" + _component_key(key_seed),
         )
 
 
