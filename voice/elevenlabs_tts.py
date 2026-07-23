@@ -10,7 +10,7 @@ from urllib.request import Request, urlopen
 import streamlit as st
 
 
-ELEVENLABS_TTS_VERSION = "elevenlabs-tts-v1-cached-multilingual"
+ELEVENLABS_TTS_VERSION = "elevenlabs-tts-v2-diagnostic-secrets"
 ELEVENLABS_MODEL_ID = "eleven_multilingual_v2"
 ELEVENLABS_API_BASE = "https://api.elevenlabs.io/v1"
 ELEVENLABS_OUTPUT_FORMAT = "mp3_44100_128"
@@ -56,25 +56,49 @@ def _texto(value: Any) -> str:
     return str(value or "").strip()
 
 
-def obter_credenciais() -> tuple[str, str]:
-    """Lê secrets planos ou agrupados em [elevenlabs]."""
+def _ler_secret(nome: str) -> str:
+    try:
+        return _texto(st.secrets[nome])
+    except Exception:
+        return ""
 
-    api_key = ""
-    voice_id = ""
+
+def obter_credenciais_com_origem() -> tuple[str, str, str]:
+    """Lê secrets planos ou agrupados e informa a origem do voice_id."""
+
+    api_key = _ler_secret("ELEVENLABS_API_KEY")
+    voice_id = _ler_secret("ELEVENLABS_VOICE_ID")
+    origem = "secret plano" if voice_id else ""
 
     try:
-        api_key = _texto(st.secrets.get("ELEVENLABS_API_KEY", ""))
-        voice_id = _texto(st.secrets.get("ELEVENLABS_VOICE_ID", ""))
-
-        grouped = st.secrets.get("elevenlabs", {})
-        if not api_key and hasattr(grouped, "get"):
-            api_key = _texto(grouped.get("api_key", ""))
-        if not voice_id and hasattr(grouped, "get"):
-            voice_id = _texto(grouped.get("voice_id", ""))
+        grouped = st.secrets["elevenlabs"]
     except Exception:
-        return "", ""
+        grouped = {}
 
+    if hasattr(grouped, "get"):
+        if not api_key:
+            api_key = _texto(grouped.get("api_key", ""))
+        if not voice_id:
+            voice_id = _texto(grouped.get("voice_id", ""))
+            if voice_id:
+                origem = "seção [elevenlabs]"
+
+    return api_key, voice_id, origem
+
+
+def obter_credenciais() -> tuple[str, str]:
+    api_key, voice_id, _ = obter_credenciais_com_origem()
     return api_key, voice_id
+
+
+def obter_status_configuracao() -> dict[str, Any]:
+    api_key, voice_id, origem = obter_credenciais_com_origem()
+    return {
+        "api_key_encontrada": bool(api_key),
+        "voice_id_encontrado": bool(voice_id),
+        "voice_id_origem": origem or "não encontrado",
+        "voice_id_final": voice_id[-6:] if voice_id else "",
+    }
 
 
 def elevenlabs_configurada() -> bool:
@@ -116,8 +140,23 @@ def _write_cache(path: Path, audio: bytes) -> None:
         temporary.write_bytes(audio)
         temporary.replace(path)
     except OSError:
-        # Falha de cache não deve invalidar um áudio já gerado.
         return
+
+
+def _formatar_detalhe_api(value: Any) -> str:
+    if isinstance(value, str):
+        return value.strip()
+    if isinstance(value, dict):
+        message = value.get("message") or value.get("detail") or value.get("status")
+        if message:
+            return _texto(message)
+        try:
+            return json.dumps(value, ensure_ascii=False)
+        except Exception:
+            return _texto(value)
+    if isinstance(value, list):
+        return "; ".join(filter(None, (_formatar_detalhe_api(item) for item in value)))
+    return _texto(value)
 
 
 def sintetizar_fala(
@@ -130,10 +169,15 @@ def sintetizar_fala(
     if not clean_text:
         raise ElevenLabsTTSError("Não há fala de Mary para sintetizar.")
 
-    api_key, voice_id = obter_credenciais()
+    api_key, voice_id, origem = obter_credenciais_com_origem()
     if not api_key or not voice_id:
+        ausentes = []
+        if not api_key:
+            ausentes.append("ELEVENLABS_API_KEY")
+        if not voice_id:
+            ausentes.append("ELEVENLABS_VOICE_ID")
         raise ElevenLabsTTSError(
-            "A voz neural ainda não está configurada nos Secrets do Streamlit."
+            "Secrets ausentes: " + ", ".join(ausentes) + "."
         )
 
     cache_path = _cache_path(
@@ -173,16 +217,25 @@ def sintetizar_fala(
         try:
             body = exc.read().decode("utf-8", errors="replace")
             parsed = json.loads(body)
-            detail = _texto(parsed.get("detail") or parsed.get("message"))
+            detail = _formatar_detalhe_api(
+                parsed.get("detail") or parsed.get("message") or parsed
+            )
         except Exception:
             detail = ""
-        message = f"A ElevenLabs recusou a geração de voz (HTTP {exc.code})."
+        message = (
+            f"ElevenLabs HTTP {exc.code}. Voice ID lido de {origem}; "
+            f"final ...{voice_id[-6:]}."
+        )
         if detail:
-            message += f" {detail[:240]}"
+            message += f" Motivo: {detail[:500]}"
         raise ElevenLabsTTSError(message) from exc
     except (URLError, TimeoutError) as exc:
         raise ElevenLabsTTSError(
-            "Não foi possível conectar à ElevenLabs neste momento."
+            f"Falha de conexão com a ElevenLabs: {type(exc).__name__}."
+        ) from exc
+    except Exception as exc:
+        raise ElevenLabsTTSError(
+            f"Erro inesperado ao gerar a voz: {type(exc).__name__}: {exc}"
         ) from exc
 
     if not audio:
@@ -199,5 +252,7 @@ __all__ = [
     "VOICE_SETTINGS",
     "elevenlabs_configurada",
     "obter_credenciais",
+    "obter_credenciais_com_origem",
+    "obter_status_configuracao",
     "sintetizar_fala",
 ]
