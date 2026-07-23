@@ -11,12 +11,13 @@ from voice.elevenlabs_tts import (
     ELEVENLABS_MODEL_ID,
     ElevenLabsTTSError,
     elevenlabs_configurada,
+    obter_status_configuracao,
     sintetizar_fala,
 )
 
 
 ELEVENLABS_VOICE_INTEGRATION_VERSION = (
-    "elevenlabs-voice-integration-v2-safe-wrapper-order"
+    "elevenlabs-voice-integration-v3-visible-safe-diagnostics"
 )
 
 _INSTALLED = False
@@ -78,6 +79,20 @@ def _render_browser_fallback(
     )
 
 
+def _render_configuration_problem() -> None:
+    status = obter_status_configuracao()
+    missing = []
+    if not status["api_key_encontrada"]:
+        missing.append("ELEVENLABS_API_KEY")
+    if not status["voice_id_encontrado"]:
+        missing.append("ELEVENLABS_VOICE_ID")
+
+    if missing:
+        st.warning(
+            "Voz neural não configurada. Secret ausente: " + ", ".join(missing)
+        )
+
+
 def _render_neural_voice_player(
     text: str,
     *,
@@ -89,6 +104,7 @@ def _render_neural_voice_player(
         return
 
     if not elevenlabs_configurada():
+        _render_configuration_problem()
         _render_browser_fallback(
             clean_text,
             autoplay=autoplay,
@@ -140,9 +156,24 @@ def _render_neural_voice_player(
 
     error_message = _texto(st.session_state.get(error_state_key))
     if error_message:
-        st.caption(
-            "A voz neural não pôde ser gerada. Usando a voz do navegador."
-        )
+        st.error("A voz neural não pôde ser gerada.")
+        with st.expander("Ver diagnóstico da ElevenLabs", expanded=True):
+            st.code(error_message, language=None)
+            status = obter_status_configuracao()
+            st.caption(
+                "API key encontrada: "
+                + ("sim" if status["api_key_encontrada"] else "não")
+                + " · Voice ID encontrado: "
+                + ("sim" if status["voice_id_encontrado"] else "não")
+                + " · Origem: "
+                + status["voice_id_origem"]
+                + (
+                    " · Final do ID: ..." + status["voice_id_final"]
+                    if status["voice_id_final"]
+                    else ""
+                )
+            )
+        st.caption("Usando temporariamente a voz do navegador.")
         _render_browser_fallback(
             clean_text,
             autoplay=bool(should_autoplay and should_generate),
@@ -155,8 +186,6 @@ def install_elevenlabs_voice_integration() -> None:
     if _INSTALLED:
         return
 
-    # Instala primeiro a camada visual que captura os métodos originais do
-    # Streamlit. As demais integrações globais poderão envolvê-la depois.
     professional_experience.install_professional_experience()
 
     original = getattr(professional_experience, "_render_voice_player", None)
