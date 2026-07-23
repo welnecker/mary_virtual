@@ -30,6 +30,10 @@ from ui.pix_test_commerce_integration import (
     aplicar_integracao_pix_teste,
     install_pix_test_commerce_integration,
 )
+from ui.pix_continue_access_fix import (
+    PIX_CONTINUE_ACCESS_FIX_VERSION,
+    install_pix_continue_access_fix,
+)
 from ui.completed_history_visibility import (
     COMPLETED_HISTORY_VISIBILITY_VERSION,
     install_completed_history_visibility,
@@ -66,6 +70,7 @@ install_diagnostic_log_controls()
 install_onomatopoeia_integration()
 install_casada_frustrada_intimacy_integration()
 install_pix_test_commerce_integration()
+install_pix_continue_access_fix()
 install_completed_history_visibility()
 install_contrast_accessibility()
 
@@ -85,6 +90,7 @@ __all__ = [
     "ONOMATOPOEIA_INTEGRATION_VERSION",
     "CASADA_FRUSTRADA_INTIMACY_VERSION",
     "PIX_TEST_COMMERCE_VERSION",
+    "PIX_CONTINUE_ACCESS_FIX_VERSION",
     "COMPLETED_HISTORY_VISIBILITY_VERSION",
     "CONTRAST_ACCESSIBILITY_VERSION",
     "SCENARIO_CATALOG_EXTENSION_VERSION",
@@ -109,6 +115,7 @@ __all__ = [
     "install_onomatopoeia_integration",
     "install_casada_frustrada_intimacy_integration",
     "install_pix_test_commerce_integration",
+    "install_pix_continue_access_fix",
     "install_completed_history_visibility",
     "install_contrast_accessibility",
     "log_diagnostico_ativado",
