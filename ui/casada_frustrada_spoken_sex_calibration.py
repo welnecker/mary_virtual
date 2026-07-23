@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 import sys
 from functools import wraps
 from typing import Any, Callable
@@ -8,73 +9,63 @@ import streamlit as st
 
 
 CASADA_FRUSTRADA_SPOKEN_SEX_VERSION = (
-    "casada-frustrada-spoken-sex-v1-dialogue-only"
+    "casada-frustrada-spoken-sex-v2-hard-dialogue-no-questions"
 )
 
 _SCENARIO_ID = "casada_frustrada"
-_ACTIVE_ROUTES = {"intimacy", "climax"}
-_ACTIVE_PHASES = {"active", "pre_orgasm", "orgasm", "post_orgasm"}
+_ACTIVE_ROUTES = {"intimacy", "climax", "seduction", "sexual"}
+_ACTIVE_PHASES = {
+    "active",
+    "pre_orgasm",
+    "orgasm",
+    "post_orgasm",
+    "intimacy",
+    "sexual",
+    "seduction",
+}
 _INSTALLED = False
 _ORIGINAL_TITLE: Callable[..., Any] | None = None
 
 
 SPOKEN_SEX_CALIBRATION_PROMPT = r"""
-CALIBRAÇÃO OBRIGATÓRIA — SEXO FALADO, NÃO NARRADO
+REGRA MÁXIMA E OBRIGATÓRIA — CASADA FRUSTRADA EM INTIMIDADE
 
-Esta regra tem prioridade sobre exemplos literários, direção sensorial, descrição
-corporal e qualquer pedido de "mostrar intensidade". Mary está transando e falando
-com o usuário; ela não está narrando um conto erótico.
+Esta regra substitui qualquer instrução anterior de narrativa sensorial, conto,
+descrição cinematográfica, progressão automática de cena ou pergunta de engajamento.
+Mary não narra sexo. Mary fala com o usuário enquanto a situação acontece.
 
-FORMATO
-- Produza somente fala direta de Mary.
-- Normalmente use de uma a três frases curtas ou quebradas.
-- Pode haver gemido, grito, palavrão, pedido, ordem, provocação ou pergunta curta.
-- Não use narração entre travessões, asteriscos, parênteses ou depois da fala.
-- Não explique o efeito do ato no corpo de Mary.
-- Não descreva movimentos que a fala já torna evidentes.
-- Não acrescente uma segunda metade literária para "aprofundar" a resposta.
+SAÍDA PERMITIDA
+- Produza exclusivamente fala direta de Mary em primeira pessoa.
+- Use de uma a três frases curtas, orais e naturais.
+- A fala pode conter reação, pedido, ordem, provocação, recusa, limite ou confissão.
+- Termine com afirmação, ordem, reação ou silêncio implícito.
+- Não use ponto de interrogação.
+- Não termine pedindo que o usuário escolha, responda ou diga o que fará.
 
-PROIBIDO DURANTE SEXO ATIVO
-- "eu sinto cada..."
-- "meu corpo vibra/reage/arqueia"
-- "cada nervo do meu corpo"
-- "me atravessando"
-- "ocupando cada espaço"
-- "esse preenchimento"
-- "minha xoxota está sugando"
-- "eu rebolo contra cada investida"
-- "tentando buscar mais fundo"
-- descrições de pulsação, calor, pressão, profundidade ou ritmo como narrador
-- metáforas de explosão, abismo, vazio preenchido, fusão ou entrega total
-- qualquer frase que poderia pertencer a um audiolivro erótico
+ABSOLUTAMENTE PROIBIDO
+- Narrar ações de Mary ou do usuário.
+- Descrever cenário, quarto, motel, roupa, posição, aproximação ou passagem do tempo.
+- Escrever frases como "eu seguro", "eu desço", "eu me abaixo", "eu encosto",
+  "eu começo", "eu sinto", "meu corpo", "minha respiração" ou equivalentes narrativos.
+- Usar terceira pessoa: "Mary faz", "Mary olha", "ela se aproxima".
+- Criar transições cinematográficas como "o tempo passa", "a porta abre",
+  "as duas da tarde chegam" ou "a cena começa".
+- Oferecer alternativas: "você prefere X ou Y".
+- Fazer qualquer pergunta, inclusive pergunta curta, provocativa ou retórica.
+- Encerrar com "e aí?", "o que você faria?", "vai fazer o quê?", "quer que eu...?",
+  "você vai...?" ou qualquer equivalente.
+- Acrescentar explicação ou parágrafo literário depois da fala.
 
-COMO EXPRESSAR INTENSIDADE
-Transforme sensação em fala imediata:
-- pedido: "Me fode... não para..."
-- ordem: "Bate na minha bunda. Isso... assim."
-- reação: "Ahhh... porra! Que delícia..."
-- provocação: "Minha xoxota é apertada, hum? Fala..."
-- desejo específico: "Me beija enquanto mete gostoso."
-- contexto da personagem: "Faz o que aquele corno não me dá há meses."
-- coordenação de clímax: "Vai gozar? Espera... devagar... eu também quero."
+FORMA CORRETA
+A intensidade deve aparecer somente na voz da personagem: frases curtas, pessoais,
+imediatas e coerentes com o ato já confirmado pelo usuário. Não avance sozinho para
+uma nova ação física. Reaja apenas ao último turno e pare logo após a fala de impacto.
 
-NÃO COPIE OS EXEMPLOS LITERALMENTE. Use o mesmo tipo de oralidade: vulgar,
-curta, pessoal, interrompida pelo prazer e ligada ao ato confirmado no turno.
-
-MARY CASADA E FRUSTRADA
-- Quando combinar com o momento, Mary pode falar da falta de sexo, do marido,
-  da culpa, do segredo ou da fome acumulada.
-- Isso deve sair como explosão íntima, provocação ou confissão curta, nunca como
-  explicação psicológica do casamento.
-- Mary pode pedir beijo, tapa, língua, dedo, posição, ritmo, ejaculação ou contato
-  específico quando compatível com o consentimento e a ação já estabelecida.
-
-QUALIDADE DA FALA
-- Evite frases genéricas como apenas "mais fundo" ou "mais forte".
-- Dê personalidade ao pedido: orgulho do corpo, safadeza, humor, urgência,
-  frustração acumulada, vontade de ouvir o usuário ou desejo de conduzir.
-- Uma frase curta e crua é melhor que um parágrafo sensorial.
-- Pare imediatamente depois do impacto. Não explique o que acabou de dizer.
+Antes de responder, faça esta verificação silenciosa:
+1. Há alguma narração ou descrição de movimento? Se houver, remova.
+2. Há terceira pessoa ou descrição de cenário? Se houver, remova.
+3. Há pergunta ou ponto de interrogação? Se houver, reescreva como afirmação ou ordem.
+4. A resposta contém mais de três frases? Se contiver, reduza.
 """.strip()
 
 
@@ -82,41 +73,78 @@ def _texto(value: Any) -> str:
     return str(value or "").strip()
 
 
+def _obter_sexual_state(
+    instance: dict[str, Any],
+    scene_state: dict[str, Any],
+) -> dict[str, Any]:
+    candidates: list[Any] = [
+        st.session_state.get("sexual_state"),
+        scene_state.get("sexual_state"),
+        instance.get("sexual_state"),
+    ]
+
+    relationship_state = st.session_state.get("relationship_state")
+    if isinstance(relationship_state, dict):
+        candidates.append(relationship_state.get("sexual_state"))
+
+    mary_profile = st.session_state.get("mary_profile")
+    if isinstance(mary_profile, dict):
+        relation = mary_profile.get("relationship_state")
+        if isinstance(relation, dict):
+            candidates.append(relation.get("sexual_state"))
+
+    for candidate in candidates:
+        if isinstance(candidate, dict) and candidate:
+            return candidate
+    return {}
+
+
 def _contexto_ativo() -> bool:
     instance = st.session_state.get("scenario_instance")
     if not isinstance(instance, dict):
+        return False
+
+    scenario_id = _texto(instance.get("scenario_id")).lower()
+    if scenario_id != _SCENARIO_ID:
         return False
 
     scene_state = instance.get("scene_state")
     if not isinstance(scene_state, dict):
         scene_state = {}
 
-    scenario_id = _texto(instance.get("scenario_id"))
+    sexual_state = _obter_sexual_state(instance, scene_state)
+
     route = _texto(
         instance.get("current_route")
         or scene_state.get("current_route")
-    )
-
-    sexual_state = st.session_state.get("sexual_state")
-    if not isinstance(sexual_state, dict):
-        sexual_state = {}
+        or scene_state.get("route")
+        or instance.get("route")
+    ).lower()
 
     phase = _texto(
         sexual_state.get("scene_phase")
         or sexual_state.get("phase")
         or scene_state.get("sexual_scene_phase")
+        or scene_state.get("scene_phase")
+        or scene_state.get("current_phase")
     ).lower()
 
-    intimacy_established = bool(
+    privacy = bool(
         scene_state.get("privacy_established")
         or scene_state.get("private_space")
+        or scene_state.get("intimacy_started")
+        or scene_state.get("sexual_contact_started")
+        or sexual_state.get("active")
+        or sexual_state.get("intimacy_active")
     )
 
+    # A integração anterior falhava porque buscava sexual_state apenas na raiz
+    # do session_state e exigia route/phase muito específicos. No cenário ativo,
+    # qualquer sinal de intimidade deve instalar a regra rígida.
     return bool(
-        scenario_id == _SCENARIO_ID
-        and route in _ACTIVE_ROUTES
-        and phase in _ACTIVE_PHASES
-        and intimacy_established
+        privacy
+        or route in _ACTIVE_ROUTES
+        or phase in _ACTIVE_PHASES
     )
 
 
@@ -140,11 +168,50 @@ def _patch_prompt_builder(module: Any) -> None:
     setattr(module, "montar_prompt_sistema", wrapper)
 
 
+def _remover_pergunta_final(texto: str) -> str:
+    """Última barreira para impedir pergunta de engajamento no fim do turno."""
+    texto = str(texto or "").strip()
+    if not texto or not _contexto_ativo():
+        return texto
+
+    # Remove parágrafos finais interrogativos completos. Não tenta reescrever
+    # conteúdo narrativo; a prevenção principal continua no prompt rígido.
+    paragrafos = [p.strip() for p in re.split(r"\n\s*\n", texto) if p.strip()]
+    while len(paragrafos) > 1 and "?" in paragrafos[-1]:
+        paragrafos.pop()
+
+    resultado = "\n\n".join(paragrafos).strip()
+    if "?" in resultado:
+        resultado = resultado.replace("?", ".")
+    return resultado
+
+
+def _patch_openrouter_response(module: Any) -> None:
+    original = getattr(module, "chamar_openrouter", None)
+    if not callable(original) or getattr(
+        original,
+        "_mary_casada_no_questions_wrapped",
+        False,
+    ):
+        return
+
+    @wraps(original)
+    def wrapper(*args: Any, **kwargs: Any) -> Any:
+        resposta = original(*args, **kwargs)
+        if isinstance(resposta, str):
+            return _remover_pergunta_final(resposta)
+        return resposta
+
+    wrapper._mary_casada_no_questions_wrapped = True  # type: ignore[attr-defined]
+    setattr(module, "chamar_openrouter", wrapper)
+
+
 def aplicar_calibracao_sexo_falado_casada_frustrada() -> None:
     module = sys.modules.get("__main__")
     if module is None:
         return
     _patch_prompt_builder(module)
+    _patch_openrouter_response(module)
 
 
 def install_casada_frustrada_spoken_sex_calibration() -> None:
