@@ -90,6 +90,13 @@ from ui.mary_relationship_persistence import (
     install_mary_relationship_persistence,
     sincronizar_estado_relacionamento,
 )
+from ui.memory_persistence import (
+    MEMORY_COLUMNS,
+    MEMORY_PERSISTENCE_VERSION,
+    MEMORY_REPOSITORY_VERSION,
+    aplicar_persistencia_memorias,
+    install_memory_persistence,
+)
 
 
 # O pacote ui é carregado antes de main(). Os instaladores envolvem st.title;
@@ -112,6 +119,7 @@ install_completed_history_visibility()
 install_contrast_accessibility()
 install_scenario_flip_cards()
 install_mary_relationship_persistence()
+install_memory_persistence()
 
 
 from ui.login import (
@@ -142,6 +150,9 @@ __all__ = [
     "SCENARIO_FLIP_CARDS_VERSION",
     "MARY_RELATIONSHIP_PERSISTENCE_VERSION",
     "MARY_RELATIONSHIP_COLUMNS",
+    "MEMORY_PERSISTENCE_VERSION",
+    "MEMORY_REPOSITORY_VERSION",
+    "MEMORY_COLUMNS",
     "aplicar_integracao_runtime",
     "aplicar_otimizacao_rerun",
     "aplicar_controles_log_diagnostico",
@@ -160,6 +171,7 @@ __all__ = [
     "aplicar_persistencia_relacionamento_mary",
     "garantir_schema_mary_relationship",
     "sincronizar_estado_relacionamento",
+    "aplicar_persistencia_memorias",
     "install_scenario_catalog_extension",
     "install_scenario_duration_extension",
     "install_elevenlabs_voice_integration",
@@ -178,6 +190,7 @@ __all__ = [
     "install_contrast_accessibility",
     "install_scenario_flip_cards",
     "install_mary_relationship_persistence",
+    "install_memory_persistence",
     "log_diagnostico_ativado",
     "AUTH_ACTION_LOGIN",
     "AUTH_ACTION_REGISTER",
