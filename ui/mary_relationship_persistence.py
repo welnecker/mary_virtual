@@ -253,7 +253,8 @@ def sincronizar_estado_relacionamento(
     )
 
     try:
-        summary = _texto(montar_resumo_estado_relacao(state))
+        summary_data = montar_resumo_estado_relacao(state)
+        summary = sheets_repository.serializar_json(summary_data)
     except Exception:
         summary = ""
 
