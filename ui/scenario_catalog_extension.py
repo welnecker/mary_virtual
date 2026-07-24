@@ -8,6 +8,9 @@ from scenarios.casada_frustrada import (
     obter_recuperacoes,
     obter_rotas,
 )
+from ui.casada_frustrada_canonical_prompt import (
+    install_casada_frustrada_canonical_prompt,
+)
 from ui.interaction_persistence import install_interaction_persistence
 from ui.scenario_catalog_visibility_fix import (
     install_scenario_catalog_visibility_fix,
@@ -19,7 +22,7 @@ from ui.user_account_persistence import install_user_account_persistence
 
 
 SCENARIO_CATALOG_EXTENSION_VERSION = (
-    "scenario-catalog-extension-v10-casada-prompt-rollback"
+    "scenario-catalog-extension-v11-casada-canonical-screenplay"
 )
 
 _INSTALLED = False
@@ -43,11 +46,10 @@ def install_scenario_catalog_extension() -> None:
         "endings_loader": obter_encerramentos,
     }
 
-    # As integrações experimentais de roteiro/voz da Casada Frustrada foram
-    # removidas do runtime. Elas empilhavam orientações concorrentes no prompt,
-    # deixando Mary expansiva, alegre e superficial. O roteiro aprovado segue
-    # preservado na pasta do cenário como fonte editorial para a nova integração
-    # única, que será feita sem wrappers sobrepostos.
+    # Única autoridade narrativa da Casada Frustrada. Ela é instalada cedo na
+    # cadeia de st.title para ser aplicada por último ao construtor do prompt,
+    # depois das integrações legadas ainda carregadas por compatibilidade.
+    install_casada_frustrada_canonical_prompt()
 
     # Células administrativas vazias significam "usar o padrão do código".
     # Isso restaura cenários antigos após a expansão do schema da aba SCENARIOS.
