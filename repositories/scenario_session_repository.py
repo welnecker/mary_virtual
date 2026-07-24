@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import json
 from datetime import datetime, timezone
 from typing import Any
@@ -25,7 +26,7 @@ def _texto(valor: Any) -> str:
 
 def _inteiro(valor: Any, padrao: int = 0) -> int:
     try:
-        return int(valor or padrao)
+        return int(float(valor if valor not in (None, "") else padrao))
     except (TypeError, ValueError):
         return padrao
 
@@ -33,8 +34,10 @@ def _inteiro(valor: Any, padrao: int = 0) -> int:
 def _booleano(valor: Any) -> bool:
     if isinstance(valor, bool):
         return valor
+    if isinstance(valor, (int, float)):
+        return bool(valor)
     return _texto(valor).lower() in {
-        "true", "1", "sim", "yes", "verdadeiro"
+        "true", "1", "sim", "yes", "verdadeiro", "active", "ativo"
     }
 
 
@@ -51,20 +54,57 @@ def _desserializar_json(valor: Any) -> dict[str, Any]:
     return resultado if isinstance(resultado, dict) else {}
 
 
+def _desserializar_lista(valor: Any) -> list[Any]:
+    if isinstance(valor, list):
+        return list(valor)
+    texto = _texto(valor)
+    if not texto:
+        return []
+    try:
+        resultado = json.loads(texto)
+    except (TypeError, ValueError, json.JSONDecodeError):
+        return []
+    return resultado if isinstance(resultado, list) else []
+
+
+def _normalizar_lista_ids(valor: Any) -> list[str]:
+    itens = valor if isinstance(valor, list) else _desserializar_lista(valor)
+    resultado: list[str] = []
+    vistos: set[str] = set()
+    for item in itens:
+        texto = _texto(item)
+        if not texto or texto in vistos:
+            continue
+        vistos.add(texto)
+        resultado.append(texto)
+    return resultado
+
+
+def _checksum_estado(*partes: str) -> str:
+    payload = "\n".join(partes).encode("utf-8")
+    return hashlib.sha256(payload).hexdigest()
+
+
 def _hidratar_registro_sessao(
     registro: dict[str, Any],
 ) -> dict[str, Any]:
     resultado = dict(registro)
-    resultado["scenario_version"] = _inteiro(
-        resultado.get("scenario_version"), 1
+    resultado["scenario_version"] = max(
+        1, _inteiro(resultado.get("scenario_version"), 1)
     )
-    resultado["interaction_count"] = _inteiro(
-        resultado.get("interaction_count"), 0
+    resultado["interaction_count"] = max(
+        0, _inteiro(resultado.get("interaction_count"), 0)
+    )
+    resultado["chapter_number"] = max(
+        1, _inteiro(resultado.get("chapter_number"), 1)
+    )
+    resultado["save_revision"] = max(
+        1, _inteiro(resultado.get("save_revision"), 1)
     )
     for campo in (
         "opening_sent", "climax_reached", "satisfaction_detected",
         "ending_ready", "ending_sent", "input_locked",
-        "show_return_to_menu",
+        "show_return_to_menu", "active",
     ):
         resultado[campo] = _booleano(resultado.get(campo))
     resultado["scene_state"] = _desserializar_json(
@@ -75,6 +115,9 @@ def _hidratar_registro_sessao(
     )
     resultado["relationship_state"] = _desserializar_json(
         resultado.get("relationship_state_json")
+    )
+    resultado["history_session_ids"] = _normalizar_lista_ids(
+        resultado.get("history_session_ids_json")
     )
     return resultado
 
@@ -114,20 +157,60 @@ def montar_registro_sessao_cenario(
     if not isinstance(relationship_state, dict):
         relationship_state = {}
 
+    status = _texto(instancia.get("status")) or "active"
+    ending_sent = _booleano(instancia.get("ending_sent"))
+    completed = status.lower() == "completed" or ending_sent
+    completed_at = _texto(instancia.get("completed_at"))
+    if completed and not completed_at:
+        completed_at = agora
+
+    chapter_number = max(
+        1,
+        _inteiro(
+            instancia.get("chapter_number")
+            or story_progress.get("chapter_number"),
+            1,
+        ),
+    )
+    parent_session_id = _texto(
+        instancia.get("parent_session_id")
+        or story_progress.get("parent_session_id")
+    )
+    root_session_id = _texto(
+        instancia.get("root_session_id")
+        or story_progress.get("root_session_id")
+    )
+    if not root_session_id:
+        root_session_id = parent_session_id or scenario_session_id
+    continuation_mode = _texto(
+        instancia.get("continuation_mode")
+        or story_progress.get("continuation_mode")
+    )
+    history_session_ids = _normalizar_lista_ids(
+        instancia.get("history_session_ids")
+        or story_progress.get("history_session_ids")
+    )
+    if parent_session_id and parent_session_id not in history_session_ids:
+        history_session_ids.append(parent_session_id)
+
+    scene_state_json = serializar_json(scene_state)
+    story_progress_json = serializar_json(story_progress)
+    relationship_state_json = serializar_json(relationship_state)
+
     return {
         "scenario_session_id": scenario_session_id,
         "user_id": user_id,
         "scenario_id": scenario_id,
-        "scenario_version": _inteiro(
-            instancia.get("scenario_version"), 1
+        "scenario_version": max(
+            1, _inteiro(instancia.get("scenario_version"), 1)
         ),
         "created_at": created_at,
         "updated_at": agora,
         "last_interaction_at": last_interaction_at,
-        "completed_at": _texto(instancia.get("completed_at")),
-        "status": _texto(instancia.get("status")) or "active",
-        "interaction_count": _inteiro(
-            instancia.get("interaction_count"), 0
+        "completed_at": completed_at,
+        "status": "completed" if completed else status,
+        "interaction_count": max(
+            0, _inteiro(instancia.get("interaction_count"), 0)
         ),
         "opening_sent": _booleano(instancia.get("opening_sent")),
         "current_phase": _texto(instancia.get("current_phase")),
@@ -139,17 +222,28 @@ def montar_registro_sessao_cenario(
             instancia.get("satisfaction_detected")
         ),
         "ending_ready": _booleano(instancia.get("ending_ready")),
-        "ending_sent": _booleano(instancia.get("ending_sent")),
+        "ending_sent": ending_sent,
         "ending_type": _texto(instancia.get("ending_type")),
         "ending_reason": _texto(instancia.get("ending_reason")),
         "input_locked": _booleano(instancia.get("input_locked")),
         "show_return_to_menu": _booleano(
             instancia.get("show_return_to_menu")
         ),
-        "scene_state_json": serializar_json(scene_state),
-        "story_progress_json": serializar_json(story_progress),
-        "relationship_state_json": serializar_json(relationship_state),
+        "scene_state_json": scene_state_json,
+        "story_progress_json": story_progress_json,
+        "relationship_state_json": relationship_state_json,
         "summary": _texto(instancia.get("summary")),
+        "chapter_number": chapter_number,
+        "parent_session_id": parent_session_id,
+        "root_session_id": root_session_id,
+        "continuation_mode": continuation_mode,
+        "history_session_ids_json": serializar_json(history_session_ids),
+        "state_checksum": _checksum_estado(
+            scene_state_json,
+            story_progress_json,
+            relationship_state_json,
+        ),
+        "active": not completed and status.lower() == "active",
     }
 
 
@@ -168,6 +262,12 @@ def salvar_instancia_cenario(
         coluna="scenario_session_id",
         valor=scenario_session_id,
     )
+    revisao_atual = (
+        max(0, _inteiro(existente.get("save_revision"), 0))
+        if isinstance(existente, dict)
+        else 0
+    )
+    registro["save_revision"] = revisao_atual + 1
 
     if existente is None:
         adicionar_registro(SCENARIO_SESSIONS_SHEET, registro)
@@ -182,8 +282,15 @@ def salvar_instancia_cenario(
             alteracoes=alteracoes,
         )
 
-    instancia["updated_at"] = registro["updated_at"]
-    instancia["last_interaction_at"] = registro["last_interaction_at"]
+    for campo in (
+        "updated_at", "last_interaction_at", "completed_at", "status",
+        "chapter_number", "parent_session_id", "root_session_id",
+        "continuation_mode", "state_checksum", "save_revision", "active",
+    ):
+        instancia[campo] = registro.get(campo)
+    instancia["history_session_ids"] = _normalizar_lista_ids(
+        registro.get("history_session_ids_json")
+    )
     return registro
 
 
@@ -237,7 +344,7 @@ def listar_sessoes_cenario_usuario(
 
     resultado.sort(
         key=lambda item: (
-            _texto(item.get("updated_at")),
+            _texto(item.get("last_interaction_at") or item.get("updated_at")),
             _texto(item.get("created_at")),
         ),
         reverse=True,
@@ -255,7 +362,10 @@ def obter_sessao_ativa_mais_recente(
         status="active",
         scenario_id=scenario_id,
     )
-    return sessoes[0] if sessoes else None
+    for sessao in sessoes:
+        if sessao.get("active", True):
+            return sessao
+    return None
 
 
 def marcar_sessao_cenario_reiniciada(
@@ -268,13 +378,18 @@ def marcar_sessao_cenario_reiniciada(
         return False
     if _texto(sessao.get("user_id")) != _texto(user_id):
         raise ValueError("A sessão narrativa não pertence ao usuário atual.")
+    agora = utc_now_iso()
     return atualizar_registro(
         SCENARIO_SESSIONS_SHEET,
         coluna_chave="scenario_session_id",
         valor_chave=scenario_session_id,
         alteracoes={
             "status": "restarted",
-            "updated_at": utc_now_iso(),
+            "active": False,
+            "updated_at": agora,
+            "completed_at": _texto(sessao.get("completed_at")) or agora,
+            "ending_reason": _texto(sessao.get("ending_reason")) or "restarted",
+            "save_revision": max(1, _inteiro(sessao.get("save_revision"), 1)) + 1,
         },
     )
 
