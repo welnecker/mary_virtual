@@ -117,6 +117,15 @@ from ui.scenario_session_legacy_migration import (
     install_scenario_session_legacy_migration,
     migrar_user_scenario_sessions,
 )
+from ui.user_visual_profile_persistence import (
+    USER_VISUAL_PROFILE_COLUMNS,
+    USER_VISUAL_PROFILE_PERSISTENCE_VERSION,
+    aplicar_persistencia_perfil_visual,
+    garantir_schema_user_visual_profile,
+    install_user_visual_profile_persistence,
+    obter_perfil_visual_ativo,
+    persistir_nova_referencia_visual,
+)
 
 
 # A proteção da grade precisa ser instalada antes de qualquer sincronização
@@ -146,6 +155,7 @@ install_mary_relationship_persistence()
 install_memory_persistence()
 install_scenario_catalog_persistence()
 install_scenario_session_legacy_migration()
+install_user_visual_profile_persistence()
 
 
 from ui.login import (
@@ -184,6 +194,8 @@ __all__ = [
     "SCENARIO_COLUMNS",
     "SCENARIO_SESSION_MIGRATION_VERSION",
     "CANONICAL_SCENARIO_SESSION_COLUMNS",
+    "USER_VISUAL_PROFILE_PERSISTENCE_VERSION",
+    "USER_VISUAL_PROFILE_COLUMNS",
     "aplicar_integracao_runtime",
     "aplicar_otimizacao_rerun",
     "aplicar_controles_log_diagnostico",
@@ -209,6 +221,10 @@ __all__ = [
     "aplicar_migracao_sessoes_legadas",
     "garantir_schema_scenario_sessions",
     "migrar_user_scenario_sessions",
+    "aplicar_persistencia_perfil_visual",
+    "garantir_schema_user_visual_profile",
+    "obter_perfil_visual_ativo",
+    "persistir_nova_referencia_visual",
     "install_sheets_grid_autogrow",
     "install_scenario_catalog_extension",
     "install_scenario_duration_extension",
@@ -231,6 +247,7 @@ __all__ = [
     "install_memory_persistence",
     "install_scenario_catalog_persistence",
     "install_scenario_session_legacy_migration",
+    "install_user_visual_profile_persistence",
     "log_diagnostico_ativado",
     "AUTH_ACTION_LOGIN",
     "AUTH_ACTION_REGISTER",
