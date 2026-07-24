@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import hashlib
+import json
 from functools import wraps
 from typing import Any, Callable
 
@@ -9,7 +11,7 @@ import google_sheets_repository as sheets_repository
 
 
 SCENARIO_SESSION_MIGRATION_VERSION = (
-    "scenario-session-migration-v1-legacy-to-canonical"
+    "scenario-session-migration-v2-canonical-continuity-metadata"
 )
 LEGACY_SCENARIO_SESSIONS_SHEET = "USER_SCENARIO_SESSIONS"
 CANONICAL_SCENARIO_SESSIONS_SHEET = "SCENARIO_SESSIONS"
@@ -40,8 +42,16 @@ CANONICAL_SCENARIO_SESSION_COLUMNS = (
     "show_return_to_menu",
     "scene_state_json",
     "story_progress_json",
-    "relationship_state_json",
     "summary",
+    "relationship_state_json",
+    "chapter_number",
+    "parent_session_id",
+    "root_session_id",
+    "continuation_mode",
+    "history_session_ids_json",
+    "save_revision",
+    "state_checksum",
+    "active",
 )
 
 _INSTALLED = False
@@ -61,18 +71,60 @@ def _booleano(value: Any, *, default: bool = False) -> bool:
     if isinstance(value, (int, float)):
         return bool(value)
     text = _texto(value).lower()
-    if text in {"true", "1", "sim", "yes", "verdadeiro"}:
+    if text in {"true", "1", "sim", "yes", "verdadeiro", "active", "ativo"}:
         return True
-    if text in {"false", "0", "nao", "não", "no", "falso", ""}:
+    if text in {"false", "0", "nao", "não", "no", "falso", "inactive", "inativo", ""}:
         return False
     return default
 
 
 def _inteiro(value: Any, *, default: int = 0) -> int:
     try:
-        return int(float(value))
+        return int(float(value if value not in (None, "") else default))
     except (TypeError, ValueError):
         return default
+
+
+def _json_dict(value: Any) -> dict[str, Any]:
+    if isinstance(value, dict):
+        return dict(value)
+    text = _texto(value)
+    if not text:
+        return {}
+    try:
+        parsed = json.loads(text)
+    except (TypeError, ValueError, json.JSONDecodeError):
+        return {}
+    return parsed if isinstance(parsed, dict) else {}
+
+
+def _json_list(value: Any) -> list[Any]:
+    if isinstance(value, list):
+        return list(value)
+    text = _texto(value)
+    if not text:
+        return []
+    try:
+        parsed = json.loads(text)
+    except (TypeError, ValueError, json.JSONDecodeError):
+        return []
+    return parsed if isinstance(parsed, list) else []
+
+
+def _normalizar_ids(value: Any) -> list[str]:
+    result: list[str] = []
+    seen: set[str] = set()
+    for item in _json_list(value) if not isinstance(value, list) else value:
+        text = _texto(item)
+        if not text or text in seen:
+            continue
+        seen.add(text)
+        result.append(text)
+    return result
+
+
+def _checksum(*parts: str) -> str:
+    return hashlib.sha256("\n".join(parts).encode("utf-8")).hexdigest()
 
 
 def _clear_sheet_caches() -> None:
@@ -106,8 +158,45 @@ def garantir_schema_scenario_sessions() -> list[str]:
 
 def _normalizar_registro_legado(record: dict[str, Any]) -> dict[str, Any]:
     now = sheets_repository.utc_now_iso()
+    story_progress = _json_dict(record.get("story_progress_json"))
+    session_id = _texto(record.get("scenario_session_id"))
+    status = _texto(record.get("status")) or "active"
+    ending_sent = _booleano(record.get("ending_sent"))
+    completed = status.lower() == "completed" or ending_sent
+    completed_at = _texto(record.get("completed_at"))
+    if completed and not completed_at:
+        completed_at = _texto(record.get("updated_at")) or now
+
+    chapter_number = max(
+        1,
+        _inteiro(
+            record.get("chapter_number") or story_progress.get("chapter_number"),
+            default=1,
+        ),
+    )
+    parent_session_id = _texto(
+        record.get("parent_session_id") or story_progress.get("parent_session_id")
+    )
+    root_session_id = _texto(
+        record.get("root_session_id") or story_progress.get("root_session_id")
+    ) or parent_session_id or session_id
+    continuation_mode = _texto(
+        record.get("continuation_mode") or story_progress.get("continuation_mode")
+    )
+    history_ids = _normalizar_ids(
+        record.get("history_session_ids_json")
+        or story_progress.get("history_session_ids")
+        or []
+    )
+    if parent_session_id and parent_session_id not in history_ids:
+        history_ids.append(parent_session_id)
+
+    scene_json = _texto(record.get("scene_state_json")) or "{}"
+    story_json = _texto(record.get("story_progress_json")) or "{}"
+    relationship_json = _texto(record.get("relationship_state_json")) or "{}"
+
     return {
-        "scenario_session_id": _texto(record.get("scenario_session_id")),
+        "scenario_session_id": session_id,
         "user_id": _texto(record.get("user_id")),
         "scenario_id": _texto(record.get("scenario_id")),
         "scenario_version": max(
@@ -116,8 +205,8 @@ def _normalizar_registro_legado(record: dict[str, Any]) -> dict[str, Any]:
         "created_at": _texto(record.get("created_at")) or now,
         "updated_at": _texto(record.get("updated_at")) or now,
         "last_interaction_at": _texto(record.get("last_interaction_at")),
-        "completed_at": _texto(record.get("completed_at")),
-        "status": _texto(record.get("status")) or "active",
+        "completed_at": completed_at,
+        "status": "completed" if completed else status,
         "interaction_count": max(
             0, _inteiro(record.get("interaction_count"), default=0)
         ),
@@ -127,25 +216,27 @@ def _normalizar_registro_legado(record: dict[str, Any]) -> dict[str, Any]:
         "current_beat": _texto(record.get("current_beat")),
         "active_hook": _texto(record.get("active_hook")),
         "climax_reached": _booleano(record.get("climax_reached")),
-        "satisfaction_detected": _booleano(
-            record.get("satisfaction_detected")
-        ),
+        "satisfaction_detected": _booleano(record.get("satisfaction_detected")),
         "ending_ready": _booleano(record.get("ending_ready")),
-        "ending_sent": _booleano(record.get("ending_sent")),
+        "ending_sent": ending_sent,
         "ending_type": _texto(record.get("ending_type")),
         "ending_reason": _texto(record.get("ending_reason")),
         "input_locked": _booleano(record.get("input_locked")),
-        "show_return_to_menu": _booleano(
-            record.get("show_return_to_menu")
-        ),
-        "scene_state_json": _texto(record.get("scene_state_json")) or "{}",
-        "story_progress_json": (
-            _texto(record.get("story_progress_json")) or "{}"
-        ),
-        "relationship_state_json": (
-            _texto(record.get("relationship_state_json")) or "{}"
-        ),
+        "show_return_to_menu": _booleano(record.get("show_return_to_menu")),
+        "scene_state_json": scene_json,
+        "story_progress_json": story_json,
         "summary": _texto(record.get("summary")),
+        "relationship_state_json": relationship_json,
+        "chapter_number": chapter_number,
+        "parent_session_id": parent_session_id,
+        "root_session_id": root_session_id,
+        "continuation_mode": continuation_mode,
+        "history_session_ids_json": sheets_repository.serializar_json(history_ids),
+        "save_revision": max(1, _inteiro(record.get("save_revision"), default=1)),
+        "state_checksum": _texto(record.get("state_checksum")) or _checksum(
+            scene_json, story_json, relationship_json
+        ),
+        "active": not completed and status.lower() == "active",
     }
 
 
