@@ -8,6 +8,9 @@ from scenarios.casada_frustrada import (
     obter_recuperacoes,
     obter_rotas,
 )
+from ui.casada_frustrada_screenplay_integration import (
+    install_casada_frustrada_screenplay_integration,
+)
 from ui.interaction_persistence import install_interaction_persistence
 from ui.scenario_catalog_visibility_fix import (
     install_scenario_catalog_visibility_fix,
@@ -19,7 +22,7 @@ from ui.user_account_persistence import install_user_account_persistence
 
 
 SCENARIO_CATALOG_EXTENSION_VERSION = (
-    "scenario-catalog-extension-v7-standardized-scenarios-visibility-fix"
+    "scenario-catalog-extension-v8-casada-screenplay"
 )
 
 _INSTALLED = False
@@ -42,6 +45,10 @@ def install_scenario_catalog_extension() -> None:
         "recoveries_loader": obter_recuperacoes,
         "endings_loader": obter_encerramentos,
     }
+
+    # Instala cedo para que, na cadeia de wrappers de st.title, o roteiro seja
+    # aplicado depois das calibrações antigas e permaneça como orientação final.
+    install_casada_frustrada_screenplay_integration()
 
     # Células administrativas vazias significam "usar o padrão do código".
     # Isso restaura cenários antigos após a expansão do schema da aba SCENARIOS.
