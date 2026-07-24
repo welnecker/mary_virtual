@@ -77,6 +77,11 @@ from ui.elevenlabs_voice_integration import (
     ELEVENLABS_VOICE_INTEGRATION_VERSION,
     install_elevenlabs_voice_integration,
 )
+from ui.scenario_flip_cards import (
+    SCENARIO_FLIP_CARDS_VERSION,
+    aplicar_cards_reversiveis,
+    install_scenario_flip_cards,
+)
 
 
 # O pacote ui é carregado antes de main(). Os instaladores envolvem st.title;
@@ -97,6 +102,7 @@ install_pix_active_session_access()
 install_paid_chapter_continuation()
 install_completed_history_visibility()
 install_contrast_accessibility()
+install_scenario_flip_cards()
 
 
 from ui.login import (
@@ -124,6 +130,7 @@ __all__ = [
     "SCENARIO_CATALOG_EXTENSION_VERSION",
     "SCENARIO_DURATION_EXTENSION_VERSION",
     "ELEVENLABS_VOICE_INTEGRATION_VERSION",
+    "SCENARIO_FLIP_CARDS_VERSION",
     "aplicar_integracao_runtime",
     "aplicar_otimizacao_rerun",
     "aplicar_controles_log_diagnostico",
@@ -138,6 +145,7 @@ __all__ = [
     "aplicar_politica_adaptativa_encerramento",
     "ocultar_historias_concluidas_do_catalogo",
     "dobrar_duracao_configuracao",
+    "aplicar_cards_reversiveis",
     "install_scenario_catalog_extension",
     "install_scenario_duration_extension",
     "install_elevenlabs_voice_integration",
@@ -154,6 +162,7 @@ __all__ = [
     "install_paid_chapter_continuation",
     "install_completed_history_visibility",
     "install_contrast_accessibility",
+    "install_scenario_flip_cards",
     "log_diagnostico_ativado",
     "AUTH_ACTION_LOGIN",
     "AUTH_ACTION_REGISTER",
