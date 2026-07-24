@@ -126,6 +126,11 @@ from ui.user_visual_profile_persistence import (
     obter_perfil_visual_ativo,
     persistir_nova_referencia_visual,
 )
+from ui.user_visual_profile_commit_fix import (
+    USER_VISUAL_PROFILE_COMMIT_FIX_VERSION,
+    aplicar_commit_perfil_visual,
+    install_user_visual_profile_commit_fix,
+)
 
 
 # A proteção da grade precisa ser instalada antes de qualquer sincronização
@@ -155,6 +160,9 @@ install_mary_relationship_persistence()
 install_memory_persistence()
 install_scenario_catalog_persistence()
 install_scenario_session_legacy_migration()
+# Instalado antes do adaptador principal: na execução dos wrappers de st.title,
+# o adaptador entra primeiro e o commit é aplicado sobre ele em seguida.
+install_user_visual_profile_commit_fix()
 install_user_visual_profile_persistence()
 
 
@@ -195,6 +203,7 @@ __all__ = [
     "SCENARIO_SESSION_MIGRATION_VERSION",
     "CANONICAL_SCENARIO_SESSION_COLUMNS",
     "USER_VISUAL_PROFILE_PERSISTENCE_VERSION",
+    "USER_VISUAL_PROFILE_COMMIT_FIX_VERSION",
     "USER_VISUAL_PROFILE_COLUMNS",
     "aplicar_integracao_runtime",
     "aplicar_otimizacao_rerun",
@@ -222,6 +231,7 @@ __all__ = [
     "garantir_schema_scenario_sessions",
     "migrar_user_scenario_sessions",
     "aplicar_persistencia_perfil_visual",
+    "aplicar_commit_perfil_visual",
     "garantir_schema_user_visual_profile",
     "obter_perfil_visual_ativo",
     "persistir_nova_referencia_visual",
@@ -247,6 +257,7 @@ __all__ = [
     "install_memory_persistence",
     "install_scenario_catalog_persistence",
     "install_scenario_session_legacy_migration",
+    "install_user_visual_profile_commit_fix",
     "install_user_visual_profile_persistence",
     "log_diagnostico_ativado",
     "AUTH_ACTION_LOGIN",
