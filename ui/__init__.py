@@ -49,6 +49,11 @@ from ui.pix_active_session_access import (
     aplicar_acesso_pix_por_sessao_ativa,
     install_pix_active_session_access,
 )
+from ui.paid_chapter_continuation import (
+    PAID_CHAPTER_CONTINUATION_VERSION,
+    aplicar_continuacao_capitulos_pagos,
+    install_paid_chapter_continuation,
+)
 from ui.completed_history_visibility import (
     COMPLETED_HISTORY_VISIBILITY_VERSION,
     install_completed_history_visibility,
@@ -89,6 +94,7 @@ install_casada_frustrada_spoken_sex_calibration()
 install_pix_test_commerce_integration()
 install_pix_continue_access_fix()
 install_pix_active_session_access()
+install_paid_chapter_continuation()
 install_completed_history_visibility()
 install_contrast_accessibility()
 
@@ -112,6 +118,7 @@ __all__ = [
     "PIX_TEST_COMMERCE_VERSION",
     "PIX_CONTINUE_ACCESS_FIX_VERSION",
     "PIX_ACTIVE_SESSION_ACCESS_VERSION",
+    "PAID_CHAPTER_CONTINUATION_VERSION",
     "COMPLETED_HISTORY_VISIBILITY_VERSION",
     "CONTRAST_ACCESSIBILITY_VERSION",
     "SCENARIO_CATALOG_EXTENSION_VERSION",
@@ -126,6 +133,7 @@ __all__ = [
     "aplicar_calibracao_sexo_falado_casada_frustrada",
     "aplicar_integracao_pix_teste",
     "aplicar_acesso_pix_por_sessao_ativa",
+    "aplicar_continuacao_capitulos_pagos",
     "aplicar_contraste_acessivel",
     "aplicar_politica_adaptativa_encerramento",
     "ocultar_historias_concluidas_do_catalogo",
@@ -143,6 +151,7 @@ __all__ = [
     "install_pix_test_commerce_integration",
     "install_pix_continue_access_fix",
     "install_pix_active_session_access",
+    "install_paid_chapter_continuation",
     "install_completed_history_visibility",
     "install_contrast_accessibility",
     "log_diagnostico_ativado",
