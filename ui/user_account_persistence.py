@@ -13,7 +13,7 @@ import repositories.user_repository as user_repository
 
 
 USER_ACCOUNT_PERSISTENCE_VERSION = (
-    "user-account-persistence-v1-adult-confirmation-lockout"
+    "user-account-persistence-v2-once-per-process-bootstrap"
 )
 USERS_SHEET = "USERS"
 MAX_FAILED_LOGINS = 5
@@ -46,6 +46,9 @@ USER_COLUMNS = (
 )
 
 _INSTALLED = False
+_BOOTSTRAP_DONE = False
+_SCHEMA_READY = False
+_NORMALIZATION_DONE = False
 _ORIGINAL_TITLE: Callable[..., Any] | None = None
 _ORIGINAL_REGISTER: Callable[..., Any] | None = None
 _ORIGINAL_AUTHENTICATE: Callable[..., Any] | None = None
@@ -96,6 +99,10 @@ def _clear_caches() -> None:
 
 
 def garantir_schema_users() -> list[str]:
+    global _SCHEMA_READY
+    if _SCHEMA_READY:
+        return []
+
     worksheet = sheets_repository.obter_aba(USERS_SHEET)
     headers = list(sheets_repository.obter_cabecalhos(USERS_SHEET))
     added: list[str] = []
@@ -107,10 +114,15 @@ def garantir_schema_users() -> list[str]:
         added.append(column)
     if added:
         _clear_caches()
+    _SCHEMA_READY = True
     return added
 
 
 def normalizar_usuarios_existentes() -> int:
+    global _NORMALIZATION_DONE
+    if _NORMALIZATION_DONE:
+        return 0
+
     garantir_schema_users()
     rows = sheets_repository.obter_registros_aba(USERS_SHEET)
     updated = 0
@@ -141,6 +153,7 @@ def normalizar_usuarios_existentes() -> int:
             updated += 1
     if updated:
         _clear_caches()
+    _NORMALIZATION_DONE = True
     return updated
 
 
@@ -275,9 +288,13 @@ def _patch_authentication() -> None:
 
 
 def aplicar_persistencia_users() -> None:
+    global _BOOTSTRAP_DONE
+    if _BOOTSTRAP_DONE:
+        return
     garantir_schema_users()
     normalizar_usuarios_existentes()
     _patch_authentication()
+    _BOOTSTRAP_DONE = True
 
 
 def install_user_account_persistence() -> None:
