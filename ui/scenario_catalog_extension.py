@@ -1,14 +1,17 @@
 from __future__ import annotations
 
 from scenarios import registry as scenario_registry
-from scenarios.stories.casada_frustrada.config import (
+from scenarios.casada_frustrada import (
     SCENARIO_ID,
     obter_configuracao,
+    obter_encerramentos,
+    obter_recuperacoes,
+    obter_rotas,
 )
-from scenarios.stories.casada_frustrada.endings import obter_encerramentos
-from scenarios.stories.casada_frustrada.recoveries import obter_recuperacoes
-from scenarios.stories.casada_frustrada.routes import obter_rotas
 from ui.interaction_persistence import install_interaction_persistence
+from ui.scenario_catalog_visibility_fix import (
+    install_scenario_catalog_visibility_fix,
+)
 from ui.scenario_event_persistence import install_scenario_event_persistence
 from ui.session_persistence import install_session_persistence
 from ui.sheets_read_quota_guard import install_sheets_read_quota_guard
@@ -16,7 +19,7 @@ from ui.user_account_persistence import install_user_account_persistence
 
 
 SCENARIO_CATALOG_EXTENSION_VERSION = (
-    "scenario-catalog-extension-v6-sheets-quota-guard"
+    "scenario-catalog-extension-v7-standardized-scenarios-visibility-fix"
 )
 
 _INSTALLED = False
@@ -31,12 +34,19 @@ def install_scenario_catalog_extension() -> None:
     # cache de todas as abas e leituras repetidas passam a ser consolidadas.
     install_sheets_read_quota_guard()
 
+    # Todos os cenários expõem a mesma interface pública em scenarios/<id>.py.
+    # O registro explícito permanece por compatibilidade com a arquitetura atual.
     scenario_registry.SCENARIO_LOADERS[SCENARIO_ID] = {
         "config_loader": obter_configuracao,
         "routes_loader": obter_rotas,
         "recoveries_loader": obter_recuperacoes,
         "endings_loader": obter_encerramentos,
     }
+
+    # Células administrativas vazias significam "usar o padrão do código".
+    # Isso restaura cenários antigos após a expansão do schema da aba SCENARIOS.
+    install_scenario_catalog_visibility_fix()
+
     install_user_account_persistence()
     install_session_persistence()
     install_interaction_persistence()
