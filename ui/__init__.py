@@ -105,6 +105,14 @@ from ui.scenario_catalog_persistence import (
     install_scenario_catalog_persistence,
     sincronizar_catalogo_scenarios,
 )
+from ui.scenario_session_legacy_migration import (
+    CANONICAL_SCENARIO_SESSION_COLUMNS,
+    SCENARIO_SESSION_MIGRATION_VERSION,
+    aplicar_migracao_sessoes_legadas,
+    garantir_schema_scenario_sessions,
+    install_scenario_session_legacy_migration,
+    migrar_user_scenario_sessions,
+)
 
 
 # O pacote ui é carregado antes de main(). Os instaladores envolvem st.title;
@@ -129,6 +137,7 @@ install_scenario_flip_cards()
 install_mary_relationship_persistence()
 install_memory_persistence()
 install_scenario_catalog_persistence()
+install_scenario_session_legacy_migration()
 
 
 from ui.login import (
@@ -164,6 +173,8 @@ __all__ = [
     "MEMORY_COLUMNS",
     "SCENARIO_CATALOG_PERSISTENCE_VERSION",
     "SCENARIO_COLUMNS",
+    "SCENARIO_SESSION_MIGRATION_VERSION",
+    "CANONICAL_SCENARIO_SESSION_COLUMNS",
     "aplicar_integracao_runtime",
     "aplicar_otimizacao_rerun",
     "aplicar_controles_log_diagnostico",
@@ -186,6 +197,9 @@ __all__ = [
     "aplicar_persistencia_catalogo_scenarios",
     "garantir_schema_scenarios",
     "sincronizar_catalogo_scenarios",
+    "aplicar_migracao_sessoes_legadas",
+    "garantir_schema_scenario_sessions",
+    "migrar_user_scenario_sessions",
     "install_scenario_catalog_extension",
     "install_scenario_duration_extension",
     "install_elevenlabs_voice_integration",
@@ -206,6 +220,7 @@ __all__ = [
     "install_mary_relationship_persistence",
     "install_memory_persistence",
     "install_scenario_catalog_persistence",
+    "install_scenario_session_legacy_migration",
     "log_diagnostico_ativado",
     "AUTH_ACTION_LOGIN",
     "AUTH_ACTION_REGISTER",
