@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from functools import wraps
+import json
 import sys
 from typing import Any, Callable
 
@@ -11,7 +12,7 @@ from relationship import montar_resumo_estado_relacao, normalizar_estado_relacao
 
 
 MARY_RELATIONSHIP_PERSISTENCE_VERSION = (
-    "mary-relationship-persistence-v1-schema-sync"
+    "mary-relationship-persistence-v2-schema-sync-and-restore"
 )
 
 MARY_RELATIONSHIP_COLUMNS = (
@@ -277,6 +278,25 @@ def sincronizar_estado_relacionamento(
     return updated
 
 
+def _restaurar_estado_json(relacionamento: dict[str, Any]) -> None:
+    raw = relacionamento.get("relationship_state_json")
+    if isinstance(raw, dict):
+        persisted = raw
+    else:
+        text = _texto(raw)
+        if not text:
+            return
+        try:
+            parsed = json.loads(text)
+        except (TypeError, ValueError, json.JSONDecodeError):
+            return
+        if not isinstance(parsed, dict):
+            return
+        persisted = parsed
+
+    st.session_state["relationship_state"] = normalizar_estado_relacao(persisted)
+
+
 def _patch_repository_exports() -> None:
     sheets_repository.obter_ou_criar_relacionamento_mary = (
         obter_ou_criar_relacionamento_mary
@@ -287,13 +307,29 @@ def _patch_repository_exports() -> None:
 def _patch_app(module: Any) -> None:
     module.obter_ou_criar_relacionamento_mary = obter_ou_criar_relacionamento_mary
 
-    original = getattr(module, "registrar_interacao_local_e_remota", None)
-    if not callable(original) or getattr(original, "_mary_relationship_wrapped", False):
+    original_hydrate = getattr(module, "hidratar_relacionamento_mary", None)
+    if callable(original_hydrate) and not getattr(
+        original_hydrate, "_mary_relationship_restore_wrapped", False
+    ):
+        @wraps(original_hydrate)
+        def hydrate_wrapper(relacionamento: dict[str, Any]) -> Any:
+            result = original_hydrate(relacionamento)
+            if isinstance(relacionamento, dict):
+                _restaurar_estado_json(relacionamento)
+            return result
+
+        hydrate_wrapper._mary_relationship_restore_wrapped = True  # type: ignore[attr-defined]
+        module.hidratar_relacionamento_mary = hydrate_wrapper
+
+    original_register = getattr(module, "registrar_interacao_local_e_remota", None)
+    if not callable(original_register) or getattr(
+        original_register, "_mary_relationship_sync_wrapped", False
+    ):
         return
 
-    @wraps(original)
-    def wrapper(record: dict[str, Any]) -> Any:
-        result = original(record)
+    @wraps(original_register)
+    def register_wrapper(record: dict[str, Any]) -> Any:
+        result = original_register(record)
         if isinstance(record, dict) and not _texto(record.get("error")):
             try:
                 sincronizar_estado_relacionamento(record)
@@ -304,8 +340,8 @@ def _patch_app(module: Any) -> None:
                 )
         return result
 
-    wrapper._mary_relationship_wrapped = True  # type: ignore[attr-defined]
-    module.registrar_interacao_local_e_remota = wrapper
+    register_wrapper._mary_relationship_sync_wrapped = True  # type: ignore[attr-defined]
+    module.registrar_interacao_local_e_remota = register_wrapper
 
 
 def aplicar_persistencia_relacionamento_mary() -> None:
