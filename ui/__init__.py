@@ -19,26 +19,7 @@ from ui.diagnostic_log_controls import (
     install_diagnostic_log_controls,
     log_diagnostico_ativado,
 )
-from ui.onomatopoeia_integration import (
-    ONOMATOPOEIA_INTEGRATION_VERSION,
-    aplicar_integracao_onomatopeias,
-    install_onomatopoeia_integration,
-)
-from ui.casada_frustrada_intimacy_integration import (
-    CASADA_FRUSTRADA_INTIMACY_VERSION,
-    aplicar_integracao_intimidade_casada_frustrada,
-    install_casada_frustrada_intimacy_integration,
-)
-from ui.casada_frustrada_supermarket_calibration import (
-    CASADA_FRUSTRADA_SUPERMARKET_VERSION,
-    aplicar_calibracao_supermercado_casada_frustrada,
-    install_casada_frustrada_supermarket_calibration,
-)
-from ui.casada_frustrada_spoken_sex_calibration import (
-    CASADA_FRUSTRADA_SPOKEN_SEX_VERSION,
-    aplicar_calibracao_sexo_falado_casada_frustrada,
-    install_casada_frustrada_spoken_sex_calibration,
-)
+
 from ui.pix_test_commerce_integration import (
     PIX_TEST_COMMERCE_VERSION,
     aplicar_integracao_pix_teste,
@@ -145,10 +126,13 @@ install_elevenlabs_voice_integration()
 install_app_runtime_integration()
 install_interaction_rerun_optimizer()
 install_diagnostic_log_controls()
-install_onomatopoeia_integration()
-install_casada_frustrada_intimacy_integration()
-install_casada_frustrada_supermarket_calibration()
-install_casada_frustrada_spoken_sex_calibration()
+
+# Removidas:
+# install_onomatopoeia_integration()
+# install_casada_frustrada_intimacy_integration()
+# install_casada_frustrada_supermarket_calibration()
+# install_casada_frustrada_spoken_sex_calibration()
+
 install_pix_test_commerce_integration()
 install_pix_continue_access_fix()
 install_pix_active_session_access()
@@ -160,6 +144,7 @@ install_mary_relationship_persistence()
 install_memory_persistence()
 install_scenario_catalog_persistence()
 install_scenario_session_legacy_migration()
+
 # Instalado antes do adaptador principal: na execução dos wrappers de st.title,
 # o adaptador entra primeiro e o commit é aplicado sobre ele em seguida.
 install_user_visual_profile_commit_fix()
@@ -178,11 +163,7 @@ __all__ = [
     "SHEETS_GRID_AUTOGROW_VERSION",
     "APP_RUNTIME_INTEGRATION_VERSION",
     "INTERACTION_RERUN_OPTIMIZER_VERSION",
-    "DIAGNOSTIC_LOG_CONTROLS_VERSION",
-    "ONOMATOPOEIA_INTEGRATION_VERSION",
-    "CASADA_FRUSTRADA_INTIMACY_VERSION",
-    "CASADA_FRUSTRADA_SUPERMARKET_VERSION",
-    "CASADA_FRUSTRADA_SPOKEN_SEX_VERSION",
+    "DIAGNOSTIC_LOG_CONTROLS_VERSION",      
     "PIX_TEST_COMMERCE_VERSION",
     "PIX_CONTINUE_ACCESS_FIX_VERSION",
     "PIX_ACTIVE_SESSION_ACCESS_VERSION",
@@ -207,11 +188,7 @@ __all__ = [
     "USER_VISUAL_PROFILE_COLUMNS",
     "aplicar_integracao_runtime",
     "aplicar_otimizacao_rerun",
-    "aplicar_controles_log_diagnostico",
-    "aplicar_integracao_onomatopeias",
-    "aplicar_integracao_intimidade_casada_frustrada",
-    "aplicar_calibracao_supermercado_casada_frustrada",
-    "aplicar_calibracao_sexo_falado_casada_frustrada",
+    "aplicar_controles_log_diagnostico",       
     "aplicar_integracao_pix_teste",
     "aplicar_acesso_pix_por_sessao_ativa",
     "aplicar_continuacao_capitulos_pagos",
@@ -241,11 +218,7 @@ __all__ = [
     "install_elevenlabs_voice_integration",
     "install_app_runtime_integration",
     "install_interaction_rerun_optimizer",
-    "install_diagnostic_log_controls",
-    "install_onomatopoeia_integration",
-    "install_casada_frustrada_intimacy_integration",
-    "install_casada_frustrada_supermarket_calibration",
-    "install_casada_frustrada_spoken_sex_calibration",
+    "install_diagnostic_log_controls",   
     "install_pix_test_commerce_integration",
     "install_pix_continue_access_fix",
     "install_pix_active_session_access",
