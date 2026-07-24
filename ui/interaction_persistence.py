@@ -112,7 +112,7 @@ def _interaction_key(
     number = _inteiro(interaction_number, 0)
     if not session_id or number < 1:
         return ""
-    return f"{session_id}:{number:03d}"
+    return f"{session_id}:{number:02d}"
 
 
 def _classificar_erro(error: str) -> tuple[str, str]:
