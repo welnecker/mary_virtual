@@ -8,12 +8,6 @@ from scenarios.casada_frustrada import (
     obter_recuperacoes,
     obter_rotas,
 )
-from ui.casada_frustrada_screenplay_integration import (
-    install_casada_frustrada_screenplay_integration,
-)
-from ui.casada_frustrada_voice_guard import (
-    install_casada_frustrada_voice_guard,
-)
 from ui.interaction_persistence import install_interaction_persistence
 from ui.scenario_catalog_visibility_fix import (
     install_scenario_catalog_visibility_fix,
@@ -25,7 +19,7 @@ from ui.user_account_persistence import install_user_account_persistence
 
 
 SCENARIO_CATALOG_EXTENSION_VERSION = (
-    "scenario-catalog-extension-v9-casada-popular-voice"
+    "scenario-catalog-extension-v10-casada-prompt-rollback"
 )
 
 _INSTALLED = False
@@ -49,11 +43,11 @@ def install_scenario_catalog_extension() -> None:
         "endings_loader": obter_encerramentos,
     }
 
-    # A guarda é instalada antes do roteiro para que, durante st.title, seja
-    # aplicada por último ao prompt e tenha prioridade sobre a linguagem técnica
-    # produzida pelo diretor.
-    install_casada_frustrada_voice_guard()
-    install_casada_frustrada_screenplay_integration()
+    # As integrações experimentais de roteiro/voz da Casada Frustrada foram
+    # removidas do runtime. Elas empilhavam orientações concorrentes no prompt,
+    # deixando Mary expansiva, alegre e superficial. O roteiro aprovado segue
+    # preservado na pasta do cenário como fonte editorial para a nova integração
+    # única, que será feita sem wrappers sobrepostos.
 
     # Células administrativas vazias significam "usar o padrão do código".
     # Isso restaura cenários antigos após a expansão do schema da aba SCENARIOS.
