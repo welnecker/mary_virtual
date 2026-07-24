@@ -11,6 +11,9 @@ from scenarios.casada_frustrada import (
 from ui.casada_frustrada_canonical_prompt import (
     install_casada_frustrada_canonical_prompt,
 )
+from ui.casada_frustrada_prompt_inputs import (
+    install_casada_frustrada_prompt_inputs,
+)
 from ui.interaction_persistence import install_interaction_persistence
 from ui.scenario_catalog_visibility_fix import (
     install_scenario_catalog_visibility_fix,
@@ -22,7 +25,7 @@ from ui.user_account_persistence import install_user_account_persistence
 
 
 SCENARIO_CATALOG_EXTENSION_VERSION = (
-    "scenario-catalog-extension-v11-casada-canonical-screenplay"
+    "scenario-catalog-extension-v12-casada-aligned-prompt-chain"
 )
 
 _INSTALLED = False
@@ -46,9 +49,9 @@ def install_scenario_catalog_extension() -> None:
         "endings_loader": obter_encerramentos,
     }
 
-    # Única autoridade narrativa da Casada Frustrada. Ela é instalada cedo na
-    # cadeia de st.title para ser aplicada por último ao construtor do prompt,
-    # depois das integrações legadas ainda carregadas por compatibilidade.
+    # Primeiro corrige as entradas erradas produzidas pelos motores genéricos.
+    # Depois aplica a autoridade final do roteiro e do palavreado aprovado.
+    install_casada_frustrada_prompt_inputs()
     install_casada_frustrada_canonical_prompt()
 
     # Células administrativas vazias significam "usar o padrão do código".
