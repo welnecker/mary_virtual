@@ -11,6 +11,9 @@ from scenarios.casada_frustrada import (
 from ui.casada_frustrada_screenplay_integration import (
     install_casada_frustrada_screenplay_integration,
 )
+from ui.casada_frustrada_voice_guard import (
+    install_casada_frustrada_voice_guard,
+)
 from ui.interaction_persistence import install_interaction_persistence
 from ui.scenario_catalog_visibility_fix import (
     install_scenario_catalog_visibility_fix,
@@ -22,7 +25,7 @@ from ui.user_account_persistence import install_user_account_persistence
 
 
 SCENARIO_CATALOG_EXTENSION_VERSION = (
-    "scenario-catalog-extension-v8-casada-screenplay"
+    "scenario-catalog-extension-v9-casada-popular-voice"
 )
 
 _INSTALLED = False
@@ -46,8 +49,10 @@ def install_scenario_catalog_extension() -> None:
         "endings_loader": obter_encerramentos,
     }
 
-    # Instala cedo para que, na cadeia de wrappers de st.title, o roteiro seja
-    # aplicado depois das calibrações antigas e permaneça como orientação final.
+    # A guarda é instalada antes do roteiro para que, durante st.title, seja
+    # aplicada por último ao prompt e tenha prioridade sobre a linguagem técnica
+    # produzida pelo diretor.
+    install_casada_frustrada_voice_guard()
     install_casada_frustrada_screenplay_integration()
 
     # Células administrativas vazias significam "usar o padrão do código".
