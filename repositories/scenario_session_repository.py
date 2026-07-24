@@ -73,6 +73,9 @@ def _hidratar_registro_sessao(
     resultado["story_progress"] = _desserializar_json(
         resultado.get("story_progress_json")
     )
+    resultado["relationship_state"] = _desserializar_json(
+        resultado.get("relationship_state_json")
+    )
     return resultado
 
 
@@ -107,6 +110,9 @@ def montar_registro_sessao_cenario(
     story_progress = instancia.get("story_progress")
     if not isinstance(story_progress, dict):
         story_progress = {}
+    relationship_state = instancia.get("relationship_state")
+    if not isinstance(relationship_state, dict):
+        relationship_state = {}
 
     return {
         "scenario_session_id": scenario_session_id,
@@ -142,6 +148,7 @@ def montar_registro_sessao_cenario(
         ),
         "scene_state_json": serializar_json(scene_state),
         "story_progress_json": serializar_json(story_progress),
+        "relationship_state_json": serializar_json(relationship_state),
         "summary": _texto(instancia.get("summary")),
     }
 
