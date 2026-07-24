@@ -1,3 +1,7 @@
+from ui.sheets_grid_autogrow import (
+    SHEETS_GRID_AUTOGROW_VERSION,
+    install_sheets_grid_autogrow,
+)
 from ui.app_runtime_integration import (
     APP_RUNTIME_INTEGRATION_VERSION,
     aplicar_integracao_runtime,
@@ -115,6 +119,10 @@ from ui.scenario_session_legacy_migration import (
 )
 
 
+# A proteção da grade precisa ser instalada antes de qualquer sincronização
+# de cabeçalhos ou escrita nas abas do Google Sheets.
+install_sheets_grid_autogrow()
+
 # O pacote ui é carregado antes de main(). Os instaladores envolvem st.title;
 # a integração real acontece depois que app.py já definiu todas as funções.
 install_scenario_catalog_extension()
@@ -149,6 +157,7 @@ from ui.login import (
 
 
 __all__ = [
+    "SHEETS_GRID_AUTOGROW_VERSION",
     "APP_RUNTIME_INTEGRATION_VERSION",
     "INTERACTION_RERUN_OPTIMIZER_VERSION",
     "DIAGNOSTIC_LOG_CONTROLS_VERSION",
@@ -200,6 +209,7 @@ __all__ = [
     "aplicar_migracao_sessoes_legadas",
     "garantir_schema_scenario_sessions",
     "migrar_user_scenario_sessions",
+    "install_sheets_grid_autogrow",
     "install_scenario_catalog_extension",
     "install_scenario_duration_extension",
     "install_elevenlabs_voice_integration",
