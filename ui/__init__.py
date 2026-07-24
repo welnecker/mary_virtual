@@ -82,6 +82,14 @@ from ui.scenario_flip_cards import (
     aplicar_cards_reversiveis,
     install_scenario_flip_cards,
 )
+from ui.mary_relationship_persistence import (
+    MARY_RELATIONSHIP_COLUMNS,
+    MARY_RELATIONSHIP_PERSISTENCE_VERSION,
+    aplicar_persistencia_relacionamento_mary,
+    garantir_schema_mary_relationship,
+    install_mary_relationship_persistence,
+    sincronizar_estado_relacionamento,
+)
 
 
 # O pacote ui é carregado antes de main(). Os instaladores envolvem st.title;
@@ -103,6 +111,7 @@ install_paid_chapter_continuation()
 install_completed_history_visibility()
 install_contrast_accessibility()
 install_scenario_flip_cards()
+install_mary_relationship_persistence()
 
 
 from ui.login import (
@@ -131,6 +140,8 @@ __all__ = [
     "SCENARIO_DURATION_EXTENSION_VERSION",
     "ELEVENLABS_VOICE_INTEGRATION_VERSION",
     "SCENARIO_FLIP_CARDS_VERSION",
+    "MARY_RELATIONSHIP_PERSISTENCE_VERSION",
+    "MARY_RELATIONSHIP_COLUMNS",
     "aplicar_integracao_runtime",
     "aplicar_otimizacao_rerun",
     "aplicar_controles_log_diagnostico",
@@ -146,6 +157,9 @@ __all__ = [
     "ocultar_historias_concluidas_do_catalogo",
     "dobrar_duracao_configuracao",
     "aplicar_cards_reversiveis",
+    "aplicar_persistencia_relacionamento_mary",
+    "garantir_schema_mary_relationship",
+    "sincronizar_estado_relacionamento",
     "install_scenario_catalog_extension",
     "install_scenario_duration_extension",
     "install_elevenlabs_voice_integration",
@@ -163,6 +177,7 @@ __all__ = [
     "install_completed_history_visibility",
     "install_contrast_accessibility",
     "install_scenario_flip_cards",
+    "install_mary_relationship_persistence",
     "log_diagnostico_ativado",
     "AUTH_ACTION_LOGIN",
     "AUTH_ACTION_REGISTER",
