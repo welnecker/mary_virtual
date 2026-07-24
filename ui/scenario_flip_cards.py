@@ -9,7 +9,7 @@ import streamlit as st
 import ui.scenario_menu as scenario_menu
 
 
-SCENARIO_FLIP_CARDS_VERSION = "scenario-flip-cards-v1-hover-focus-guidance"
+SCENARIO_FLIP_CARDS_VERSION = "scenario-flip-cards-v2-scrollable-back"
 
 _INSTALLED = False
 
@@ -114,6 +114,31 @@ def _css_flip_cards() -> str:
     transform: rotateY(180deg);
     background: linear-gradient(145deg, rgba(69,26,57,.99), rgba(32,17,38,.99));
     border: 1px solid rgba(255,130,183,.25);
+    padding: .72rem .48rem .72rem 1.15rem;
+}
+.mary-flip-back-scroll {
+    height: 202px;
+    overflow-y: auto;
+    overflow-x: hidden;
+    overscroll-behavior: contain;
+    touch-action: pan-y;
+    padding: .43rem .72rem .5rem 0;
+    scrollbar-width: thin;
+    scrollbar-color: rgba(255,161,199,.54) rgba(255,255,255,.07);
+}
+.mary-flip-back-scroll::-webkit-scrollbar {
+    width: 7px;
+}
+.mary-flip-back-scroll::-webkit-scrollbar-track {
+    background: rgba(255,255,255,.06);
+    border-radius: 999px;
+}
+.mary-flip-back-scroll::-webkit-scrollbar-thumb {
+    background: rgba(255,161,199,.52);
+    border-radius: 999px;
+}
+.mary-flip-back-scroll::-webkit-scrollbar-thumb:hover {
+    background: rgba(255,183,211,.72);
 }
 .mary-flip-badge,
 .mary-flip-eyebrow {
@@ -157,13 +182,19 @@ def _css_flip_cards() -> str:
     font-size: .76rem;
 }
 .mary-flip-tips {
-    margin: .72rem 0 0;
+    margin: .72rem 0 .25rem;
     padding-left: 1.08rem;
     color: rgba(255,255,255,.82);
     font-size: .82rem;
     line-height: 1.35;
 }
 .mary-flip-tips li { margin-bottom: .28rem; }
+.mary-flip-scroll-hint {
+    margin-top: .55rem;
+    color: rgba(255,255,255,.46);
+    font-size: .72rem;
+    text-align: right;
+}
 @media (prefers-reduced-motion: reduce) {
     .mary-flip-card-inner { transition: none; }
 }
@@ -216,10 +247,14 @@ def _patch_card_renderer() -> None:
                 '<div class="mary-flip-hint">Passe o mouse · toque para detalhes</div>'
                 '</section>'
                 '<section class="mary-flip-face mary-flip-back">'
+                '<div class="mary-flip-back-scroll" tabindex="0" '
+                'aria-label="Detalhes da experiência; role para ler tudo">'
                 f'<span class="mary-flip-eyebrow">{html.escape(_texto(back.get("eyebrow")))}</span>'
                 f'<div class="mary-flip-title">{html.escape(_texto(back.get("title")))}</div>'
                 f'<div class="mary-flip-copy">{html.escape(_texto(back.get("copy")))}</div>'
                 f'<ul class="mary-flip-tips">{tips_html}</ul>'
+                '<div class="mary-flip-scroll-hint">Role para ler todos os detalhes</div>'
+                '</div>'
                 '</section>'
                 '</div></div>'
             ),
