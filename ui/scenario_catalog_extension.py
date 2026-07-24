@@ -11,11 +11,12 @@ from scenarios.stories.casada_frustrada.routes import obter_rotas
 from ui.interaction_persistence import install_interaction_persistence
 from ui.scenario_event_persistence import install_scenario_event_persistence
 from ui.session_persistence import install_session_persistence
+from ui.sheets_read_quota_guard import install_sheets_read_quota_guard
 from ui.user_account_persistence import install_user_account_persistence
 
 
 SCENARIO_CATALOG_EXTENSION_VERSION = (
-    "scenario-catalog-extension-v5-users-sessions-interactions-events"
+    "scenario-catalog-extension-v6-sheets-quota-guard"
 )
 
 _INSTALLED = False
@@ -25,6 +26,10 @@ def install_scenario_catalog_extension() -> None:
     global _INSTALLED
     if _INSTALLED:
         return
+
+    # Precisa entrar antes dos demais wrappers: gravações deixam de limpar o
+    # cache de todas as abas e leituras repetidas passam a ser consolidadas.
+    install_sheets_read_quota_guard()
 
     scenario_registry.SCENARIO_LOADERS[SCENARIO_ID] = {
         "config_loader": obter_configuracao,
