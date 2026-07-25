@@ -4,7 +4,7 @@ from copy import deepcopy
 from typing import Any
 
 
-TRANSITIONS_VERSION = "vizinha-porta-trancada-transitions-v1-semantic"
+TRANSITIONS_VERSION = "vizinha-porta-trancada-transitions-v2-semantic-aligned"
 
 TRANSITIONS: dict[str, Any] = {
     "policy": (
@@ -14,40 +14,52 @@ TRANSITIONS: dict[str, Any] = {
     "rules": [
         {
             "from": "locked_door",
-            "to": "shared_hallway",
-            "when": ["o usuário responde ao problema da porta e permanece presente"],
-        },
-        {
-            "from": "shared_hallway",
-            "to": "private_space",
-            "when": [
-                "a porta foi resolvida ou surgiu alternativa concreta",
-                "há convite ou entrada voluntária em espaço privado",
+            "to_any": [
+                "waiting_together",
+                "inside_user_apartment",
+                "coffee_invitation",
+                "early_exit",
             ],
+            "when": ["o usuário responde concretamente ao problema da porta"],
         },
         {
-            "from": "private_space",
-            "to": "tension",
-            "when": ["a proximidade deixa de ser apenas prática e ganha desejo recíproco"],
+            "from": "waiting_together",
+            "to_any": [
+                "inside_user_apartment",
+                "private_conversation",
+                "coffee_invitation",
+                "ending",
+            ],
+            "when": ["a espera produz decisão, proximidade ou despedida concreta"],
         },
         {
-            "from": "tension",
-            "to": "intimacy",
-            "when": ["a intimidade física começa com reciprocidade"],
+            "from": "inside_user_apartment",
+            "to_any": ["private_conversation", "growing_tension", "intimacy", "ending"],
+            "when": ["a entrada voluntária cria privacidade e uma nova escolha"],
+        },
+        {
+            "from": "private_conversation",
+            "to_any": ["growing_tension", "intimacy", "coffee_invitation", "ending"],
+            "when": ["a conversa produz desejo, convite, intimidade ou resolução"],
+        },
+        {
+            "from": "growing_tension",
+            "to_any": ["intimacy", "private_conversation", "ending"],
+            "when": ["a reciprocidade sustenta avanço, recuo ou encerramento"],
         },
         {
             "from": "intimacy",
-            "to": "climax",
-            "when": ["o motor sexual confirma proximidade ou início do clímax"],
+            "to_any": ["climax", "aftercare", "ending"],
+            "when": ["o motor sexual ou uma decisão explícita muda a fase"],
         },
         {
             "from": "climax",
-            "to": "aftercare",
+            "to_any": ["aftercare", "ending"],
             "when": ["o clímax foi concluído"],
         },
     ],
     "ending_semantics": {
-        "scene_closing": "mudança de corredor, porta ou apartamento",
+        "scene_closing": "mudança de corredor, espera, porta ou apartamento",
         "story_ending": "problema resolvido com despedida, recusa definitiva ou resolução íntima",
     },
 }
