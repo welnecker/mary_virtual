@@ -7,13 +7,18 @@ from typing import Any, Callable
 
 import streamlit as st
 
+import scenarios.service as scenario_service
 import ui.scenario_menu as scenario_menu
 from repositories.scenario_session_repository import salvar_instancia_cenario
-from scenarios.card_runtime import aplicar_restricoes_card, montar_janela_roteiro
+from scenarios.card_runtime import (
+    aplicar_restricoes_card,
+    montar_janela_roteiro,
+    rota_permite_sexualidade,
+)
 
 
 CARD_RUNTIME_INTEGRATION_VERSION = (
-    "card-runtime-integration-v1-screenplay-constraints-history"
+    "card-runtime-integration-v2-final-authority-and-resume"
 )
 _RECENT_MESSAGES_LIMIT = 20
 _INSTALLED = False
@@ -74,7 +79,6 @@ def _persist_recent_messages() -> None:
     try:
         salvar_instancia_cenario(instance)
     except Exception:
-        # A conversa não deve cair por falha secundária de persistência.
         pass
 
 
@@ -96,6 +100,43 @@ def _fallback_messages(instance: dict[str, Any], messages: Any) -> list[dict[str
         if restored:
             return restored[-_RECENT_MESSAGES_LIMIT:]
     return []
+
+
+def _sanitize_scene_state(scenario_id: str, route: str) -> None:
+    instance = _instance()
+    if not isinstance(instance, dict):
+        return
+    scene = instance.get("scene_state")
+    if not isinstance(scene, dict):
+        scene = {}
+    scene = deepcopy(scene)
+    if not rota_permite_sexualidade(
+        __import__("scenarios.card_registry", fromlist=["obter_card"]).obter_card(scenario_id),
+        route,
+    ):
+        scene["sexual_scene_phase"] = "idle"
+        scene["sexual_voice_mode"] = "natural"
+        scene["seduction_level"] = min(int(scene.get("seduction_level", 0) or 0), 1)
+        sexual = scene.get("sexual_state")
+        if isinstance(sexual, dict):
+            sexual = deepcopy(sexual)
+            sexual.update(
+                {
+                    "scene_phase": "idle",
+                    "arousal_level": 0.0,
+                    "stimulation_turns": 0,
+                    "mary_pre_orgasm": False,
+                    "mary_orgasm_allowed": False,
+                    "mary_orgasm_done": False,
+                    "user_orgasm_pending": False,
+                    "user_orgasm_done": False,
+                    "aftercare_required": False,
+                }
+            )
+            scene["sexual_state"] = sexual
+    instance["scene_state"] = scene
+    instance["current_route"] = route
+    st.session_state["scenario_instance"] = instance
 
 
 def _patch_prompt_builder(module: Any) -> None:
@@ -120,12 +161,26 @@ def _patch_prompt_builder(module: Any) -> None:
         )
         aligned.update(constrained)
         aligned["include_voice_examples"] = False
-        base = str(original(*args, **aligned) or "").strip()
-        screenplay = montar_janela_roteiro(scenario_id, route)
-        return "\n\n".join(part for part in (base, screenplay) if part)
+        return str(original(*args, **aligned) or "")
 
     wrapper._mary_card_runtime_wrapped = True  # type: ignore[attr-defined]
     setattr(module, "montar_prompt_sistema", wrapper)
+
+
+def _patch_narrative_direction(module: Any) -> None:
+    original = getattr(module, "montar_direcao_narrativa", None)
+    if not callable(original) or getattr(original, "_mary_card_narrative_wrapped", False):
+        return
+
+    @wraps(original)
+    def wrapper(*args: Any, **kwargs: Any) -> str:
+        base = str(original(*args, **kwargs) or "").strip()
+        scenario_id, route = _context()
+        screenplay = montar_janela_roteiro(scenario_id, route) if scenario_id and route else ""
+        return "\n\n".join(part for part in (base, screenplay) if part)
+
+    wrapper._mary_card_narrative_wrapped = True  # type: ignore[attr-defined]
+    setattr(module, "montar_direcao_narrativa", wrapper)
 
 
 def _patch_process_interaction(module: Any) -> None:
@@ -137,6 +192,7 @@ def _patch_process_interaction(module: Any) -> None:
     def wrapper(*args: Any, **kwargs: Any) -> Any:
         scenario_id, route = _context()
         if scenario_id and route:
+            _sanitize_scene_state(scenario_id, route)
             relationship = st.session_state.get("relationship_state")
             sexual = relationship.get("sexual_state") if isinstance(relationship, dict) else {}
             constrained = aplicar_restricoes_card(
@@ -181,11 +237,12 @@ def _wrap_continue(original: Callable[..., Any]) -> Callable[..., Any]:
 
 
 def _patch_continue(module: Any) -> None:
-    original = getattr(module, "continuar_cenario_para_usuario", None)
-    if callable(original):
-        wrapped = _wrap_continue(original)
+    service_original = scenario_service.continuar_cenario_para_usuario
+    wrapped = _wrap_continue(service_original)
+    scenario_service.continuar_cenario_para_usuario = wrapped
+    scenario_menu.continuar_cenario_para_usuario = wrapped
+    if callable(getattr(module, "continuar_cenario_para_usuario", None)):
         setattr(module, "continuar_cenario_para_usuario", wrapped)
-        scenario_menu.continuar_cenario_para_usuario = wrapped
 
 
 def aplicar_card_runtime() -> None:
@@ -193,6 +250,7 @@ def aplicar_card_runtime() -> None:
     if module is None:
         return
     _patch_prompt_builder(module)
+    _patch_narrative_direction(module)
     _patch_process_interaction(module)
     _patch_continue(module)
 
