@@ -4,7 +4,7 @@ from copy import deepcopy
 from typing import Any
 
 
-TRANSITIONS_VERSION = "casada-frustrada-transitions-v2-semantic-bridges"
+TRANSITIONS_VERSION = "casada-frustrada-transitions-v3-call-route-recovery"
 
 TRANSITIONS: dict[str, Any] = {
     "policy": (
@@ -43,12 +43,19 @@ TRANSITIONS: dict[str, Any] = {
         {
             "from": "messages",
             "to": "hidden_call",
-            "when": ["há desejo recíproco e busca concreta de privacidade"],
+            "when": [
+                "Mary e usuário iniciaram ligação de voz ou vídeo",
+                "Mary procurou privacidade para ouvir a voz do usuário",
+                "a interação deixou de ser apenas troca de mensagens",
+            ],
         },
         {
             "from": "hidden_call",
             "to": "secret_meeting_plan",
-            "when": ["a vontade de encontro se tornou decisão concreta"],
+            "when": [
+                "Mary admite que quer encontrá-lo pessoalmente",
+                "a tela ou a voz já não bastam e a vontade virou decisão concreta",
+            ],
         },
         {
             "from": "secret_meeting_plan",
@@ -66,6 +73,45 @@ TRANSITIONS: dict[str, Any] = {
             "when": ["a intimidade física começou com reciprocidade"],
         },
     ],
+    "route_recovery": {
+        "policy": (
+            "Quando o estado técnico estiver atrasado em relação aos fatos inequívocos da "
+            "história, reconcilie a rota com a situação realmente vivida. Não reencene etapas "
+            "concluídas e não exija que o usuário repita a transição."
+        ),
+        "cases": [
+            {
+                "target_route": "messages",
+                "when": [
+                    "o encontro no supermercado terminou",
+                    "os números foram trocados",
+                    "Mary e usuário conversam à distância depois de chegarem em casa",
+                    "a continuidade confirma mensagens privadas, mesmo que a rota ainda indique supermercado",
+                ],
+            },
+            {
+                "target_route": "hidden_call",
+                "when": [
+                    "há conversa de voz ou vídeo acontecendo agora",
+                    "Mary pede silêncio, procura privacidade ou reage diretamente à voz do usuário",
+                    "o histórico confirma que a chamada começou, ainda que a rota técnica esteja atrasada",
+                ],
+            },
+            {
+                "target_route": "secret_meeting_plan",
+                "when": [
+                    "Mary e usuário já decidiram que querem se encontrar",
+                    "a conversa atual trata concretamente de local, horário ou confirmação",
+                ],
+            },
+        ],
+        "rules": [
+            "A recuperação corrige estado; não é salto criativo de roteiro.",
+            "Não retornar ao supermercado depois de mensagens, ligação ou planejamento confirmados.",
+            "Não manter hidden_call quando a decisão de encontro já foi assumida.",
+            "Preservar fatos e intimidade já construídos sem inventar reciprocidade ausente.",
+        ],
+    },
     "bridges": {
         "policy": (
             "Uma ponte é um recurso de continuidade quando uma cena local terminou ou "
