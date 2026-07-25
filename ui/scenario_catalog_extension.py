@@ -15,6 +15,7 @@ from ui.mary_relationship_compaction import install_mary_relationship_compaction
 from ui.persistence_hot_path_optimizer import install_persistence_hot_path_optimizer
 from ui.relationship_event_compaction import install_relationship_event_compaction
 from ui.scenario_catalog_visibility_fix import install_scenario_catalog_visibility_fix
+from ui.scenario_event_compaction import install_scenario_event_compaction
 from ui.scenario_event_persistence import install_scenario_event_persistence
 from ui.scenario_history_recovery import install_scenario_history_recovery
 from ui.session_persistence import install_session_persistence
@@ -23,7 +24,7 @@ from ui.user_account_persistence import install_user_account_persistence
 
 
 SCENARIO_CATALOG_EXTENSION_VERSION = (
-    "scenario-catalog-extension-v18-persistence-hot-path-fix"
+    "scenario-catalog-extension-v19-compact-persistence-payloads"
 )
 
 _INSTALLED = False
@@ -45,12 +46,9 @@ def install_scenario_catalog_extension() -> None:
 
     instalar_cards_no_registry(scenario_registry)
 
-    # Elimina snapshots recursivos e reduz estados antigos antes de serializar.
     install_relationship_event_compaction()
-
-    # Evita conferência de schema, segunda escrita e recontagem integral da aba
-    # no caminho crítico de toda resposta.
     install_persistence_hot_path_optimizer()
+    install_scenario_event_compaction()
 
     install_scenario_history_recovery()
     install_card_runtime_integration()
