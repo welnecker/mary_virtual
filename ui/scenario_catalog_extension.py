@@ -19,13 +19,14 @@ from ui.scenario_catalog_visibility_fix import install_scenario_catalog_visibili
 from ui.scenario_event_compaction import install_scenario_event_compaction
 from ui.scenario_event_persistence import install_scenario_event_persistence
 from ui.scenario_history_recovery import install_scenario_history_recovery
+from ui.scene_transition_presentation import install_scene_transition_presentation
 from ui.session_persistence import install_session_persistence
 from ui.sheets_read_quota_guard import install_sheets_read_quota_guard
 from ui.user_account_persistence import install_user_account_persistence
 
 
 SCENARIO_CATALOG_EXTENSION_VERSION = (
-    "scenario-catalog-extension-v22-semantic-route-reconciliation"
+    "scenario-catalog-extension-v23-immediate-styled-transitions"
 )
 
 _INSTALLED = False
@@ -57,6 +58,10 @@ def install_scenario_catalog_extension() -> None:
     # situação realmente vivida. Não altera st.title nem executa acesso remoto.
     install_route_reconciliation()
     install_card_runtime_integration()
+
+    # Aproveita o runtime já instalado: ativa a ponte no turno imediatamente
+    # seguinte e apresenta a mudança temporal em um quadro visual próprio.
+    install_scene_transition_presentation()
 
     install_mary_relationship_compaction()
     install_scenario_catalog_visibility_fix()
