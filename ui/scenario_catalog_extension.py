@@ -10,6 +10,7 @@ from scenarios.casada_frustrada import (
     obter_rotas,
 )
 from ui.card_runtime_integration import install_card_runtime_integration
+from ui.casada_frustrada_route_reconciliation import install_route_reconciliation
 from ui.interaction_persistence import install_interaction_persistence
 from ui.mary_relationship_compaction import install_mary_relationship_compaction
 from ui.persistence_hot_path_optimizer import install_persistence_hot_path_optimizer
@@ -24,7 +25,7 @@ from ui.user_account_persistence import install_user_account_persistence
 
 
 SCENARIO_CATALOG_EXTENSION_VERSION = (
-    "scenario-catalog-extension-v21-safe-startup-without-title-bridge"
+    "scenario-catalog-extension-v22-semantic-route-reconciliation"
 )
 
 _INSTALLED = False
@@ -52,11 +53,9 @@ def install_scenario_catalog_extension() -> None:
 
     install_scenario_history_recovery()
 
-    # A integração experimental de ponte não é instalada durante o bootstrap.
-    # Ela alterava st.title e a cadeia de funções do diretor antes do primeiro
-    # render, podendo manter o Streamlit indefinidamente em estado de carga.
-    # A política semântica continua disponível no card e será reintegrada em um
-    # ponto explícito do processamento de interação, sem monkey patch de UI.
+    # Corrige semanticamente sessões antigas cuja rota persistida ficou atrás da
+    # situação realmente vivida. Não altera st.title nem executa acesso remoto.
+    install_route_reconciliation()
     install_card_runtime_integration()
 
     install_mary_relationship_compaction()
