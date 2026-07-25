@@ -9,13 +9,12 @@ import streamlit as st
 import repositories.interaction_repository as interaction_repository
 import scenarios.service as scenario_service
 import ui.paid_chapter_continuation as paid_continuation
-import ui.scenario_menu as scenario_menu
 from google_sheets_repository import INTERACTIONS_SHEET, obter_registros_aba
 from repositories.scenario_session_repository import obter_sessao_cenario
 
 
 SCENARIO_HISTORY_RECOVERY_VERSION = (
-    "scenario-history-recovery-v2-legacy-window-200-turns"
+    "scenario-history-recovery-v3-wrapper-safe-200-turns"
 )
 _INSTALLED = False
 _ORIGINAL_TITLE: Callable[..., Any] | None = None
@@ -104,9 +103,6 @@ def _legacy_records(
 
 
 def _patch_repository() -> None:
-    # O produto já aceita capítulos acima de 50 interações. A chave lógica da
-    # persistência precisa acompanhar esse limite para não deixar de agrupar e
-    # restaurar turnos após a interação 50.
     interaction_repository.MAX_SCENARIO_INTERACTIONS = 200
 
     original = interaction_repository.listar_interacoes_sessao_cenario
@@ -140,10 +136,9 @@ def _patch_repository() -> None:
 
 
 def aplicar_recuperacao_historico_cenario() -> None:
+    # Não substitui continuar_cenario_para_usuario. Apenas troca a fonte de
+    # interações, preservando os wrappers de Pix e continuação já instalados.
     _patch_repository()
-    scenario_menu.continuar_cenario_para_usuario = (
-        scenario_service.continuar_cenario_para_usuario
-    )
 
 
 def install_scenario_history_recovery() -> None:
