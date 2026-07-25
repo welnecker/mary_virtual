@@ -9,6 +9,7 @@ from scenarios.casada_frustrada import (
     obter_recuperacoes,
     obter_rotas,
 )
+from ui.card_runtime_integration import install_card_runtime_integration
 from ui.interaction_persistence import install_interaction_persistence
 from ui.mary_relationship_compaction import install_mary_relationship_compaction
 from ui.scenario_catalog_visibility_fix import install_scenario_catalog_visibility_fix
@@ -19,7 +20,7 @@ from ui.user_account_persistence import install_user_account_persistence
 
 
 SCENARIO_CATALOG_EXTENSION_VERSION = (
-    "scenario-catalog-extension-v14-independent-card-characters"
+    "scenario-catalog-extension-v15-card-runtime-authority"
 )
 
 _INSTALLED = False
@@ -32,8 +33,6 @@ def install_scenario_catalog_extension() -> None:
 
     install_sheets_read_quota_guard()
 
-    # Compatibilidade com o catálogo atual. A personalidade, psicologia, voz,
-    # roteiro e transições já não são instaladas por wrappers específicos da UI.
     scenario_registry.SCENARIO_LOADERS[SCENARIO_ID] = {
         "config_loader": obter_configuracao,
         "routes_loader": obter_rotas,
@@ -41,13 +40,13 @@ def install_scenario_catalog_extension() -> None:
         "endings_loader": obter_encerramentos,
     }
 
-    # Enriquece os dois cenários com seus pacotes independentes e acrescenta ao
-    # prompt somente a Mary pertencente ao card ativo.
+    # Cada card entrega personalidade, psicologia, voz, roteiro e transições.
     instalar_cards_no_registry(scenario_registry)
 
-    # Os antigos wrappers casada_frustrada_prompt_inputs e
-    # casada_frustrada_canonical_prompt não são mais instalados. O conteúdo
-    # específico agora vive em scenarios/stories/<card>/.
+    # Aplica a autoridade operacional do card antes da geração: limita motores
+    # globais incompatíveis, injeta a janela real do roteiro e preserva/restaura
+    # as últimas mensagens da sessão narrativa.
+    install_card_runtime_integration()
 
     install_mary_relationship_compaction()
     install_scenario_catalog_visibility_fix()
