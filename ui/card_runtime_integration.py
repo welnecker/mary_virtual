@@ -10,6 +10,7 @@ import streamlit as st
 import scenarios.service as scenario_service
 import ui.scenario_menu as scenario_menu
 from repositories.scenario_session_repository import salvar_instancia_cenario
+from scenarios.card_registry import obter_card
 from scenarios.card_runtime import (
     aplicar_restricoes_card,
     montar_janela_roteiro,
@@ -18,7 +19,7 @@ from scenarios.card_runtime import (
 
 
 CARD_RUNTIME_INTEGRATION_VERSION = (
-    "card-runtime-integration-v2-final-authority-and-resume"
+    "card-runtime-integration-v3-preserve-paid-continuation"
 )
 _RECENT_MESSAGES_LIMIT = 20
 _INSTALLED = False
@@ -110,10 +111,7 @@ def _sanitize_scene_state(scenario_id: str, route: str) -> None:
     if not isinstance(scene, dict):
         scene = {}
     scene = deepcopy(scene)
-    if not rota_permite_sexualidade(
-        __import__("scenarios.card_registry", fromlist=["obter_card"]).obter_card(scenario_id),
-        route,
-    ):
+    if not rota_permite_sexualidade(obter_card(scenario_id), route):
         scene["sexual_scene_phase"] = "idle"
         scene["sexual_voice_mode"] = "natural"
         scene["seduction_level"] = min(int(scene.get("seduction_level", 0) or 0), 1)
@@ -150,16 +148,17 @@ def _patch_prompt_builder(module: Any) -> None:
         if not scenario_id or not route:
             return str(original(*args, **kwargs) or "")
         aligned = dict(kwargs)
-        constrained = aplicar_restricoes_card(
-            scenario_id=scenario_id,
-            route=route,
-            mary_profile=aligned.get("mary_profile"),
-            relationship_state=aligned.get("relationship_state"),
-            sexual_state=aligned.get("sexual_state"),
-            turn_intent=aligned.get("turn_intent"),
-            turn_direction=aligned.get("turn_direction"),
+        aligned.update(
+            aplicar_restricoes_card(
+                scenario_id=scenario_id,
+                route=route,
+                mary_profile=aligned.get("mary_profile"),
+                relationship_state=aligned.get("relationship_state"),
+                sexual_state=aligned.get("sexual_state"),
+                turn_intent=aligned.get("turn_intent"),
+                turn_direction=aligned.get("turn_direction"),
+            )
         )
-        aligned.update(constrained)
         aligned["include_voice_examples"] = False
         return str(original(*args, **aligned) or "")
 
@@ -229,20 +228,27 @@ def _wrap_continue(original: Callable[..., Any]) -> Callable[..., Any]:
         instance, messages = result[0], result[1]
         if not isinstance(instance, dict):
             return result
-        restored = _fallback_messages(instance, messages)
-        return instance, restored
+        return instance, _fallback_messages(instance, messages)
 
     wrapper._mary_card_continue_wrapped = True  # type: ignore[attr-defined]
     return wrapper
 
 
 def _patch_continue(module: Any) -> None:
-    service_original = scenario_service.continuar_cenario_para_usuario
-    wrapped = _wrap_continue(service_original)
-    scenario_service.continuar_cenario_para_usuario = wrapped
-    scenario_menu.continuar_cenario_para_usuario = wrapped
-    if callable(getattr(module, "continuar_cenario_para_usuario", None)):
-        setattr(module, "continuar_cenario_para_usuario", wrapped)
+    service_current = scenario_service.continuar_cenario_para_usuario
+    service_wrapped = _wrap_continue(service_current)
+    scenario_service.continuar_cenario_para_usuario = service_wrapped
+
+    menu_current = scenario_menu.continuar_cenario_para_usuario
+    if menu_current is service_current or menu_current is service_wrapped:
+        menu_wrapped = service_wrapped
+    else:
+        menu_wrapped = _wrap_continue(menu_current)
+    scenario_menu.continuar_cenario_para_usuario = menu_wrapped
+
+    current_main = getattr(module, "continuar_cenario_para_usuario", None)
+    if callable(current_main):
+        setattr(module, "continuar_cenario_para_usuario", _wrap_continue(current_main))
 
 
 def aplicar_card_runtime() -> None:
