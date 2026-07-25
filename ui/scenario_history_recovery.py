@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, timezone
 from functools import wraps
 from typing import Any, Callable
 
@@ -14,7 +14,7 @@ from repositories.scenario_session_repository import obter_sessao_cenario
 
 
 SCENARIO_HISTORY_RECOVERY_VERSION = (
-    "scenario-history-recovery-v3-wrapper-safe-200-turns"
+    "scenario-history-recovery-v4-normalized-time-200-turns"
 )
 _INSTALLED = False
 _ORIGINAL_TITLE: Callable[..., Any] | None = None
@@ -29,9 +29,12 @@ def _parse_datetime(value: Any) -> datetime | None:
     if not text:
         return None
     try:
-        return datetime.fromisoformat(text.replace("Z", "+00:00"))
+        parsed = datetime.fromisoformat(text.replace("Z", "+00:00"))
     except ValueError:
         return None
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=timezone.utc)
+    return parsed.astimezone(timezone.utc)
 
 
 def _int(value: Any) -> int:
@@ -136,8 +139,6 @@ def _patch_repository() -> None:
 
 
 def aplicar_recuperacao_historico_cenario() -> None:
-    # Não substitui continuar_cenario_para_usuario. Apenas troca a fonte de
-    # interações, preservando os wrappers de Pix e continuação já instalados.
     _patch_repository()
 
 
