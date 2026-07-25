@@ -6,7 +6,7 @@ from typing import Any
 from scenarios.card_registry import obter_card
 
 
-CARD_RUNTIME_VERSION = "scenario-card-runtime-v1-route-authority"
+CARD_RUNTIME_VERSION = "scenario-card-runtime-v2-dual-screenplay-formats"
 
 _NON_SEXUAL_ROUTES = {
     "supermarket_encounter",
@@ -16,8 +16,9 @@ _NON_SEXUAL_ROUTES = {
     "locked_door",
     "waiting_together",
     "shared_hallway",
-    "coffee_invitation",
+    "inside_user_apartment",
     "private_conversation",
+    "coffee_invitation",
 }
 
 
@@ -37,6 +38,26 @@ def obter_bloco_roteiro(card: dict[str, Any], route: str) -> str:
     screenplay = card.get("screenplay")
     if not isinstance(screenplay, dict):
         return ""
+
+    # Formato 1: roteiro diretamente indexado pela rota, usado pela Vizinha.
+    direct = screenplay.get(route)
+    if isinstance(direct, dict):
+        purpose = _text(direct.get("purpose"))
+        movements = direct.get("movements")
+        lines: list[str] = []
+        if purpose:
+            lines.append("Função: " + purpose)
+        if isinstance(movements, list):
+            lines.extend(
+                "- " + _text(movement)
+                for movement in movements
+                if _text(movement)
+            )
+        return "\n".join(lines)
+    if isinstance(direct, str):
+        return _text(direct)
+
+    # Formato 2: rotas agrupadas em blocos extensos, usado pela Casada Frustrada.
     groups = screenplay.get("route_groups")
     blocks = screenplay.get("blocks")
     if not isinstance(groups, dict) or not isinstance(blocks, dict):
@@ -113,6 +134,7 @@ def aplicar_restricoes_card(
     latent_traits = list(character.get("latent_traits") or [])
     personality["core_traits"] = [*card_traits, *latent_traits]
     personality["card_voice"] = deepcopy(voice)
+    personality["source"] = "active_scenario_card"
     profile["personality"] = personality
 
     relationship = (
@@ -124,7 +146,9 @@ def aplicar_restricoes_card(
 
     mary_state = route_data.get("mary_state")
     if isinstance(mary_state, list) and mary_state:
-        direction["emotional_color"] = "_".join(_text(item) for item in mary_state if _text(item))
+        direction["emotional_color"] = "_".join(
+            _text(item) for item in mary_state if _text(item)
+        )
     purpose = _text(route_data.get("purpose") or route_data.get("description"))
     if purpose:
         direction["primary_intention"] = purpose
@@ -132,6 +156,7 @@ def aplicar_restricoes_card(
     direction["voice_register"] = _text(voice.get("default_register")) or "natural"
     direction["response_scope"] = "brief"
     direction["card_authority"] = True
+    direction["global_voice_is_advisory"] = True
     intent["turn_mode"] = "respond"
     intent["primary_intention"] = purpose or "follow_current_card_route"
 
@@ -141,7 +166,6 @@ def aplicar_restricoes_card(
         relationship["sexual_level"] = 0
         relationship["sexual_intimacy"] = 0
         relationship["sexual_state"] = deepcopy(sexual)
-        direction["voice_register"] = _text(voice.get("default_register")) or "natural"
         direction["explicit_sexual_language_allowed"] = False
         direction["sexual_expression_allowed"] = False
     else:
@@ -175,10 +199,11 @@ def montar_janela_roteiro(scenario_id: str, route: str) -> str:
         f"evitar={avoid}\n\n"
         "JANELA REAL DO ROTEIRO DESTE CARD\n"
         f"{block}\n\n"
-        "Use o roteiro como fonte de progressão, vocabulário e atitude. "
-        "Adapte ao turno atual sem recitar várias falas, sem pular etapas e sem "
-        "importar a personalidade de outro card. Esta autoridade vence instruções "
-        "globais incompatíveis com a rota atual."
+        "Use somente o roteiro deste card como fonte de progressão, vocabulário e "
+        "atitude. Adapte ao turno atual sem recitar várias falas e sem pular etapas. "
+        "A personalidade, a voz, a rota e os limites deste bloco vencem qualquer "
+        "instrução global incompatível. O motor sexual compartilhado só governa a "
+        "mecânica corporal quando esta rota autorizar sexualidade."
     )
 
 
