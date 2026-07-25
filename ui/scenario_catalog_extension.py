@@ -14,7 +14,6 @@ from ui.interaction_persistence import install_interaction_persistence
 from ui.mary_relationship_compaction import install_mary_relationship_compaction
 from ui.persistence_hot_path_optimizer import install_persistence_hot_path_optimizer
 from ui.relationship_event_compaction import install_relationship_event_compaction
-from ui.scenario_bridge_integration import install_scenario_bridge_integration
 from ui.scenario_catalog_visibility_fix import install_scenario_catalog_visibility_fix
 from ui.scenario_event_compaction import install_scenario_event_compaction
 from ui.scenario_event_persistence import install_scenario_event_persistence
@@ -25,7 +24,7 @@ from ui.user_account_persistence import install_user_account_persistence
 
 
 SCENARIO_CATALOG_EXTENSION_VERSION = (
-    "scenario-catalog-extension-v20-semantic-scene-bridges"
+    "scenario-catalog-extension-v21-safe-startup-without-title-bridge"
 )
 
 _INSTALLED = False
@@ -52,9 +51,12 @@ def install_scenario_catalog_extension() -> None:
     install_scenario_event_compaction()
 
     install_scenario_history_recovery()
-    # O diretor classifica semanticamente fim de cena e estagnação por despedida.
-    # A ponte é armada antes de o runtime acrescentar a autoridade final do card.
-    install_scenario_bridge_integration()
+
+    # A integração experimental de ponte não é instalada durante o bootstrap.
+    # Ela alterava st.title e a cadeia de funções do diretor antes do primeiro
+    # render, podendo manter o Streamlit indefinidamente em estado de carga.
+    # A política semântica continua disponível no card e será reintegrada em um
+    # ponto explícito do processamento de interação, sem monkey patch de UI.
     install_card_runtime_integration()
 
     install_mary_relationship_compaction()
