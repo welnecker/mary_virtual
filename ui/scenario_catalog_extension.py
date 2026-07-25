@@ -14,13 +14,14 @@ from ui.interaction_persistence import install_interaction_persistence
 from ui.mary_relationship_compaction import install_mary_relationship_compaction
 from ui.scenario_catalog_visibility_fix import install_scenario_catalog_visibility_fix
 from ui.scenario_event_persistence import install_scenario_event_persistence
+from ui.scenario_history_recovery import install_scenario_history_recovery
 from ui.session_persistence import install_session_persistence
 from ui.sheets_read_quota_guard import install_sheets_read_quota_guard
 from ui.user_account_persistence import install_user_account_persistence
 
 
 SCENARIO_CATALOG_EXTENSION_VERSION = (
-    "scenario-catalog-extension-v15-card-runtime-authority"
+    "scenario-catalog-extension-v16-card-runtime-history-recovery"
 )
 
 _INSTALLED = False
@@ -40,12 +41,14 @@ def install_scenario_catalog_extension() -> None:
         "endings_loader": obter_encerramentos,
     }
 
-    # Cada card entrega personalidade, psicologia, voz, roteiro e transições.
     instalar_cards_no_registry(scenario_registry)
 
-    # Aplica a autoridade operacional do card antes da geração: limita motores
-    # globais incompatíveis, injeta a janela real do roteiro e preserva/restaura
-    # as últimas mensagens da sessão narrativa.
+    # Recupera também interações de sessões antigas que ainda não possuíam o
+    # identificador narrativo gravado em cada linha.
+    install_scenario_history_recovery()
+
+    # Limita motores globais pela rota, injeta a janela real do roteiro na última
+    # direção enviada ao modelo e mantém um recorte recente dentro da sessão.
     install_card_runtime_integration()
 
     install_mary_relationship_compaction()
