@@ -11,7 +11,7 @@ import relationship.scenario_director as director
 from scenarios.card_registry import obter_card
 
 
-SCENARIO_BRIDGE_INTEGRATION_VERSION = "scenario-bridge-v1-semantic-reencounter"
+SCENARIO_BRIDGE_INTEGRATION_VERSION = "scenario-bridge-v2-direct-state-reencounter"
 _INSTALLED = False
 _ORIGINAL_TITLE: Callable[..., Any] | None = None
 
@@ -122,6 +122,13 @@ def _wrap_apply(original: Callable[..., Any]) -> Callable[..., Any]:
         state["previous_route"] = source_route
         state["current_route"] = target_route
         state["current_beat"] = target_beat
+
+        card = obter_card(scenario_id)
+        routes = card.get("routes") if isinstance(card, dict) else {}
+        target_data = routes.get(target_route) if isinstance(routes, dict) else {}
+        if isinstance(target_data, dict) and _text(target_data.get("phase")):
+            state["current_phase"] = _text(target_data.get("phase"))
+
         state["bridge_pending"] = {
             "target_route": target_route,
             "target_beat": target_beat,
@@ -139,9 +146,11 @@ def _wrap_apply(original: Callable[..., Any]) -> Callable[..., Any]:
     return wrapper
 
 
-def _pending_bridge() -> dict[str, Any]:
-    instance = st.session_state.get("scenario_instance")
-    scene = instance.get("scene_state") if isinstance(instance, dict) else {}
+def _pending_bridge(scene_state: Any = None) -> dict[str, Any]:
+    scene = scene_state if isinstance(scene_state, dict) else None
+    if scene is None:
+        instance = st.session_state.get("scenario_instance")
+        scene = instance.get("scene_state") if isinstance(instance, dict) else {}
     bridge = scene.get("bridge_pending") if isinstance(scene, dict) else {}
     if not isinstance(bridge, dict):
         return {}
@@ -157,7 +166,8 @@ def _wrap_direction(original: Callable[..., Any]) -> Callable[..., Any]:
     @wraps(original)
     def wrapper(*args: Any, **kwargs: Any) -> str:
         base = _text(original(*args, **kwargs))
-        bridge = _pending_bridge()
+        scene_state = kwargs.get("scene_state")
+        bridge = _pending_bridge(scene_state)
         if not bridge:
             return base
         extra = (
