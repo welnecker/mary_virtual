@@ -12,6 +12,7 @@ from scenarios.casada_frustrada import (
 from ui.card_runtime_integration import install_card_runtime_integration
 from ui.interaction_persistence import install_interaction_persistence
 from ui.mary_relationship_compaction import install_mary_relationship_compaction
+from ui.relationship_event_compaction import install_relationship_event_compaction
 from ui.scenario_catalog_visibility_fix import install_scenario_catalog_visibility_fix
 from ui.scenario_event_persistence import install_scenario_event_persistence
 from ui.scenario_history_recovery import install_scenario_history_recovery
@@ -21,7 +22,7 @@ from ui.user_account_persistence import install_user_account_persistence
 
 
 SCENARIO_CATALOG_EXTENSION_VERSION = (
-    "scenario-catalog-extension-v16-card-runtime-history-recovery"
+    "scenario-catalog-extension-v17-non-recursive-relationship-events"
 )
 
 _INSTALLED = False
@@ -43,12 +44,11 @@ def install_scenario_catalog_extension() -> None:
 
     instalar_cards_no_registry(scenario_registry)
 
-    # Recupera também interações de sessões antigas que ainda não possuíam o
-    # identificador narrativo gravado em cada linha.
-    install_scenario_history_recovery()
+    # Precisa ser instalado antes das persistências: elimina snapshots recursivos
+    # e reduz estados antigos já contaminados antes de qualquer serialização.
+    install_relationship_event_compaction()
 
-    # Limita motores globais pela rota, injeta a janela real do roteiro na última
-    # direção enviada ao modelo e mantém um recorte recente dentro da sessão.
+    install_scenario_history_recovery()
     install_card_runtime_integration()
 
     install_mary_relationship_compaction()
