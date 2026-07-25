@@ -10,7 +10,7 @@ import ui.interaction_persistence as interaction_persistence
 
 
 PERSISTENCE_HOT_PATH_OPTIMIZER_VERSION = (
-    "persistence-hot-path-optimizer-v1-no-redundant-sheet-roundtrips"
+    "persistence-hot-path-optimizer-v2-exact-local-count"
 )
 _INSTALLED = False
 _SCHEMA_READY = False
@@ -59,15 +59,25 @@ def _install_success_enrichment_skip() -> None:
 
     @wraps(current)
     def wrapper(*, kwargs: dict[str, Any], before: dict[str, Any], after: dict[str, Any]) -> None:
-        # O repositório principal já grava interaction_key, scenario_id,
-        # scenario_session_id e interaction_number. Uma segunda atualização da
-        # mesma linha só é necessária para diagnosticar uma interação com erro.
         if not _text(kwargs.get("error")):
             return
         current(kwargs=kwargs, before=before, after=after)
 
     wrapper._mary_success_enrichment_skipped = True  # type: ignore[attr-defined]
     interaction_persistence._enrich_saved_interaction = wrapper
+
+
+def _visible_user_message_count() -> int:
+    messages = st.session_state.get("messages")
+    if not isinstance(messages, list):
+        return 0
+    return sum(
+        1
+        for item in messages
+        if isinstance(item, dict)
+        and _text(item.get("role")) == "user"
+        and _text(item.get("content"))
+    )
 
 
 def _current_scenario_count(user_id: str, scenario_session_id: str) -> int:
@@ -80,7 +90,11 @@ def _current_scenario_count(user_id: str, scenario_session_id: str) -> int:
         return 0
     scene = instance.get("scene_state")
     scene_count = _int(scene.get("interaction_count")) if isinstance(scene, dict) else 0
-    return max(_int(instance.get("interaction_count")), scene_count)
+    return max(
+        _int(instance.get("interaction_count")),
+        scene_count,
+        _visible_user_message_count(),
+    )
 
 
 def _install_count_fast_path() -> None:
