@@ -14,6 +14,7 @@ from ui.interaction_persistence import install_interaction_persistence
 from ui.mary_relationship_compaction import install_mary_relationship_compaction
 from ui.persistence_hot_path_optimizer import install_persistence_hot_path_optimizer
 from ui.relationship_event_compaction import install_relationship_event_compaction
+from ui.scenario_bridge_integration import install_scenario_bridge_integration
 from ui.scenario_catalog_visibility_fix import install_scenario_catalog_visibility_fix
 from ui.scenario_event_compaction import install_scenario_event_compaction
 from ui.scenario_event_persistence import install_scenario_event_persistence
@@ -24,7 +25,7 @@ from ui.user_account_persistence import install_user_account_persistence
 
 
 SCENARIO_CATALOG_EXTENSION_VERSION = (
-    "scenario-catalog-extension-v19-compact-persistence-payloads"
+    "scenario-catalog-extension-v20-semantic-scene-bridges"
 )
 
 _INSTALLED = False
@@ -51,6 +52,9 @@ def install_scenario_catalog_extension() -> None:
     install_scenario_event_compaction()
 
     install_scenario_history_recovery()
+    # O diretor classifica semanticamente fim de cena e estagnação por despedida.
+    # A ponte é armada antes de o runtime acrescentar a autoridade final do card.
+    install_scenario_bridge_integration()
     install_card_runtime_integration()
 
     install_mary_relationship_compaction()
