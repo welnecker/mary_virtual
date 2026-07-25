@@ -2,7 +2,9 @@ from __future__ import annotations
 
 from copy import deepcopy
 from functools import wraps
+import re
 import sys
+import unicodedata
 from typing import Any, Callable
 
 import streamlit as st
@@ -18,15 +20,51 @@ from scenarios.card_runtime import (
 
 
 CARD_RUNTIME_INTEGRATION_VERSION = (
-    "card-runtime-integration-v4-no-duplicate-session-save"
+    "card-runtime-integration-v5-two-step-dialogue-bridge"
 )
 _RECENT_MESSAGES_LIMIT = 20
 _INSTALLED = False
 _ORIGINAL_TITLE: Callable[..., Any] | None = None
 
+_FAREWELL_EXACT = {
+    "valeu",
+    "tchau",
+    "ate",
+    "ate mais",
+    "ate logo",
+    "beleza",
+    "falou",
+    "fui",
+    "obrigado",
+    "obrigada",
+}
+
 
 def _text(value: Any) -> str:
     return str(value or "").strip()
+
+
+def _normalize(value: Any) -> str:
+    text = _text(value).lower()
+    text = unicodedata.normalize("NFKD", text)
+    text = "".join(char for char in text if not unicodedata.combining(char))
+    return re.sub(r"[^a-z0-9]+", " ", text).strip()
+
+
+def _is_short_farewell(value: Any) -> bool:
+    original = _text(value)
+    text = _normalize(value)
+    if not text or "?" in original:
+        return False
+    if text in _FAREWELL_EXACT:
+        return True
+    words = text.split()
+    if len(words) > 6:
+        return False
+    return any(
+        text.startswith(prefix + " ")
+        for prefix in ("valeu", "tchau", "ate", "falou", "obrigado", "obrigada")
+    )
 
 
 def _instance() -> dict[str, Any] | None:
@@ -138,6 +176,118 @@ def _sanitize_scene_state(scenario_id: str, route: str) -> None:
     st.session_state["scenario_instance"] = instance
 
 
+def _bridge_option(scenario_id: str, route: str) -> dict[str, Any]:
+    card = obter_card(scenario_id)
+    transitions = card.get("transitions") if isinstance(card, dict) else {}
+    bridges = transitions.get("bridges") if isinstance(transitions, dict) else {}
+    options = bridges.get("options") if isinstance(bridges, dict) else {}
+    option = options.get(route) if isinstance(options, dict) else {}
+    return deepcopy(option) if isinstance(option, dict) else {}
+
+
+def _arm_or_activate_bridge(prompt: Any) -> tuple[str, str]:
+    """Retorna o contexto atualizado depois de tratar a ponte em dois tempos.
+
+    1) despedida curta arma a ponte e exige apenas encerramento naquele turno;
+    2) o primeiro turno posterior que não seja nova despedida ativa o reencontro.
+    """
+    instance = _instance()
+    if not isinstance(instance, dict):
+        return "", ""
+    scenario_id = _text(instance.get("scenario_id"))
+    scene = instance.get("scene_state")
+    if not isinstance(scene, dict):
+        scene = {}
+    scene = deepcopy(scene)
+    route = _text(instance.get("current_route") or scene.get("current_route"))
+    user_farewell = _is_short_farewell(prompt)
+    pending = scene.get("dialogue_bridge")
+    pending = deepcopy(pending) if isinstance(pending, dict) else {}
+
+    scene["farewell_ack_only_this_turn"] = False
+    scene["dialogue_bridge_active_this_turn"] = False
+
+    if pending.get("status") == "armed":
+        if user_farewell:
+            scene["farewell_ack_only_this_turn"] = True
+        else:
+            target_route = _text(pending.get("target_route"))
+            target_beat = _text(pending.get("target_beat"))
+            if target_route:
+                scene["previous_route"] = route
+                scene["current_route"] = target_route
+                scene["current_beat"] = target_beat
+                scene["dialogue_bridge_active_this_turn"] = True
+                scene["dialogue_bridge"] = {
+                    **pending,
+                    "status": "active",
+                }
+                scene["ending_ready"] = False
+                scene["ending_sent"] = False
+                scene["ending_reason"] = ""
+                scene["ending_type"] = ""
+                scene["user_disengaged"] = False
+                instance["current_route"] = target_route
+                if target_beat:
+                    instance["current_beat"] = target_beat
+                route = target_route
+    elif user_farewell and scenario_id == "casada_frustrada":
+        option = _bridge_option(scenario_id, route)
+        target_route = _text(option.get("target_route"))
+        if target_route:
+            possibilities = option.get("possibilities")
+            context = ""
+            if isinstance(possibilities, list) and possibilities:
+                context = _text(possibilities[0])
+            scene["dialogue_bridge"] = {
+                "status": "armed",
+                "source_route": route,
+                "target_route": target_route,
+                "target_beat": _text(option.get("target_beat")),
+                "context": context,
+            }
+            scene["farewell_ack_only_this_turn"] = True
+            scene["ending_ready"] = False
+            scene["ending_sent"] = False
+            scene["user_disengaged"] = False
+
+    instance["scene_state"] = scene
+    st.session_state["scenario_instance"] = instance
+    return scenario_id, route
+
+
+def _bridge_prompt_block() -> str:
+    instance = _instance()
+    if not isinstance(instance, dict):
+        return ""
+    scene = instance.get("scene_state")
+    if not isinstance(scene, dict):
+        return ""
+    if bool(scene.get("farewell_ack_only_this_turn")):
+        return (
+            "[ENCERRAMENTO DE CENA — SEM REENCONTRO NESTA RESPOSTA]\n"
+            "O usuário encerrou a conversa atual. Mary responde somente com uma frase "
+            "curta e natural de despedida. Não acrescente ajuda, novo assunto, promessa, "
+            "pergunta, salto temporal ou reencontro. A ponte fica reservada para o próximo "
+            "turno que não seja outra despedida."
+        )
+    if not bool(scene.get("dialogue_bridge_active_this_turn")):
+        return ""
+    bridge = scene.get("dialogue_bridge")
+    bridge = bridge if isinstance(bridge, dict) else {}
+    return (
+        "[PONTE LÓGICA DE DIÁLOGO — USAR AGORA UMA ÚNICA VEZ]\n"
+        "A despedida anterior já terminou e não deve ser respondida novamente. Comece "
+        "diretamente com uma passagem curta de tempo ou mudança natural de ponto dentro "
+        "do mesmo universo da história. Em seguida, Mary reencontra o usuário e fala algo "
+        "novo que retoma a progressão do roteiro. Não recapitule a despedida, não diga "
+        "'valeu', 'tchau' ou 'até', e não explique a transição.\n"
+        f"Possibilidade adaptável: {_text(bridge.get('context'))}\n"
+        f"Nova rota: {_text(bridge.get('target_route'))}; "
+        f"beat: {_text(bridge.get('target_beat'))}."
+    )
+
+
 def _patch_prompt_builder(module: Any) -> None:
     original = getattr(module, "montar_prompt_sistema", None)
     if not callable(original) or getattr(original, "_mary_card_runtime_wrapped", False):
@@ -177,7 +327,8 @@ def _patch_narrative_direction(module: Any) -> None:
         base = str(original(*args, **kwargs) or "").strip()
         scenario_id, route = _context()
         screenplay = montar_janela_roteiro(scenario_id, route) if scenario_id and route else ""
-        return "\n\n".join(part for part in (base, screenplay) if part)
+        bridge = _bridge_prompt_block()
+        return "\n\n".join(part for part in (base, screenplay, bridge) if part)
 
     wrapper._mary_card_narrative_wrapped = True  # type: ignore[attr-defined]
     setattr(module, "montar_direcao_narrativa", wrapper)
@@ -190,7 +341,12 @@ def _patch_process_interaction(module: Any) -> None:
 
     @wraps(original)
     def wrapper(*args: Any, **kwargs: Any) -> Any:
-        scenario_id, route = _context()
+        prompt = kwargs.get("prompt")
+        if prompt is None and args:
+            prompt = args[0]
+        scenario_id, route = _arm_or_activate_bridge(prompt)
+        if not scenario_id or not route:
+            scenario_id, route = _context()
         if scenario_id and route:
             _sanitize_scene_state(scenario_id, route)
             relationship = st.session_state.get("relationship_state")
