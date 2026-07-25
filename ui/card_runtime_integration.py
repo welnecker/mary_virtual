@@ -9,7 +9,6 @@ import streamlit as st
 
 import scenarios.service as scenario_service
 import ui.scenario_menu as scenario_menu
-from repositories.scenario_session_repository import salvar_instancia_cenario
 from scenarios.card_registry import obter_card
 from scenarios.card_runtime import (
     aplicar_restricoes_card,
@@ -19,7 +18,7 @@ from scenarios.card_runtime import (
 
 
 CARD_RUNTIME_INTEGRATION_VERSION = (
-    "card-runtime-integration-v3-preserve-paid-continuation"
+    "card-runtime-integration-v4-no-duplicate-session-save"
 )
 _RECENT_MESSAGES_LIMIT = 20
 _INSTALLED = False
@@ -62,7 +61,13 @@ def _valid_messages(value: Any) -> list[dict[str, str]]:
     return result
 
 
-def _persist_recent_messages() -> None:
+def _cache_recent_messages() -> None:
+    """Mantém recorte recente apenas em memória.
+
+    A interação e a sessão já são persistidas pelo fluxo principal. Fazer uma nova
+    gravação completa aqui duplicava consultas e atualizações no Google Sheets após
+    cada resposta. O recorte em memória será incluído na próxima persistência normal.
+    """
     instance = _instance()
     if not isinstance(instance, dict):
         return
@@ -77,10 +82,6 @@ def _persist_recent_messages() -> None:
     )
     instance["story_progress"] = progress
     st.session_state["scenario_instance"] = instance
-    try:
-        salvar_instancia_cenario(instance)
-    except Exception:
-        pass
 
 
 def _fallback_messages(instance: dict[str, Any], messages: Any) -> list[dict[str, str]]:
@@ -209,7 +210,7 @@ def _patch_process_interaction(module: Any) -> None:
             )
             st.session_state["relationship_state"] = constrained["relationship_state"]
         result = original(*args, **kwargs)
-        _persist_recent_messages()
+        _cache_recent_messages()
         return result
 
     wrapper._mary_card_process_wrapped = True  # type: ignore[attr-defined]
