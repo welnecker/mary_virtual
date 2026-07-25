@@ -15,7 +15,7 @@ from repositories.scenario_session_repository import obter_sessao_cenario
 
 
 SCENARIO_HISTORY_RECOVERY_VERSION = (
-    "scenario-history-recovery-v1-legacy-session-window"
+    "scenario-history-recovery-v2-legacy-window-200-turns"
 )
 _INSTALLED = False
 _ORIGINAL_TITLE: Callable[..., Any] | None = None
@@ -104,6 +104,11 @@ def _legacy_records(
 
 
 def _patch_repository() -> None:
+    # O produto já aceita capítulos acima de 50 interações. A chave lógica da
+    # persistência precisa acompanhar esse limite para não deixar de agrupar e
+    # restaurar turnos após a interação 50.
+    interaction_repository.MAX_SCENARIO_INTERACTIONS = 200
+
     original = interaction_repository.listar_interacoes_sessao_cenario
     if getattr(original, "_mary_history_recovery_wrapped", False):
         return
