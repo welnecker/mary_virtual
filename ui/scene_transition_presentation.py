@@ -9,7 +9,7 @@ import ui.card_runtime_integration as runtime
 
 
 SCENE_TRANSITION_PRESENTATION_VERSION = (
-    "scene-transition-presentation-v2-next-turn-persistent-style"
+    "scene-transition-presentation-v3-brief-reencounter"
 )
 _INSTALLED = False
 
@@ -97,11 +97,21 @@ def _patch_bridge_prompt() -> None:
               "lugar, escrita como citação Markdown neste formato: > *texto da transição*\n"
             + "- Use uma única frase curta, por exemplo: > *Algum tempo depois, em outra "
               "seção do supermercado...*\n"
-            + "- Depois da citação, deixe uma linha em branco e escreva apenas a nova fala "
-              "de Mary.\n"
+            + "- Depois da citação, deixe uma linha em branco e escreva uma fala breve de "
+              "reencontro de Mary.\n"
+            + "- A fala de Mary deve ter no máximo duas frases curtas e cumprir somente a "
+              "função de reconhecer o reencontro e reabrir a conversa.\n"
+            + "- Faça no máximo uma pergunta em toda a fala. Prefira nenhuma quando uma "
+              "observação, provocação ou cumprimento já abrir espaço para resposta.\n"
+            + "- Não acrescente desabafo sobre casamento, rotina doméstica, explicação, "
+              "biografia, segundo assunto ou nova etapa do roteiro no mesmo turno.\n"
+            + "- Não use duas perguntas ligadas por 'ou', não faça pergunta dupla e não "
+              "empilhe pergunta retórica com pergunta real.\n"
             + "- A citação é um quadro de passagem narrativa; não é fala em voz alta e não "
               "deve conter diálogo, explicação ou resumo.\n"
-            + "- Não inclua a despedida anterior junto da transição."
+            + "- Não inclua a despedida anterior junto da transição.\n"
+            + "- Estrutura obrigatória: quadro temporal curto + uma fala curta de Mary + "
+              "fim da resposta."
         )
 
     wrapper._mary_styled_transition = True  # type: ignore[attr-defined]
