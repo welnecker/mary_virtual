@@ -1,8 +1,7 @@
 from __future__ import annotations
 
-from copy import deepcopy
 from functools import wraps
-from typing import Any, Callable
+from typing import Any
 
 import streamlit as st
 
@@ -10,10 +9,9 @@ import ui.card_runtime_integration as runtime
 
 
 SCENE_TRANSITION_PRESENTATION_VERSION = (
-    "scene-transition-presentation-v1-next-turn-styled-card"
+    "scene-transition-presentation-v2-next-turn-persistent-style"
 )
 _INSTALLED = False
-_STYLE_APPLIED = False
 
 _TRANSITION_CSS = r"""
 <style>
@@ -69,9 +67,13 @@ def _patch_next_turn_activation() -> None:
     def wrapper(prompt: Any) -> tuple[str, str]:
         # A primeira despedida arma a ponte e recebe somente uma resposta curta.
         # A interação imediatamente seguinte ativa a nova cena, mesmo quando o
-        # usuário repete "tchau", "até" ou "valeu". Essa nova despedida não é
+        # usuário repete "tchau", "até" ou "valeu". Essa segunda despedida não é
         # respondida novamente: a cena anterior já terminou.
-        effective_prompt = "continuar a história na próxima cena" if _bridge_is_armed() else prompt
+        effective_prompt = (
+            "continuar a história na próxima cena"
+            if _bridge_is_armed()
+            else prompt
+        )
         return current(effective_prompt)
 
     wrapper._mary_next_turn_bridge = True  # type: ignore[attr-defined]
@@ -113,11 +115,10 @@ def _patch_runtime_style() -> None:
 
     @wraps(current)
     def wrapper() -> None:
-        global _STYLE_APPLIED
         current()
-        if not _STYLE_APPLIED:
-            st.markdown(_TRANSITION_CSS, unsafe_allow_html=True)
-            _STYLE_APPLIED = True
+        # O Streamlit reconstrói a árvore visual a cada rerun; por isso o CSS deve
+        # ser reenviado em todo ciclo, não apenas uma vez por processo.
+        st.markdown(_TRANSITION_CSS, unsafe_allow_html=True)
 
     wrapper._mary_transition_style = True  # type: ignore[attr-defined]
     runtime.aplicar_card_runtime = wrapper
