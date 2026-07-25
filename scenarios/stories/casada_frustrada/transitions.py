@@ -4,7 +4,7 @@ from copy import deepcopy
 from typing import Any
 
 
-TRANSITIONS_VERSION = "casada-frustrada-transitions-v3-call-route-recovery"
+TRANSITIONS_VERSION = "casada-frustrada-transitions-v4-scene-narration-bridges"
 
 TRANSITIONS: dict[str, Any] = {
     "policy": (
@@ -114,42 +114,104 @@ TRANSITIONS: dict[str, Any] = {
     },
     "bridges": {
         "policy": (
-            "Uma ponte é um recurso de continuidade quando uma cena local terminou ou "
-            "ficou presa em despedidas equivalentes, mas o arco da história continua. "
-            "A decisão é semântica e contextual; não depende de frase fixa nem de uma "
-            "quantidade determinada de turnos."
+            "Uma ponte encerra uma situação e abre a próxima sem repetir despedidas. "
+            "Ela pode usar exatamente uma linha curta de narração antes da nova fala de Mary. "
+            "A narração apenas informa passagem de tempo ou mudança de lugar; não resume a história."
         ),
         "conditions": [
-            "a conversa presencial foi realmente encerrada ou já não possui ação útil",
+            "a cena anterior terminou ou Mary precisou ir embora",
             "não houve recusa definitiva nem pedido explícito para encerrar a história",
             "existe uma próxima situação plausível dentro do roteiro do card",
-            "continuar respondendo com outra despedida produziria repetição sem progresso",
+            "a despedida da cena anterior já foi respondida antes da ponte",
         ],
         "options": {
             "supermarket_encounter": {
                 "target_route": "aisle_flirtation",
                 "target_beat": "second_encounter_in_aisle",
+                "narrations": [
+                    "Algum tempo depois, em outra seção do supermercado...",
+                    "Pouco depois, perto dos caixas...",
+                    "Mais tarde, já em outro corredor do mercado...",
+                ],
                 "possibilities": [
-                    "algum tempo depois, Mary cruza novamente com o vizinho em outro corredor",
-                    "Mary o reencontra perto do caixa ou de outra seção do supermercado",
-                    "o reencontro ocorre mais tarde na garagem ou numa área comum do Plaza",
+                    "Mary cruza novamente com o vizinho e retoma a conversa de forma espontânea",
+                    "Mary percebe o vizinho em outra seção e fala antes que ele passe",
                 ],
             },
             "aisle_flirtation": {
-                "target_route": "aisle_flirtation",
-                "target_beat": "later_reencounter",
+                "variants": [
+                    {
+                        "name": "contact_exchanged_and_mary_leaves",
+                        "when": "o número foi trocado e Mary precisa ir embora",
+                        "target_route": "messages",
+                        "target_beat": "first_message",
+                        "narrations": [
+                            "Mais tarde, Mary já está em casa...",
+                            "Pouco depois, já em casa e longe do supermercado...",
+                        ],
+                        "possibilities": [
+                            "Mary envia a primeira mensagem antes de perder a coragem",
+                            "Mary espera um instante de privacidade e inicia o contato",
+                        ],
+                    },
+                    {
+                        "name": "early_reencounter",
+                        "when": "a conversa terminou antes da troca de contato, mas a história ainda possui espaço para outro encontro",
+                        "target_route": "aisle_flirtation",
+                        "target_beat": "later_reencounter",
+                        "narrations": [
+                            "Algum tempo depois, em outra seção do supermercado...",
+                            "Mais tarde, perto da saída do Plaza...",
+                        ],
+                        "possibilities": [
+                            "os dois se cruzam novamente e Mary retoma a conversa com mais consciência",
+                        ],
+                    },
+                ],
+            },
+            "phone_exchange": {
+                "target_route": "messages",
+                "target_beat": "first_message",
+                "narrations": [
+                    "Mais tarde, Mary já está em casa...",
+                    "Pouco depois, já em casa e com um instante de privacidade...",
+                ],
                 "possibilities": [
-                    "depois de uma despedida real, os dois se cruzam novamente em outra parte do mercado",
-                    "o acaso os reúne mais tarde no Plaza e Mary retoma a conversa com mais consciência",
+                    "Mary envia a primeira mensagem antes de perder a coragem",
+                ],
+            },
+            "hidden_call": {
+                "target_route": "secret_meeting_plan",
+                "target_beat": "propose_secret_meeting",
+                "narrations": [
+                    "A chamada de vídeo termina. Pouco depois...",
+                    "Minutos depois de desligar a chamada...",
+                ],
+                "possibilities": [
+                    "Mary retoma o contato porque a tela já não basta e quer combinar o encontro",
+                    "Mary escreve ainda abalada pela chamada e transforma desejo em decisão",
+                ],
+            },
+            "aftercare": {
+                "target_route": "future_secret",
+                "target_beat": "back_home_after_encounter",
+                "narrations": [
+                    "Após o encontro intenso, Mary já está em casa...",
+                    "Mais tarde, de volta para casa...",
+                ],
+                "possibilities": [
+                    "Mary envia uma mensagem curta ainda mexida pelo que viveu",
+                    "Mary confirma que não se arrependeu e deixa aberta uma próxima vez",
                 ],
             },
         },
         "rendering": [
-            "usar uma única ponte temporal curta em primeira pessoa",
-            "estabelecer somente o novo tempo e local necessários",
-            "emendar imediatamente uma fala viva de Mary",
-            "não resumir a conversa anterior",
-            "não transformar a ponte em narração longa ou roteiro fechado",
+            "usar exatamente uma linha curta de narração",
+            "a narração pode estar em terceira pessoa e deve terminar antes da fala de Mary",
+            "depois da narração, escrever uma fala nova de Mary em primeira pessoa",
+            "não responder novamente à despedida anterior",
+            "não resumir a conversa ou o encontro concluído",
+            "não transformar a ponte em parágrafo literário",
         ],
     },
     "ending_semantics": {
