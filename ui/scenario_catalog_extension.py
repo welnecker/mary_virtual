@@ -35,11 +35,14 @@ from ui.scenario_history_recovery import install_scenario_history_recovery
 from ui.scene_transition_presentation import install_scene_transition_presentation
 from ui.session_persistence import install_session_persistence
 from ui.sheets_read_quota_guard import install_sheets_read_quota_guard
+from ui.sidebar_rollback_and_thought_style import (
+    install_sidebar_rollback_and_thought_style,
+)
 from ui.user_account_persistence import install_user_account_persistence
 
 
 SCENARIO_CATALOG_EXTENSION_VERSION = (
-    "scenario-catalog-extension-v28-compact-beat-runtime"
+    "scenario-catalog-extension-v29-sidebar-rollback-thought-style"
 )
 
 _INSTALLED = False
@@ -80,6 +83,10 @@ def install_scenario_catalog_extension() -> None:
 
     install_scene_transition_presentation()
     install_scenario_finish_button_sidebar()
+
+    # Mantém correção de turnos na sidebar e separa fala audível de pensamento privado.
+    install_sidebar_rollback_and_thought_style()
+
     install_casada_frustrada_failure_guard()
 
     install_mary_relationship_compaction()
