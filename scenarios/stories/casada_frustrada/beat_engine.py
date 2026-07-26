@@ -11,7 +11,38 @@ from scenarios.stories.casada_frustrada.beat_graph import (
 )
 
 
-BEAT_ENGINE_VERSION = "casada-frustrada-beat-engine-v1"
+BEAT_ENGINE_VERSION = "casada-frustrada-beat-engine-v2-safe-migration"
+
+LEGACY_BEAT_MAP: dict[str, str] = {
+    "accidental_bump": "accidental_bump",
+    "recognize_neighbor": "recognize_neighbor",
+    "second_encounter_in_aisle": "second_encounter",
+    "first_private_message": "home_first_message",
+    "first_message": "home_first_message",
+    "private_call_started": "camera_confirmed",
+    "visual_contact": "camera_confirmed",
+    "visual_escalation": "ask_remove_shirt",
+    "mutual_stimulation": "mutual_arousal",
+    "mutual_arousal": "mutual_arousal",
+    "after_call_message": "midnight_call",
+    "arrival": "motel_arrival",
+    "home_after_meeting": "final_departure",
+}
+
+ROUTE_RECOVERY_BEAT: dict[str, str] = {
+    "supermarket_encounter": "accidental_bump",
+    "aisle_flirtation": "second_encounter",
+    "phone_exchange": "phone_request",
+    "messages": "home_first_message",
+    "hidden_call": "camera_confirmed",
+    "secret_meeting_plan": "midnight_call",
+    "secret_meeting": "motel_arrival",
+    "growing_tension": "first_physical_contact",
+    "intimacy": "mary_gives_pleasure",
+    "climax": "mary_first_orgasm",
+    "aftercare": "aftercare",
+    "future_secret": "final_departure",
+}
 
 
 def _text(value: Any) -> str:
@@ -24,6 +55,38 @@ def _truth(value: Any) -> bool:
 
 def _message_hash(text: str) -> str:
     return hashlib.sha256(_text(text).encode("utf-8")).hexdigest()[:20]
+
+
+def _canonical_beat(value: Any) -> str:
+    candidate = _text(value)
+    if obter_beat(candidate):
+        return candidate
+    mapped = LEGACY_BEAT_MAP.get(candidate, "")
+    return mapped if obter_beat(mapped) else ""
+
+
+def _recover_beat(state: dict[str, Any], beat_state: dict[str, Any]) -> str:
+    for candidate in (
+        beat_state.get("current"),
+        state.get("current_beat"),
+    ):
+        canonical = _canonical_beat(candidate)
+        if canonical:
+            return canonical
+
+    route = _text(state.get("current_route"))
+    recovered = ROUTE_RECOVERY_BEAT.get(route, "")
+    if obter_beat(recovered):
+        return recovered
+
+    # Apenas uma sessão realmente nova pode começar no primeiro beat.
+    interaction = int(state.get("interaction_count", 0) or state.get("interaction_number", 0) or 0)
+    opening_sent = bool(state.get("opening_sent"))
+    if interaction <= 1 and not opening_sent:
+        return INITIAL_BEAT
+
+    # Não reinicia uma história avançada. Mantém um erro explícito e recuperável.
+    return ""
 
 
 def _facts(scene_state: dict[str, Any], sexual_state: dict[str, Any]) -> set[str]:
@@ -58,14 +121,17 @@ def inicializar_estado_beats(scene_state: dict[str, Any] | None) -> dict[str, An
     if not isinstance(beat_state, dict):
         beat_state = {}
 
-    current = _text(beat_state.get("current") or state.get("current_beat"))
-    if not obter_beat(current):
-        current = INITIAL_BEAT
+    current = _recover_beat(state, beat_state)
+    if current:
+        beat_state["current"] = current
+        beat_state.pop("recovery_error", None)
+    else:
+        beat_state["current"] = ""
+        beat_state["recovery_error"] = "unknown_advanced_beat"
 
-    beat_state.setdefault("current", current)
     beat_state.setdefault("completed", [])
     beat_state.setdefault("last_response_hash", "")
-    beat_state.setdefault("version", BEAT_ENGINE_VERSION)
+    beat_state["version"] = BEAT_ENGINE_VERSION
     state["beat_state"] = beat_state
 
     beat = obter_beat(current)
@@ -127,13 +193,15 @@ def sincronizar_beat_apos_resposta(
             state[fact] = True
 
     next_beat = proximo_beat_padrao(current)
-    if next_beat and beat_disponivel(next_beat, scene_state={**state, "completed_story_facts": story_facts}, sexual_state=sexual):
+    candidate_state = {**state, "completed_story_facts": story_facts}
+    if next_beat and beat_disponivel(next_beat, scene_state=candidate_state, sexual_state=sexual):
         beat_state["current"] = next_beat
+        beat_state.pop("pending", None)
     elif next_beat:
         beat_state["pending"] = next_beat
 
     pending = _text(beat_state.get("pending"))
-    if pending and beat_disponivel(pending, scene_state={**state, "completed_story_facts": story_facts}, sexual_state=sexual):
+    if pending and beat_disponivel(pending, scene_state=candidate_state, sexual_state=sexual):
         beat_state["current"] = pending
         beat_state.pop("pending", None)
 
@@ -166,6 +234,8 @@ def obter_beat_atual(scene_state: dict[str, Any] | None) -> dict[str, Any]:
 
 __all__ = [
     "BEAT_ENGINE_VERSION",
+    "LEGACY_BEAT_MAP",
+    "ROUTE_RECOVERY_BEAT",
     "beat_disponivel",
     "inicializar_estado_beats",
     "obter_beat_atual",
