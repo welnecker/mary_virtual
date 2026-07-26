@@ -5,14 +5,14 @@ from functools import wraps
 import re
 import sys
 import unicodedata
-from typing import Any, Callable
+from typing import Any
 
 import streamlit as st
 
 from repositories.scenario_session_repository import salvar_instancia_cenario
 
 
-FAILURE_GUARD_VERSION = "casada-frustrada-failure-guard-v1"
+FAILURE_GUARD_VERSION = "casada-frustrada-failure-guard-v2-dynamic-duration"
 _TERMINAL_MESSAGE = (
     "Você não está sendo apropriado com Mary. Tente novamente — ela está te esperando."
 )
@@ -33,7 +33,6 @@ _HOSTILE_PATTERNS = (
     "some daqui",
     "nao enche",
 )
-
 _PHONE_REFUSALS = (
     "nao vou te passar meu numero",
     "nao te dou meu numero",
@@ -42,7 +41,6 @@ _PHONE_REFUSALS = (
     "nao quero seu numero",
     "nao me liga",
 )
-
 _CALL_REFUSALS = (
     "nao vou atender",
     "nao quero atender",
@@ -53,7 +51,6 @@ _CALL_REFUSALS = (
     "nao vou entrar na chamada",
     "desliga e nao liga mais",
 )
-
 _MEETING_REFUSALS = (
     "nao vou te encontrar",
     "nao quero te encontrar",
@@ -160,7 +157,6 @@ def _finish_story(prompt: Any, reason: str) -> None:
     try:
         salvar_instancia_cenario(instance, houve_interacao=True)
     except Exception:
-        # O encerramento local não pode falhar por indisponibilidade da persistência.
         pass
     st.rerun()
 
@@ -184,6 +180,10 @@ def _patch_process(module: Any) -> None:
     def wrapper(*args: Any, **kwargs: Any) -> Any:
         instance = _scenario_instance()
         if isinstance(instance, dict) and _text(instance.get("scenario_id")) == "casada_frustrada":
+            # O cenário pode ter sido escolhido depois da instalação do plugin.
+            # Reaplicar aqui garante que a política 90/95 esteja ativa antes da
+            # contagem e da geração da resposta deste turno.
+            _apply_duration_to_main(module)
             prompt = kwargs.get("prompt")
             if prompt is None and args:
                 prompt = args[0]
