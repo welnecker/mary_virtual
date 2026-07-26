@@ -10,6 +10,9 @@ from scenarios.casada_frustrada import (
     obter_rotas,
 )
 from ui.card_runtime_integration import install_card_runtime_integration
+from ui.casada_frustrada_call_continuity import (
+    install_casada_frustrada_call_continuity,
+)
 from ui.casada_frustrada_failure_guard import (
     install_casada_frustrada_failure_guard,
 )
@@ -30,7 +33,7 @@ from ui.user_account_persistence import install_user_account_persistence
 
 
 SCENARIO_CATALOG_EXTENSION_VERSION = (
-    "scenario-catalog-extension-v25-finish-button-sidebar"
+    "scenario-catalog-extension-v26-active-video-continuity"
 )
 
 _INSTALLED = False
@@ -59,6 +62,11 @@ def install_scenario_catalog_extension() -> None:
 
     install_route_reconciliation()
     install_card_runtime_integration()
+
+    # Corrige deterministicamente sessões em que a câmera e a intimidade já foram
+    # confirmadas, mas a rota persistida continua em messages/first_message.
+    install_casada_frustrada_call_continuity()
+
     install_scene_transition_presentation()
 
     # Mantém o controle de encerramento fora da coluna da conversa para que o
