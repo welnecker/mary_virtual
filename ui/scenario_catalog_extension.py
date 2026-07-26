@@ -10,6 +10,9 @@ from scenarios.casada_frustrada import (
     obter_rotas,
 )
 from ui.card_runtime_integration import install_card_runtime_integration
+from ui.casada_frustrada_failure_guard import (
+    install_casada_frustrada_failure_guard,
+)
 from ui.casada_frustrada_route_reconciliation import install_route_reconciliation
 from ui.interaction_persistence import install_interaction_persistence
 from ui.mary_relationship_compaction import install_mary_relationship_compaction
@@ -26,7 +29,7 @@ from ui.user_account_persistence import install_user_account_persistence
 
 
 SCENARIO_CATALOG_EXTENSION_VERSION = (
-    "scenario-catalog-extension-v23-immediate-styled-transitions"
+    "scenario-catalog-extension-v24-immersive-guard"
 )
 
 _INSTALLED = False
@@ -51,17 +54,15 @@ def install_scenario_catalog_extension() -> None:
     install_relationship_event_compaction()
     install_persistence_hot_path_optimizer()
     install_scenario_event_compaction()
-
     install_scenario_history_recovery()
 
-    # Corrige semanticamente sessões antigas cuja rota persistida ficou atrás da
-    # situação realmente vivida. Não altera st.title nem executa acesso remoto.
     install_route_reconciliation()
     install_card_runtime_integration()
-
-    # Aproveita o runtime já instalado: ativa a ponte no turno imediatamente
-    # seguinte e apresenta a mudança temporal em um quadro visual próprio.
     install_scene_transition_presentation()
+
+    # Ajusta a duração real do app para 90/95 turnos e interrompe a história
+    # quando a premissa é rejeitada ou Mary recebe tratamento hostil.
+    install_casada_frustrada_failure_guard()
 
     install_mary_relationship_compaction()
     install_scenario_catalog_visibility_fix()
