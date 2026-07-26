@@ -4,7 +4,7 @@ from copy import deepcopy
 from functools import wraps
 import json
 import sys
-from typing import Any
+from typing import Any, Callable
 
 import streamlit as st
 
@@ -13,8 +13,9 @@ from scenarios.stories.casada_frustrada.beat_engine import obter_beat_atual
 from scenarios.stories.casada_frustrada.compact_prompt import compilar_prompt_beat
 
 
-COMPACT_SYSTEM_PROMPT_VERSION = "casada-frustrada-system-prompt-v1-true-compact"
+COMPACT_SYSTEM_PROMPT_VERSION = "casada-frustrada-system-prompt-v2-late-bound"
 _INSTALLED = False
+_ORIGINAL_TITLE: Callable[..., Any] | None = None
 
 
 def _text(value: Any) -> str:
@@ -101,33 +102,17 @@ def _compact_physical(kwargs: dict[str, Any], scene: dict[str, Any]) -> dict[str
         "fixed": {
             key: physical.get(key)
             for key in (
-                "skin",
-                "eyes",
-                "hair_color",
-                "hair_length",
-                "hair_volume",
-                "face",
-                "body_type",
-                "waist",
-                "breasts",
-                "hips",
-                "buttocks",
-                "legs",
+                "skin", "eyes", "hair_color", "hair_length", "hair_volume", "face",
+                "body_type", "waist", "breasts", "hips", "buttocks", "legs",
             )
             if physical.get(key)
         },
         "scene": {
             key: scene.get(key)
             for key in (
-                "location",
-                "time_context",
-                "mary_clothing",
-                "user_clothing",
-                "position",
-                "current_position",
-                "privacy_established",
-                "video_call_established",
-                "camera_active",
+                "location", "time_context", "mary_clothing", "user_clothing",
+                "position", "current_position", "privacy_established",
+                "video_call_established", "camera_active",
             )
             if scene.get(key) not in (None, "", False)
         },
@@ -140,12 +125,8 @@ def _compact_facts(scene: dict[str, Any]) -> list[str]:
     if isinstance(stored, list):
         result.extend(_text(item) for item in stored if _text(item))
     for key in (
-        "phone_numbers_exchanged",
-        "privacy_established",
-        "video_call_established",
-        "camera_positioned",
-        "secret_meeting_arranged",
-        "user_arrived_secret_meeting",
+        "phone_numbers_exchanged", "privacy_established", "video_call_established",
+        "camera_positioned", "secret_meeting_arranged", "user_arrived_secret_meeting",
     ):
         if scene.get(key) is True and key not in result:
             result.append(key)
@@ -161,6 +142,9 @@ def _build_compact_prompt(kwargs: dict[str, Any]) -> str:
     sexual = _sexual_state(kwargs)
     card = obter_card("casada_frustrada") or {}
     beat = obter_beat_atual(scene)
+    if not beat:
+        return ""
+
     beat_block = compilar_prompt_beat(
         scene_state=scene,
         sexual_state=sexual,
@@ -176,8 +160,8 @@ def _build_compact_prompt(kwargs: dict[str, Any]) -> str:
         "version": COMPACT_SYSTEM_PROMPT_VERSION,
         "character": _compact_character(card),
         "physical": _compact_physical(kwargs, scene),
-        "route": beat.get("route") if isinstance(beat, dict) else scene.get("current_route"),
-        "beat": beat.get("id") if isinstance(beat, dict) else scene.get("current_beat"),
+        "route": beat.get("route"),
+        "beat": beat.get("id"),
         "facts": _compact_facts(scene),
         "sexual": {
             "phase": sexual.get("scene_phase"),
@@ -192,14 +176,14 @@ def _build_compact_prompt(kwargs: dict[str, Any]) -> str:
         "user_now": user_message[:900],
     }
 
-    return f"""Você interpreta Mary, mulher brasileira adulta de 25 anos, dentro da história Casada Frustrada.
+    return f"""Você interpreta Mary, mulher brasileira adulta de 25 anos, na história Casada Frustrada.
 
 REGRAS FIXAS
 - Fale em primeira pessoa, como mulher real; nunca como assistente ou narradora explicativa.
 - Preserve identidade física, psicologia, roupas, local, objetos e fatos confirmados.
 - O código escolheu o beat. Cumpra exatamente seu objetivo nesta resposta.
 - Não troque de assunto, não volte a beat concluído e não execute o próximo beat antes da resposta do usuário.
-- Adapte palavras, humor, hesitação e intensidade ao turno; essa é sua liberdade criativa.
+- Sua liberdade criativa está nas palavras, humor, hesitação, ritmo e intensidade — não no rumo da história.
 - No máximo uma pergunta. Não invente ação, consentimento, sensação ou orgasmo do usuário.
 - Use português popular e natural. Prefira 1 a 3 parágrafos curtos.
 - Fala audível em texto normal. Pensamento privado, somente quando útil, em linha isolada: Pensamento de Mary: ...
@@ -214,7 +198,7 @@ SAÍDA
 Produza somente a resposta de Mary. O objetivo do beat é obrigatório; referências são inspiração, não texto para recitar.""".strip()
 
 
-def _patch_prompt_builder() -> None:
+def aplicar_prompt_compacto() -> None:
     module = sys.modules.get("__main__")
     if module is None:
         return
@@ -234,14 +218,24 @@ def _patch_prompt_builder() -> None:
 
 
 def install_casada_frustrada_compact_system_prompt() -> None:
-    global _INSTALLED
+    global _INSTALLED, _ORIGINAL_TITLE
     if _INSTALLED:
         return
-    _patch_prompt_builder()
+    aplicar_prompt_compacto()
+    _ORIGINAL_TITLE = st.title
+
+    @wraps(_ORIGINAL_TITLE)
+    def patched_title(*args: Any, **kwargs: Any) -> Any:
+        aplicar_prompt_compacto()
+        assert _ORIGINAL_TITLE is not None
+        return _ORIGINAL_TITLE(*args, **kwargs)
+
+    st.title = patched_title
     _INSTALLED = True
 
 
 __all__ = [
     "COMPACT_SYSTEM_PROMPT_VERSION",
+    "aplicar_prompt_compacto",
     "install_casada_frustrada_compact_system_prompt",
 ]
