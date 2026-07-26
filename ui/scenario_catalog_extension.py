@@ -19,6 +19,9 @@ from ui.casada_frustrada_call_continuity import (
 from ui.casada_frustrada_call_prompt_guard import (
     install_casada_frustrada_call_prompt_guard,
 )
+from ui.casada_frustrada_compact_system_prompt import (
+    install_casada_frustrada_compact_system_prompt,
+)
 from ui.casada_frustrada_failure_guard import (
     install_casada_frustrada_failure_guard,
 )
@@ -42,7 +45,7 @@ from ui.user_account_persistence import install_user_account_persistence
 
 
 SCENARIO_CATALOG_EXTENSION_VERSION = (
-    "scenario-catalog-extension-v29-sidebar-rollback-thought-style"
+    "scenario-catalog-extension-v30-true-compact-prompt"
 )
 
 _INSTALLED = False
@@ -77,9 +80,12 @@ def install_scenario_catalog_extension() -> None:
     install_casada_frustrada_call_continuity()
     install_casada_frustrada_call_prompt_guard()
 
-    # Autoridade nova: o código escolhe o beat e envia ao modelo somente a janela do
-    # movimento atual, preservando perfil, psicologia, estado físico e motor sexual.
+    # O código escolhe o beat; o modelo recebe somente a janela daquele movimento.
     install_casada_frustrada_beat_runtime()
+
+    # Substitui o compositor global pelo prompt compacto apenas neste card. Mantém
+    # perfil físico, psicologia, continuidade recente e mecânica sexual necessária.
+    install_casada_frustrada_compact_system_prompt()
 
     install_scene_transition_presentation()
     install_scenario_finish_button_sidebar()
