@@ -21,6 +21,7 @@ from ui.relationship_event_compaction import install_relationship_event_compacti
 from ui.scenario_catalog_visibility_fix import install_scenario_catalog_visibility_fix
 from ui.scenario_event_compaction import install_scenario_event_compaction
 from ui.scenario_event_persistence import install_scenario_event_persistence
+from ui.scenario_finish_button_sidebar import install_scenario_finish_button_sidebar
 from ui.scenario_history_recovery import install_scenario_history_recovery
 from ui.scene_transition_presentation import install_scene_transition_presentation
 from ui.session_persistence import install_session_persistence
@@ -29,7 +30,7 @@ from ui.user_account_persistence import install_user_account_persistence
 
 
 SCENARIO_CATALOG_EXTENSION_VERSION = (
-    "scenario-catalog-extension-v24-immersive-guard"
+    "scenario-catalog-extension-v25-finish-button-sidebar"
 )
 
 _INSTALLED = False
@@ -59,6 +60,10 @@ def install_scenario_catalog_extension() -> None:
     install_route_reconciliation()
     install_card_runtime_integration()
     install_scene_transition_presentation()
+
+    # Mantém o controle de encerramento fora da coluna da conversa para que o
+    # histórico não seja deslocado depois de cada resposta.
+    install_scenario_finish_button_sidebar()
 
     # Ajusta a duração real do app para 90/95 turnos e interrompe a história
     # quando a premissa é rejeitada ou Mary recebe tratamento hostil.
