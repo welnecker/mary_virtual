@@ -13,6 +13,9 @@ from ui.card_runtime_integration import install_card_runtime_integration
 from ui.casada_frustrada_call_continuity import (
     install_casada_frustrada_call_continuity,
 )
+from ui.casada_frustrada_call_prompt_guard import (
+    install_casada_frustrada_call_prompt_guard,
+)
 from ui.casada_frustrada_failure_guard import (
     install_casada_frustrada_failure_guard,
 )
@@ -33,7 +36,7 @@ from ui.user_account_persistence import install_user_account_persistence
 
 
 SCENARIO_CATALOG_EXTENSION_VERSION = (
-    "scenario-catalog-extension-v26-active-video-continuity"
+    "scenario-catalog-extension-v27-established-video-no-restart"
 )
 
 _INSTALLED = False
@@ -66,6 +69,10 @@ def install_scenario_catalog_extension() -> None:
     # Corrige deterministicamente sessões em que a câmera e a intimidade já foram
     # confirmadas, mas a rota persistida continua em messages/first_message.
     install_casada_frustrada_call_continuity()
+
+    # Quando a chamada já existe, impede o modelo de pedir vídeo novamente ou
+    # retornar ao início do bloco lexical.
+    install_casada_frustrada_call_prompt_guard()
 
     install_scene_transition_presentation()
 
