@@ -4,6 +4,11 @@ from copy import deepcopy
 from typing import Any
 
 from scenarios.card import normalizar_card_package
+from scenarios.stories.casada_frustrada.beat_graph import (
+    BEAT_GRAPH_VERSION,
+    BEATS,
+    INITIAL_BEAT,
+)
 from scenarios.stories.casada_frustrada.character import CHARACTER
 from scenarios.stories.casada_frustrada.immersive_screenplay import (
     HIDDEN_CALL_DIALOGUE,
@@ -18,7 +23,7 @@ from scenarios.stories.casada_frustrada.transitions import TRANSITIONS
 from scenarios.stories.casada_frustrada.voice import VOICE
 
 
-CARD_VERSION = "casada-frustrada-card-v3-immersive-screenplay"
+CARD_VERSION = "casada-frustrada-card-v4-beat-driven"
 
 SUPERMARKET_ROUTES = {
     "supermarket_encounter",
@@ -59,36 +64,12 @@ CARD_ROUTES["hidden_call"] = {
     ),
     "phase": "tension",
     "allowed_phases": ["tension", "intimacy"],
-    "initial_beat": "seek_privacy",
-    "beats": [
-        "seek_privacy",
-        "voice_contact",
-        "camera_positioned",
-        "shirt_request",
-        "underwear_reveal",
-        "mary_reveal",
-        "mutual_stimulation",
-        "user_resolution",
-        "mary_unfinished",
-        "call_ends",
-    ],
+    "initial_beat": "camera_confirmed",
     "possible_next_routes": ["secret_meeting_plan", "ending"],
     "allowed_actions": ["react", "slow_down", "tease", "advance", "lead", "change_direction"],
     "max_seduction_level": 5,
     "sexual_expression_allowed": True,
     "scene_updates": {"phone_contact_started": True},
-    "entry_when": [
-        "A chamada privada começou.",
-        "Mary conseguiu privacidade suficiente para usar voz ou vídeo.",
-    ],
-    "stay_while": [
-        "A chamada ainda avança por um movimento concreto de cada vez.",
-        "A primeira resolução à distância ainda não ocorreu.",
-    ],
-    "exit_when": [
-        "Mary precisa desligar depois da resolução do usuário e promete ligar de madrugada.",
-        "O usuário recusa definitivamente atender ou continuar a chamada.",
-    ],
     "avoid": [
         "Não transformar a ligação em entrevista.",
         "Não fazer perguntas abstratas sobre intensidade ou preferência.",
@@ -96,6 +77,7 @@ CARD_ROUTES["hidden_call"] = {
         "Não atravessar toda a chamada num único turno.",
         "Não narrar ações, excitação ou orgasmo do usuário.",
         "Não usar frases genéricas como recuperar o fôlego, ir devagar ou carinho intenso.",
+        "Não oferecer ou iniciar vídeo novamente depois de video_call_established.",
     ],
 }
 CARD_ROUTES["secret_meeting_plan"] = {
@@ -104,15 +86,6 @@ CARD_ROUTES["secret_meeting_plan"] = {
         "Retomar a ligação de madrugada, escolher motel, horário, confirmar presença "
         "e atravessar a ponte para a preparação da manhã seguinte."
     ),
-    "beats": [
-        "late_night_call",
-        "propose_motel",
-        "name_location",
-        "agree_time",
-        "confirm_attendance",
-        "morning_preparation",
-        "motel_arrival",
-    ],
     "avoid": [
         "Não adiar indefinidamente.",
         "Não voltar à conversa banal.",
@@ -128,6 +101,8 @@ CARD_PACKAGE: dict[str, Any] = {
     "psychology": PSYCHOLOGY,
     "voice": VOICE,
     "routes": CARD_ROUTES,
+    # O texto extenso permanece como material de autoria e fallback. Em execução,
+    # somente a janela compacta do beat atual deve ser enviada ao modelo.
     "screenplay": {
         "route_groups": {
             "supermarket": sorted(SUPERMARKET_ROUTES),
@@ -151,21 +126,34 @@ CARD_PACKAGE: dict[str, Any] = {
             "secret_meeting": SECRET_MEETING_DIALOGUE,
         },
     },
+    "beat_graph": {
+        "version": BEAT_GRAPH_VERSION,
+        "initial_beat": INITIAL_BEAT,
+        "beats": deepcopy(BEATS),
+        "progression_authority": "code",
+        "model_role": "render_current_beat_as_natural_mary_dialogue",
+    },
     "transitions": TRANSITIONS,
     "shared_engines": {
         "sexual_engine": True,
         "consent_engine": True,
         "orgasm_guard": True,
         "relationship_metrics_are_advisory": True,
+        "orgasm_engine_role": "unlock_or_hold_climax_beats_only",
     },
     "prompt_policy": {
         "character_isolation": True,
-        "route_is_authoritative": True,
-        "screenplay_is_lexical_source": True,
+        "route_is_authoritative": False,
+        "beat_graph_is_progression_authority": True,
+        "screenplay_is_authoring_source_not_full_runtime_prompt": True,
         "global_voice_must_not_override_card": True,
-        "director_must_recommend_route_semantically": True,
+        "director_is_advisory": True,
+        "model_must_not_choose_route": True,
         "one_question_max": True,
         "organic_injection": True,
+        "compact_prompt": True,
+        "preserve_physical_profile": True,
+        "preserve_psychological_state": True,
     },
 }
 
