@@ -10,6 +10,9 @@ from scenarios.casada_frustrada import (
     obter_rotas,
 )
 from ui.card_runtime_integration import install_card_runtime_integration
+from ui.casada_frustrada_beat_runtime import (
+    install_casada_frustrada_beat_runtime,
+)
 from ui.casada_frustrada_call_continuity import (
     install_casada_frustrada_call_continuity,
 )
@@ -36,7 +39,7 @@ from ui.user_account_persistence import install_user_account_persistence
 
 
 SCENARIO_CATALOG_EXTENSION_VERSION = (
-    "scenario-catalog-extension-v27-established-video-no-restart"
+    "scenario-catalog-extension-v28-compact-beat-runtime"
 )
 
 _INSTALLED = False
@@ -66,22 +69,17 @@ def install_scenario_catalog_extension() -> None:
     install_route_reconciliation()
     install_card_runtime_integration()
 
-    # Corrige deterministicamente sessões em que a câmera e a intimidade já foram
-    # confirmadas, mas a rota persistida continua em messages/first_message.
+    # Compatibilidade com sessões antigas cuja chamada já avançou, mas a rota ficou
+    # persistida em messages/first_message.
     install_casada_frustrada_call_continuity()
-
-    # Quando a chamada já existe, impede o modelo de pedir vídeo novamente ou
-    # retornar ao início do bloco lexical.
     install_casada_frustrada_call_prompt_guard()
 
+    # Autoridade nova: o código escolhe o beat e envia ao modelo somente a janela do
+    # movimento atual, preservando perfil, psicologia, estado físico e motor sexual.
+    install_casada_frustrada_beat_runtime()
+
     install_scene_transition_presentation()
-
-    # Mantém o controle de encerramento fora da coluna da conversa para que o
-    # histórico não seja deslocado depois de cada resposta.
     install_scenario_finish_button_sidebar()
-
-    # Ajusta a duração real do app para 90/95 turnos e interrompe a história
-    # quando a premissa é rejeitada ou Mary recebe tratamento hostil.
     install_casada_frustrada_failure_guard()
 
     install_mary_relationship_compaction()
