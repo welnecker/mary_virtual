@@ -3,6 +3,7 @@ from __future__ import annotations
 from typing import Any
 
 from relationship.profile_visibility import criar_estado_visibilidade_perfil_padrao
+from visual.appearance_state import criar_estado_aparencia_variavel_padrao
 from visual.state import criar_estado_memoria_visual_padrao
 
 
@@ -103,14 +104,7 @@ DEFAULT_MARY_PROFILE: dict[str, Any] = {
                 "meaning": "Mary não explica imediatamente o significado",
             }
         },
-        "variable_traits": {
-            "hairstyle": "",
-            "clothing": "",
-            "makeup": "",
-            "accessories": "",
-            "expression": "",
-            "location": "",
-        },
+        "variable_traits": criar_estado_aparencia_variavel_padrao(),
         "visual_style": {
             "preferred_style": "mulher adulta, natural, sensual, provocante e segura",
             "avoid": [
