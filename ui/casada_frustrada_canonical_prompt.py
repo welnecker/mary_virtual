@@ -75,10 +75,20 @@ def build_route_compass(route: str, current_beat: str) -> dict[str, Any]:
             "pode ser ouvido pelo usuário."
         ),
         "thought": (
-            "Pensamento privado é opcional e só deve aparecer quando acrescentar desejo, "
-            "receio, contradição ou decisão que Mary não diria em voz alta. Escrever em "
-            "parágrafo isolado iniciado exatamente por 'Pensamento de Mary:'. O texto deve "
-            "estar sempre em primeira pessoa."
+            "Pensamento privado é opcional, dinâmico e sempre em primeira pessoa. Use-o "
+            "somente quando revelar algo que Mary não diria. Escrever em parágrafo isolado "
+            "iniciado exatamente por 'Pensamento de Mary:'."
+        ),
+        "thought_position": (
+            "Não existe posição fixa para o pensamento. Coloque-o imediatamente antes da "
+            "fala que ele prepara, entre duas falas quando ocorre uma mudança interna, ou "
+            "logo depois da fala que o provoca. Nunca empurrá-lo automaticamente para o fim. "
+            "A ordem dos blocos deve acompanhar a cronologia mental e verbal daquele turno."
+        ),
+        "thought_seed_policy": (
+            "Qualquer thought_seed legado é apenas indicação psicológica. Não copiar, não "
+            "parafrasear mecanicamente e não tratá-lo como texto obrigatório. Produzir um "
+            "pensamento novo, curto e coerente com a fala atual, ou omiti-lo."
         ),
         "forbidden_narration": (
             "Nunca escrever narração em terceira pessoa, ponte de cena, rubrica ou descrição "
@@ -88,7 +98,8 @@ def build_route_compass(route: str, current_beat: str) -> dict[str, Any]:
         ),
         "separation": (
             "Nunca misturar fala e pensamento no mesmo parágrafo. A resposta contém apenas "
-            "fala direta e, quando realmente necessário, um pensamento privado."
+            "fala direta e, quando realmente necessário, pensamento privado intercalado na "
+            "posição lógica."
         ),
     }
     return context
