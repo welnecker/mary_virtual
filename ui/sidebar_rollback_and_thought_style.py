@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import html
+import json
 import re
 from typing import Any
 
@@ -12,7 +13,7 @@ from repositories.scenario_rollback_repository import apagar_ultimos_turnos_cena
 
 
 SIDEBAR_ROLLBACK_THOUGHT_STYLE_VERSION = (
-    "sidebar-rollback-thought-style-v2-story-blocks"
+    "sidebar-rollback-thought-style-v3-first-person-only"
 )
 _INSTALLED = False
 
@@ -128,11 +129,9 @@ def _is_thought_line(line: str) -> bool:
     text = _normalize_label(line)
     if not text:
         return False
-    if len(text) >= 3 and text.startswith("*") and text.endswith("*"):
-        return True
     return bool(
         re.match(
-            r"^(pensamentos?\s+de\s+mary|pensamentos?|penso|por dentro)\s*:\s*.+$",
+            r"^pensamento\s+de\s+mary\s*:\s*.+$",
             text,
             flags=re.IGNORECASE,
         )
@@ -140,50 +139,31 @@ def _is_thought_line(line: str) -> bool:
 
 
 def _clean_thought(line: str) -> str:
-    text = _normalize_label(line)
-    if text.startswith("*") and text.endswith("*"):
-        text = text[1:-1].strip()
     return re.sub(
-        r"^(pensamentos?\s+de\s+mary|pensamentos?|penso|por dentro)\s*:\s*",
+        r"^pensamento\s+de\s+mary\s*:\s*",
         "",
-        text,
+        _normalize_label(line),
         flags=re.IGNORECASE,
     ).strip()
 
 
-def _is_bridge_line(line: str) -> bool:
+def _is_forbidden_narration(line: str) -> bool:
     text = _normalize_label(line)
     if not text:
         return False
-    if len(text) >= 3 and text.startswith("(") and text.endswith(")"):
-        return True
-    if re.match(
-        r"^(ponte\s+de\s+cena|ponte|transi[cç][aã]o|narra[cç][aã]o)\s*:\s*.+$",
-        text,
-        flags=re.IGNORECASE,
-    ):
-        return True
     return bool(
         re.match(
-            r"^(enquanto|pouco depois|algum tempo depois|mais tarde|j[aá] em casa|"
-            r"no banheiro|naquele momento|quando voc[eê]|quando ele|quando ela)\b",
+            r"^(ponte\s+de\s+cena|ponte|transi[cç][aã]o|narra[cç][aã]o)\s*:",
             text,
             flags=re.IGNORECASE,
         )
-        and "?" not in text
+        or re.match(
+            r"^(mary|ela|a\s+morena|a\s+mulher)\s+"
+            r"(olha|encosta|mexe|passa|fecha|abre|caminha|sorri|respira|fica|se\s+aproxima|se\s+afasta)\b",
+            text,
+            flags=re.IGNORECASE,
+        )
     )
-
-
-def _clean_bridge(line: str) -> str:
-    text = _normalize_label(line)
-    if text.startswith("(") and text.endswith(")"):
-        text = text[1:-1].strip()
-    return re.sub(
-        r"^(ponte\s+de\s+cena|ponte|transi[cç][aã]o|narra[cç][aã]o)\s*:\s*",
-        "",
-        text,
-        flags=re.IGNORECASE,
-    ).strip()
 
 
 def _separar_resposta_mary(texto: str) -> tuple[list[tuple[str, str]], str]:
@@ -213,11 +193,9 @@ def _separar_resposta_mary(texto: str) -> tuple[list[tuple[str, str]], str]:
             thought = _clean_thought(line)
             if thought:
                 blocks.append(("thought", thought))
-        elif _is_bridge_line(line):
+        elif _is_forbidden_narration(line):
             flush_speech()
-            bridge = _clean_bridge(line)
-            if bridge:
-                blocks.append(("bridge", bridge))
+            continue
         else:
             speech_buffer.append(line)
 
@@ -248,17 +226,6 @@ def _render_response(texto: str) -> None:
                 'Pensamento de Mary</div>'
                 f'{escaped}</div>'
             )
-        elif kind == "bridge":
-            parts.append(
-                '<div style="padding:.62rem .78rem;border-radius:12px;'
-                'border:1px solid rgba(255,255,255,.09);'
-                'background:linear-gradient(90deg,rgba(255,255,255,.075),rgba(255,255,255,.025));'
-                'color:#c8c1cc;font:italic .91rem/1.55 Georgia,serif;">'
-                '<div style="font:700 .66rem system-ui;letter-spacing:.12em;'
-                'text-transform:uppercase;color:#9f96a6;margin-bottom:.28rem;">'
-                'Ponte de cena</div>'
-                f'{escaped}</div>'
-            )
         else:
             parts.append(f'<div class="mary-speech">{escaped}</div>')
     parts.append("</div>")
@@ -272,8 +239,90 @@ def _render_response(texto: str) -> None:
         )
 
 
+def _render_voice_player_dark(text: str, *, autoplay: bool, key_seed: str) -> None:
+    if not text or not st.session_state.get("mary_voice_enabled", True):
+        return
+
+    profile_name, profile = professional._obter_configuracao_voz()
+    safe_text = json.dumps(text, ensure_ascii=False)
+    safe_profile_name = html.escape(profile_name)
+    component_key = re.sub(r"[^a-zA-Z0-9_-]", "", key_seed)[-48:] or "mary"
+    autoplay_js = "speakMary();" if autoplay else ""
+    rate = float(profile["rate"])
+    pitch = float(profile["pitch"])
+    volume = float(profile["volume"])
+
+    professional.components.html(
+        f"""
+        <style>
+          html, body {{ margin:0; padding:0; background:transparent; }}
+          .voice-row {{ display:flex; align-items:center; gap:8px; margin:2px 0 0 0; }}
+          .voice-main {{
+            border:1px solid rgba(255,255,255,.14);
+            background:#1b1c24;
+            color:#eee7f1;
+            border-radius:999px;
+            padding:7px 12px;
+            cursor:pointer;
+            font:600 12px system-ui,-apple-system,sans-serif;
+            box-shadow:none;
+            transition:background .16s ease,border-color .16s ease,transform .16s ease;
+          }}
+          .voice-main:hover {{ background:#292b36; border-color:rgba(255,255,255,.24); }}
+          .voice-main:active {{ transform:translateY(1px); }}
+          .voice-main:disabled {{ background:#171820; color:#8f8995; opacity:.72; }}
+          .voice-stop {{
+            border:0;
+            background:transparent;
+            color:#9e97a4;
+            padding:5px;
+            cursor:pointer;
+            font:500 11px system-ui,-apple-system,sans-serif;
+          }}
+          .voice-stop:hover {{ color:#d8d1db; }}
+        </style>
+        <div class="voice-row">
+          <button class="voice-main" id="mary-voice-{component_key}" onclick="speakMary()"
+            title="Interpretação: {safe_profile_name}">
+            ▶ Ouvir Mary · {safe_profile_name}
+          </button>
+          <button class="voice-stop" onclick="window.speechSynthesis.cancel()">parar</button>
+        </div>
+        <script>
+          function chooseVoice() {{
+            const voices = window.speechSynthesis.getVoices();
+            const pt = voices.filter(v => (v.lang || '').toLowerCase().startsWith('pt'));
+            const preferred = [
+              /Microsoft Francisca/i, /Francisca/i, /Microsoft Maria/i,
+              /Luciana/i, /Leticia/i, /Google Português do Brasil/i,
+              /Google português/i, /female|feminina|feminino/i
+            ];
+            for (const pattern of preferred) {{
+              const found = pt.find(v => pattern.test(v.name || ''));
+              if (found) return found;
+            }}
+            return pt.find(v => (v.lang || '').toLowerCase() === 'pt-br') || pt[0] || voices[0];
+          }}
+          function speakMary() {{
+            window.speechSynthesis.cancel();
+            const utterance = new SpeechSynthesisUtterance({safe_text});
+            utterance.lang = 'pt-BR';
+            utterance.rate = {rate};
+            utterance.pitch = {pitch};
+            utterance.volume = {volume};
+            const voice = chooseVoice();
+            if (voice) utterance.voice = voice;
+            window.speechSynthesis.speak(utterance);
+          }}
+          window.speechSynthesis.onvoiceschanged = () => {{}};
+          {autoplay_js}
+        </script>
+        """,
+        height=44,
+    )
+
+
 def _patch_thought_prompt() -> None:
-    # Compatibilidade com o runtime antigo, quando ainda estiver instalado.
     try:
         import scenarios.stories.casada_frustrada.compact_prompt as compact
         import ui.casada_frustrada_beat_runtime as beat_runtime
@@ -292,10 +341,11 @@ def _patch_thought_prompt() -> None:
             base
             + "\n\nFORMATO ESTRUTURAL DA RESPOSTA\n"
             + "- Fala audível de Mary: texto normal, sem rótulo.\n"
-            + "- Ação, passagem de tempo ou mudança de posição: linha isolada iniciada por "
-              "'Ponte de cena:'.\n"
-            + "- Pensamento privado: linha isolada iniciada por 'Pensamento de Mary:'.\n"
-            + "- Nunca misture fala, ponte e pensamento no mesmo parágrafo.\n"
+            + "- Pensamento privado opcional: linha isolada iniciada por "
+              "'Pensamento de Mary:' e sempre escrita em primeira pessoa.\n"
+            + "- Nunca escrever ponte de cena, rubrica ou narração em terceira pessoa.\n"
+            + "- Nunca escrever 'Mary faz...', 'Ela olha...' ou equivalentes.\n"
+            + "- Nunca misturar fala e pensamento no mesmo parágrafo.\n"
             + "- Somente a fala audível deve ser lida pela voz."
         )
 
@@ -313,6 +363,7 @@ def install_sidebar_rollback_and_thought_style() -> None:
     professional._clean_thought = _clean_thought
     professional.separar_resposta_mary = _separar_resposta_mary
     professional.renderizar_resposta_mary = _render_response
+    professional._render_voice_player = _render_voice_player_dark
     _patch_thought_prompt()
     _INSTALLED = True
 
