@@ -1,43 +1,50 @@
 from ui.sidebar_rollback_and_thought_style import _separar_resposta_mary
 
 
-def test_separa_fala_ponte_e_fala_sem_misturar_voz():
+def test_mantem_apenas_fala_e_pensamento_em_primeira_pessoa():
     text = (
-        "Pois é, até que deu sorte. O mercado tá bem cheio hoje.\n\n"
-        "Enquanto você começa a colocar suas coisas na esteira, eu fico ali do lado, "
-        "esperando a minha vez, mas sem pressa de sair.\n\n"
-        "Você me espera? Acho que vou precisar de uma ajudinha até o carro."
+        "Vou cobrar essa promessa, hein?\n\n"
+        "Pensamento de Mary: Eu não queria entrar no carro e ir embora agora.\n\n"
+        "Olha, seria bom ter seu contato."
     )
 
     blocks, speech = _separar_resposta_mary(text)
 
     assert blocks == [
-        ("speech", "Pois é, até que deu sorte. O mercado tá bem cheio hoje."),
-        (
-            "bridge",
-            "Enquanto você começa a colocar suas coisas na esteira, eu fico ali do lado, "
-            "esperando a minha vez, mas sem pressa de sair.",
-        ),
-        ("speech", "Você me espera? Acho que vou precisar de uma ajudinha até o carro."),
+        ("speech", "Vou cobrar essa promessa, hein?"),
+        ("thought", "Eu não queria entrar no carro e ir embora agora."),
+        ("speech", "Olha, seria bom ter seu contato."),
     ]
-    assert "Enquanto você começa" not in speech
-    assert "Pois é, até que deu sorte" in speech
-    assert "Você me espera?" in speech
+    assert speech == "Vou cobrar essa promessa, hein? Olha, seria bom ter seu contato."
 
 
-def test_rotulos_explicitos_separam_ponte_e_pensamento():
+def test_descarta_ponte_de_cena_da_tela_e_da_voz():
     text = (
-        "Ponte de cena: Alguns minutos depois, Mary chega ao carro.\n"
-        "Pensamento de Mary: Tomara que ele tenha percebido meu interesse.\n"
-        "Chegamos... vou abrir o porta-malas."
+        "Chegamos ao carro.\n"
+        "Ponte de cena: Mary encosta suavemente no carro e olha para você.\n"
+        "Foi muito bom te conhecer."
     )
 
     blocks, speech = _separar_resposta_mary(text)
 
-    assert blocks[0] == ("bridge", "Alguns minutos depois, Mary chega ao carro.")
-    assert blocks[1] == (
-        "thought",
-        "Tomara que ele tenha percebido meu interesse.",
+    assert blocks == [
+        ("speech", "Chegamos ao carro."),
+        ("speech", "Foi muito bom te conhecer."),
+    ]
+    assert "Mary encosta" not in speech
+
+
+def test_descarta_narracao_explicita_em_terceira_pessoa():
+    text = (
+        "Eu gostei da sua companhia.\n"
+        "Mary mexe distraidamente na alça da bolsa e olha para o chão.\n"
+        "Queria continuar falando com você."
     )
-    assert blocks[2] == ("speech", "Chegamos... vou abrir o porta-malas.")
-    assert speech == "Chegamos... vou abrir o porta-malas."
+
+    blocks, speech = _separar_resposta_mary(text)
+
+    assert blocks == [
+        ("speech", "Eu gostei da sua companhia."),
+        ("speech", "Queria continuar falando com você."),
+    ]
+    assert "Mary mexe" not in speech
