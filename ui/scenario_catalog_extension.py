@@ -45,7 +45,7 @@ from ui.user_account_persistence import install_user_account_persistence
 
 
 SCENARIO_CATALOG_EXTENSION_VERSION = (
-    "scenario-catalog-extension-v30-true-compact-prompt"
+    "scenario-catalog-extension-v31-exclusive-script-progression"
 )
 
 _INSTALLED = False
@@ -75,24 +75,19 @@ def install_scenario_catalog_extension() -> None:
     install_route_reconciliation()
     install_card_runtime_integration()
 
-    # Compatibilidade com sessões antigas cuja chamada já avançou, mas a rota ficou
-    # persistida em messages/first_message.
     install_casada_frustrada_call_continuity()
     install_casada_frustrada_call_prompt_guard()
 
-    # O código escolhe o beat; o modelo recebe somente a janela daquele movimento.
+    # O beat é concluído somente depois da fala de Mary e o seguinte é persistido.
     install_casada_frustrada_beat_runtime()
 
-    # Substitui o compositor global pelo prompt compacto apenas neste card. Mantém
-    # perfil físico, psicologia, continuidade recente e mecânica sexual necessária.
+    # Para este card, substitui o prompt global e também impede que cenário, diretor e
+    # roteiro completo sejam anexados novamente depois do bloco compacto.
     install_casada_frustrada_compact_system_prompt()
 
     install_scene_transition_presentation()
     install_scenario_finish_button_sidebar()
-
-    # Mantém correção de turnos na sidebar e separa fala audível de pensamento privado.
     install_sidebar_rollback_and_thought_style()
-
     install_casada_frustrada_failure_guard()
 
     install_mary_relationship_compaction()
