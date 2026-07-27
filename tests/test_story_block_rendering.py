@@ -18,6 +18,41 @@ def test_mantem_apenas_fala_e_pensamento_em_primeira_pessoa():
     assert speech == "Vou cobrar essa promessa, hein? Olha, seria bom ter seu contato."
 
 
+def test_preserva_pensamento_antes_da_fala_que_ele_prepara():
+    text = (
+        "Pensamento de Mary: Eu quero prolongar isso, mas preciso parecer casual.\n\n"
+        "O mercado está bem cheio hoje, né?"
+    )
+
+    blocks, speech = _separar_resposta_mary(text)
+
+    assert blocks == [
+        ("thought", "Eu quero prolongar isso, mas preciso parecer casual."),
+        ("speech", "O mercado está bem cheio hoje, né?"),
+    ]
+    assert speech == "O mercado está bem cheio hoje, né?"
+
+
+def test_preserva_pensamento_entre_duas_falas_na_ordem_logica():
+    text = (
+        "Pode responder o que for mais fácil, vai.\n\n"
+        "Pensamento de Mary: Eu me adiantei e perguntei duas coisas de uma vez.\n\n"
+        "Mas confesso que fiquei mais curiosa com o seu carrinho."
+    )
+
+    blocks, speech = _separar_resposta_mary(text)
+
+    assert blocks == [
+        ("speech", "Pode responder o que for mais fácil, vai."),
+        ("thought", "Eu me adiantei e perguntei duas coisas de uma vez."),
+        ("speech", "Mas confesso que fiquei mais curiosa com o seu carrinho."),
+    ]
+    assert speech == (
+        "Pode responder o que for mais fácil, vai. "
+        "Mas confesso que fiquei mais curiosa com o seu carrinho."
+    )
+
+
 def test_descarta_ponte_de_cena_da_tela_e_da_voz():
     text = (
         "Chegamos ao carro.\n"
