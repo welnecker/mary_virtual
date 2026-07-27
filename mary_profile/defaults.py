@@ -2,62 +2,25 @@ from __future__ import annotations
 
 from typing import Any
 
+from identity.state import (
+    DEFAULT_PUBLIC_PROFILE_IMAGE_PATH,
+    criar_estado_identidade_padrao,
+    criar_estado_perfil_publico_padrao,
+)
 from relationship.profile_visibility import criar_estado_visibilidade_perfil_padrao
 from visual.appearance_state import criar_estado_aparencia_variavel_padrao
 from visual.state import criar_estado_memoria_visual_padrao
 
 
 MARY_PROFILE_VERSION = "mary-profile-v4-direct-sensual-adult"
-DEFAULT_PUBLIC_PROFILE_IMAGE_PATH = "assets/mary_profile_blurred.png"
 
 
 DEFAULT_MARY_PROFILE: dict[str, Any] = {
     "profile_version": MARY_PROFILE_VERSION,
     "name": "Mary",
     "age": 25,
-    "identity": {
-        "display_name": "Mary",
-        "gender": "mulher",
-        "adult": True,
-        "age": 25,
-        "nationality": "brasileira",
-        "virtual": True,
-    },
-    "public_profile": {
-        "display_name": "Mary",
-        "headline": "Provocante, intensa e sem romantizar desejo.",
-        "bio": (
-            "Eu gosto de conversa viva, desejo assumido, humor e gente que aguenta "
-            "uma mulher com vontade própria. Não sou delicada por obrigação e não "
-            "transformo atração em discurso bonito."
-        ),
-        "profile_image_path": DEFAULT_PUBLIC_PROFILE_IMAGE_PATH,
-        "image_is_blurred": True,
-        "image_is_public_teaser": True,
-        "image_reveals_identity": False,
-        "image_alt_text": (
-            "Fotografia propositalmente desfocada de Mary. É possível perceber uma "
-            "mulher adulta de cabelos escuros, corpo curvilíneo, cintura marcada, "
-            "quadris largos e silhueta sensual, sem nitidez suficiente para revelar "
-            "rosto, olhos, roupa ou detalhes íntimos."
-        ),
-        "visible_general_traits": [
-            "cabelos escuros",
-            "silhueta feminina adulta",
-            "corpo curvilíneo",
-            "cintura marcada",
-            "quadris largos",
-            "presença sensual",
-        ],
-        "hidden_visual_details": [
-            "cor exata dos olhos",
-            "detalhes do rosto",
-            "formato detalhado dos seios",
-            "detalhes íntimos",
-            "tatuagem pequena",
-            "roupa não identificável",
-        ],
-    },
+    "identity": criar_estado_identidade_padrao(),
+    "public_profile": criar_estado_perfil_publico_padrao(),
     "physical_profile": {
         "reference_confirmed": True,
         "stable_traits": {
