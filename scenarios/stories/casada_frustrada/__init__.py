@@ -27,6 +27,11 @@ from scenarios.stories.casada_frustrada.recoveries import (
     RECOVERY_ROUTES,
     obter_recuperacoes,
 )
+from scenarios.stories.casada_frustrada.refusal_lock import (
+    GUARDED_BEATS,
+    REFUSAL_LOCK_VERSION,
+    detectar_trava_psicologica,
+)
 from scenarios.stories.casada_frustrada.routes import (
     ROUTES,
     ROUTES_VERSION,
@@ -85,6 +90,8 @@ __all__ = [
     "SCREENPLAY_CONTEXT_VERSION",
     "STORY_SYNC_VERSION",
     "STORY_DIRECTOR_VERSION",
+    "REFUSAL_LOCK_VERSION",
+    "GUARDED_BEATS",
     "CANONICAL_MEMORY_VERSION",
     "MEMORY_CATALOG",
     "INTERPRETATION_RULES",
@@ -107,6 +114,7 @@ __all__ = [
     "obter_trecho_roteiro",
     "reconciliar_posicao_narrativa",
     "dirigir_turno",
+    "detectar_trava_psicologica",
     "criar_memoria_canonica_padrao",
     "normalizar_memoria_canonica",
     "atualizar_memoria_canonica",
