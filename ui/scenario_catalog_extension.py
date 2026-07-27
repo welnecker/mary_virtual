@@ -31,7 +31,7 @@ from ui.user_account_persistence import install_user_account_persistence
 
 
 SCENARIO_CATALOG_EXTENSION_VERSION = (
-    "scenario-catalog-extension-v36-soft-screenplay-pacing"
+    "scenario-catalog-extension-v37-full-route-call-calibration"
 )
 
 _INSTALLED = False
@@ -73,8 +73,8 @@ def install_scenario_catalog_extension() -> None:
     install_interaction_persistence()
     install_scenario_event_persistence()
 
-    # Autoridade final da Casada Frustrada. O roteiro fornece marcos e horizonte;
-    # Mary interpreta o usuário e desenvolve a cena sem recitar falas prontas.
+    # Autoridade final da Casada Frustrada: usa o mapa canônico completo da rota,
+    # controla o ritmo da chamada e impede loops automáticos de perguntas.
     install_casada_frustrada_script_runtime()
 
     _INSTALLED = True
