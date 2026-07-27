@@ -12,6 +12,7 @@ from scenarios.stories.casada_frustrada.endings import (
 from scenarios.stories.casada_frustrada.prompt_context import (
     PROMPT_CONTEXT_VERSION,
     aplicar_estado_narrativo_ao_compasso,
+    montar_contexto_interpretativo,
 )
 from scenarios.stories.casada_frustrada.recoveries import (
     RECOVERIES_VERSION,
@@ -22,6 +23,10 @@ from scenarios.stories.casada_frustrada.routes import (
     ROUTES,
     ROUTES_VERSION,
     obter_rotas,
+)
+from scenarios.stories.casada_frustrada.screenplay_context import (
+    SCREENPLAY_CONTEXT_VERSION,
+    obter_trecho_roteiro,
 )
 from scenarios.stories.casada_frustrada.story_observer import (
     ASK_PHONE_MOVEMENT,
@@ -61,6 +66,7 @@ __all__ = [
     "STORY_OBSERVER_VERSION",
     "STORY_STRUCTURE_VERSION",
     "PROMPT_CONTEXT_VERSION",
+    "SCREENPLAY_CONTEXT_VERSION",
     "INTERPRETATION_RULES",
     "CONTACT_FUNCTION",
     "ASK_PHONE_MOVEMENT",
@@ -77,4 +83,6 @@ __all__ = [
     "observar_estado_narrativo",
     "build_story_compass",
     "aplicar_estado_narrativo_ao_compasso",
+    "montar_contexto_interpretativo",
+    "obter_trecho_roteiro",
 ]
