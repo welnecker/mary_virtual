@@ -4,6 +4,8 @@ from copy import deepcopy
 from datetime import datetime, timezone
 from typing import Any
 
+from visual.normalization import normalizar_memoria_visual_no_perfil
+
 from .defaults import DEFAULT_MARY_PROFILE, MARY_PROFILE_VERSION
 
 
@@ -40,14 +42,7 @@ def normalizar_mary_profile(profile: dict[str, Any] | None) -> dict[str, Any]:
     except (TypeError, ValueError):
         normalized["age"] = 25
 
-    visual = normalized.setdefault("visual_memory", {})
-    approved = visual.get("approved_images")
-    if not isinstance(approved, list):
-        approved = []
-        visual["approved_images"] = approved
-    shown = visual.get("mary_images_shown")
-    if not isinstance(shown, list):
-        visual["mary_images_shown"] = list(approved)
+    normalizar_memoria_visual_no_perfil(normalized)
 
     if not normalized.get("created_at"):
         normalized["created_at"] = utc_now_iso()
