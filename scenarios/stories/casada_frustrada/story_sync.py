@@ -7,7 +7,7 @@ from typing import Any
 from .beat_graph import obter_beat
 
 
-STORY_SYNC_VERSION = "casada-frustrada-story-sync-v1"
+STORY_SYNC_VERSION = "casada-frustrada-story-sync-v2-semantic-functions"
 
 
 def _text(value: Any) -> str:
@@ -20,20 +20,82 @@ def _normalize(value: Any) -> str:
     return re.sub(r"[^a-z0-9]+", " ", text).strip()
 
 
-def _history(messages: list[dict[str, Any]]) -> str:
+def _history(messages: list[dict[str, Any]], *, role: str = "") -> str:
     parts: list[str] = []
     for item in messages[-24:]:
         if not isinstance(item, dict):
             continue
-        role = _text(item.get("role"))
+        item_role = _text(item.get("role"))
         content = _text(item.get("content"))
-        if role in {"user", "assistant"} and content:
-            parts.append(_normalize(content))
+        if item_role not in {"user", "assistant"} or not content:
+            continue
+        if role and item_role != role:
+            continue
+        parts.append(_normalize(content))
     return " ".join(parts)
+
+
+def _latest(messages: list[dict[str, Any]], role: str) -> str:
+    for item in reversed(messages):
+        if not isinstance(item, dict):
+            continue
+        if _text(item.get("role")) == role:
+            return _normalize(item.get("content"))
+    return ""
 
 
 def _contains_any(text: str, markers: tuple[str, ...]) -> bool:
     return any(marker in text for marker in markers)
+
+
+def _resolve_aisle_beat(messages: list[dict[str, Any]], legacy_beat: str) -> str:
+    assistant_history = _history(messages, role="assistant")
+    latest_assistant = _latest(messages, "assistant")
+
+    # A posição corresponde à função que ainda aguarda resposta ou ao próximo
+    # movimento não realizado; não ao último identificador persistido.
+    if _contains_any(
+        latest_assistant,
+        ("voce me espera", "preciso de ajuda ate o carro", "ajudinha ate o carro"),
+    ):
+        return "ask_wait_help_car"
+    if _contains_any(
+        assistant_history,
+        ("e sua vez no caixa", "passa suas compras", "colocar as coisas na esteira"),
+    ):
+        return "ask_wait_help_car"
+    if _contains_any(
+        assistant_history,
+        ("na minha casa e cerveja e futebol", "cerveja e futebol todo fim de semana"),
+    ):
+        return "checkout_turn"
+    if _contains_any(
+        latest_assistant,
+        (
+            "isso e tipico de solteiro",
+            "carrinho de solteiro",
+            "voce mora sozinho",
+            "e solteiro",
+            "passei longe do palpite",
+        ),
+    ):
+        return "cart_single_guess"
+    if _contains_any(
+        assistant_history,
+        ("mercado ta cheio", "mercado esta cheio", "fila do caixa ta desanimadora"),
+    ):
+        return "cart_single_guess"
+    if _contains_any(
+        assistant_history,
+        ("recuperado do susto", "cruzei com voce de novo", "te encontrei de novo"),
+    ):
+        return "market_crowded"
+    if _contains_any(
+        assistant_history,
+        ("a gente se ve por la", "vou terminar minhas compras", "tchauzinho"),
+    ):
+        return "second_encounter"
+    return legacy_beat or "second_encounter"
 
 
 def _resolve_messages_beat(history: str) -> str:
@@ -92,9 +154,7 @@ def _resolve_messages_beat(history: str) -> str:
 
     if video_accepted:
         return "camera_setup"
-    if video_offered:
-        return "offer_video"
-    if attraction_admitted:
+    if video_offered or attraction_admitted:
         return "offer_video"
     if neediness_admitted:
         return "admit_attraction"
@@ -146,6 +206,18 @@ def reconciliar_posicao_narrativa(
         route = "messages"
         beat_id = _resolve_messages_beat(history)
         reason = "conversation_confirms_private_messages"
+    elif route == "aisle_flirtation" or beat_id in {
+        "second_encounter",
+        "market_crowded",
+        "cart_single_guess",
+        "home_weekend_routine",
+        "checkout_turn",
+        "ask_wait_help_car",
+    }:
+        resolved = _resolve_aisle_beat(messages, beat_id)
+        if resolved != beat_id:
+            beat_id = resolved
+            reason = "conversation_confirms_completed_aisle_functions"
 
     beat = obter_beat(beat_id) or {}
     if beat:
