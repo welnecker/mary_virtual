@@ -3,7 +3,6 @@ from __future__ import annotations
 from copy import deepcopy
 from functools import wraps
 import json
-import re
 import sys
 from typing import Any, Callable
 
@@ -11,15 +10,17 @@ import streamlit as st
 
 from repositories.scenario_session_repository import salvar_instancia_cenario
 from scenarios.card_registry import obter_card
+from scenarios.stories.casada_frustrada.refusal_lock import detectar_trava_psicologica
 from scenarios.stories.casada_frustrada.story_director import dirigir_turno
 
 
 CASADA_FRUSTRADA_SCRIPT_RUNTIME_VERSION = (
-    "casada-frustrada-script-runtime-v7-logical-bridge"
+    "casada-frustrada-script-runtime-v8-psychological-refusal-lock"
 )
 SCENARIO_ID = "casada_frustrada"
 _STORY_STATE_SESSION_KEY = "casada_frustrada_story_state"
 _MEMORY_SESSION_KEY = "casada_frustrada_canonical_memory"
+_DIRECTION_SESSION_KEY = "casada_frustrada_last_story_direction"
 _INSTALLED = False
 _ORIGINAL_TITLE: Callable[..., Any] | None = None
 _ACTIVE_INSTANCE: dict[str, Any] | None = None
@@ -116,23 +117,44 @@ def _character_payload() -> dict[str, Any]:
     }
 
 
+def _open_beat_before_resolution(instance: dict[str, Any]) -> str:
+    scene = instance.get("scene_state")
+    scene = scene if isinstance(scene, dict) else {}
+    return _text(scene.get("current_beat") or instance.get("current_beat"))
+
+
 def _build_prompt() -> str:
     instance = _instance()
     if not isinstance(instance, dict):
         return ""
 
     messages = _messages(100)
+    open_beat = _open_beat_before_resolution(instance)
+    refusal_lock = detectar_trava_psicologica(messages=messages, open_beat=open_beat)
+
     direction = dirigir_turno(
         instance=instance,
         messages=messages,
         story_state_value=st.session_state.get(_STORY_STATE_SESSION_KEY),
     )
+    if refusal_lock:
+        direction["psychological_lock"] = refusal_lock
+        direction["objective"] = refusal_lock["final_direction"]
+        direction["gate"] = ""
+        direction["avoid"] = [
+            "Não negociar.",
+            "Não oferecer outra chance.",
+            "Não fazer nova pergunta.",
+            "Não reabrir o roteiro.",
+        ]
+
     st.session_state[_STORY_STATE_SESSION_KEY] = direction.get("story_state", {})
     st.session_state[_MEMORY_SESSION_KEY] = deepcopy(instance.get("story_memory", {}))
+    st.session_state[_DIRECTION_SESSION_KEY] = deepcopy(direction)
 
     gate = _text(direction.get("gate"))
     streak = _question_streak()
-    question_allowed = bool(gate) or streak < 2
+    question_allowed = False if refusal_lock else bool(gate) or streak < 2
     sexual = _sexual_state()
     scene = instance.get("scene_state")
     scene = scene if isinstance(scene, dict) else {}
@@ -157,7 +179,9 @@ def _build_prompt() -> str:
             "recent_question_streak": streak,
             "question_allowed": question_allowed,
             "reason": (
-                "A única função aberta depende de uma decisão concreta do usuário."
+                "A trava psicológica encerra a interação sem nova pergunta."
+                if refusal_lock
+                else "A única função aberta depende de uma decisão concreta do usuário."
                 if gate
                 else "Evitar nova pergunta automática depois de duas respostas interrogativas."
                 if not question_allowed
@@ -185,13 +209,22 @@ def _build_prompt() -> str:
         "recent": messages[-12:],
     }
 
+    refusal_instruction = (
+        "psychological_lock está ativo. Produza uma única despedida emocional e definitiva, "
+        "seguindo final_direction. Mary pode demonstrar mágoa, irritação ou frustração, mas não "
+        "ameaça dano, não chantageia, não negocia e não oferece continuação.\n"
+        if refusal_lock
+        else ""
+    )
+
     return (
         "Você interpreta Mary, brasileira adulta de 25 anos, na história Casada Frustrada.\n"
         "Responda primeiro ao sentido da fala atual do usuário.\n"
         "story_direction é a única autoridade narrativa deste turno. Ela já conciliou memória "
         "canônica, fatos visuais, beat_graph.py e immersive_screenplay.py.\n"
         "Não existe milestone paralelo, cursor oculto ou checklist de um beat por turno.\n"
-        "Use objective como função aberta, não como frase obrigatória. O trecho do roteiro fornece "
+        + refusal_instruction
+        + "Use objective como função aberta, não como frase obrigatória. O trecho do roteiro fornece "
         "direção dramática; não o recite nem execute vários movimentos futuros.\n"
         "Nunca repita como primeira vez algo registrado em canonical_story_memory ou "
         "confirmed_visual_state.\n"
@@ -205,6 +238,28 @@ def _build_prompt() -> str:
     )
 
 
+def _mark_completed(instance: dict[str, Any], scene: dict[str, Any], *, ending_type: str, ending_reason: str) -> None:
+    instance.update({
+        "status": "completed",
+        "ending_ready": True,
+        "ending_sent": True,
+        "ending_forced": True,
+        "input_locked": True,
+        "show_return_to_menu": True,
+        "ending_type": ending_type,
+        "ending_reason": ending_reason,
+        "requires_new_paid_cycle": True,
+    })
+    scene.update({
+        "ending_ready": True,
+        "ending_sent": True,
+        "ending_forced": True,
+        "input_locked": True,
+        "show_return_to_menu": True,
+        "requires_new_paid_cycle": True,
+    })
+
+
 def _after_response(instance: dict[str, Any], assistant_before: int) -> None:
     if _assistant_count() <= assistant_before:
         return
@@ -214,22 +269,24 @@ def _after_response(instance: dict[str, Any], assistant_before: int) -> None:
     scene["interaction_count"] = int(scene.get("interaction_count", 0) or 0) + 1
     instance["interaction_count"] = int(instance.get("interaction_count", 0) or 0) + 1
 
-    if _text(instance.get("current_beat")) == "final_departure":
-        instance.update({
-            "status": "completed",
-            "ending_ready": True,
-            "ending_sent": True,
-            "input_locked": True,
-            "show_return_to_menu": True,
-            "ending_type": "script_completed",
-            "ending_reason": "final_departure",
-        })
-        scene.update({
-            "ending_ready": True,
-            "ending_sent": True,
-            "input_locked": True,
-            "show_return_to_menu": True,
-        })
+    direction = st.session_state.get(_DIRECTION_SESSION_KEY)
+    direction = direction if isinstance(direction, dict) else {}
+    refusal_lock = direction.get("psychological_lock")
+    if isinstance(refusal_lock, dict) and refusal_lock.get("input_locked_after_response"):
+        _mark_completed(
+            instance,
+            scene,
+            ending_type=_text(refusal_lock.get("ending_type")) or "psychological_refusal_lock",
+            ending_reason=_text(refusal_lock.get("ending_reason")) or "user_refusal",
+        )
+        scene["psychological_lock"] = deepcopy(refusal_lock)
+    elif _text(instance.get("current_beat")) == "final_departure":
+        _mark_completed(
+            instance,
+            scene,
+            ending_type="script_completed",
+            ending_reason="final_departure",
+        )
 
     instance["scene_state"] = scene
     instance["scenario_prompt"] = ""
