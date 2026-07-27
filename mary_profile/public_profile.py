@@ -4,6 +4,8 @@ from copy import deepcopy
 from pathlib import Path
 from typing import Any
 
+from relationship.profile_visibility import marcar_perfil_publico_como_visto
+
 from .defaults import DEFAULT_PUBLIC_PROFILE_IMAGE_PATH
 from .normalization import normalizar_mary_profile, utc_now_iso
 
@@ -43,11 +45,7 @@ def imagem_publica_existe(profile: dict[str, Any] | None = None) -> bool:
 
 def marcar_perfil_publico_visto(profile: dict[str, Any]) -> dict[str, Any]:
     updated = normalizar_mary_profile(profile)
-    relationship = updated.setdefault("relationship_state", {})
-    relationship["public_profile_seen"] = True
-    relationship.setdefault("public_profile_seen_at", utc_now_iso())
-    if not relationship.get("public_profile_seen_at"):
-        relationship["public_profile_seen_at"] = utc_now_iso()
+    marcar_perfil_publico_como_visto(updated, seen_at=utc_now_iso())
     updated["updated_at"] = utc_now_iso()
     return updated
 
