@@ -11,6 +11,9 @@ from scenarios.casada_frustrada import (
 )
 from ui.card_runtime_integration import install_card_runtime_integration
 from ui.casada_frustrada_failure_guard import install_casada_frustrada_failure_guard
+from ui.casada_frustrada_memory_persistence import (
+    install_casada_frustrada_memory_persistence,
+)
 from ui.casada_frustrada_script_runtime import (
     install_casada_frustrada_script_runtime,
 )
@@ -31,7 +34,7 @@ from ui.user_account_persistence import install_user_account_persistence
 
 
 SCENARIO_CATALOG_EXTENSION_VERSION = (
-    "scenario-catalog-extension-v37-full-route-call-calibration"
+    "scenario-catalog-extension-v38-canonical-story-memory"
 )
 
 _INSTALLED = False
@@ -73,9 +76,10 @@ def install_scenario_catalog_extension() -> None:
     install_interaction_persistence()
     install_scenario_event_persistence()
 
-    # Autoridade final da Casada Frustrada: usa o mapa canônico completo da rota,
-    # controla o ritmo da chamada e impede loops automáticos de perguntas.
+    # Autoridade final da Casada Frustrada.
     install_casada_frustrada_script_runtime()
+    # Funde a memória canônica na instância antes do salvamento já existente.
+    install_casada_frustrada_memory_persistence()
 
     _INSTALLED = True
 
