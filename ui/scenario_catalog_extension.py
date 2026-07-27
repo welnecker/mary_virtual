@@ -29,7 +29,7 @@ from ui.user_account_persistence import install_user_account_persistence
 
 
 SCENARIO_CATALOG_EXTENSION_VERSION = (
-    "scenario-catalog-extension-v33-full-turn-script-score"
+    "scenario-catalog-extension-v34-runtime-last"
 )
 
 _INSTALLED = False
@@ -56,12 +56,7 @@ def install_scenario_catalog_extension() -> None:
     install_scenario_event_compaction()
     install_scenario_history_recovery()
 
-    # Runtime exclusivo: executa a partitura completa turno a turno e oculta este
-    # card do fluxo narrativo genérico durante a chamada ao modelo.
-    install_casada_frustrada_runtime()
-
-    # Continua atendendo os demais cards. Na Casada Frustrada, o runtime exclusivo
-    # é reaplicado por último quando a tela é montada.
+    # O runtime genérico é instalado primeiro para os demais cards.
     install_card_runtime_integration()
 
     install_scene_transition_presentation()
@@ -75,6 +70,11 @@ def install_scenario_catalog_extension() -> None:
     install_session_persistence()
     install_interaction_persistence()
     install_scenario_event_persistence()
+
+    # Autoridade final: envolve processar_interacao depois de todas as integrações
+    # genéricas e controla beat, prompt e persistência da Casada Frustrada.
+    install_casada_frustrada_runtime()
+
     _INSTALLED = True
 
 
