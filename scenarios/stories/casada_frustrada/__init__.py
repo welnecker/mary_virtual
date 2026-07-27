@@ -1,3 +1,11 @@
+from scenarios.stories.casada_frustrada.canonical_memory import (
+    CANONICAL_MEMORY_VERSION,
+    MEMORY_CATALOG,
+    atualizar_memoria_canonica,
+    criar_memoria_canonica_padrao,
+    memoria_canonica_para_prompt,
+    normalizar_memoria_canonica,
+)
 from scenarios.stories.casada_frustrada.config import (
     SCENARIO_CONFIG,
     SCENARIO_ID,
@@ -72,6 +80,8 @@ __all__ = [
     "PROMPT_CONTEXT_VERSION",
     "SCREENPLAY_CONTEXT_VERSION",
     "STORY_SYNC_VERSION",
+    "CANONICAL_MEMORY_VERSION",
+    "MEMORY_CATALOG",
     "INTERPRETATION_RULES",
     "CONTACT_FUNCTION",
     "ASK_PHONE_MOVEMENT",
@@ -91,4 +101,8 @@ __all__ = [
     "montar_contexto_interpretativo",
     "obter_trecho_roteiro",
     "reconciliar_posicao_narrativa",
+    "criar_memoria_canonica_padrao",
+    "normalizar_memoria_canonica",
+    "atualizar_memoria_canonica",
+    "memoria_canonica_para_prompt",
 ]
