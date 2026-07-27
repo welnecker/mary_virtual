@@ -3,22 +3,25 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
-from . import core as _core
-from .core import (
+from . import normalization as _core
+from .appearance import (
+    atualizar_aparencia_variavel,
+    obter_aparencia_variavel,
+    obter_tracos_fisicos_estaveis,
+)
+from .defaults import (
     DEFAULT_MARY_PROFILE,
     DEFAULT_PUBLIC_PROFILE_IMAGE_PATH,
     MARY_PROFILE_VERSION,
-    atualizar_aparencia_variavel,
-    atualizar_perfil_publico,
+)
+from .normalization import utc_now_iso
+from .public_profile import atualizar_perfil_publico, marcar_perfil_publico_visto
+from .visual_memory import (
     marcar_mary_revelada,
-    marcar_perfil_publico_visto,
-    obter_aparencia_variavel,
-    obter_tracos_fisicos_estaveis,
     registrar_imagem_aprovada,
     registrar_primeira_reacao_visual_usuario,
     usuario_ja_viu_mary,
     usuario_viu_perfil_publico,
-    utc_now_iso,
 )
 
 
