@@ -19,6 +19,22 @@ from scenarios.stories.casada_frustrada.routes import (
     ROUTES_VERSION,
     obter_rotas,
 )
+from scenarios.stories.casada_frustrada.story_observer import (
+    ASK_PHONE_MOVEMENT,
+    CONTACT_FUNCTION,
+    OFFER_PHONE_MOVEMENT,
+    STORY_OBSERVER_VERSION,
+    observar_estado_narrativo,
+)
+from scenarios.stories.casada_frustrada.story_state import (
+    DEFAULT_STORY_STATE,
+    STORY_STATE_VERSION,
+    adicionar_fatos,
+    bloquear_movimentos,
+    concluir_funcoes,
+    criar_estado_narrativo_padrao,
+    normalizar_estado_narrativo,
+)
 
 
 __all__ = [
@@ -31,8 +47,20 @@ __all__ = [
     "RECOVERIES_VERSION",
     "ENDINGS",
     "ENDINGS_VERSION",
+    "STORY_STATE_VERSION",
+    "DEFAULT_STORY_STATE",
+    "STORY_OBSERVER_VERSION",
+    "CONTACT_FUNCTION",
+    "ASK_PHONE_MOVEMENT",
+    "OFFER_PHONE_MOVEMENT",
     "obter_configuracao",
     "obter_rotas",
     "obter_recuperacoes",
     "obter_encerramentos",
+    "criar_estado_narrativo_padrao",
+    "normalizar_estado_narrativo",
+    "adicionar_fatos",
+    "concluir_funcoes",
+    "bloquear_movimentos",
+    "observar_estado_narrativo",
 ]
