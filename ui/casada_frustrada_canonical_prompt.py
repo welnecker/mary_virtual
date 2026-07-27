@@ -69,6 +69,24 @@ def build_route_compass(route: str, current_beat: str) -> dict[str, Any]:
         "beat_graph apenas indexa o movimento atual; immersive_screenplay define sua "
         "direção dramática. Nenhum dos dois pode avançar ou permanecer sozinho."
     )
+    context["output_contract"] = {
+        "speech": (
+            "Fala audível de Mary em texto normal, sem rótulo. Somente este conteúdo "
+            "pode ser ouvido pelo usuário."
+        ),
+        "bridge": (
+            "Quando houver mudança de tempo, lugar, posição ou ação cênica não falada, "
+            "escrever em parágrafo isolado iniciado exatamente por 'Ponte de cena:'."
+        ),
+        "thought": (
+            "Quando o roteiro realmente trouxer pensamento privado, escrever em parágrafo "
+            "isolado iniciado exatamente por 'Pensamento de Mary:'."
+        ),
+        "separation": (
+            "Nunca misturar fala, ponte de cena e pensamento no mesmo parágrafo. "
+            "Não transformar gesto ou narração em fala audível."
+        ),
+    }
     return context
 
 
