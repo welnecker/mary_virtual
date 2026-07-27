@@ -10,11 +10,9 @@ from .defaults import (
     DEFAULT_PUBLIC_PROFILE_IMAGE_PATH,
     MARY_PROFILE_VERSION,
 )
-from .normalization import (
-    criar_mary_profile_padrao,
-    normalizar_mary_profile,
-    utc_now_iso,
-)
+from .factory import criar_mary_profile_padrao
+from .lifecycle import utc_now_iso
+from .normalization import normalizar_mary_profile
 from .public_profile import (
     atualizar_perfil_publico,
     imagem_publica_existe,
