@@ -25,6 +25,7 @@ from scenarios.stories.casada_frustrada.story_sync import (
 CASADA_FRUSTRADA_CANONICAL_PROMPT_VERSION = STORY_STRUCTURE_VERSION
 _STORY_STATE_SESSION_KEY = "casada_frustrada_story_state"
 _STORY_SYNC_SESSION_KEY = "casada_frustrada_story_sync"
+_STORY_MEMORY_SESSION_KEY = "casada_frustrada_canonical_memory"
 
 
 def _messages() -> list[dict[str, Any]]:
@@ -41,6 +42,20 @@ def _scenario_instance() -> dict[str, Any] | None:
     if str(value.get("scenario_id") or "").strip() != "casada_frustrada":
         return None
     return value
+
+
+def sincronizar_memoria_na_instancia(instance: Any) -> Any:
+    if not isinstance(instance, dict):
+        return instance
+    if str(instance.get("scenario_id") or "").strip() != "casada_frustrada":
+        return instance
+
+    stored = st.session_state.get(_STORY_MEMORY_SESSION_KEY)
+    if isinstance(stored, dict):
+        instance["story_memory"] = stored
+    elif isinstance(instance.get("story_memory"), dict):
+        st.session_state[_STORY_MEMORY_SESSION_KEY] = instance["story_memory"]
+    return instance
 
 
 def build_route_compass(route: str, current_beat: str) -> dict[str, Any]:
@@ -63,13 +78,20 @@ def build_route_compass(route: str, current_beat: str) -> dict[str, Any]:
     st.session_state[_STORY_SYNC_SESSION_KEY] = synchronized
 
     instance = _scenario_instance()
-    previous_memory = instance.get("story_memory") if isinstance(instance, dict) else None
+    if isinstance(instance, dict):
+        sincronizar_memoria_na_instancia(instance)
+    previous_memory = (
+        instance.get("story_memory")
+        if isinstance(instance, dict)
+        else st.session_state.get(_STORY_MEMORY_SESSION_KEY)
+    )
     canonical_memory = atualizar_memoria_canonica(
         previous_memory,
         messages=messages,
         route=resolved_route,
         beat=resolved_beat,
     )
+    st.session_state[_STORY_MEMORY_SESSION_KEY] = canonical_memory
     if isinstance(instance, dict):
         instance["story_memory"] = canonical_memory
         st.session_state["scenario_instance"] = instance
@@ -155,8 +177,6 @@ def question_policy(route: str, question_streak: int, gate: str) -> dict[str, An
     }
 
 
-# Mantido por compatibilidade com versões antigas. O módulo agora funciona como
-# adaptador temporário entre Streamlit e o domínio narrativo da história.
 def aplicar_prompt_canonico_casada_frustrada() -> None:
     return None
 
@@ -169,6 +189,7 @@ __all__ = [
     "CASADA_FRUSTRADA_CANONICAL_PROMPT_VERSION",
     "build_route_compass",
     "question_policy",
+    "sincronizar_memoria_na_instancia",
     "aplicar_prompt_canonico_casada_frustrada",
     "install_casada_frustrada_canonical_prompt",
 ]
