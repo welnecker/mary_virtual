@@ -4,7 +4,7 @@ from scenarios.stories.casada_frustrada.canonical_memory import (
 from scenarios.stories.casada_frustrada.story_director import dirigir_turno
 
 
-def _instance(route: str, beat: str, *, memory=None):
+def _instance(route: str, beat: str, *, memory=None, visual=None):
     return {
         "scenario_id": "casada_frustrada",
         "current_route": route,
@@ -13,6 +13,7 @@ def _instance(route: str, beat: str, *, memory=None):
             "current_route": route,
             "current_beat": beat,
             "script_runtime": {"current_beat": beat},
+            "confirmed_visual_state": visual or {},
         },
         "story_memory": memory or {},
     }
@@ -56,6 +57,45 @@ def test_confirmed_shirt_removal_opens_reaction_not_repeat_request() -> None:
     assert direction["route"] == "hidden_call"
     assert direction["beat"] == "react_torso"
     assert direction["confirmed_visual_state"]["user_shirt_removed"] is True
+
+
+def test_second_call_after_user_wakes_opens_motel_proposal() -> None:
+    messages = [
+        {"role": "assistant", "content": "Preciso desligar. Te ligo quando meu marido estiver dormindo. Me espera."},
+        {"role": "user", "content": "Tá bom. Vou deixar o celular alto."},
+        {"role": "assistant", "content": "Psiu, Jânio? Tá acordado?"},
+        {"role": "user", "content": "Oi? Acordei..."},
+    ]
+    instance = _instance(
+        "secret_meeting_plan",
+        "midnight_return",
+        visual={"video_call_established": True, "first_call_ended": True},
+    )
+
+    direction = dirigir_turno(instance=instance, messages=messages)
+
+    assert direction["route"] == "secret_meeting_plan"
+    assert direction["beat"] == "propose_motel"
+    assert direction["screenplay"]["route"] == "secret_meeting_plan"
+    assert "motel" in direction["objective"].lower()
+
+
+def test_ended_first_call_is_not_reopened_by_old_video_state() -> None:
+    messages = [
+        {"role": "assistant", "content": "Preciso desligar agora. Daqui a pouco eu te chamo."},
+        {"role": "user", "content": "Me liga depois."},
+    ]
+    instance = _instance(
+        "hidden_call",
+        "react_user_climax",
+        visual={"video_call_established": True, "first_call_ended": True},
+    )
+
+    direction = dirigir_turno(instance=instance, messages=messages)
+
+    assert direction["route"] == "secret_meeting_plan"
+    assert direction["beat"] == "midnight_return"
+    assert direction["screenplay"]["route"] == "secret_meeting_plan"
 
 
 def test_director_exposes_one_authoritative_function() -> None:
