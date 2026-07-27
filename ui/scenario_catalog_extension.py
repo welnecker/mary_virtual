@@ -31,7 +31,7 @@ from ui.user_account_persistence import install_user_account_persistence
 
 
 SCENARIO_CATALOG_EXTENSION_VERSION = (
-    "scenario-catalog-extension-v35-deterministic-script-consumption"
+    "scenario-catalog-extension-v36-soft-screenplay-pacing"
 )
 
 _INSTALLED = False
@@ -73,8 +73,8 @@ def install_scenario_catalog_extension() -> None:
     install_interaction_persistence()
     install_scenario_event_persistence()
 
-    # Autoridade final da Casada Frustrada. O beat emitido pela abertura ou pela
-    # última resposta de Mary é consumido pela resposta seguinte do usuário.
+    # Autoridade final da Casada Frustrada. O roteiro fornece marcos e horizonte;
+    # Mary interpreta o usuário e desenvolve a cena sem recitar falas prontas.
     install_casada_frustrada_script_runtime()
 
     _INSTALLED = True
