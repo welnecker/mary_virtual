@@ -26,6 +26,20 @@ def criar_estado_visibilidade_perfil_padrao() -> dict[str, Any]:
     return deepcopy(DEFAULT_PROFILE_VISIBILITY_STATE)
 
 
+def marcar_perfil_publico_como_visto(
+    profile: dict[str, Any],
+    *,
+    seen_at: str | None = None,
+) -> dict[str, Any]:
+    relationship = profile["relationship_state"]
+    relationship["public_profile_seen"] = True
+    if not relationship.get("public_profile_seen_at"):
+        relationship["public_profile_seen_at"] = str(
+            seen_at or utc_now_iso()
+        ).strip()
+    return profile
+
+
 def marcar_perfil_revelado(
     profile: dict[str, Any],
     *,
@@ -68,6 +82,7 @@ def usuario_viu_perfil_publico_no_perfil(profile: dict[str, Any]) -> bool:
 __all__ = [
     "DEFAULT_PROFILE_VISIBILITY_STATE",
     "criar_estado_visibilidade_perfil_padrao",
+    "marcar_perfil_publico_como_visto",
     "marcar_perfil_revelado",
     "registrar_primeira_reacao_visual",
     "usuario_ja_viu_mary_no_perfil",
