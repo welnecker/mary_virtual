@@ -17,7 +17,7 @@ from scenarios.stories.casada_frustrada.beat_engine import (
 from scenarios.stories.casada_frustrada.compact_prompt import compilar_prompt_beat
 
 
-BEAT_RUNTIME_VERSION = "casada-frustrada-beat-runtime-v1-compact-authority"
+BEAT_RUNTIME_VERSION = "casada-frustrada-beat-runtime-v2-post-response-progress"
 _INSTALLED = False
 
 
@@ -54,18 +54,33 @@ def _sexual_state() -> dict[str, Any]:
     return deepcopy(value) if isinstance(value, dict) else {}
 
 
-def _sync_before_turn() -> None:
-    instance = _instance()
-    if not isinstance(instance, dict):
-        return
+def _recover_stalled_legacy_beat(scene: dict[str, Any]) -> dict[str, Any]:
+    """Recupera sessões antigas presas no reencontro já executado."""
 
-    scene = instance.get("scene_state")
-    scene = inicializar_estado_beats(scene if isinstance(scene, dict) else {})
-    scene = sincronizar_beat_apos_resposta(
-        scene_state=scene,
-        sexual_state=_sexual_state(),
-        last_mary_response=_last_assistant_message(),
-    )
+    state = deepcopy(scene)
+    beat_state = state.get("beat_state")
+    beat_state = deepcopy(beat_state) if isinstance(beat_state, dict) else {}
+    current = _text(beat_state.get("current") or state.get("current_beat"))
+    stalled = int(state.get("turns_since_story_advance", 0) or 0)
+    bridge = state.get("dialogue_bridge")
+    bridge = bridge if isinstance(bridge, dict) else {}
+
+    if (
+        current in {"second_encounter", "second_encounter_in_aisle"}
+        and bridge.get("status") == "active"
+        and stalled >= 2
+    ):
+        beat_state["current"] = "cart_observation"
+        beat_state.setdefault("completed", []).append("second_encounter")
+        beat_state.pop("pending", None)
+        state["beat_state"] = beat_state
+        state["current_beat"] = "cart_observation"
+        state["current_route"] = "aisle_flirtation"
+        state["turns_since_story_advance"] = 0
+    return state
+
+
+def _persist_scene(instance: dict[str, Any], scene: dict[str, Any]) -> None:
     beat = obter_beat_atual(scene)
     if beat:
         route = _text(beat.get("route"))
@@ -101,6 +116,37 @@ def _sync_before_turn() -> None:
         st.session_state["relationship_state"] = relationship
 
 
+def _sync_before_turn() -> None:
+    """Somente inicializa e migra; nunca consome a resposta anterior."""
+
+    instance = _instance()
+    if not isinstance(instance, dict):
+        return
+    scene = instance.get("scene_state")
+    scene = inicializar_estado_beats(scene if isinstance(scene, dict) else {})
+    scene = _recover_stalled_legacy_beat(scene)
+    _persist_scene(instance, scene)
+
+
+def _sync_after_turn() -> None:
+    """Conclui exatamente o beat que Mary acabou de executar."""
+
+    instance = _instance()
+    if not isinstance(instance, dict):
+        return
+    response = _last_assistant_message()
+    if not response:
+        return
+    scene = instance.get("scene_state")
+    scene = sincronizar_beat_apos_resposta(
+        scene_state=scene if isinstance(scene, dict) else {},
+        sexual_state=_sexual_state(),
+        last_mary_response=response,
+    )
+    scene["turns_since_story_advance"] = 0
+    _persist_scene(instance, scene)
+
+
 def _compact_window(scenario_id: str, route: str) -> str:
     if _text(scenario_id) != "casada_frustrada":
         return _ORIGINAL_WINDOW(scenario_id, route)
@@ -125,7 +171,9 @@ def _patch_process() -> None:
     @wraps(current)
     def wrapper(*args: Any, **kwargs: Any) -> Any:
         _sync_before_turn()
-        return current(*args, **kwargs)
+        result = current(*args, **kwargs)
+        _sync_after_turn()
+        return result
 
     wrapper._mary_beat_runtime = True  # type: ignore[attr-defined]
     setattr(module, "processar_interacao", wrapper)
