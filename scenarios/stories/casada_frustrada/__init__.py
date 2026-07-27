@@ -36,6 +36,10 @@ from scenarios.stories.casada_frustrada.screenplay_context import (
     SCREENPLAY_CONTEXT_VERSION,
     obter_trecho_roteiro,
 )
+from scenarios.stories.casada_frustrada.story_director import (
+    STORY_DIRECTOR_VERSION,
+    dirigir_turno,
+)
 from scenarios.stories.casada_frustrada.story_observer import (
     ASK_PHONE_MOVEMENT,
     CONTACT_FUNCTION,
@@ -80,6 +84,7 @@ __all__ = [
     "PROMPT_CONTEXT_VERSION",
     "SCREENPLAY_CONTEXT_VERSION",
     "STORY_SYNC_VERSION",
+    "STORY_DIRECTOR_VERSION",
     "CANONICAL_MEMORY_VERSION",
     "MEMORY_CATALOG",
     "INTERPRETATION_RULES",
@@ -101,6 +106,7 @@ __all__ = [
     "montar_contexto_interpretativo",
     "obter_trecho_roteiro",
     "reconciliar_posicao_narrativa",
+    "dirigir_turno",
     "criar_memoria_canonica_padrao",
     "normalizar_memoria_canonica",
     "atualizar_memoria_canonica",
