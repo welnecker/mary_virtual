@@ -8,6 +8,7 @@ from .appearance_state import (
     DEFAULT_VARIABLE_APPEARANCE_STATE,
     criar_estado_aparencia_variavel_padrao,
 )
+from .memory import registrar_imagem_aprovada_no_perfil
 from .state import (
     DEFAULT_VISUAL_MEMORY_STATE,
     criar_estado_memoria_visual_padrao,
@@ -20,6 +21,7 @@ __all__ = [
     "extrair_tracos_fisicos_estaveis",
     "DEFAULT_VARIABLE_APPEARANCE_STATE",
     "criar_estado_aparencia_variavel_padrao",
+    "registrar_imagem_aprovada_no_perfil",
     "DEFAULT_VISUAL_MEMORY_STATE",
     "criar_estado_memoria_visual_padrao",
 ]
