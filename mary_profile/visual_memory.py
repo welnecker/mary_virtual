@@ -1,7 +1,14 @@
 from __future__ import annotations
 
-from copy import deepcopy
 from typing import Any
+
+from relationship.profile_visibility import (
+    marcar_perfil_revelado,
+    registrar_primeira_reacao_visual,
+    usuario_ja_viu_mary_no_perfil,
+    usuario_viu_perfil_publico_no_perfil,
+)
+from visual.memory import registrar_imagem_aprovada_no_perfil
 
 from .normalization import normalizar_mary_profile, utc_now_iso
 
@@ -16,21 +23,14 @@ def registrar_imagem_aprovada(
     metadata: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     updated = normalizar_mary_profile(profile)
-    item = {
-        "image_id": str(image_id or "").strip(),
-        "image_url": str(image_url or "").strip(),
-        "purpose": str(purpose or "").strip(),
-        "summary": str(summary or "").strip(),
-        "metadata": deepcopy(metadata or {}),
-        "approved_at": utc_now_iso(),
-    }
-    visual = updated["visual_memory"]
-    visual["approved_images"].append(item)
-    visual.setdefault("mary_images_shown", []).append(deepcopy(item))
-    visual["last_generated_image_id"] = item["image_id"]
-    visual["last_generated_image_summary"] = item["summary"]
-    visual["last_mary_image_id"] = item["image_id"]
-    visual["last_mary_image_path"] = item["image_url"]
+    registrar_imagem_aprovada_no_perfil(
+        updated,
+        image_id=image_id,
+        image_url=image_url,
+        purpose=purpose,
+        summary=summary,
+        metadata=metadata,
+    )
     updated["updated_at"] = utc_now_iso()
     return updated
 
@@ -40,17 +40,8 @@ def marcar_mary_revelada(
     *,
     image_id: str,
 ) -> dict[str, Any]:
-    normalized_id = str(image_id or "").strip()
-    if not normalized_id:
-        raise ValueError("Informe um image_id válido.")
     updated = normalizar_mary_profile(profile)
-    relationship = updated["relationship_state"]
-    relationship["revealed_to_user"] = True
-    relationship["user_has_seen_mary"] = True
-    if not relationship.get("first_reveal_image_id"):
-        relationship["first_reveal_image_id"] = normalized_id
-    if not relationship.get("first_reveal_at"):
-        relationship["first_reveal_at"] = utc_now_iso()
+    marcar_perfil_revelado(updated, image_id=image_id)
     updated["updated_at"] = utc_now_iso()
     return updated
 
@@ -60,28 +51,17 @@ def registrar_primeira_reacao_visual_usuario(
     reaction: str,
 ) -> dict[str, Any]:
     updated = normalizar_mary_profile(profile)
-    text = str(reaction or "").strip()
-    relationship = updated["relationship_state"]
-    if text and not relationship.get("user_first_visual_reaction"):
-        relationship["user_first_visual_reaction"] = text
+    registrar_primeira_reacao_visual(updated, reaction)
     updated["updated_at"] = utc_now_iso()
     return updated
 
 
 def usuario_ja_viu_mary(profile: dict[str, Any]) -> bool:
-    return bool(
-        normalizar_mary_profile(profile)["relationship_state"].get(
-            "user_has_seen_mary"
-        )
-    )
+    return usuario_ja_viu_mary_no_perfil(normalizar_mary_profile(profile))
 
 
 def usuario_viu_perfil_publico(profile: dict[str, Any]) -> bool:
-    return bool(
-        normalizar_mary_profile(profile)["relationship_state"].get(
-            "public_profile_seen"
-        )
-    )
+    return usuario_viu_perfil_publico_no_perfil(normalizar_mary_profile(profile))
 
 
 __all__ = [
