@@ -5,14 +5,13 @@ from typing import Any
 import streamlit as st
 
 from scenarios.stories.casada_frustrada.prompt_context import (
-    aplicar_estado_narrativo_ao_compasso,
+    montar_contexto_interpretativo,
 )
 from scenarios.stories.casada_frustrada.story_observer import (
     observar_estado_narrativo,
 )
 from scenarios.stories.casada_frustrada.story_structure import (
     STORY_STRUCTURE_VERSION,
-    build_story_compass,
 )
 
 
@@ -35,9 +34,10 @@ def build_route_compass(route: str, current_beat: str) -> dict[str, Any]:
         beat_id=current_beat,
     )
     st.session_state[_STORY_STATE_SESSION_KEY] = story_state
-    return aplicar_estado_narrativo_ao_compasso(
-        build_story_compass(route, current_beat),
-        story_state,
+    return montar_contexto_interpretativo(
+        route=route,
+        current_beat=current_beat,
+        story_state_value=story_state,
     )
 
 
