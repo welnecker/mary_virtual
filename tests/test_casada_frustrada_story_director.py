@@ -98,6 +98,31 @@ def test_ended_first_call_is_not_reopened_by_old_video_state() -> None:
     assert direction["screenplay"]["route"] == "secret_meeting_plan"
 
 
+def test_physical_motel_reality_overrides_stale_good_night_cursor() -> None:
+    messages = [
+        {"role": "assistant", "content": "Boa noite. Amanhã te espero no Motel Status ao meio-dia."},
+        {"role": "assistant", "content": "Cheguei no Motel Status. Estou na suíte 14."},
+        {"role": "user", "content": "Cheguei. Estou entrando na portaria."},
+        {"role": "assistant", "content": "Entra e tranca a porta. Vem aqui."},
+        {"role": "user", "content": "Estou sentindo seu abraço. Que delícia."},
+        {"role": "assistant", "content": "Não me solta. Aperta mais."},
+        {"role": "user", "content": "Fala o que você quer."},
+    ]
+    instance = _instance(
+        "secret_meeting_plan",
+        "good_night",
+        visual={"first_call_ended": True, "video_call_established": True},
+    )
+
+    direction = dirigir_turno(instance=instance, messages=messages)
+
+    assert direction["route"] == "growing_tension"
+    assert direction["beat"] == "ask_touch_butt"
+    assert direction["screenplay"]["route"] == "growing_tension"
+    assert "nádegas" in direction["objective"].lower()
+    assert direction["resolution"]["memory_override_reason"] == "physical_motel_reality_overrode_stale_cursor"
+
+
 def test_director_exposes_one_authoritative_function() -> None:
     messages = [
         {"role": "assistant", "content": "Oi, está me vendo? Vou colocar o celular na bancada."},
