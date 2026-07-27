@@ -49,6 +49,10 @@ from scenarios.stories.casada_frustrada.story_structure import (
     STORY_STRUCTURE_VERSION,
     build_story_compass,
 )
+from scenarios.stories.casada_frustrada.story_sync import (
+    STORY_SYNC_VERSION,
+    reconciliar_posicao_narrativa,
+)
 
 
 __all__ = [
@@ -67,6 +71,7 @@ __all__ = [
     "STORY_STRUCTURE_VERSION",
     "PROMPT_CONTEXT_VERSION",
     "SCREENPLAY_CONTEXT_VERSION",
+    "STORY_SYNC_VERSION",
     "INTERPRETATION_RULES",
     "CONTACT_FUNCTION",
     "ASK_PHONE_MOVEMENT",
@@ -85,4 +90,5 @@ __all__ = [
     "aplicar_estado_narrativo_ao_compasso",
     "montar_contexto_interpretativo",
     "obter_trecho_roteiro",
+    "reconciliar_posicao_narrativa",
 ]
