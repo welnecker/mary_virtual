@@ -11,11 +11,27 @@ import streamlit as st
 from scenarios.card_registry import obter_card
 from scenarios.stories.casada_frustrada.beat_engine import obter_beat_atual
 from scenarios.stories.casada_frustrada.compact_prompt import compilar_prompt_beat
+import ui.card_runtime_integration as card_integration
 
 
-COMPACT_SYSTEM_PROMPT_VERSION = "casada-frustrada-system-prompt-v2-late-bound"
+COMPACT_SYSTEM_PROMPT_VERSION = "casada-frustrada-system-prompt-v3-exclusive"
 _INSTALLED = False
 _ORIGINAL_TITLE: Callable[..., Any] | None = None
+
+_DEFAULT_PHYSICAL = {
+    "skin": "pele clara",
+    "eyes": "olhos verdes",
+    "hair_color": "cabelos negros",
+    "hair_length": "cabelos longos",
+    "hair_volume": "cabelos volumosos",
+    "face": "rosto delicado com traços marcantes",
+    "body_type": "corpo curvilíneo e feminino",
+    "waist": "cintura fina e marcada",
+    "breasts": "seios médios, naturais, firmes e empinados",
+    "hips": "quadris largos",
+    "buttocks": "bunda grande, carnuda, arredondada e firme",
+    "legs": "coxas firmes",
+}
 
 
 def _text(value: Any) -> str:
@@ -42,7 +58,7 @@ def _recent_messages(limit: int = 6) -> list[dict[str, str]]:
         role = _text(item.get("role"))
         content = _text(item.get("content"))
         if role in {"user", "assistant"} and content:
-            result.append({"role": role, "content": content[:900]})
+            result.append({"role": role, "content": content[:700]})
     return result
 
 
@@ -93,20 +109,29 @@ def _compact_character(card: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def _find_physical_profile(kwargs: dict[str, Any]) -> dict[str, Any]:
+    candidates = [kwargs.get("mary_profile"), st.session_state.get("mary_profile")]
+    for profile in candidates:
+        if not isinstance(profile, dict):
+            continue
+        for candidate in (
+            profile.get("physical_traits"),
+            (profile.get("canon") or {}).get("physical_traits") if isinstance(profile.get("canon"), dict) else None,
+            (profile.get("identity") or {}).get("physical_traits") if isinstance(profile.get("identity"), dict) else None,
+        ):
+            if isinstance(candidate, dict) and candidate:
+                return candidate
+    return {}
+
+
 def _compact_physical(kwargs: dict[str, Any], scene: dict[str, Any]) -> dict[str, Any]:
-    profile = kwargs.get("mary_profile")
-    profile = profile if isinstance(profile, dict) else st.session_state.get("mary_profile")
-    physical = profile.get("physical_traits") if isinstance(profile, dict) else {}
-    physical = physical if isinstance(physical, dict) else {}
+    physical = _find_physical_profile(kwargs)
+    fixed = {
+        key: physical.get(key) or default
+        for key, default in _DEFAULT_PHYSICAL.items()
+    }
     return {
-        "fixed": {
-            key: physical.get(key)
-            for key in (
-                "skin", "eyes", "hair_color", "hair_length", "hair_volume", "face",
-                "body_type", "waist", "breasts", "hips", "buttocks", "legs",
-            )
-            if physical.get(key)
-        },
+        "fixed": fixed,
         "scene": {
             key: scene.get(key)
             for key in (
@@ -173,7 +198,7 @@ def _build_compact_prompt(kwargs: dict[str, Any]) -> str:
             "aftercare_required": bool(sexual.get("aftercare_required")),
         },
         "recent": _recent_messages(6),
-        "user_now": user_message[:900],
+        "user_now": user_message[:700],
     }
 
     return f"""Você interpreta Mary, mulher brasileira adulta de 25 anos, na história Casada Frustrada.
@@ -181,27 +206,23 @@ def _build_compact_prompt(kwargs: dict[str, Any]) -> str:
 REGRAS FIXAS
 - Fale em primeira pessoa, como mulher real; nunca como assistente ou narradora explicativa.
 - Preserve identidade física, psicologia, roupas, local, objetos e fatos confirmados.
-- O código escolheu o beat. Cumpra exatamente seu objetivo nesta resposta.
-- Não troque de assunto, não volte a beat concluído e não execute o próximo beat antes da resposta do usuário.
-- Sua liberdade criativa está nas palavras, humor, hesitação, ritmo e intensidade — não no rumo da história.
+- O beat abaixo é a ação obrigatória deste turno. Não abra entrevista nem outro assunto.
+- Não volte a beat concluído e não execute o próximo antes da resposta do usuário.
+- Sua liberdade está apenas nas palavras, humor, hesitação, ritmo e intensidade.
 - No máximo uma pergunta. Não invente ação, consentimento, sensação ou orgasmo do usuário.
-- Use português popular e natural. Prefira 1 a 3 parágrafos curtos.
-- Fala audível em texto normal. Pensamento privado, somente quando útil, em linha isolada: Pensamento de Mary: ...
-- Uma transição temporal autorizada pode aparecer em uma linha curta antes da fala.
+- Use português popular e natural, normalmente em 1 a 3 parágrafos curtos.
+- Fala audível em texto normal. Pensamento privado, só quando útil: Pensamento de Mary: ...
 
-ESTADO COMPACTO
+ESTADO
 {json.dumps(payload, ensure_ascii=False, separators=(",", ":"))}
 
 {beat_block}
 
 SAÍDA
-Produza somente a resposta de Mary. O objetivo do beat é obrigatório; referências são inspiração, não texto para recitar.""".strip()
+Produza somente a resposta de Mary e cumpra o objetivo do beat. Pare imediatamente depois dele.""".strip()
 
 
-def aplicar_prompt_compacto() -> None:
-    module = sys.modules.get("__main__")
-    if module is None:
-        return
+def _patch_system_prompt(module: Any) -> None:
     current = getattr(module, "montar_prompt_sistema", None)
     if not callable(current) or getattr(current, "_mary_true_compact_prompt", False):
         return
@@ -215,6 +236,32 @@ def aplicar_prompt_compacto() -> None:
 
     wrapper._mary_true_compact_prompt = True  # type: ignore[attr-defined]
     setattr(module, "montar_prompt_sistema", wrapper)
+
+
+def _patch_narrative_direction(module: Any) -> None:
+    """Impede que o cenário completo seja anexado após o prompt compacto."""
+
+    current = getattr(module, "montar_direcao_narrativa", None)
+    if not callable(current) or getattr(current, "_mary_compact_direction", False):
+        return
+
+    @wraps(current)
+    def wrapper(*args: Any, **kwargs: Any) -> str:
+        if _instance() is None:
+            return str(current(*args, **kwargs) or "")
+        # O beat já está no prompt de sistema. Só uma ponte ativa precisa entrar.
+        return _text(card_integration._bridge_prompt_block())
+
+    wrapper._mary_compact_direction = True  # type: ignore[attr-defined]
+    setattr(module, "montar_direcao_narrativa", wrapper)
+
+
+def aplicar_prompt_compacto() -> None:
+    module = sys.modules.get("__main__")
+    if module is None:
+        return
+    _patch_system_prompt(module)
+    _patch_narrative_direction(module)
 
 
 def install_casada_frustrada_compact_system_prompt() -> None:
