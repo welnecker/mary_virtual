@@ -2,6 +2,12 @@ from __future__ import annotations
 
 from typing import Any
 
+from visual.appearance import (
+    aplicar_aparencia_variavel,
+    extrair_aparencia_variavel,
+    extrair_tracos_fisicos_estaveis,
+)
+
 from .normalization import normalizar_mary_profile, utc_now_iso
 
 
@@ -16,37 +22,25 @@ def atualizar_aparencia_variavel(
     location: str | None = None,
 ) -> dict[str, Any]:
     updated = normalizar_mary_profile(profile)
-    variable = updated["physical_profile"]["variable_traits"]
-    for key, value in {
-        "hairstyle": hairstyle,
-        "clothing": clothing,
-        "makeup": makeup,
-        "accessories": accessories,
-        "expression": expression,
-        "location": location,
-    }.items():
-        if value is not None:
-            variable[key] = str(value).strip()
+    aplicar_aparencia_variavel(
+        updated,
+        hairstyle=hairstyle,
+        clothing=clothing,
+        makeup=makeup,
+        accessories=accessories,
+        expression=expression,
+        location=location,
+    )
     updated["updated_at"] = utc_now_iso()
     return updated
 
 
 def obter_tracos_fisicos_estaveis(profile: dict[str, Any]) -> dict[str, str]:
-    traits = normalizar_mary_profile(profile)["physical_profile"]["stable_traits"]
-    return {
-        str(key): str(value)
-        for key, value in traits.items()
-        if str(value).strip()
-    }
+    return extrair_tracos_fisicos_estaveis(normalizar_mary_profile(profile))
 
 
 def obter_aparencia_variavel(profile: dict[str, Any]) -> dict[str, str]:
-    traits = normalizar_mary_profile(profile)["physical_profile"]["variable_traits"]
-    return {
-        str(key): str(value)
-        for key, value in traits.items()
-        if str(value).strip()
-    }
+    return extrair_aparencia_variavel(normalizar_mary_profile(profile))
 
 
 __all__ = [
