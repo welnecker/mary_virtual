@@ -4,6 +4,10 @@ from typing import Any
 
 import streamlit as st
 
+from scenarios.stories.casada_frustrada.canonical_memory import (
+    atualizar_memoria_canonica,
+    memoria_canonica_para_prompt,
+)
 from scenarios.stories.casada_frustrada.prompt_context import (
     montar_contexto_interpretativo,
 )
@@ -27,7 +31,16 @@ def _messages() -> list[dict[str, Any]]:
     value = st.session_state.get("messages")
     if not isinstance(value, list):
         return []
-    return [item for item in value if isinstance(item, dict)][-24:]
+    return [item for item in value if isinstance(item, dict)][-80:]
+
+
+def _scenario_instance() -> dict[str, Any] | None:
+    value = st.session_state.get("scenario_instance")
+    if not isinstance(value, dict):
+        return None
+    if str(value.get("scenario_id") or "").strip() != "casada_frustrada":
+        return None
+    return value
 
 
 def build_route_compass(route: str, current_beat: str) -> dict[str, Any]:
@@ -49,11 +62,24 @@ def build_route_compass(route: str, current_beat: str) -> dict[str, Any]:
     st.session_state[_STORY_STATE_SESSION_KEY] = story_state
     st.session_state[_STORY_SYNC_SESSION_KEY] = synchronized
 
+    instance = _scenario_instance()
+    previous_memory = instance.get("story_memory") if isinstance(instance, dict) else None
+    canonical_memory = atualizar_memoria_canonica(
+        previous_memory,
+        messages=messages,
+        route=resolved_route,
+        beat=resolved_beat,
+    )
+    if isinstance(instance, dict):
+        instance["story_memory"] = canonical_memory
+        st.session_state["scenario_instance"] = instance
+
     context = montar_contexto_interpretativo(
         route=resolved_route,
         current_beat=resolved_beat,
         story_state_value=story_state,
     )
+    context["canonical_story_memory"] = memoria_canonica_para_prompt(canonical_memory)
     context["synchronized_position"] = synchronized
     context["current_function"] = {
         "route": resolved_route,
@@ -65,9 +91,9 @@ def build_route_compass(route: str, current_beat: str) -> dict[str, Any]:
         ),
     }
     context["source_authority"] = (
-        "official_screenplay e current_function descrevem a mesma posição narrativa. "
-        "beat_graph apenas indexa o movimento atual; immersive_screenplay define sua "
-        "direção dramática. Nenhum dos dois pode avançar ou permanecer sozinho."
+        "canonical_story_memory registra o passado compartilhado irreversível; "
+        "official_screenplay define a direção dramática atual; current_function indexa a "
+        "função aberta. Nenhuma função pode contradizer ou repetir uma memória desbloqueada."
     )
     context["output_contract"] = {
         "speech": (
