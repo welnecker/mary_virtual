@@ -12,7 +12,7 @@ from .story_observer import observar_estado_narrativo
 from .story_sync import reconciliar_posicao_narrativa
 
 
-STORY_DIRECTOR_VERSION = "casada-frustrada-story-director-v2-call-boundaries"
+STORY_DIRECTOR_VERSION = "casada-frustrada-story-director-v3-motel-authority"
 
 
 def _text(value: Any) -> str:
@@ -67,7 +67,6 @@ def _call_visual_state(messages: list[dict[str, Any]], previous: Any) -> dict[st
     history = _history(messages)
     assistant = _history(messages, "assistant")
     user = _history(messages, "user")
-
     checks = {
         "video_call_established": _contains(history, "ta me vendo", "esta me vendo", "camera ligada", "chamada de video", "celular aqui na bancada"),
         "user_shirt_removed": _contains(user, "tirei a camisa", "sem camisa", "agora da pra ver", "agora consegue ver", "mostrei o peito", "mostrei o peitoral"),
@@ -88,7 +87,6 @@ def _call_visual_state(messages: list[dict[str, Any]], previous: Any) -> dict[st
 def _resolve_hidden_call_beat(messages: list[dict[str, Any]], visual: dict[str, bool], fallback: str) -> str:
     assistant = _history(messages, "assistant")
     latest_assistant = _latest(messages, "assistant")
-
     if visual.get("user_climax_confirmed"):
         return "react_user_climax"
     if visual.get("mutual_masturbation_started"):
@@ -106,17 +104,11 @@ def _resolve_hidden_call_beat(messages: list[dict[str, Any]], visual: dict[str, 
     if visual.get("mary_dress_removed"):
         return "invite_bra_request"
     if visual.get("user_pants_removed"):
-        if _contains(assistant, "olha esse volume", "volume na cueca"):
-            return "mary_remove_dress"
-        return "react_underwear"
+        return "mary_remove_dress" if _contains(assistant, "olha esse volume", "volume na cueca") else "react_underwear"
     if visual.get("user_shirt_removed"):
-        if _contains(assistant, "voce e gostoso", "que peitoral", "to vermelha", "estou vermelha"):
-            return "ask_remove_pants"
-        return "react_torso"
+        return "ask_remove_pants" if _contains(assistant, "voce e gostoso", "que peitoral", "to vermelha", "estou vermelha") else "react_torso"
     if visual.get("video_call_established"):
-        if _contains(assistant, "voce e lindo", "voce e muito lindo", "posso te pedir uma coisa"):
-            return "ask_remove_shirt"
-        return "admire_video"
+        return "ask_remove_shirt" if _contains(assistant, "voce e lindo", "voce e muito lindo", "posso te pedir uma coisa") else "admire_video"
     return fallback if fallback in BEAT_ORDER and (obter_beat(fallback) or {}).get("route") == "hidden_call" else "camera_setup"
 
 
@@ -124,10 +116,8 @@ def _resolve_meeting_plan_beat(messages: list[dict[str, Any]], fallback: str) ->
     assistant = _history(messages, "assistant")
     latest_user = _latest(messages, "user")
     latest_assistant = _latest(messages, "assistant")
-
     user_awake = _contains(latest_user, "acordei", "to acordado", "estou acordado", "to ouvindo", "estou ouvindo", "oi mary")
     user_accepts = _contains(latest_user, "sim", "claro", "pode ser", "vamos", "topo", "aceito", "combinado", "fechado")
-
     if _contains(assistant, "boa noite", "sonha comigo"):
         return "good_night"
     if _contains(assistant, "nao vai me dar bolo", "nao me da bolo", "voce ta me devendo"):
@@ -141,63 +131,77 @@ def _resolve_meeting_plan_beat(messages: list[dict[str, Any]], fallback: str) ->
     return fallback if fallback in {"midnight_return", "propose_motel", "name_motel", "demand_no_show", "good_night"} else "midnight_return"
 
 
+def _motel_reality(messages: list[dict[str, Any]]) -> dict[str, bool]:
+    history = _history(messages)
+    assistant = _history(messages, "assistant")
+    user = _history(messages, "user")
+    return {
+        "at_motel": _contains(history, "motel status", "cheguei no motel", "suíte", "suite", "quarto do motel"),
+        "user_arrived": _contains(user, "cheguei", "to entrando na portaria", "estou entrando na portaria", "to aqui", "estou aqui") and _contains(history, "motel", "suite", "suíte", "portaria"),
+        "room_together": _contains(history, "porta trancada", "somos so nos dois", "entrou na suite", "entrou no quarto", "aqui dentro"),
+        "embrace_started": _contains(history, "sentindo seu abraco", "seu corpo colado", "nao me solta", "aperta mais", "abraco dele"),
+        "kiss_started": _contains(history, "me beija", "nosso beijo", "sua boca", "beijando"),
+        "butt_touch_requested": _contains(assistant, "aperta minha bunda", "abre minhas nadegas", "me amassa"),
+        "breast_touch_requested": _contains(assistant, "aperta meus seios", "sente como sao firmes"),
+        "bra_removal_requested": _contains(assistant, "desprende o sutia", "tira meu sutia", "libera eles"),
+    }
+
+
+def _resolve_motel_beat(messages: list[dict[str, Any]], reality: dict[str, bool]) -> str:
+    if reality.get("bra_removal_requested"):
+        return "heels_and_panties"
+    if reality.get("breast_touch_requested"):
+        return "ask_remove_bra"
+    if reality.get("butt_touch_requested"):
+        return "ask_touch_breasts"
+    if reality.get("embrace_started") or reality.get("kiss_started") or reality.get("room_together"):
+        return "ask_touch_butt"
+    if reality.get("user_arrived"):
+        return "motel_reunion"
+    return "motel_preparation"
+
+
 def _apply_memory_authority(route: str, beat: str, memory_prompt: dict[str, Any], messages: list[dict[str, Any]]) -> tuple[str, str, str]:
     unlocked = set(memory_prompt.get("unlocked_ids") or [])
     history = _history(messages)
-
     if "first_private_messages" in unlocked and route in {"supermarket_encounter", "aisle_flirtation", "phone_exchange"}:
         route = "messages"
-        if _contains(history, "posso te chamar por video", "te chamar por video"):
-            beat = "offer_video"
-        elif _contains(history, "te achei muito atraente", "voce me atrai", "estou atraida"):
+        if _contains(history, "posso te chamar por video", "te chamar por video") or _contains(history, "te achei muito atraente", "voce me atrai", "estou atraida"):
             beat = "offer_video"
         elif _contains(history, "banheiro", "falar com voce em paz", "mais a vontade"):
             beat = "admit_neediness"
         else:
             beat = "home_first_message"
         return route, beat, "canonical_memory_forced_messages"
-
     if "exchanged_phone_numbers" in unlocked and beat in {"request_phone", "exchange_numbers"}:
         if _contains(history, "cheguei", "tela do celular", "mensagem", "trancada no quarto", "sozinho em casa", "sozinha em casa"):
             return "messages", "home_first_message", "canonical_memory_blocked_phone_repetition"
         return "phone_exchange", "car_farewell", "canonical_memory_blocked_phone_repetition"
-
     if "first_hidden_video_call" in unlocked and route == "messages" and beat == "offer_video":
         return "secret_meeting_plan", "midnight_return", "canonical_memory_blocked_first_video_repetition"
-
     return route, beat, ""
 
 
-def dirigir_turno(
-    *,
-    instance: dict[str, Any],
-    messages: list[dict[str, Any]],
-    story_state_value: Any = None,
-) -> dict[str, Any]:
+def dirigir_turno(*, instance: dict[str, Any], messages: list[dict[str, Any]], story_state_value: Any = None) -> dict[str, Any]:
     legacy_route, legacy_beat = _legacy_position(instance)
-    synchronized = reconciliar_posicao_narrativa(
-        messages=messages,
-        legacy_route=legacy_route,
-        legacy_beat=legacy_beat,
-    )
+    synchronized = reconciliar_posicao_narrativa(messages=messages, legacy_route=legacy_route, legacy_beat=legacy_beat)
     route = _text(synchronized.get("route") or legacy_route)
     beat = _text(synchronized.get("beat") or legacy_beat)
 
-    previous_memory = instance.get("story_memory")
-    memory = atualizar_memoria_canonica(
-        previous_memory,
-        messages=messages,
-        route=route,
-        beat=beat,
-    )
+    memory = atualizar_memoria_canonica(instance.get("story_memory"), messages=messages, route=route, beat=beat)
     memory_prompt = memoria_canonica_para_prompt(memory)
     route, beat, memory_reason = _apply_memory_authority(route, beat, memory_prompt, messages)
 
     scene = instance.get("scene_state")
     scene = deepcopy(scene) if isinstance(scene, dict) else {}
     visual_state = _call_visual_state(messages, scene.get("confirmed_visual_state"))
+    motel_reality = _motel_reality(messages)
 
-    if visual_state.get("first_call_ended"):
+    if motel_reality.get("at_motel") and (motel_reality.get("user_arrived") or motel_reality.get("room_together") or motel_reality.get("embrace_started") or motel_reality.get("kiss_started")):
+        beat = _resolve_motel_beat(messages, motel_reality)
+        route = _text((obter_beat(beat) or {}).get("route")) or "secret_meeting"
+        memory_reason = "physical_motel_reality_overrode_stale_cursor"
+    elif visual_state.get("first_call_ended"):
         route = "secret_meeting_plan"
         beat = _resolve_meeting_plan_beat(messages, beat)
         memory_reason = memory_reason or "first_call_ended_opens_meeting_plan"
@@ -207,20 +211,11 @@ def dirigir_turno(
 
     beat_data = obter_beat(beat) or {}
     resolved_route = _text(beat_data.get("route")) or route
-
-    story_state = observar_estado_narrativo(
-        story_state_value,
-        messages=messages,
-        route=resolved_route,
-        beat_id=beat,
-    )
-    compass = montar_contexto_interpretativo(
-        route=resolved_route,
-        current_beat=beat,
-        story_state_value=story_state,
-    )
+    story_state = observar_estado_narrativo(story_state_value, messages=messages, route=resolved_route, beat_id=beat)
+    compass = montar_contexto_interpretativo(route=resolved_route, current_beat=beat, story_state_value=story_state)
 
     scene["confirmed_visual_state"] = visual_state
+    scene["motel_reality"] = motel_reality
     scene["current_route"] = resolved_route
     scene["current_beat"] = beat
     scene.pop("script_runtime", None)
@@ -240,16 +235,14 @@ def dirigir_turno(
         "route_compass": compass,
         "canonical_story_memory": memory_prompt,
         "confirmed_visual_state": visual_state,
+        "motel_reality": motel_reality,
         "story_state": story_state,
         "resolution": {
             "legacy_route": legacy_route,
             "legacy_beat": legacy_beat,
             "synchronized": synchronized,
             "memory_override_reason": memory_reason,
-            "authority": (
-                "Esta é a única direção narrativa do turno. Foi resolvida a partir do passado "
-                "canônico, dos fatos visuais e da conversa. O runtime não possui milestone próprio."
-            ),
+            "authority": "Esta é a única direção narrativa do turno. A realidade física confirmada e o roteiro oficial prevalecem sobre qualquer cursor antigo ou improvisação do modelo.",
         },
     }
 
