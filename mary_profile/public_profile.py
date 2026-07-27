@@ -1,9 +1,12 @@
 from __future__ import annotations
 
-from copy import deepcopy
 from pathlib import Path
 from typing import Any
 
+from identity.public_profile import (
+    aplicar_atualizacoes_perfil_publico,
+    montar_perfil_publico,
+)
 from relationship.profile_visibility import marcar_perfil_publico_como_visto
 
 from .defaults import DEFAULT_PUBLIC_PROFILE_IMAGE_PATH
@@ -12,23 +15,7 @@ from .normalization import normalizar_mary_profile, utc_now_iso
 
 def obter_perfil_publico(profile: dict[str, Any] | None = None) -> dict[str, Any]:
     normalized = normalizar_mary_profile(profile)
-    public = deepcopy(normalized.get("public_profile", {}))
-    public.setdefault("display_name", normalized.get("name", "Mary"))
-    public.setdefault("age", normalized.get("age", 25))
-    public.setdefault("public_status", public.get("headline", ""))
-    public.setdefault("short_bio", public.get("bio", ""))
-    public.setdefault("long_bio", public.get("bio", ""))
-    public.setdefault("occupation", "companhia virtual")
-    public.setdefault("city", "online")
-    public.setdefault("interests", [])
-    public.setdefault(
-        "personality_traits",
-        list(normalized.get("personality", {}).get("core_traits", [])),
-    )
-    public.setdefault("open_to", ["conversa adulta", "provocação", "intimidade"])
-    public.setdefault("identity", deepcopy(normalized.get("identity", {})))
-    public.setdefault("image_id", "mary_public_profile_blurred_v1")
-    return public
+    return montar_perfil_publico(normalized)
 
 
 def obter_caminho_imagem_publica(profile: dict[str, Any] | None = None) -> str:
@@ -59,15 +46,13 @@ def atualizar_perfil_publico(
     image_alt_text: str | None = None,
 ) -> dict[str, Any]:
     updated = normalizar_mary_profile(profile)
-    public = updated["public_profile"]
-    for key, value in {
-        "headline": headline,
-        "bio": bio,
-        "profile_image_path": profile_image_path,
-        "image_alt_text": image_alt_text,
-    }.items():
-        if value is not None:
-            public[key] = str(value).strip()
+    aplicar_atualizacoes_perfil_publico(
+        updated,
+        headline=headline,
+        bio=bio,
+        profile_image_path=profile_image_path,
+        image_alt_text=image_alt_text,
+    )
     updated["updated_at"] = utc_now_iso()
     return updated
 
