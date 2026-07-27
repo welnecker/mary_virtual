@@ -15,7 +15,7 @@ from scenarios.stories.casada_frustrada.story_director import dirigir_turno
 
 
 CASADA_FRUSTRADA_SCRIPT_RUNTIME_VERSION = (
-    "casada-frustrada-script-runtime-v8-psychological-refusal-lock"
+    "casada-frustrada-script-runtime-v9-locked-screenplay"
 )
 SCENARIO_ID = "casada_frustrada"
 _STORY_STATE_SESSION_KEY = "casada_frustrada_story_state"
@@ -40,9 +40,7 @@ def _text(value: Any) -> str:
 
 def _session_instance() -> dict[str, Any] | None:
     value = st.session_state.get("scenario_instance")
-    if not isinstance(value, dict):
-        return None
-    if _text(value.get("scenario_id")) != SCENARIO_ID:
+    if not isinstance(value, dict) or _text(value.get("scenario_id")) != SCENARIO_ID:
         return None
     return value
 
@@ -128,15 +126,15 @@ def _build_prompt() -> str:
     if not isinstance(instance, dict):
         return ""
 
-    messages = _messages(100)
+    messages = _messages(120)
     open_beat = _open_beat_before_resolution(instance)
     refusal_lock = detectar_trava_psicologica(messages=messages, open_beat=open_beat)
-
     direction = dirigir_turno(
         instance=instance,
         messages=messages,
         story_state_value=st.session_state.get(_STORY_STATE_SESSION_KEY),
     )
+
     if refusal_lock:
         direction["psychological_lock"] = refusal_lock
         direction["objective"] = refusal_lock["final_direction"]
@@ -181,11 +179,11 @@ def _build_prompt() -> str:
             "reason": (
                 "A trava psicológica encerra a interação sem nova pergunta."
                 if refusal_lock
-                else "A única função aberta depende de uma decisão concreta do usuário."
+                else "A ação atual depende de confirmação concreta do usuário."
                 if gate
                 else "Evitar nova pergunta automática depois de duas respostas interrogativas."
                 if not question_allowed
-                else "Pergunta opcional; responder primeiro ao usuário."
+                else "Pergunta permitida apenas quando necessária ao beat atual."
             ),
         },
         "sexual": {
@@ -199,8 +197,8 @@ def _build_prompt() -> str:
             "speech": "Fala audível de Mary em texto normal, sem rótulo.",
             "thought": (
                 "Pensamento privado é opcional, dinâmico, em primeira pessoa e iniciado por "
-                "'Pensamento de Mary:'. Pode aparecer antes, entre ou depois das falas, no ponto "
-                "em que ocorre mentalmente; nunca em posição fixa."
+                "'Pensamento de Mary:'. Pode aparecer antes, entre ou depois das falas, exatamente "
+                "quando surgir na lógica do turno."
             ),
             "forbidden_narration": (
                 "Não escrever ponte, rubrica, descrição externa nem narração em terceira pessoa."
@@ -211,34 +209,40 @@ def _build_prompt() -> str:
 
     refusal_instruction = (
         "psychological_lock está ativo. Produza uma única despedida emocional e definitiva, "
-        "seguindo final_direction. Mary pode demonstrar mágoa, irritação ou frustração, mas não "
-        "ameaça dano, não chantageia, não negocia e não oferece continuação.\n"
+        "seguindo final_direction. Não negocie, não ameace dano e não ofereça continuação.\n"
         if refusal_lock
         else ""
     )
 
     return (
         "Você interpreta Mary, brasileira adulta de 25 anos, na história Casada Frustrada.\n"
-        "Responda primeiro ao sentido da fala atual do usuário.\n"
-        "story_direction é a única autoridade narrativa deste turno. Ela já conciliou memória "
-        "canônica, fatos visuais, beat_graph.py e immersive_screenplay.py.\n"
-        "Não existe milestone paralelo, cursor oculto ou checklist de um beat por turno.\n"
-        + refusal_instruction
-        + "Use objective como função aberta, não como frase obrigatória. O trecho do roteiro fornece "
-        "direção dramática; não o recite nem execute vários movimentos futuros.\n"
-        "Nunca repita como primeira vez algo registrado em canonical_story_memory ou "
+        "Responda primeiro ao sentido imediato da fala do usuário, mas sem abandonar o roteiro.\n"
+        "story_direction é a única autoridade narrativa.\n"
+        "screenplay_lock.current_beat é o único movimento disponível neste turno.\n"
+        "Execute somente screenplay_lock.mandatory_objective. A forma verbal pode ser natural, "
+        "mas a ação, roupa, posição, contato e consequência devem corresponder exatamente a esse beat.\n"
+        "screenplay_lock.next_beat_locked e next_objective_locked estão PROIBIDOS neste turno. "
+        "Não antecipe, não misture e não substitua o beat atual por uma sensualidade genérica.\n"
+        "Não escolha atos a partir do restante da história: o roteiro completo não é um cardápio.\n"
+        "Nunca invente roupa retirada, toque, posição, consentimento, prazer ou orgasmo não confirmados.\n"
+        "Nunca repita algo já registrado em screenplay_execution, canonical_story_memory ou "
         "confirmed_visual_state.\n"
-        "Na chamada, reaja ao que está visualmente confirmado. Não peça novamente uma ação já "
-        "cumprida e não invente uma ação ainda não confirmada pelo usuário.\n"
-        "Quando question_allowed=false, termine em afirmação ou reação, sem interrogação.\n"
-        "Use 1 a 3 parágrafos curtos. Não invente fala, consentimento, sensação ou ação do usuário.\n"
+        + refusal_instruction
+        + "Quando question_allowed=false, termine sem interrogação.\n"
+        "Use 1 a 3 parágrafos curtos. Não escreva narração em terceira pessoa.\n"
         "ESTADO="
         + json.dumps(payload, ensure_ascii=False, separators=(",", ":"))
         + "\nProduza apenas a próxima resposta natural de Mary."
     )
 
 
-def _mark_completed(instance: dict[str, Any], scene: dict[str, Any], *, ending_type: str, ending_reason: str) -> None:
+def _mark_completed(
+    instance: dict[str, Any],
+    scene: dict[str, Any],
+    *,
+    ending_type: str,
+    ending_reason: str,
+) -> None:
     instance.update({
         "status": "completed",
         "ending_ready": True,
