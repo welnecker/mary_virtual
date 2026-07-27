@@ -74,17 +74,21 @@ def build_route_compass(route: str, current_beat: str) -> dict[str, Any]:
             "Fala audível de Mary em texto normal, sem rótulo. Somente este conteúdo "
             "pode ser ouvido pelo usuário."
         ),
-        "bridge": (
-            "Quando houver mudança de tempo, lugar, posição ou ação cênica não falada, "
-            "escrever em parágrafo isolado iniciado exatamente por 'Ponte de cena:'."
-        ),
         "thought": (
-            "Quando o roteiro realmente trouxer pensamento privado, escrever em parágrafo "
-            "isolado iniciado exatamente por 'Pensamento de Mary:'."
+            "Pensamento privado é opcional e só deve aparecer quando acrescentar desejo, "
+            "receio, contradição ou decisão que Mary não diria em voz alta. Escrever em "
+            "parágrafo isolado iniciado exatamente por 'Pensamento de Mary:'. O texto deve "
+            "estar sempre em primeira pessoa."
+        ),
+        "forbidden_narration": (
+            "Nunca escrever narração em terceira pessoa, ponte de cena, rubrica ou descrição "
+            "externa de ações. Não usar 'Mary faz', 'Mary olha', 'Ela faz', 'Ela olha', "
+            "'Ponte de cena:' ou equivalentes. Gestos e hesitações devem aparecer pela fala "
+            "ou por pensamento privado em primeira pessoa."
         ),
         "separation": (
-            "Nunca misturar fala, ponte de cena e pensamento no mesmo parágrafo. "
-            "Não transformar gesto ou narração em fala audível."
+            "Nunca misturar fala e pensamento no mesmo parágrafo. A resposta contém apenas "
+            "fala direta e, quando realmente necessário, um pensamento privado."
         ),
     }
     return context
