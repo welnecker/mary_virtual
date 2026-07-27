@@ -35,6 +35,11 @@ from scenarios.stories.casada_frustrada.story_state import (
     criar_estado_narrativo_padrao,
     normalizar_estado_narrativo,
 )
+from scenarios.stories.casada_frustrada.story_structure import (
+    INTERPRETATION_RULES,
+    STORY_STRUCTURE_VERSION,
+    build_story_compass,
+)
 
 
 __all__ = [
@@ -50,6 +55,8 @@ __all__ = [
     "STORY_STATE_VERSION",
     "DEFAULT_STORY_STATE",
     "STORY_OBSERVER_VERSION",
+    "STORY_STRUCTURE_VERSION",
+    "INTERPRETATION_RULES",
     "CONTACT_FUNCTION",
     "ASK_PHONE_MOVEMENT",
     "OFFER_PHONE_MOVEMENT",
@@ -63,4 +70,5 @@ __all__ = [
     "concluir_funcoes",
     "bloquear_movimentos",
     "observar_estado_narrativo",
+    "build_story_compass",
 ]
