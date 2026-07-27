@@ -11,7 +11,9 @@ from scenarios.casada_frustrada import (
 )
 from ui.card_runtime_integration import install_card_runtime_integration
 from ui.casada_frustrada_failure_guard import install_casada_frustrada_failure_guard
-from ui.casada_frustrada_runtime import install_casada_frustrada_runtime
+from ui.casada_frustrada_script_runtime import (
+    install_casada_frustrada_script_runtime,
+)
 from ui.interaction_persistence import install_interaction_persistence
 from ui.mary_relationship_compaction import install_mary_relationship_compaction
 from ui.persistence_hot_path_optimizer import install_persistence_hot_path_optimizer
@@ -29,7 +31,7 @@ from ui.user_account_persistence import install_user_account_persistence
 
 
 SCENARIO_CATALOG_EXTENSION_VERSION = (
-    "scenario-catalog-extension-v34-runtime-last"
+    "scenario-catalog-extension-v35-deterministic-script-consumption"
 )
 
 _INSTALLED = False
@@ -56,7 +58,7 @@ def install_scenario_catalog_extension() -> None:
     install_scenario_event_compaction()
     install_scenario_history_recovery()
 
-    # O runtime genérico é instalado primeiro para os demais cards.
+    # Runtime genérico para os demais cards.
     install_card_runtime_integration()
 
     install_scene_transition_presentation()
@@ -71,9 +73,9 @@ def install_scenario_catalog_extension() -> None:
     install_interaction_persistence()
     install_scenario_event_persistence()
 
-    # Autoridade final: envolve processar_interacao depois de todas as integrações
-    # genéricas e controla beat, prompt e persistência da Casada Frustrada.
-    install_casada_frustrada_runtime()
+    # Autoridade final da Casada Frustrada. O beat emitido pela abertura ou pela
+    # última resposta de Mary é consumido pela resposta seguinte do usuário.
+    install_casada_frustrada_script_runtime()
 
     _INSTALLED = True
 
