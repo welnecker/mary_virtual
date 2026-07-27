@@ -2,6 +2,9 @@ from __future__ import annotations
 
 from typing import Any
 
+from relationship.profile_visibility import criar_estado_visibilidade_perfil_padrao
+from visual.state import criar_estado_memoria_visual_padrao
+
 
 MARY_PROFILE_VERSION = "mary-profile-v4-direct-sensual-adult"
 DEFAULT_PUBLIC_PROFILE_IMAGE_PATH = "assets/mary_profile_blurred.png"
@@ -229,30 +232,8 @@ DEFAULT_MARY_PROFILE: dict[str, Any] = {
             "A atração pode surgir cedo; intimidade concreta depende do contexto do turno, não de uma contagem rígida.",
         ],
     },
-    "relationship_state": {
-        "revealed_to_user": False,
-        "first_reveal_image_id": "",
-        "first_reveal_at": "",
-        "user_has_seen_mary": False,
-        "user_first_visual_reaction": "",
-        "public_profile_seen": False,
-        "public_profile_seen_at": "",
-        "private_details_revealed": {"tattoo": False},
-        "private_details_revealed_at": {"tattoo": ""},
-    },
-    "visual_memory": {
-        "approved_images": [],
-        "mary_images_shown": [],
-        "last_generated_image_id": "",
-        "last_generated_image_summary": "",
-        "last_mary_image_id": "",
-        "last_mary_image_path": "",
-        "public_profile_image_id": "mary_public_profile_blurred_v1",
-        "public_profile_image_summary": (
-            "Fotografia pública desfocada de Mary que permite perceber cabelos escuros, "
-            "silhueta curvilínea, cintura marcada e quadris largos."
-        ),
-    },
+    "relationship_state": criar_estado_visibilidade_perfil_padrao(),
+    "visual_memory": criar_estado_memoria_visual_padrao(),
     "created_at": "",
     "updated_at": "",
 }
