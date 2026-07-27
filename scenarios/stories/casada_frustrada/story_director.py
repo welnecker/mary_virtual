@@ -12,7 +12,7 @@ from .story_observer import observar_estado_narrativo
 from .story_sync import reconciliar_posicao_narrativa
 
 
-STORY_DIRECTOR_VERSION = "casada-frustrada-story-director-v1-factual"
+STORY_DIRECTOR_VERSION = "casada-frustrada-story-director-v2-call-boundaries"
 
 
 def _text(value: Any) -> str:
@@ -77,8 +77,8 @@ def _call_visual_state(messages: list[dict[str, Any]], previous: Any) -> dict[st
         "user_underwear_removed": _contains(user, "tirei a cueca", "sem cueca", "estou nu", "to nu"),
         "mary_panties_removed": _contains(assistant, "vou tirar a calcinha", "tirei a calcinha", "sem calcinha"),
         "mutual_masturbation_started": _contains(history, "masturbacao mutua", "se toca ai", "vou me masturbar", "estou me tocando", "to me tocando"),
-        "user_climax_confirmed": _contains(user, "gozei", "estou gozando", "to gozando"),
-        "first_call_ended": _contains(assistant, "preciso desligar", "te ligo quando", "meu marido", "vou desligar"),
+        "user_climax_confirmed": _contains(user, "gozei", "estou gozando", "to gozando", "vou gozar agora"),
+        "first_call_ended": _contains(assistant, "preciso desligar", "te ligo quando meu marido", "vou desligar", "daqui a pouco eu te chamo"),
     }
     for key, detected in checks.items():
         state[key] = bool(state.get(key)) or detected
@@ -89,8 +89,6 @@ def _resolve_hidden_call_beat(messages: list[dict[str, Any]], visual: dict[str, 
     assistant = _history(messages, "assistant")
     latest_assistant = _latest(messages, "assistant")
 
-    if visual.get("first_call_ended"):
-        return "midnight_return"
     if visual.get("user_climax_confirmed"):
         return "react_user_climax"
     if visual.get("mutual_masturbation_started"):
@@ -106,8 +104,6 @@ def _resolve_hidden_call_beat(messages: list[dict[str, Any]], visual: dict[str, 
     if visual.get("mary_bra_removed"):
         return "ask_remove_underwear"
     if visual.get("mary_dress_removed"):
-        if _contains(latest_assistant, "quer que eu tire o sutia", "tem que pedir direito"):
-            return "invite_bra_request"
         return "invite_bra_request"
     if visual.get("user_pants_removed"):
         if _contains(assistant, "olha esse volume", "volume na cueca"):
@@ -122,6 +118,27 @@ def _resolve_hidden_call_beat(messages: list[dict[str, Any]], visual: dict[str, 
             return "ask_remove_shirt"
         return "admire_video"
     return fallback if fallback in BEAT_ORDER and (obter_beat(fallback) or {}).get("route") == "hidden_call" else "camera_setup"
+
+
+def _resolve_meeting_plan_beat(messages: list[dict[str, Any]], fallback: str) -> str:
+    assistant = _history(messages, "assistant")
+    latest_user = _latest(messages, "user")
+    latest_assistant = _latest(messages, "assistant")
+
+    user_awake = _contains(latest_user, "acordei", "to acordado", "estou acordado", "to ouvindo", "estou ouvindo", "oi mary")
+    user_accepts = _contains(latest_user, "sim", "claro", "pode ser", "vamos", "topo", "aceito", "combinado", "fechado")
+
+    if _contains(assistant, "boa noite", "sonha comigo"):
+        return "good_night"
+    if _contains(assistant, "nao vai me dar bolo", "nao me da bolo", "voce ta me devendo"):
+        return "good_night"
+    if _contains(assistant, "motel status", "amanha ao meio dia", "amanha meio dia"):
+        return "demand_no_show" if user_accepts else "name_motel"
+    if _contains(assistant, "o que acha de um motel", "quero marcar um lugar", "vamos nos encontrar", "quero te encontrar"):
+        return "name_motel" if user_accepts else "propose_motel"
+    if user_awake or _contains(latest_assistant, "ta acordado", "esta acordado"):
+        return "propose_motel"
+    return fallback if fallback in {"midnight_return", "propose_motel", "name_motel", "demand_no_show", "good_night"} else "midnight_return"
 
 
 def _apply_memory_authority(route: str, beat: str, memory_prompt: dict[str, Any], messages: list[dict[str, Any]]) -> tuple[str, str, str]:
@@ -179,14 +196,17 @@ def dirigir_turno(
     scene = instance.get("scene_state")
     scene = deepcopy(scene) if isinstance(scene, dict) else {}
     visual_state = _call_visual_state(messages, scene.get("confirmed_visual_state"))
-    if route == "hidden_call" or visual_state.get("video_call_established"):
+
+    if visual_state.get("first_call_ended"):
+        route = "secret_meeting_plan"
+        beat = _resolve_meeting_plan_beat(messages, beat)
+        memory_reason = memory_reason or "first_call_ended_opens_meeting_plan"
+    elif route == "hidden_call" or visual_state.get("video_call_established"):
         route = "hidden_call"
         beat = _resolve_hidden_call_beat(messages, visual_state, beat)
 
     beat_data = obter_beat(beat) or {}
     resolved_route = _text(beat_data.get("route")) or route
-    if resolved_route == "secret_meeting_plan" and beat == "midnight_return" and route == "hidden_call":
-        resolved_route = "hidden_call"
 
     story_state = observar_estado_narrativo(
         story_state_value,
