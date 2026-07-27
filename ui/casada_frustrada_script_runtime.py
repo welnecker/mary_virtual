@@ -20,7 +20,7 @@ from scenarios.stories.casada_frustrada.beat_graph import (
 
 
 CASADA_FRUSTRADA_SCRIPT_RUNTIME_VERSION = (
-    "casada-frustrada-script-runtime-v4-deterministic-consumption"
+    "casada-frustrada-script-runtime-v5-soft-screenplay"
 )
 SCENARIO_ID = "casada_frustrada"
 _INSTALLED = False
@@ -83,6 +83,22 @@ PHYSICAL_CANON = {
     "body": "corpo curvilíneo, cintura fina, quadris largos, bunda grande e coxas firmes",
 }
 
+# Passos que devem ser objetivos e não ganhar conversa lateral.
+QUICK_BEATS = {
+    "injury_check",
+    "recognize_plaza",
+    "first_farewell",
+    "checkout_turn",
+    "open_trunk",
+    "car_farewell",
+    "camera_setup",
+    "end_first_call",
+    "midnight_return",
+    "motel_preparation",
+    "motel_reunion",
+    "final_departure",
+}
+
 
 def _text(value: Any) -> str:
     return str(value or "").strip()
@@ -109,7 +125,7 @@ def _instance() -> dict[str, Any] | None:
     return _session_instance()
 
 
-def _messages(limit: int = 6) -> list[dict[str, str]]:
+def _messages(limit: int = 8) -> list[dict[str, str]]:
     value = st.session_state.get("messages")
     if not isinstance(value, list):
         return []
@@ -124,8 +140,11 @@ def _messages(limit: int = 6) -> list[dict[str, str]]:
     return result
 
 
-def _last_assistant_exists() -> bool:
-    return any(item["role"] == "assistant" for item in _messages(12))
+def _last_assistant() -> str:
+    for item in reversed(_messages(14)):
+        if item["role"] == "assistant":
+            return item["content"]
+    return ""
 
 
 def _assistant_count() -> int:
@@ -137,13 +156,6 @@ def _assistant_count() -> int:
         for item in value
         if isinstance(item, dict) and item.get("role") == "assistant"
     )
-
-
-def _last_assistant() -> str:
-    for item in reversed(_messages(12)):
-        if item["role"] == "assistant":
-            return item["content"]
-    return ""
 
 
 def _sexual_state() -> dict[str, Any]:
@@ -184,8 +196,14 @@ def _runtime(instance: dict[str, Any]) -> tuple[dict[str, Any], dict[str, Any], 
     beat_id = _resolve_current_beat(scene, instance)
     runtime = scene.get("script_runtime")
     runtime = deepcopy(runtime) if isinstance(runtime, dict) else {}
+    previous = _valid_beat(runtime.get("current_beat"))
+    if previous != beat_id:
+        runtime["turns_in_beat"] = 0
+        runtime["soft_hold"] = False
     runtime.setdefault("completed", [])
     runtime.setdefault("last_emitted_beat", "")
+    runtime.setdefault("turns_in_beat", 0)
+    runtime.setdefault("soft_hold", False)
     runtime.setdefault("gate_attempts", 0)
     runtime["current_beat"] = beat_id
     runtime["version"] = CASADA_FRUSTRADA_SCRIPT_RUNTIME_VERSION
@@ -272,6 +290,8 @@ def _advance(
     next_beat = proximo_beat_padrao(beat_id)
     runtime["completed"] = completed[-120:]
     runtime["last_emitted_beat"] = ""
+    runtime["turns_in_beat"] = 0
+    runtime["soft_hold"] = False
     runtime["gate_attempts"] = 0
     scene["completed_story_facts"] = facts[-120:]
 
@@ -286,27 +306,42 @@ def _advance(
     return beat_id
 
 
+def _user_deserves_breath(user_text: str, beat_id: str, turns_in_beat: int) -> bool:
+    if beat_id in QUICK_BEATS or turns_in_beat >= 2:
+        return False
+    text = _text(user_text)
+    normalized = _normalize(text)
+    if not normalized:
+        return False
+    asks_something = "?" in text or any(
+        normalized.startswith(prefix)
+        for prefix in ("como ", "por que ", "porque ", "e voce", "e vc", "ah e", "serio")
+    )
+    offers_material = len(normalized.split()) >= 7 and not _affirmative(text)
+    playful = any(marker in normalized for marker in ("rsrs", "kkk", "brincando", "safado", "bobo"))
+    return asks_something or offers_material or playful
+
+
 def _consume_user_reply(instance: dict[str, Any], user_text: str) -> None:
     scene, runtime, beat_id = _runtime(instance)
     beat = obter_beat(beat_id) or {}
     gate = _text(beat.get("gate"))
-
-    # A abertura da história já executa o primeiro beat. Para sessões antigas,
-    # qualquer fala anterior de Mary também conta como emissão do beat atual.
-    emitted = _text(runtime.get("last_emitted_beat")) == beat_id
-    if not emitted and _last_assistant_exists():
-        emitted = True
-
+    emitted = _text(runtime.get("last_emitted_beat")) == beat_id or bool(_last_assistant())
     if not emitted:
         instance["scene_state"] = scene
         return
 
-    if not gate:
-        _advance(instance, scene, runtime, beat_id)
-    elif _gate_satisfied(gate, user_text, _sexual_state()):
-        _advance(instance, scene, runtime, beat_id)
+    turns = int(runtime.get("turns_in_beat", 0) or 0)
+    if gate:
+        if _gate_satisfied(gate, user_text, _sexual_state()):
+            _advance(instance, scene, runtime, beat_id)
+        else:
+            runtime["gate_attempts"] = int(runtime.get("gate_attempts", 0) or 0) + 1
+            runtime["soft_hold"] = True
+    elif _user_deserves_breath(user_text, beat_id, turns):
+        runtime["soft_hold"] = True
     else:
-        runtime["gate_attempts"] = int(runtime.get("gate_attempts", 0) or 0) + 1
+        _advance(instance, scene, runtime, beat_id)
 
     scene["script_runtime"] = runtime
     instance["scene_state"] = scene
@@ -332,6 +367,23 @@ def _character_payload() -> dict[str, Any]:
     }
 
 
+def _horizon(beat_id: str, limit: int = 2) -> list[dict[str, str]]:
+    result: list[dict[str, str]] = []
+    cursor = beat_id
+    for _ in range(limit):
+        cursor = proximo_beat_padrao(cursor)
+        if not cursor:
+            break
+        beat = obter_beat(cursor) or {}
+        if not beat:
+            break
+        result.append({
+            "beat": cursor,
+            "milestone": _text(beat.get("objective")),
+        })
+    return result
+
+
 def _compact_prompt() -> str:
     instance = _instance()
     if not isinstance(instance, dict):
@@ -341,8 +393,9 @@ def _compact_prompt() -> str:
     if not beat:
         return ""
 
-    transition = _text(beat.get("transition"))
-    thought = _text(beat.get("thought"))
+    first_turn = int(runtime.get("turns_in_beat", 0) or 0) == 0
+    transition = _text(beat.get("transition")) if first_turn else ""
+    thought = _text(beat.get("thought")) if first_turn else ""
     sexual = _sexual_state()
     payload = {
         "character": _character_payload(),
@@ -354,15 +407,17 @@ def _compact_prompt() -> str:
             )
             if scene.get(key) not in (None, "", False)
         },
-        "script": {
+        "screenplay": {
             "route": beat.get("route"),
-            "beat": beat_id,
-            "objective": beat.get("objective"),
-            "examples": list(beat.get("examples") or [])[:2],
+            "current_milestone": _text(beat.get("objective")),
+            "reference_lines_not_templates": list(beat.get("examples") or [])[:2],
             "avoid": list(beat.get("avoid") or [])[:5],
             "gate": beat.get("gate") or "",
+            "turns_in_milestone": int(runtime.get("turns_in_beat", 0) or 0),
+            "soft_hold": bool(runtime.get("soft_hold")),
             "transition": transition,
-            "thought": thought,
+            "thought_seed": thought,
+            "horizon_only": _horizon(beat_id, 2),
         },
         "sexual": {
             "phase": sexual.get("scene_phase"),
@@ -371,32 +426,26 @@ def _compact_prompt() -> str:
             "mary_orgasm_done": bool(sexual.get("mary_orgasm_done")),
             "user_orgasm_done": bool(sexual.get("user_orgasm_done")),
         },
-        "recent": _messages(6),
+        "recent": _messages(8),
     }
 
-    format_rules: list[str] = []
-    if transition:
-        format_rules.append(
-            "Comece com a transição em uma única citação Markdown: > *texto*."
-        )
-    if thought:
-        format_rules.append(
-            "Depois escreva o pensamento em linha isolada: Pensamento de Mary: ..."
-        )
-    format_rules.append("Finalize com somente a fala direta deste passo.")
-
     return (
-        "Você é Mary, brasileira adulta de 25 anos, na história Casada Frustrada.\n"
-        "O passo do roteiro decide exatamente o assunto e a ação deste turno. "
-        "Você decide somente a formulação natural.\n"
-        "Execute apenas o passo atual. Não repita o passo anterior, não antecipe o seguinte, "
-        "não abra entrevista e não crie assunto paralelo.\n"
-        "Use no máximo uma pergunta. Não invente ação ou consentimento do usuário.\n"
-        "Fala direta é audível; pensamento e transição não são.\n"
-        + " ".join(format_rules)
-        + "\nESTADO="
+        "Você interpreta Mary, brasileira adulta de 25 anos, na história Casada Frustrada.\n"
+        "O roteiro é uma bússola de cena, não um texto para recitar.\n"
+        "Primeiro compreenda e responda naturalmente ao que o usuário acabou de dizer. "
+        "Só depois, quando couber, aproxime a conversa do marco atual.\n"
+        "Você pode respirar, brincar, hesitar, responder uma pergunta e permanecer no mesmo momento. "
+        "Não force o próximo acontecimento e não salte etapas.\n"
+        "As linhas de referência indicam intenção e tom; NÃO as copie nem as parafraseie mecanicamente. "
+        "Crie uma fala nova, coerente com o histórico e com a psicologia de Mary.\n"
+        "O horizonte serve apenas para não perder o rumo; não o execute ainda.\n"
+        "Use de 1 a 3 parágrafos curtos e no máximo uma pergunta real. "
+        "Não invente ação, consentimento, sensação ou fala do usuário.\n"
+        "Fala direta é audível. Transição e pensamento não são falas. "
+        "Use pensamento somente quando houver semente e somente na entrada do momento.\n"
+        "ESTADO="
         + json.dumps(payload, ensure_ascii=False, separators=(",", ":"))
-        + "\nProduza somente a resposta de Mary."
+        + "\nProduza apenas a próxima resposta natural de Mary."
     )
 
 
@@ -405,6 +454,8 @@ def _after_response(instance: dict[str, Any], assistant_before: int) -> None:
         return
     scene, runtime, beat_id = _runtime(instance)
     runtime["last_emitted_beat"] = beat_id
+    runtime["turns_in_beat"] = int(runtime.get("turns_in_beat", 0) or 0) + 1
+    runtime["soft_hold"] = False
     runtime["gate_attempts"] = 0
     scene["script_runtime"] = runtime
     scene["last_mary_response"] = _last_assistant()
@@ -445,7 +496,7 @@ def _patch_main() -> None:
     prompt_builder = getattr(module, "montar_prompt_sistema", None)
     if callable(prompt_builder) and not getattr(
         prompt_builder,
-        "_casada_deterministic_script_runtime",
+        "_casada_soft_screenplay_runtime",
         False,
     ):
         @wraps(prompt_builder)
@@ -454,13 +505,13 @@ def _patch_main() -> None:
                 return _compact_prompt()
             return str(prompt_builder(*args, **kwargs) or "")
 
-        prompt_wrapper._casada_deterministic_script_runtime = True
+        prompt_wrapper._casada_soft_screenplay_runtime = True
         setattr(module, "montar_prompt_sistema", prompt_wrapper)
 
     processor = getattr(module, "processar_interacao", None)
     if callable(processor) and not getattr(
         processor,
-        "_casada_deterministic_script_runtime",
+        "_casada_soft_screenplay_runtime",
         False,
     ):
         @wraps(processor)
@@ -491,7 +542,7 @@ def _patch_main() -> None:
             _ACTIVE_INSTANCE = None
             return result
 
-        process_wrapper._casada_deterministic_script_runtime = True
+        process_wrapper._casada_soft_screenplay_runtime = True
         setattr(module, "processar_interacao", process_wrapper)
 
 
