@@ -10,22 +10,8 @@ from scenarios.casada_frustrada import (
     obter_rotas,
 )
 from ui.card_runtime_integration import install_card_runtime_integration
-from ui.casada_frustrada_beat_runtime import (
-    install_casada_frustrada_beat_runtime,
-)
-from ui.casada_frustrada_call_continuity import (
-    install_casada_frustrada_call_continuity,
-)
-from ui.casada_frustrada_call_prompt_guard import (
-    install_casada_frustrada_call_prompt_guard,
-)
-from ui.casada_frustrada_compact_system_prompt import (
-    install_casada_frustrada_compact_system_prompt,
-)
-from ui.casada_frustrada_failure_guard import (
-    install_casada_frustrada_failure_guard,
-)
-from ui.casada_frustrada_route_reconciliation import install_route_reconciliation
+from ui.casada_frustrada_failure_guard import install_casada_frustrada_failure_guard
+from ui.casada_frustrada_runtime import install_casada_frustrada_runtime
 from ui.interaction_persistence import install_interaction_persistence
 from ui.mary_relationship_compaction import install_mary_relationship_compaction
 from ui.persistence_hot_path_optimizer import install_persistence_hot_path_optimizer
@@ -38,14 +24,12 @@ from ui.scenario_history_recovery import install_scenario_history_recovery
 from ui.scene_transition_presentation import install_scene_transition_presentation
 from ui.session_persistence import install_session_persistence
 from ui.sheets_read_quota_guard import install_sheets_read_quota_guard
-from ui.sidebar_rollback_and_thought_style import (
-    install_sidebar_rollback_and_thought_style,
-)
+from ui.sidebar_rollback_and_thought_style import install_sidebar_rollback_and_thought_style
 from ui.user_account_persistence import install_user_account_persistence
 
 
 SCENARIO_CATALOG_EXTENSION_VERSION = (
-    "scenario-catalog-extension-v31-exclusive-script-progression"
+    "scenario-catalog-extension-v32-single-casada-runtime"
 )
 
 _INSTALLED = False
@@ -72,18 +56,13 @@ def install_scenario_catalog_extension() -> None:
     install_scenario_event_compaction()
     install_scenario_history_recovery()
 
-    install_route_reconciliation()
+    # Instala primeiro. Quando a tela for montada, este runtime será aplicado por último
+    # e terá autoridade final sobre beat, prompt e análise da Casada Frustrada.
+    install_casada_frustrada_runtime()
+
+    # Continua atendendo os demais cards e as pontes genéricas. Para a Casada
+    # Frustrada, o runtime único substitui as decisões narrativas conflitantes.
     install_card_runtime_integration()
-
-    install_casada_frustrada_call_continuity()
-    install_casada_frustrada_call_prompt_guard()
-
-    # O beat é concluído somente depois da fala de Mary e o seguinte é persistido.
-    install_casada_frustrada_beat_runtime()
-
-    # Para este card, substitui o prompt global e também impede que cenário, diretor e
-    # roteiro completo sejam anexados novamente depois do bloco compacto.
-    install_casada_frustrada_compact_system_prompt()
 
     install_scene_transition_presentation()
     install_scenario_finish_button_sidebar()
