@@ -6,7 +6,7 @@ import unicodedata
 from typing import Any
 
 
-CANONICAL_MEMORY_VERSION = "casada-frustrada-canonical-memory-v1"
+CANONICAL_MEMORY_VERSION = "casada-frustrada-canonical-memory-v2-factual-meetings"
 
 ROUTE_ORDER = {
     "supermarket_encounter": 0,
@@ -26,54 +26,35 @@ ROUTE_ORDER = {
 MEMORY_CATALOG: dict[str, dict[str, str]] = {
     "met_at_supermarket": {
         "category": "shared_origin",
-        "text": (
-            "Mary conheceu o usuário em um supermercado de bairro depois de quase "
-            "atingi-lo com o carrinho de compras."
-        ),
+        "text": "Mary conheceu o usuário em um supermercado de bairro depois de quase atingi-lo com o carrinho de compras.",
     },
     "neighbors_at_plaza": {
         "category": "shared_origin",
-        "text": (
-            "Mary e o usuário descobriram no primeiro encontro que são vizinhos no Plaza."
-        ),
+        "text": "Mary e o usuário descobriram no primeiro encontro que são vizinhos no Plaza.",
     },
     "helped_with_groceries": {
         "category": "shared_origin",
-        "text": (
-            "O usuário ajudou Mary a levar e guardar as compras no carro."
-        ),
+        "text": "O usuário ajudou Mary a levar e guardar as compras no carro.",
     },
     "exchanged_phone_numbers": {
         "category": "intimacy_milestone",
-        "text": (
-            "Depois da ajuda com as compras, Mary conseguiu o número do usuário e o contato "
-            "entre os dois ficou estabelecido."
-        ),
+        "text": "Depois da ajuda com as compras, Mary conseguiu o número do usuário e o contato entre os dois ficou estabelecido.",
     },
     "first_private_messages": {
         "category": "intimacy_milestone",
-        "text": (
-            "Mary iniciou uma conversa privada por mensagens depois de chegar em casa."
-        ),
+        "text": "Mary iniciou uma conversa privada por mensagens depois de chegar em casa.",
     },
     "first_hidden_video_call": {
         "category": "intimacy_milestone",
-        "text": (
-            "Mary se isolou no banheiro para fazer escondida a primeira chamada de vídeo "
-            "íntima com o usuário."
-        ),
+        "text": "Mary se isolou no banheiro para fazer escondida a primeira chamada de vídeo íntima com o usuário.",
     },
     "secret_meeting_planned": {
         "category": "shared_secret",
-        "text": (
-            "Mary e o usuário combinaram um encontro secreto longe do condomínio."
-        ),
+        "text": "Mary e o usuário combinaram um encontro secreto longe do condomínio.",
     },
     "first_secret_meeting": {
         "category": "shared_secret",
-        "text": (
-            "Mary e o usuário já tiveram o primeiro encontro secreto em um lugar combinado."
-        ),
+        "text": "Mary e o usuário já tiveram o primeiro encontro secreto em um lugar combinado.",
     },
 }
 
@@ -105,11 +86,7 @@ def _contains_any(text: str, markers: tuple[str, ...]) -> bool:
 
 
 def criar_memoria_canonica_padrao() -> dict[str, Any]:
-    return {
-        "version": CANONICAL_MEMORY_VERSION,
-        "unlocked": [],
-        "facts": {},
-    }
+    return {"version": CANONICAL_MEMORY_VERSION, "unlocked": [], "facts": {}}
 
 
 def normalizar_memoria_canonica(value: Any) -> dict[str, Any]:
@@ -133,14 +110,7 @@ def normalizar_memoria_canonica(value: Any) -> dict[str, Any]:
     return memory
 
 
-def _unlock(
-    memory: dict[str, Any],
-    memory_id: str,
-    *,
-    route: str,
-    beat: str,
-    evidence: str,
-) -> None:
+def _unlock(memory: dict[str, Any], memory_id: str, *, route: str, beat: str, evidence: str) -> None:
     if memory_id not in MEMORY_CATALOG:
         return
     if memory_id not in memory["unlocked"]:
@@ -154,6 +124,16 @@ def _unlock(
         "established_beat": beat,
         "evidence": evidence,
     }
+
+
+def _forget_route_only(memory: dict[str, Any], memory_id: str) -> None:
+    fact = memory.get("facts", {}).get(memory_id)
+    if not isinstance(fact, dict):
+        return
+    if fact.get("evidence") not in {"history_or_route", "route"}:
+        return
+    memory["unlocked"] = [item for item in memory.get("unlocked", []) if item != memory_id]
+    memory.get("facts", {}).pop(memory_id, None)
 
 
 def atualizar_memoria_canonica(
@@ -176,8 +156,7 @@ def atualizar_memoria_canonica(
     if met:
         _unlock(memory, "met_at_supermarket", route=route, beat=beat, evidence="history_or_route")
 
-    neighbors = _contains_any(history, ("moro no bloco", "bloco a", "bloco b", "plaza", "somos vizinhos", "praticamente vizinho"))
-    if neighbors:
+    if _contains_any(history, ("moro no bloco", "bloco a", "bloco b", "plaza", "somos vizinhos", "praticamente vizinho")):
         _unlock(memory, "neighbors_at_plaza", route=route, beat=beat, evidence="conversation")
 
     groceries_helped = (
@@ -208,19 +187,27 @@ def atualizar_memoria_canonica(
     if hidden_call:
         _unlock(memory, "first_hidden_video_call", route=route, beat=beat, evidence="history_or_route")
 
-    meeting_planned = _contains_any(
+    meeting_proposed = _contains_any(
         history,
-        ("vamos nos encontrar", "encontro secreto", "motel", "meio dia", "lugar combinado"),
-    ) or route_rank >= ROUTE_ORDER["secret_meeting_plan"]
-    if meeting_planned:
-        _unlock(memory, "secret_meeting_planned", route=route, beat=beat, evidence="history_or_route")
+        ("o que acha de um motel", "quero marcar um lugar", "vamos nos encontrar", "quero te encontrar", "motel status"),
+    )
+    meeting_accepted = _contains_any(
+        history,
+        ("combinado", "fechado", "eu topo", "pode ser", "amanha ao meio dia", "amanha meio dia", "te encontro la"),
+    )
+    if meeting_proposed and meeting_accepted:
+        _unlock(memory, "secret_meeting_planned", route=route, beat=beat, evidence="conversation")
+    else:
+        _forget_route_only(memory, "secret_meeting_planned")
 
     meeting_happened = _contains_any(
         history,
-        ("cheguei no motel", "estou no motel", "nosso encontro", "aqui no quarto"),
-    ) or route_rank >= ROUTE_ORDER["secret_meeting"]
+        ("cheguei no motel", "estou no motel", "to no motel", "aqui no quarto", "peguei a suite", "entrei na suite"),
+    )
     if meeting_happened:
-        _unlock(memory, "first_secret_meeting", route=route, beat=beat, evidence="history_or_route")
+        _unlock(memory, "first_secret_meeting", route=route, beat=beat, evidence="conversation")
+    else:
+        _forget_route_only(memory, "first_secret_meeting")
 
     return memory
 
