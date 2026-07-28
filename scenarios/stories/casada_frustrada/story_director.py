@@ -5,7 +5,7 @@ import re
 import unicodedata
 from typing import Any
 
-from .beat_graph import BEAT_ORDER, obter_beat
+from .beat_graph import BEAT_ORDER, obter_beat, proximo_beat_padrao
 from .canonical_memory import atualizar_memoria_canonica, memoria_canonica_para_prompt
 from .prompt_context import montar_contexto_interpretativo
 from .screenplay_executor import (
@@ -17,7 +17,28 @@ from .story_observer import observar_estado_narrativo
 from .story_sync import reconciliar_posicao_narrativa
 
 
-STORY_DIRECTOR_VERSION = "casada-frustrada-story-director-v5-next-day-transition"
+STORY_DIRECTOR_VERSION = "casada-frustrada-story-director-v5-event-driven-screenplay"
+
+# Estes beats terminam pela própria emissão de Mary. Eles não dependem de uma
+# ação posterior do usuário para que o grafo siga adiante.
+AUTOCOMPLETE_ON_EMIT = {
+    "first_farewell",
+    "car_farewell",
+    "end_first_call",
+    "good_night",
+    "motel_preparation",
+    "heels_and_panties",
+    "oral_admiration",
+    "request_her_pleasure",
+    "first_orgasm_build",
+    "post_oral_tease",
+    "praise_lover",
+    "penetration_rhythm",
+    "second_orgasm_build",
+    "post_penetration",
+    "clean_with_mouth",
+    "final_departure",
+}
 
 
 def _text(value: Any) -> str:
@@ -30,9 +51,9 @@ def _normalize(value: Any) -> str:
     return re.sub(r"[^a-z0-9]+", " ", text).strip()
 
 
-def _history(messages: list[dict[str, Any]], role: str = "", limit: int = 120) -> str:
+def _history(messages: list[dict[str, Any]], role: str = "") -> str:
     parts: list[str] = []
-    for item in messages[-limit:]:
+    for item in messages[-120:]:
         if not isinstance(item, dict):
             continue
         item_role = _text(item.get("role"))
@@ -63,8 +84,43 @@ def _legacy_position(instance: dict[str, Any]) -> tuple[str, str]:
     beat = _text(runtime.get("current_beat") or scene.get("current_beat") or instance.get("current_beat"))
     route = _text(scene.get("current_route") or instance.get("current_route"))
     beat_data = obter_beat(beat) or {}
-    route = _text(beat_data.get("route")) or route
-    return route, beat
+    return _text(beat_data.get("route")) or route, beat
+
+
+def _advance_emitted_beat(scene: dict[str, Any], route: str, beat: str) -> tuple[str, str, str]:
+    """Advance only from an execution event recorded by the application.
+
+    Dialogue wording is deliberately ignored. The prior director records
+    ``directed_beat``; the runtime records ``last_mary_response`` after Mary
+    actually speaks. Their conjunction proves that Mary emitted that beat.
+    """
+    directed = _text(scene.get("directed_beat"))
+    emitted = bool(_text(scene.get("last_mary_response")))
+    already_advanced = _text(scene.get("advanced_from_beat"))
+
+    # Migration for sessions created before directed_beat existed. good_night is
+    # intrinsically self-completing, so a persisted Mary response is sufficient.
+    legacy_good_night = beat == "good_night" and emitted
+    proven_emission = directed == beat and emitted
+
+    beat_data = obter_beat(beat) or {}
+    gate = _text(beat_data.get("gate"))
+    autocompletes = not gate or beat in AUTOCOMPLETE_ON_EMIT
+
+    if not autocompletes or already_advanced == beat or not (proven_emission or legacy_good_night):
+        return route, beat, ""
+
+    next_beat = proximo_beat_padrao(beat)
+    if not next_beat:
+        return route, beat, ""
+
+    next_data = obter_beat(next_beat) or {}
+    scene["advanced_from_beat"] = beat
+    completed = list(scene.get("completed_script_beats") or [])
+    if beat not in completed:
+        completed.append(beat)
+    scene["completed_script_beats"] = completed
+    return _text(next_data.get("route")) or route, next_beat, "beat_graph_advanced_after_mary_emission"
 
 
 def _call_visual_state(messages: list[dict[str, Any]], previous: Any) -> dict[str, bool]:
@@ -116,51 +172,19 @@ def _resolve_hidden_call_beat(messages: list[dict[str, Any]], visual: dict[str, 
     return fallback if fallback in BEAT_ORDER and (obter_beat(fallback) or {}).get("route") == "hidden_call" else "camera_setup"
 
 
-def _next_day_has_started(messages: list[dict[str, Any]]) -> bool:
-    recent = _history(messages, limit=18)
-    latest_user = _latest(messages, "user")
-    return (
-        _contains(
-            recent,
-            "acordou cedo",
-            "vai sair",
-            "vou ao shopping",
-            "vou no shopping",
-            "dar um pulo no shopping",
-            "saindo de casa",
-            "fechei a porta",
-            "ja estou no carro",
-            "estou no carro",
-            "cada sinal vermelho",
-            "indo para o motel",
-            "indo pro motel",
-        )
-        or _contains(latest_user, "ta vindo", "esta vindo", "ta chegando", "esta chegando")
-    )
-
-
 def _resolve_meeting_plan_beat(messages: list[dict[str, Any]], fallback: str) -> str:
-    assistant = _history(messages, "assistant")
+    """Resolve only gated decisions; never use old dialogue to replay a beat."""
     latest_user = _latest(messages, "user")
     latest_assistant = _latest(messages, "assistant")
-
-    # Once morning/travel evidence exists, the farewell beat is conclusively past.
-    if _next_day_has_started(messages):
-        return "motel_preparation"
-
     user_awake = _contains(latest_user, "acordei", "to acordado", "estou acordado", "to ouvindo", "oi mary")
     user_accepts = _contains(latest_user, "sim", "claro", "pode ser", "vamos", "topo", "aceito", "combinado", "fechado")
 
-    if _contains(latest_assistant, "boa noite", "sonha comigo"):
-        return "good_night"
-    if _contains(latest_assistant, "nao vai me dar bolo", "voce ta me devendo"):
-        return "good_night"
-    if _contains(assistant, "motel status", "amanha ao meio dia", "amanha meio dia"):
-        return "demand_no_show" if user_accepts else "name_motel"
-    if _contains(assistant, "o que acha de um motel", "quero marcar um lugar", "quero te encontrar"):
-        return "name_motel" if user_accepts else "propose_motel"
-    if user_awake or _contains(latest_assistant, "ta acordado", "esta acordado"):
+    if fallback == "midnight_return" and (user_awake or _contains(latest_assistant, "ta acordado", "esta acordado")):
         return "propose_motel"
+    if fallback == "propose_motel" and user_accepts:
+        return "name_motel"
+    if fallback == "name_motel" and user_accepts:
+        return "demand_no_show"
     return fallback if fallback in {"midnight_return", "propose_motel", "name_motel", "demand_no_show", "good_night", "motel_preparation"} else "midnight_return"
 
 
@@ -168,24 +192,11 @@ def _motel_present(messages: list[dict[str, Any]]) -> bool:
     history = _history(messages)
     user = _history(messages, "user")
     return _contains(history, "motel status", "peguei uma suite", "estou na suite", "cheguei no motel") and _contains(
-        user,
-        "cheguei",
-        "to entrando",
-        "estou entrando",
-        "to aqui",
-        "estou aqui",
-        "sentindo seu abraco",
-        "chup",
-        "plaf",
+        user, "cheguei", "to entrando", "estou entrando", "to aqui", "estou aqui", "sentindo seu abraco", "chup", "plaf"
     )
 
 
-def _apply_memory_authority(
-    route: str,
-    beat: str,
-    memory_prompt: dict[str, Any],
-    messages: list[dict[str, Any]],
-) -> tuple[str, str, str]:
+def _apply_memory_authority(route: str, beat: str, memory_prompt: dict[str, Any], messages: list[dict[str, Any]]) -> tuple[str, str, str]:
     unlocked = set(memory_prompt.get("unlocked_ids") or [])
     history = _history(messages)
     if "first_private_messages" in unlocked and route in {"supermarket_encounter", "aisle_flirtation", "phone_exchange"}:
@@ -195,9 +206,7 @@ def _apply_memory_authority(
             return "messages", "admit_neediness", "canonical_memory_forced_messages"
         return "messages", "home_first_message", "canonical_memory_forced_messages"
     if "exchanged_phone_numbers" in unlocked and beat in {"request_phone", "exchange_numbers"}:
-        if _contains(history, "cheguei", "tela do celular", "mensagem", "trancada no quarto"):
-            return "messages", "home_first_message", "canonical_memory_blocked_phone_repetition"
-        return "phone_exchange", "car_farewell", "canonical_memory_blocked_phone_repetition"
+        return "messages", "home_first_message", "canonical_memory_blocked_phone_repetition"
     if "first_hidden_video_call" in unlocked and route == "messages" and beat == "offer_video":
         return "secret_meeting_plan", "midnight_return", "canonical_memory_blocked_first_video_repetition"
     return route, beat, ""
@@ -211,38 +220,32 @@ def _focused_compass(compass: dict[str, Any]) -> dict[str, Any]:
         "never": list(compass.get("never") or [])[:6],
         "story_reality": compass.get("story_reality", {}),
         "source_authority": (
-            "O roteiro integral permanece no domínio da história. O modelo recebe somente o beat "
-            "atual desbloqueado; linhas futuras não são opções disponíveis."
+            "O roteiro integral permanece no domínio. O modelo recebe somente o beat atual; "
+            "a progressão vem de eventos do sistema e do next de beat_graph.py, nunca de frases casuais."
         ),
     }
 
 
-def dirigir_turno(
-    *,
-    instance: dict[str, Any],
-    messages: list[dict[str, Any]],
-    story_state_value: Any = None,
-) -> dict[str, Any]:
-    legacy_route, legacy_beat = _legacy_position(instance)
-    synchronized = reconciliar_posicao_narrativa(
-        messages=messages,
-        legacy_route=legacy_route,
-        legacy_beat=legacy_beat,
-    )
-    route = _text(synchronized.get("route") or legacy_route)
-    beat = _text(synchronized.get("beat") or legacy_beat)
-
-    memory = atualizar_memoria_canonica(
-        instance.get("story_memory"),
-        messages=messages,
-        route=route,
-        beat=beat,
-    )
-    memory_prompt = memoria_canonica_para_prompt(memory)
-    route, beat, memory_reason = _apply_memory_authority(route, beat, memory_prompt, messages)
-
+def dirigir_turno(*, instance: dict[str, Any], messages: list[dict[str, Any]], story_state_value: Any = None) -> dict[str, Any]:
     scene = instance.get("scene_state")
     scene = deepcopy(scene) if isinstance(scene, dict) else {}
+
+    legacy_route, legacy_beat = _legacy_position(instance)
+    event_route, event_beat, event_reason = _advance_emitted_beat(scene, legacy_route, legacy_beat)
+
+    synchronized = reconciliar_posicao_narrativa(
+        messages=messages,
+        legacy_route=event_route,
+        legacy_beat=event_beat,
+    )
+    route = _text(synchronized.get("route") or event_route)
+    beat = _text(synchronized.get("beat") or event_beat)
+
+    memory = atualizar_memoria_canonica(instance.get("story_memory"), messages=messages, route=route, beat=beat)
+    memory_prompt = memoria_canonica_para_prompt(memory)
+    route, beat, memory_reason = _apply_memory_authority(route, beat, memory_prompt, messages)
+    memory_reason = event_reason or memory_reason
+
     visual_state = _call_visual_state(messages, scene.get("confirmed_visual_state"))
     motel_execution: dict[str, Any] = {}
 
@@ -251,31 +254,22 @@ def dirigir_turno(
         beat = proximo_beat_motel(motel_execution)
         route = _text((obter_beat(beat) or {}).get("route")) or "secret_meeting"
         memory_reason = "locked_screenplay_executor_overrode_cursor"
-    elif visual_state.get("first_call_ended"):
+    elif beat == "motel_preparation":
+        route = "secret_meeting"
+    elif visual_state.get("first_call_ended") and route in {"hidden_call", "secret_meeting_plan"}:
+        route = "secret_meeting_plan"
         beat = _resolve_meeting_plan_beat(messages, beat)
-        route = _text((obter_beat(beat) or {}).get("route")) or "secret_meeting_plan"
-        memory_reason = memory_reason or (
-            "next_day_evidence_advanced_good_night"
-            if beat == "motel_preparation"
-            else "first_call_ended_opens_meeting_plan"
-        )
+        if beat == "motel_preparation":
+            route = "secret_meeting"
+        memory_reason = memory_reason or "first_call_ended_opens_meeting_plan"
     elif route == "hidden_call" or visual_state.get("video_call_established"):
         route = "hidden_call"
         beat = _resolve_hidden_call_beat(messages, visual_state, beat)
 
     beat_data = obter_beat(beat) or {}
     resolved_route = _text(beat_data.get("route")) or route
-    story_state = observar_estado_narrativo(
-        story_state_value,
-        messages=messages,
-        route=resolved_route,
-        beat_id=beat,
-    )
-    raw_compass = montar_contexto_interpretativo(
-        route=resolved_route,
-        current_beat=beat,
-        story_state_value=story_state,
-    )
+    story_state = observar_estado_narrativo(story_state_value, messages=messages, route=resolved_route, beat_id=beat)
+    raw_compass = montar_contexto_interpretativo(route=resolved_route, current_beat=beat, story_state_value=story_state)
     screenplay_lock = construir_trava_de_roteiro(beat)
 
     scene["confirmed_visual_state"] = visual_state
@@ -283,6 +277,7 @@ def dirigir_turno(
         scene["screenplay_execution"] = motel_execution
     scene["current_route"] = resolved_route
     scene["current_beat"] = beat
+    scene["directed_beat"] = beat
     scene.pop("script_runtime", None)
     instance["scene_state"] = scene
     instance["current_route"] = resolved_route
@@ -300,7 +295,10 @@ def dirigir_turno(
         "route_compass": _focused_compass(raw_compass),
         "canonical_story_memory": memory_prompt,
         "confirmed_visual_state": visual_state,
-        "screenplay_execution": motel_execution,
+        "screenplay_execution": motel_execution or {
+            "completed_beats": list(scene.get("completed_script_beats") or []),
+            "progression_source": "beat_graph_events",
+        },
         "story_state": story_state,
         "resolution": {
             "legacy_route": legacy_route,
@@ -308,8 +306,8 @@ def dirigir_turno(
             "synchronized": synchronized,
             "memory_override_reason": memory_reason,
             "authority": (
-                "A sequência do roteiro é obrigatória. Somente screenplay_lock.current_beat pode ser "
-                "executado. Nenhum beat futuro pode ser antecipado por criatividade do modelo."
+                "A sequência vem de eventos de execução e do next de beat_graph.py. "
+                "Texto casual do usuário nunca escolhe a próxima etapa."
             ),
         },
     }
