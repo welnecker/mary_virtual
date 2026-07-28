@@ -1,9 +1,10 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any, Callable, Iterable
+from typing import TYPE_CHECKING, Any, Callable, Iterable
 
-from catalog import StoryPackage
+if TYPE_CHECKING:
+    from catalog.registry import StoryPackage
 
 from .prompt_builder import build_system_prompt
 from .story_engine import StoryEngine
