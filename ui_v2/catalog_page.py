@@ -6,8 +6,10 @@ from typing import Any
 import streamlit as st
 
 from catalog import StoryPackage, list_stories
+from persistence import catalog_story_state
 
 StartStory = Callable[[StoryPackage, str], None]
+ContinueStory = Callable[[StoryPackage, Mapping[str, Any]], None]
 
 
 def _text(value: Any) -> str:
@@ -31,12 +33,15 @@ def _format_price(price_cents: int, currency: str) -> str:
 def render_catalog(
     *,
     on_start: StartStory,
+    on_continue: ContinueStory,
     catalog_rows: Mapping[str, Mapping[str, Any]] | None = None,
+    story_sessions: Mapping[str, Mapping[str, Any]] | None = None,
 ) -> None:
     st.title("Catálogo de histórias")
     st.caption("Cada card é uma história independente, com roteiro e Mary próprios.")
 
     rows = dict(catalog_rows or {})
+    sessions = dict(story_sessions or {})
     packages = list_stories()
     if not packages:
         st.info("Nenhuma história ativa foi registrada no código.")
@@ -69,9 +74,8 @@ def render_catalog(
         price_cents = _int(row.get("price_cents"), manifest.price_cents)
         currency = _text(row.get("currency")) or manifest.currency
         access_type = (_text(row.get("access_type")) or "paid").lower()
-        button_label = _text(
-            row.get("button_label_free") if access_type == "free" else row.get("button_label_unlocked")
-        ) or "Iniciar história"
+        session_row = sessions.get(manifest.id)
+        card_state = catalog_story_state(dict(session_row) if isinstance(session_row, Mapping) else None)
 
         with columns[index % len(columns)]:
             with st.container(border=True):
@@ -85,24 +89,47 @@ def render_catalog(
                 badge = _text(row.get("card_badge"))
                 if badge:
                     st.caption(badge)
-                st.caption(f"{len(manifest.chapter_ids)} capítulo(s)")
+                st.caption(f"{len(manifest.chapter_ids)} história completa")
                 if access_type == "free":
                     st.markdown("**Gratuito**")
                 else:
                     st.markdown(f"**{_format_price(price_cents, currency)}**")
 
-                chapter_id = st.selectbox(
-                    "Capítulo",
-                    options=list(manifest.chapter_ids),
-                    key=f"chapter_{manifest.id}",
-                )
-                if st.button(
-                    button_label,
-                    key=f"start_{manifest.id}",
-                    type="primary",
-                    use_container_width=True,
-                ):
-                    on_start(package, chapter_id)
+                chapter_id = manifest.chapter_ids[0]
+                if card_state == "active" and isinstance(session_row, Mapping):
+                    current_beat = _text(session_row.get("current_beat"))
+                    st.caption(
+                        f"Em andamento{f' · {current_beat}' if current_beat else ''}"
+                    )
+                    if st.button(
+                        _text(row.get("button_label_unlocked")) or "Continuar",
+                        key=f"continue_{manifest.id}",
+                        type="primary",
+                        use_container_width=True,
+                    ):
+                        on_continue(package, session_row)
+                elif card_state == "finished":
+                    st.caption("Execução anterior encerrada")
+                    if st.button(
+                        "Recomeçar",
+                        key=f"restart_{manifest.id}",
+                        type="primary",
+                        use_container_width=True,
+                    ):
+                        on_start(package, chapter_id)
+                else:
+                    button_label = _text(
+                        row.get("button_label_free")
+                        if access_type == "free"
+                        else row.get("button_label_unlocked")
+                    ) or "Começar"
+                    if st.button(
+                        button_label,
+                        key=f"start_{manifest.id}",
+                        type="primary",
+                        use_container_width=True,
+                    ):
+                        on_start(package, chapter_id)
 
 
 __all__ = ["render_catalog"]
