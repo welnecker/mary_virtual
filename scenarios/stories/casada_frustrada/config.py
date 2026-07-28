@@ -7,7 +7,7 @@ from scenarios.schema import ACCESS_TYPE_PAID, normalizar_config_cenario
 
 
 SCENARIO_ID = "casada_frustrada"
-SCENARIO_VERSION = 3
+SCENARIO_VERSION = 4
 
 
 SCENARIO_CONFIG: dict[str, Any] = {
@@ -69,12 +69,14 @@ SCENARIO_CONFIG: dict[str, Any] = {
             "mensagens, chamada privada e um encontro secreto intenso."
         ),
     },
-    "opening_message": "Eita, caralho... desculpa! Tem certeza que tá tudo bem?",
+    # A primeira linha do roteiro é exibida pelo app. A primeira resposta gerada
+    # começa na linha seguinte, evitando repetir a introdução após a fala do usuário.
+    "opening_message": "Eita, caralho... desculpa!",
     "initial_state": {
         "status": "active",
         "current_phase": "opening",
         "current_route": "supermarket_encounter",
-        "current_beat": "accidental_bump",
+        "current_beat": "injury_check",
         "active_hook": "unexpected_encounter",
         "interaction_count": 0,
         "opening_sent": False,
@@ -90,7 +92,7 @@ SCENARIO_CONFIG: dict[str, Any] = {
     "initial_scene_state": {
         "current_phase": "opening",
         "current_route": "supermarket_encounter",
-        "current_beat": "accidental_bump",
+        "current_beat": "injury_check",
         "active_hook": "unexpected_encounter",
         "scene_active": True,
         "fantasy_established": True,
