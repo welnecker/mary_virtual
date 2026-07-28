@@ -11,7 +11,7 @@ from .immersive_screenplay import (
 )
 
 
-CANONICAL_SCREENPLAY_VERSION = "casada-frustrada-canonical-screenplay-v1"
+CANONICAL_SCREENPLAY_VERSION = "casada-frustrada-canonical-screenplay-v2-opening-aligned"
 
 
 def _spoken_lines(block: str) -> list[str]:
@@ -32,10 +32,10 @@ _CALL = _spoken_lines(HIDDEN_CALL_DIALOGUE)
 _PLAN = _spoken_lines(SECRET_MEETING_PLAN_DIALOGUE)
 _MEETING = _spoken_lines(SECRET_MEETING_DIALOGUE)
 
-# As frases vêm diretamente de immersive_screenplay.py. Este arquivo apenas liga
-# cada beat às linhas já escritas; não contém paráfrases nem texto substituto.
+# A primeira linha do supermercado é exibida pelo próprio app como abertura.
+# O primeiro beat gerado começa na segunda linha, evitando repetir a introdução.
 CANONICAL_LINES_BY_BEAT: dict[str, list[str]] = {
-    "injury_check": _take(_SUPERMARKET, 0, 1),
+    "injury_check": _take(_SUPERMARKET, 1),
     "recognize_plaza": _take(_SUPERMARKET, 2),
     "first_farewell": _take(_SUPERMARKET, 3),
     "second_encounter": _take(_SUPERMARKET, 6),
