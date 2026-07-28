@@ -64,7 +64,7 @@ def _model_caller(system_prompt: str, messages: list[dict[str, Any]]) -> str:
         model=model,
         api_key=api_key,
         temperature=0.75,
-        max_tokens=450,
+        max_tokens=750,
     )
 
 
@@ -288,6 +288,13 @@ def _close_story(reason: str) -> None:
     st.rerun()
 
 
+def _safe_int(value: Any, default: int = 0) -> int:
+    try:
+        return int(float(value if value not in (None, "") else default))
+    except (TypeError, ValueError):
+        return default
+
+
 def _send_message(user_text: str) -> None:
     user = _active_user()
     runtime_session = _active_runtime_session()
@@ -316,7 +323,7 @@ def _send_message(user_text: str) -> None:
             gate_decision=gate_decision,
         )
     except (OpenRouterError, ValueError, RuntimeError) as exc:
-        st.session_state["v2_error"] = str(exc)
+        st.session_state["v2_error"] = f"Falha ao gerar resposta: {type(exc).__name__}: {exc}"
         st.session_state["v2_messages"] = messages
         st.rerun()
         return
@@ -324,36 +331,79 @@ def _send_message(user_text: str) -> None:
     response_time_ms = int((perf_counter() - started) * 1000)
     messages.append({"role": "assistant", "content": result.response})
 
-    scenario_instance["interaction_count"] = int(
-        float(scenario_instance.get("interaction_count") or 0)
+    # A contagem persistida pode estar à frente do turn_count do motor após
+    # retomadas legadas ou tentativas parcialmente salvas. Nunca retroceder.
+    next_count = max(
+        _safe_int(scenario_instance.get("interaction_count"), 0),
+        _safe_int(getattr(result.session, "turn_count", 0), 0),
     ) + 1
-    persist_story_session(
-        instance=scenario_instance,
-        engine_session=result.session,
-        route=result.plan.route,
-        interaction_happened=True,
-    )
-    persist_interaction(
-        runtime_session_id=str(runtime_session["session_id"]),
-        user_id=str(user["user_id"]),
-        scenario_instance=scenario_instance,
-        user_text=user_text,
-        mary_response=result.response,
-        model=str(st.session_state.get("v2_model") or MODEL_DEFAULT),
-        prompt_version=PROMPT_VERSION,
-        app_version=APP_VERSION,
-        response_time_ms=response_time_ms,
-        scenario_beat=result.plan.beat_id,
-        scenario_route=result.plan.route,
-        scenario_status=result.session.status,
-        scenario_completed=not result.session.is_active,
+    scenario_instance["interaction_count"] = next_count
+    result.session.turn_count = next_count
+
+    # Sincroniza a instância em memória antes de tocar nas planilhas. Assim a
+    # resposta e o beat novo sobrevivem mesmo quando uma gravação externa falha.
+    scenario_instance.update(
+        {
+            "status": result.session.status,
+            "current_phase": result.session.chapter_id,
+            "current_route": result.plan.route,
+            "current_beat": result.session.current_beat,
+            "ending_reason": result.session.ending_reason,
+            "ending_sent": not result.session.is_active,
+            "ending_ready": not result.session.is_active,
+            "input_locked": not result.session.is_active,
+            "show_return_to_menu": not result.session.is_active,
+        }
     )
 
     st.session_state["v2_messages"] = messages
     st.session_state["v2_session"] = result.session
     st.session_state["v2_scenario_instance"] = scenario_instance
     st.session_state["v2_story_sessions"][package.manifest.id] = scenario_instance
-    st.session_state["v2_error"] = ""
+
+    persistence_errors: list[str] = []
+
+    # A interação é o registro mais importante do turno e deve ser gravada antes
+    # do snapshot narrativo. Uma falha posterior não pode apagar a conversa.
+    try:
+        persist_interaction(
+            runtime_session_id=str(runtime_session["session_id"]),
+            user_id=str(user["user_id"]),
+            scenario_instance=scenario_instance,
+            user_text=user_text,
+            mary_response=result.response,
+            model=str(st.session_state.get("v2_model") or MODEL_DEFAULT),
+            prompt_version=PROMPT_VERSION,
+            app_version=APP_VERSION,
+            response_time_ms=response_time_ms,
+            scenario_beat=result.plan.beat_id,
+            scenario_route=result.plan.route,
+            scenario_status=result.session.status,
+            scenario_completed=not result.session.is_active,
+        )
+    except Exception as exc:
+        persistence_errors.append(
+            f"INTERACTIONS: {type(exc).__name__}: {exc}"
+        )
+
+    try:
+        persist_story_session(
+            instance=scenario_instance,
+            engine_session=result.session,
+            route=result.plan.route,
+            interaction_happened=True,
+        )
+    except Exception as exc:
+        persistence_errors.append(
+            f"SCENARIO_SESSIONS: {type(exc).__name__}: {exc}"
+        )
+
+    st.session_state["v2_error"] = (
+        "Resposta mantida, mas houve falha de persistência — "
+        + " | ".join(persistence_errors)
+        if persistence_errors
+        else ""
+    )
     st.rerun()
 
 
