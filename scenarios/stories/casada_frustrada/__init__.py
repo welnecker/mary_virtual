@@ -41,17 +41,10 @@ from scenarios.stories.casada_frustrada.screenplay_context import (
     SCREENPLAY_CONTEXT_VERSION,
     obter_trecho_roteiro,
 )
-from scenarios.stories.casada_frustrada import story_director as _story_director_module
-from scenarios.stories.casada_frustrada.progression_guard import (
-    PROGRESSION_GUARD_VERSION,
-    instalar_guarda_de_progressao,
-    preparar_progressao_canonica,
+from scenarios.stories.casada_frustrada.story_director import (
+    STORY_DIRECTOR_VERSION,
+    dirigir_turno,
 )
-
-instalar_guarda_de_progressao(_story_director_module)
-STORY_DIRECTOR_VERSION = _story_director_module.STORY_DIRECTOR_VERSION
-dirigir_turno = _story_director_module.dirigir_turno
-
 from scenarios.stories.casada_frustrada.story_observer import (
     ASK_PHONE_MOVEMENT,
     CONTACT_FUNCTION,
@@ -73,10 +66,6 @@ from scenarios.stories.casada_frustrada.story_structure import (
     STORY_STRUCTURE_VERSION,
     build_story_compass,
 )
-from scenarios.stories.casada_frustrada.story_sync import (
-    STORY_SYNC_VERSION,
-    reconciliar_posicao_narrativa,
-)
 
 
 __all__ = [
@@ -95,9 +84,7 @@ __all__ = [
     "STORY_STRUCTURE_VERSION",
     "PROMPT_CONTEXT_VERSION",
     "SCREENPLAY_CONTEXT_VERSION",
-    "STORY_SYNC_VERSION",
     "STORY_DIRECTOR_VERSION",
-    "PROGRESSION_GUARD_VERSION",
     "REFUSAL_LOCK_VERSION",
     "GUARDED_BEATS",
     "CANONICAL_MEMORY_VERSION",
@@ -120,9 +107,7 @@ __all__ = [
     "aplicar_estado_narrativo_ao_compasso",
     "montar_contexto_interpretativo",
     "obter_trecho_roteiro",
-    "reconciliar_posicao_narrativa",
     "dirigir_turno",
-    "preparar_progressao_canonica",
     "detectar_trava_psicologica",
     "criar_memoria_canonica_padrao",
     "normalizar_memoria_canonica",
