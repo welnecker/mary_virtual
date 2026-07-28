@@ -210,17 +210,35 @@ def persist_interaction(
 def load_story_messages(
     *, user_id: str, scenario_session_id: str, limit: int = 100,
 ) -> list[dict[str, str]]:
-    selected = [
-        row for row in obter_registros_aba(INTERACTIONS_SHEET)
-        if _text(row.get("user_id")) == _text(user_id)
-        and _text(row.get("scenario_session_id")) == _text(scenario_session_id)
-        and not _text(row.get("error"))
-    ]
-    selected.sort(key=lambda row: (_int(row.get("interaction_number"), 0), _text(row.get("timestamp"))))
+    """Restaura as interações da execução narrativa, inclusive registros legados sem user_id."""
+    user_id = _text(user_id)
+    scenario_session_id = _text(scenario_session_id)
+    if not scenario_session_id:
+        return []
+
+    selected: list[dict[str, Any]] = []
+    for raw in obter_registros_aba(INTERACTIONS_SHEET):
+        row = dict(raw)
+        if _text(row.get("scenario_session_id")) != scenario_session_id:
+            continue
+        interaction_user_id = _text(row.get("user_id"))
+        if interaction_user_id and interaction_user_id != user_id:
+            continue
+        if _text(row.get("error")):
+            continue
+        selected.append(row)
+
+    selected.sort(
+        key=lambda row: (
+            _int(row.get("interaction_number"), 0),
+            _text(row.get("timestamp") or row.get("updated_at")),
+            _text(row.get("interaction_id")),
+        )
+    )
     messages: list[dict[str, str]] = []
     for row in selected[-max(1, int(limit or 100)):]:
-        user_text = str(row.get("user_text") or "").strip()
-        mary_response = str(row.get("mary_response") or "").strip()
+        user_text = _text(row.get("user_text"))
+        mary_response = _text(row.get("mary_response"))
         if user_text:
             messages.append({"role": "user", "content": user_text})
         if mary_response:
