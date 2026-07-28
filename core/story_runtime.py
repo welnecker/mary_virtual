@@ -24,8 +24,8 @@ class RuntimeResult:
 class StoryRuntime:
     """Orquestra uma história sem conhecer seu conteúdo específico.
 
-    O roteiro determina o beat e o objetivo dramático. O modelo interpreta Mary e
-    produz a resposta completa; o runtime nunca cola falas canônicas na saída.
+    O roteiro completo entra no prompt. O cursor determina o único beat ativo, e o
+    modelo interpreta Mary sem receber texto colado pelo runtime.
     """
 
     def __init__(self, model_caller: ModelCaller, *, engine: StoryEngine | None = None) -> None:
@@ -54,6 +54,7 @@ class StoryRuntime:
         prompt = build_system_prompt(
             manifest=package.manifest,
             profile=package.profile,
+            chapter=chapter,
             session=session,
             plan=plan,
             recent_messages=recent_messages,
