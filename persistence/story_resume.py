@@ -6,9 +6,9 @@ from typing import Any
 
 from core.story_models import StorySession
 from google_sheets_repository import obter_registros_aba
+from .interaction_history import latest_interaction_for_session
 
 SCENARIO_SESSIONS_SHEET = "SCENARIO_SESSIONS"
-INTERACTIONS_SHEET = "INTERACTIONS"
 
 
 def _text(value: Any) -> str:
@@ -56,16 +56,8 @@ def _sort_key(row: dict[str, Any]) -> tuple[str, str, str]:
     )
 
 
-def _interaction_sort_key(row: dict[str, Any]) -> tuple[int, str, str]:
-    return (
-        _int(row.get("interaction_number"), 0),
-        _text(row.get("timestamp") or row.get("updated_at")),
-        _text(row.get("interaction_id")),
-    )
-
-
 def latest_story_sessions_by_scenario(*, user_id: str) -> dict[str, dict[str, Any]]:
-    """Retorna a execução mais recente de cada história, com a última interação salva."""
+    """Retorna a execução mais recente de cada história, com a última interação válida."""
     user_id = _text(user_id)
     if not user_id:
         return {}
@@ -83,30 +75,12 @@ def latest_story_sessions_by_scenario(*, user_id: str) -> dict[str, dict[str, An
         scenario_id = _text(row.get("scenario_id"))
         result.setdefault(scenario_id, row)
 
-    session_ids = {
-        _text(row.get("scenario_session_id"))
-        for row in result.values()
-        if _text(row.get("scenario_session_id"))
-    }
-    if not session_ids:
-        return result
-
-    latest_by_session: dict[str, dict[str, Any]] = {}
-    for raw in obter_registros_aba(INTERACTIONS_SHEET):
-        row = dict(raw)
-        session_id = _text(row.get("scenario_session_id"))
-        if session_id not in session_ids or _text(row.get("error")):
-            continue
-        interaction_user_id = _text(row.get("user_id"))
-        if interaction_user_id and interaction_user_id != user_id:
-            continue
-        previous = latest_by_session.get(session_id)
-        if previous is None or _interaction_sort_key(row) > _interaction_sort_key(previous):
-            latest_by_session[session_id] = row
-
     for row in result.values():
         session_id = _text(row.get("scenario_session_id"))
-        interaction = latest_by_session.get(session_id)
+        interaction = latest_interaction_for_session(
+            scenario_session_id=session_id,
+            user_id=user_id,
+        )
         if not interaction:
             continue
         row["last_user_text"] = _text(interaction.get("user_text"))
