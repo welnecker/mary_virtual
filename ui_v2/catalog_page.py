@@ -30,6 +30,13 @@ def _format_price(price_cents: int, currency: str) -> str:
     return f"{currency.upper()} {price_cents / 100:.2f}"
 
 
+def _preview(value: Any, limit: int = 150) -> str:
+    text = " ".join(_text(value).split())
+    if len(text) <= limit:
+        return text
+    return text[: max(1, limit - 1)].rstrip() + "…"
+
+
 def render_catalog(
     *,
     on_start: StartStory,
@@ -98,16 +105,34 @@ def render_catalog(
                 chapter_id = manifest.chapter_ids[0]
                 if card_state == "active" and isinstance(session_row, Mapping):
                     current_beat = _text(session_row.get("current_beat"))
-                    st.caption(
-                        f"Em andamento{f' · {current_beat}' if current_beat else ''}"
-                    )
-                    if st.button(
-                        "Continuar",
-                        key=f"continue_{manifest.id}",
-                        type="primary",
-                        use_container_width=True,
-                    ):
-                        on_continue(package, session_row)
+                    st.caption(f"Em andamento{f' · {current_beat}' if current_beat else ''}")
+
+                    last_user = _preview(session_row.get("last_user_text"))
+                    last_mary = _preview(session_row.get("last_mary_response"))
+                    if last_user or last_mary:
+                        with st.container(border=True):
+                            st.caption("Última interação salva")
+                            if last_user:
+                                st.markdown(f"**Você:** {last_user}")
+                            if last_mary:
+                                st.markdown(f"**Mary:** {last_mary}")
+
+                    continue_col, restart_col = st.columns(2)
+                    with continue_col:
+                        if st.button(
+                            "Continuar",
+                            key=f"continue_{manifest.id}",
+                            type="primary",
+                            use_container_width=True,
+                        ):
+                            on_continue(package, session_row)
+                    with restart_col:
+                        if st.button(
+                            "Recomeçar",
+                            key=f"restart_active_{manifest.id}",
+                            use_container_width=True,
+                        ):
+                            on_start(package, chapter_id)
                 elif card_state == "finished":
                     st.caption("Execução anterior encerrada")
                     if st.button(
