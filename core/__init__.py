@@ -8,14 +8,17 @@ from .story_models import (
     StorySession,
     TurnPlan,
 )
+from .story_runtime import RuntimeResult, StoryRuntime
 
 __all__ = [
     "Beat",
     "Chapter",
     "GateDecision",
     "MaryProfile",
+    "RuntimeResult",
     "StoryEngine",
     "StoryManifest",
+    "StoryRuntime",
     "StorySession",
     "TurnPlan",
 ]
