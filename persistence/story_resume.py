@@ -6,7 +6,7 @@ from typing import Any
 
 from core.story_models import StorySession
 from google_sheets_repository import obter_registros_aba
-from .interaction_history import latest_interaction_for_session
+from .interaction_history import interaction_rows_for_session
 
 SCENARIO_SESSIONS_SHEET = "SCENARIO_SESSIONS"
 
@@ -48,61 +48,89 @@ def _json_dict(value: Any) -> dict[str, Any]:
     return parsed if isinstance(parsed, dict) else {}
 
 
-def _sort_key(row: dict[str, Any]) -> tuple[str, str, str]:
+def _is_active_row(row: dict[str, Any]) -> bool:
+    status = (_text(row.get("status")) or "active").lower()
+    active = _bool(row.get("active"), status == "active")
+    input_locked = _bool(row.get("input_locked"), False)
+    ending_sent = _bool(row.get("ending_sent"), False)
+    return status == "active" and active and not input_locked and not ending_sent
+
+
+def _enrich_with_interactions(row: dict[str, Any], *, user_id: str) -> dict[str, Any]:
+    result = dict(row)
+    session_id = _text(result.get("scenario_session_id"))
+    interactions = interaction_rows_for_session(
+        scenario_session_id=session_id,
+        user_id=user_id,
+    )
+    result["saved_interaction_count"] = len(interactions)
+    if interactions:
+        latest = interactions[-1]
+        result["last_user_text"] = _text(latest.get("user_text"))
+        result["last_mary_response"] = _text(latest.get("mary_response"))
+        result["last_interaction_number"] = _int(latest.get("interaction_number"), len(interactions))
+        result["last_interaction_timestamp"] = _text(
+            latest.get("timestamp") or latest.get("updated_at")
+        )
+    else:
+        result["last_user_text"] = ""
+        result["last_mary_response"] = ""
+        result["last_interaction_number"] = 0
+        result["last_interaction_timestamp"] = ""
+    return result
+
+
+def _selection_key(row: dict[str, Any]) -> tuple[int, int, str, int, str, str]:
+    """Escolhe primeiro uma execução ativa com histórico real.
+
+    Uma sessão ativa vazia criada depois não pode ocultar outra sessão ativa que
+    contenha a conversa do usuário.
+    """
+    active = _is_active_row(row)
+    saved_count = _int(row.get("saved_interaction_count"), 0)
+    has_history = saved_count > 0
     return (
-        _text(row.get("last_interaction_at") or row.get("updated_at")),
-        _text(row.get("created_at")),
+        1 if active and has_history else 0,
+        1 if active else 0,
+        _text(row.get("last_interaction_timestamp")),
+        saved_count,
+        _text(row.get("last_interaction_at") or row.get("updated_at") or row.get("created_at")),
         _text(row.get("scenario_session_id")),
     )
 
 
 def latest_story_sessions_by_scenario(*, user_id: str) -> dict[str, dict[str, Any]]:
-    """Retorna a execução mais recente de cada história, com a última interação válida."""
+    """Retorna a melhor execução retomável de cada história.
+
+    A escolha cruza SCENARIO_SESSIONS com INTERACTIONS. Uma linha ativa sem
+    histórico não mascara outra linha ativa que possua interações salvas.
+    """
     user_id = _text(user_id)
     if not user_id:
         return {}
 
-    rows = [
-        dict(row)
-        for row in obter_registros_aba(SCENARIO_SESSIONS_SHEET)
-        if _text(row.get("user_id")) == user_id
-        and _text(row.get("scenario_id"))
-    ]
-    rows.sort(key=_sort_key, reverse=True)
+    grouped: dict[str, list[dict[str, Any]]] = {}
+    for raw in obter_registros_aba(SCENARIO_SESSIONS_SHEET):
+        row = dict(raw)
+        if _text(row.get("user_id")) != user_id:
+            continue
+        scenario_id = _text(row.get("scenario_id"))
+        if not scenario_id:
+            continue
+        grouped.setdefault(scenario_id, []).append(
+            _enrich_with_interactions(row, user_id=user_id)
+        )
 
     result: dict[str, dict[str, Any]] = {}
-    for row in rows:
-        scenario_id = _text(row.get("scenario_id"))
-        result.setdefault(scenario_id, row)
-
-    for row in result.values():
-        session_id = _text(row.get("scenario_session_id"))
-        interaction = latest_interaction_for_session(
-            scenario_session_id=session_id,
-            user_id=user_id,
-        )
-        if not interaction:
-            continue
-        row["last_user_text"] = _text(interaction.get("user_text"))
-        row["last_mary_response"] = _text(interaction.get("mary_response"))
-        row["last_interaction_number"] = _int(interaction.get("interaction_number"), 0)
-        row["last_interaction_timestamp"] = _text(
-            interaction.get("timestamp") or interaction.get("updated_at")
-        )
-
+    for scenario_id, rows in grouped.items():
+        result[scenario_id] = max(rows, key=_selection_key)
     return result
 
 
 def catalog_story_state(row: dict[str, Any] | None) -> str:
     if not isinstance(row, dict):
         return "new"
-    status = (_text(row.get("status")) or "active").lower()
-    active = _bool(row.get("active"), status == "active")
-    input_locked = _bool(row.get("input_locked"), False)
-    ending_sent = _bool(row.get("ending_sent"), False)
-    if status == "active" and active and not input_locked and not ending_sent:
-        return "active"
-    return "finished"
+    return "active" if _is_active_row(row) else "finished"
 
 
 def hydrate_story_session(row: dict[str, Any]) -> StorySession:
