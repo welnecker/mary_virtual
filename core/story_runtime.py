@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import re
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, Callable, Iterable
 
@@ -22,47 +21,12 @@ class RuntimeResult:
     session: StorySession
 
 
-def _extract_optional_thought(raw_response: str) -> str:
-    """Preserva somente um pensamento curto e descarta fala inventada pelo modelo."""
-    text = str(raw_response or "").strip()
-    if not text:
-        return ""
-
-    match = re.search(
-        r"(?:^|\n)\s*(Pensamento de Mary:\s*[^\n]+)",
-        text,
-        flags=re.IGNORECASE,
-    )
-    if not match:
-        return ""
-
-    thought = re.sub(r"\s+", " ", match.group(1)).strip()
-    if len(thought) > 320:
-        thought = thought[:317].rstrip() + "..."
-    return thought
-
-
-def _compose_response(raw_response: str, plan: TurnPlan) -> str:
-    if plan.mode == "script":
-        canonical = "\n\n".join(line.strip() for line in plan.mary_lines if line.strip())
-        if not canonical:
-            raise ValueError(f"Beat {plan.beat_id!r} sem linha canônica.")
-        thought = _extract_optional_thought(raw_response)
-        return f"{thought}\n\n{canonical}" if thought else canonical
-
-    if plan.mode == "ending":
-        canonical = "\n\n".join(line.strip() for line in plan.mary_lines if line.strip())
-        if canonical:
-            return canonical
-
-    response = str(raw_response or "").strip()
-    if not response:
-        raise ValueError("O modelo retornou uma resposta vazia.")
-    return response
-
-
 class StoryRuntime:
-    """Orquestra uma história sem conhecer seu conteúdo específico."""
+    """Orquestra uma história sem conhecer seu conteúdo específico.
+
+    O roteiro determina o beat e o objetivo dramático. O modelo interpreta Mary e
+    produz a resposta completa; o runtime nunca cola falas canônicas na saída.
+    """
 
     def __init__(self, model_caller: ModelCaller, *, engine: StoryEngine | None = None) -> None:
         self.model_caller = model_caller
@@ -95,8 +59,9 @@ class StoryRuntime:
             recent_messages=recent_messages,
         )
         messages = [{"role": "user", "content": str(user_text or "").strip()}]
-        raw_response = str(self.model_caller(prompt, messages) or "").strip()
-        response = _compose_response(raw_response, plan)
+        response = str(self.model_caller(prompt, messages) or "").strip()
+        if not response:
+            raise ValueError("O modelo retornou uma resposta vazia.")
 
         if plan.mode == "script":
             self.engine.record_mary_response(
