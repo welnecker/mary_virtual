@@ -9,38 +9,17 @@ from .beat_graph import obter_beat, proximo_beat_padrao
 from .canonical_screenplay import linhas_canonicas_do_beat
 
 
-SCREENPLAY_EXECUTOR_VERSION = "casada-frustrada-screenplay-executor-v2-canonical-lines"
+SCREENPLAY_EXECUTOR_VERSION = "casada-frustrada-screenplay-executor-v3-canonical-only"
 
 MOTEL_SEQUENCE = [
-    "motel_preparation",
-    "motel_reunion",
-    "ask_touch_butt",
-    "ask_touch_breasts",
-    "ask_remove_bra",
-    "heels_and_panties",
-    "offer_oral",
-    "oral_admiration",
-    "oral_climax_request",
-    "oral_after_climax",
-    "request_her_pleasure",
-    "invite_cunnilingus",
-    "guide_cunnilingus",
-    "first_orgasm_build",
-    "first_orgasm",
-    "post_oral_tease",
-    "praise_lover",
-    "request_doggy",
-    "ask_spank",
-    "ask_lubricate",
-    "penetration_start",
-    "penetration_rhythm",
-    "ask_anal_finger",
-    "second_orgasm_build",
-    "request_internal_climax",
-    "shared_climax",
-    "post_penetration",
-    "clean_with_mouth",
-    "final_departure",
+    "motel_preparation", "motel_reunion", "ask_touch_butt", "ask_touch_breasts",
+    "ask_remove_bra", "heels_and_panties", "offer_oral", "oral_admiration",
+    "oral_climax_request", "oral_after_climax", "request_her_pleasure",
+    "invite_cunnilingus", "guide_cunnilingus", "first_orgasm_build",
+    "first_orgasm", "post_oral_tease", "praise_lover", "request_doggy",
+    "ask_spank", "ask_lubricate", "penetration_start", "penetration_rhythm",
+    "ask_anal_finger", "second_orgasm_build", "request_internal_climax",
+    "shared_climax", "post_penetration", "clean_with_mouth", "final_departure",
 ]
 
 
@@ -72,16 +51,12 @@ def _contains(text: str, *markers: str) -> bool:
     return any(marker in text for marker in markers)
 
 
-def observar_execucao_motel(
-    messages: list[dict[str, Any]],
-    previous: Any = None,
-) -> dict[str, Any]:
+def observar_execucao_motel(messages: list[dict[str, Any]], previous: Any = None) -> dict[str, Any]:
     state = deepcopy(previous) if isinstance(previous, dict) else {}
     completed = set(state.get("completed_beats") or [])
     assistant = _history(messages, "assistant")
     user = _history(messages, "user")
     all_text = f"{assistant} {user}"
-
     evidence = {
         "motel_preparation": _contains(all_text, "motel status", "peguei uma suite", "estou na suite", "cheguei no motel"),
         "motel_reunion": _contains(user, "cheguei", "to entrando", "estou entrando", "aqui estou") and _contains(assistant, "me pega logo", "me beija", "entra logo"),
@@ -113,18 +88,12 @@ def observar_execucao_motel(
         "clean_with_mouth": _contains(assistant, "deixa eu chupar o resto"),
         "final_departure": _contains(assistant, "preciso ir", "eu saio primeiro", "esposa comportada precisa estar em casa"),
     }
-
     for beat_id, detected in evidence.items():
         if detected:
             completed.add(beat_id)
-
-    furthest = -1
-    for index, beat_id in enumerate(MOTEL_SEQUENCE):
-        if beat_id in completed:
-            furthest = max(furthest, index)
+    furthest = max((index for index, beat_id in enumerate(MOTEL_SEQUENCE) if beat_id in completed), default=-1)
     if furthest >= 0:
         completed.update(MOTEL_SEQUENCE[: furthest + 1])
-
     state["version"] = SCREENPLAY_EXECUTOR_VERSION
     state["completed_beats"] = [beat for beat in MOTEL_SEQUENCE if beat in completed]
     state["evidence"] = {key: bool(value) for key, value in evidence.items()}
@@ -142,21 +111,19 @@ def proximo_beat_motel(execution: dict[str, Any]) -> str:
 def construir_trava_de_roteiro(beat_id: str) -> dict[str, Any]:
     beat = obter_beat(beat_id) or {}
     next_beat = proximo_beat_padrao(beat_id)
-    next_data = obter_beat(next_beat) or {}
     canonical_lines = linhas_canonicas_do_beat(beat_id)
     return {
         "version": SCREENPLAY_EXECUTOR_VERSION,
         "current_beat": beat_id,
-        "mandatory_objective": _text(beat.get("objective")),
+        "mandatory_objective": "\n".join(canonical_lines),
         "canonical_lines": canonical_lines,
         "canonical_text_must_be_preserved": True,
         "current_route": _text(beat.get("route")),
         "next_beat_locked": next_beat,
-        "next_objective_locked": _text(next_data.get("objective")),
         "rule": (
-            "Responda naturalmente ao improviso do usuário e conduza para o beat atual. "
-            "As canonical_lines pertencem ao roteiro imutável: devem ser interpretadas sem "
-            "paráfrase, substituição ou alteração de sentido. O próximo beat permanece bloqueado."
+            "Interprete as canonical_lines exatamente como escritas. Responda brevemente ao improviso "
+            "do usuário apenas para encaixá-las com naturalidade. Não as parafraseie, não as substitua "
+            "e não use qualquer linha do próximo beat."
         ),
     }
 
