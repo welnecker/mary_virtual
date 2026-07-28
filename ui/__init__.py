@@ -90,13 +90,8 @@ from ui.scenario_catalog_persistence import (
     install_scenario_catalog_persistence,
     sincronizar_catalogo_scenarios,
 )
-from ui.scenario_session_legacy_migration import (
-    CANONICAL_SCENARIO_SESSION_COLUMNS,
-    SCENARIO_SESSION_MIGRATION_VERSION,
-    aplicar_migracao_sessoes_legadas,
-    garantir_schema_scenario_sessions,
-    install_scenario_session_legacy_migration,
-    migrar_user_scenario_sessions,
+from repositories.scenario_session_repository import (
+    SCENARIO_SESSIONS_SHEET,
 )
 from ui.user_visual_profile_persistence import (
     USER_VISUAL_PROFILE_COLUMNS,
@@ -143,7 +138,9 @@ install_scenario_flip_cards()
 install_mary_relationship_persistence()
 install_memory_persistence()
 install_scenario_catalog_persistence()
-install_scenario_session_legacy_migration()
+
+# USER_SCENARIO_SESSIONS foi removida. SCENARIO_SESSIONS é a única fonte
+# oficial de persistência das execuções narrativas.
 
 # Instalado antes do adaptador principal: na execução dos wrappers de st.title,
 # o adaptador entra primeiro e o commit é aplicado sobre ele em seguida.
@@ -163,7 +160,7 @@ __all__ = [
     "SHEETS_GRID_AUTOGROW_VERSION",
     "APP_RUNTIME_INTEGRATION_VERSION",
     "INTERACTION_RERUN_OPTIMIZER_VERSION",
-    "DIAGNOSTIC_LOG_CONTROLS_VERSION",      
+    "DIAGNOSTIC_LOG_CONTROLS_VERSION",
     "PIX_TEST_COMMERCE_VERSION",
     "PIX_CONTINUE_ACCESS_FIX_VERSION",
     "PIX_ACTIVE_SESSION_ACCESS_VERSION",
@@ -181,14 +178,13 @@ __all__ = [
     "MEMORY_COLUMNS",
     "SCENARIO_CATALOG_PERSISTENCE_VERSION",
     "SCENARIO_COLUMNS",
-    "SCENARIO_SESSION_MIGRATION_VERSION",
-    "CANONICAL_SCENARIO_SESSION_COLUMNS",
+    "SCENARIO_SESSIONS_SHEET",
     "USER_VISUAL_PROFILE_PERSISTENCE_VERSION",
     "USER_VISUAL_PROFILE_COMMIT_FIX_VERSION",
     "USER_VISUAL_PROFILE_COLUMNS",
     "aplicar_integracao_runtime",
     "aplicar_otimizacao_rerun",
-    "aplicar_controles_log_diagnostico",       
+    "aplicar_controles_log_diagnostico",
     "aplicar_integracao_pix_teste",
     "aplicar_acesso_pix_por_sessao_ativa",
     "aplicar_continuacao_capitulos_pagos",
@@ -204,9 +200,6 @@ __all__ = [
     "aplicar_persistencia_catalogo_scenarios",
     "garantir_schema_scenarios",
     "sincronizar_catalogo_scenarios",
-    "aplicar_migracao_sessoes_legadas",
-    "garantir_schema_scenario_sessions",
-    "migrar_user_scenario_sessions",
     "aplicar_persistencia_perfil_visual",
     "aplicar_commit_perfil_visual",
     "garantir_schema_user_visual_profile",
@@ -218,7 +211,7 @@ __all__ = [
     "install_elevenlabs_voice_integration",
     "install_app_runtime_integration",
     "install_interaction_rerun_optimizer",
-    "install_diagnostic_log_controls",   
+    "install_diagnostic_log_controls",
     "install_pix_test_commerce_integration",
     "install_pix_continue_access_fix",
     "install_pix_active_session_access",
@@ -229,7 +222,6 @@ __all__ = [
     "install_mary_relationship_persistence",
     "install_memory_persistence",
     "install_scenario_catalog_persistence",
-    "install_scenario_session_legacy_migration",
     "install_user_visual_profile_commit_fix",
     "install_user_visual_profile_persistence",
     "log_diagnostico_ativado",
