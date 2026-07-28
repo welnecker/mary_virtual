@@ -6,9 +6,10 @@ from copy import deepcopy
 from typing import Any
 
 from .beat_graph import obter_beat, proximo_beat_padrao
+from .canonical_screenplay import linhas_canonicas_do_beat
 
 
-SCREENPLAY_EXECUTOR_VERSION = "casada-frustrada-screenplay-executor-v1-locked-sequence"
+SCREENPLAY_EXECUTOR_VERSION = "casada-frustrada-screenplay-executor-v2-canonical-lines"
 
 MOTEL_SEQUENCE = [
     "motel_preparation",
@@ -86,30 +87,30 @@ def observar_execucao_motel(
         "motel_reunion": _contains(user, "cheguei", "to entrando", "estou entrando", "aqui estou") and _contains(assistant, "me pega logo", "me beija", "entra logo"),
         "ask_touch_butt": _contains(assistant, "aperta minha bunda", "abre minhas nadegas", "me amassa") and _contains(user, "plaf", "tapa", "apertei", "amass", "bunda", "gostosa"),
         "ask_touch_breasts": _contains(assistant, "aperta meus seios", "aperta meu peito", "sente como sao firmes") and _contains(user, "seios", "peitos", "mamas", "chup", "slup", "perfeita"),
-        "ask_remove_bra": _contains(assistant, "desprende o meu sutia", "tira o sutia", "liberta eles") and _contains(user, "tirei", "pronto", "sem sutia", "na minha boca", "chup"),
+        "ask_remove_bra": _contains(assistant, "desprende o sutia", "liberta eles") and _contains(user, "tirei", "pronto", "sem sutia", "na minha boca", "chup"),
         "heels_and_panties": _contains(assistant, "so de calcinha e salto", "de salto e calcinha", "vou ficar de salto", "fiquei so de calcinha"),
-        "offer_oral": _contains(assistant, "quero chupar seu pau", "vou chupar", "na minha lingua", "pela garganta"),
-        "oral_admiration": _contains(assistant, "rola grossa", "pau grosso", "ta grosso e duro", "esta grosso e duro"),
+        "offer_oral": _contains(assistant, "quero chupar seu pau", "na minha lingua", "pela garganta"),
+        "oral_admiration": _contains(assistant, "rola grossa", "pau grosso", "grossa e dura"),
         "oral_climax_request": _contains(assistant, "goza na minha cara", "goza no meu rosto") and _contains(user, "vou gozar", "to gozando", "estou gozando", "gozei"),
-        "oral_after_climax": _contains(user, "gozei", "to gozando", "estou gozando") and _contains(assistant, "engulo ou cuspo", "sobrou um pouco", "engolir", "cuspir"),
-        "request_her_pleasure": _contains(assistant, "eu quero gozar tambem", "agora eu quero gozar", "vou deitar na cama"),
-        "invite_cunnilingus": _contains(assistant, "chupa minha buceta", "vem sentir de perto", "afasto a calcinha", "pelinhos aparados"),
-        "guide_cunnilingus": _contains(assistant, "enfia um dedo", "chupa meu clitoris", "continua com a lingua") and _contains(user, "chup", "lingua", "dedo", "clitoris"),
-        "first_orgasm_build": _contains(assistant, "vou gozar", "to quase gozando", "estou quase gozando") and not _contains(assistant, "gozei finalmente"),
+        "oral_after_climax": _contains(user, "gozei", "to gozando", "estou gozando") and _contains(assistant, "engulo ou cuspo", "sobrou um pouco"),
+        "request_her_pleasure": _contains(assistant, "eu quero gozar tambem", "vou deitar na cama"),
+        "invite_cunnilingus": _contains(assistant, "chupa minha buceta", "vem sentir de perto", "pelinhos aparados"),
+        "guide_cunnilingus": _contains(assistant, "enfia um dedo", "chupa meu clitoris") and _contains(user, "chup", "lingua", "dedo", "clitoris"),
+        "first_orgasm_build": _contains(assistant, "vou gozar", "quase gozando") and not _contains(assistant, "gozei finalmente"),
         "first_orgasm": _contains(assistant, "gozei finalmente", "hummm gozei", "eu gozei"),
-        "post_oral_tease": _contains(assistant, "olha sua cara", "me da sua lingua", "lamber sua boca"),
-        "praise_lover": _contains(assistant, "mais do que eu imaginei", "melhor do que imaginei"),
-        "request_doggy": _contains(assistant, "quero foder de quatro", "quero de quatro") and _contains(user, "duro", "erecao", "pau duro", "pronto de novo"),
-        "ask_spank": _contains(assistant, "bate na minha bunda", "da um tapa na minha bunda") and _contains(user, "plaf", "tapa", "bati", "batendo"),
+        "post_oral_tease": _contains(assistant, "olha sua cara", "me da sua lingua"),
+        "praise_lover": _contains(assistant, "mais do que eu imaginei"),
+        "request_doggy": _contains(assistant, "quero foder de quatro") and _contains(user, "duro", "erecao", "pau duro", "pronto de novo"),
+        "ask_spank": _contains(assistant, "bate na minha bunda") and _contains(user, "plaf", "tapa", "bati", "batendo"),
         "ask_lubricate": _contains(assistant, "cospe no meu cu", "lubrifica mais") and _contains(user, "cuspi", "lubrif", "molhei"),
-        "penetration_start": _contains(assistant, "mete na buceta", "entra em mim", "pode meter") and _contains(user, "entrei", "to dentro", "estou dentro", "metendo"),
-        "penetration_rhythm": _contains(assistant, "entra e sai", "ate o talo", "ritmo") and _contains(user, "entrando e saindo", "fundo", "talo", "metendo"),
-        "ask_anal_finger": _contains(assistant, "dedo no meu cu", "poe um dedo", "coloca um dedo") and _contains(user, "coloquei", "enfiei", "dedo"),
-        "second_orgasm_build": _contains(assistant, "vou gozar de novo", "quase gozando de novo"),
-        "request_internal_climax": _contains(assistant, "goza dentro", "goza em mim") and _contains(user, "vou gozar", "to gozando", "estou gozando"),
-        "shared_climax": _contains(user, "gozei", "to gozando", "estou gozando") and _contains(assistant, "eu to gozando", "estou gozando", "caralho eu to gozando"),
-        "post_penetration": _contains(assistant, "ta escorrendo", "estou sentindo escorrer", "goza intenso"),
-        "clean_with_mouth": _contains(assistant, "deixa eu chupar o resto", "vou chupar o resto"),
+        "penetration_start": _contains(assistant, "mete na buceta") and _contains(user, "entrei", "to dentro", "estou dentro", "metendo"),
+        "penetration_rhythm": _contains(assistant, "entra e sai", "ate o talo") and _contains(user, "entrando e saindo", "fundo", "talo", "metendo"),
+        "ask_anal_finger": _contains(assistant, "dedo no meu cu", "poe um dedo") and _contains(user, "coloquei", "enfiei", "dedo"),
+        "second_orgasm_build": _contains(assistant, "vou gozar de novo"),
+        "request_internal_climax": _contains(assistant, "goza dentro") and _contains(user, "vou gozar", "to gozando", "estou gozando"),
+        "shared_climax": _contains(user, "gozei", "to gozando", "estou gozando") and _contains(assistant, "eu to gozando", "estou gozando"),
+        "post_penetration": _contains(assistant, "ta escorrendo", "estou sentindo escorrer"),
+        "clean_with_mouth": _contains(assistant, "deixa eu chupar o resto"),
         "final_departure": _contains(assistant, "preciso ir", "eu saio primeiro", "esposa comportada precisa estar em casa"),
     }
 
@@ -117,7 +118,6 @@ def observar_execucao_motel(
         if detected:
             completed.add(beat_id)
 
-    # A later verified action implies that all earlier physical setup beats occurred.
     furthest = -1
     for index, beat_id in enumerate(MOTEL_SEQUENCE):
         if beat_id in completed:
@@ -143,18 +143,20 @@ def construir_trava_de_roteiro(beat_id: str) -> dict[str, Any]:
     beat = obter_beat(beat_id) or {}
     next_beat = proximo_beat_padrao(beat_id)
     next_data = obter_beat(next_beat) or {}
+    canonical_lines = linhas_canonicas_do_beat(beat_id)
     return {
         "version": SCREENPLAY_EXECUTOR_VERSION,
         "current_beat": beat_id,
         "mandatory_objective": _text(beat.get("objective")),
-        "allowed_examples": list(beat.get("examples") or [])[:2],
+        "canonical_lines": canonical_lines,
+        "canonical_text_must_be_preserved": True,
         "current_route": _text(beat.get("route")),
         "next_beat_locked": next_beat,
         "next_objective_locked": _text(next_data.get("objective")),
         "rule": (
-            "Execute somente mandatory_objective. O próximo beat está bloqueado até existir "
-            "evidência posterior do usuário ou uma ação de Mary explicitamente prevista como "
-            "autoconclusiva. Não invente roupa retirada, posição, toque ou ato de beats futuros."
+            "Responda naturalmente ao improviso do usuário e conduza para o beat atual. "
+            "As canonical_lines pertencem ao roteiro imutável: devem ser interpretadas sem "
+            "paráfrase, substituição ou alteração de sentido. O próximo beat permanece bloqueado."
         ),
     }
 
