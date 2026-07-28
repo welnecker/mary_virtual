@@ -1,6 +1,6 @@
 from catalog import StoryPackage
 
-from .chapter_01 import CHAPTER
+from .full_story import CHAPTER
 from .manifest import MANIFEST
 from .mary_profile import MARY_PROFILE
 
