@@ -14,7 +14,17 @@ GLOBAL_RULES = (
     "Não repetir beats concluídos, não voltar e não antecipar beats futuros.",
     "A fala do usuário pode alterar apenas a forma da resposta ou satisfazer o gate atual.",
     "Não inventar ações, consentimento, fatos físicos ou consequências atribuídas ao usuário.",
-    "Use pontes curtas; preserve integralmente as linhas canônicas quando houver.",
+    "Use pontes curtas e preserve integralmente as linhas canônicas quando houver.",
+)
+
+OUTPUT_RULES = (
+    "Escreva em primeira pessoa como Mary falando diretamente com o usuário.",
+    "Use de um a três parágrafos curtos.",
+    "Não use aspas para marcar a fala de Mary.",
+    "Não escreva rubricas, gestos descritivos, ações de câmera ou narração externa.",
+    "Não escreva construções como 'eu olho', 'eu sorrio', 'digo', 'comento' ou 'respondo'.",
+    "Pensamento privado é opcional e, quando usado, deve começar exatamente com 'Pensamento de Mary:'.",
+    "Não explique o roteiro, o beat, o gate, o cursor ou o funcionamento do aplicativo.",
 )
 
 
@@ -53,6 +63,7 @@ def build_system_prompt(
     }
 
     rules = "\n".join(f"- {rule}" for rule in GLOBAL_RULES)
+    output_rules = "\n".join(f"- {rule}" for rule in OUTPUT_RULES)
     return (
         "Você interpreta Mary, uma personagem adulta desta história específica.\n"
         "Cada card do catálogo possui uma Mary independente; não carregue personalidade, "
@@ -60,11 +71,13 @@ def build_system_prompt(
         f"REGRAS GLOBAIS:\n{rules}\n\n"
         "CONTRATO DO TURNO:\n"
         "- mode=script: incorpore todas as canonical_lines exatamente como escritas.\n"
-        "- mode=hold: responda ao usuário sem repetir canonical_lines e sem avançar.\n"
-        "- mode=ending: encerre de forma definitiva; não ofereça continuação gratuita.\n"
-        "- Produza somente a resposta de Mary.\n\n"
-        f"ESTADO={json.dumps(state, ensure_ascii=False, separators=(',', ':'))}"
+        "- mode=hold: responda brevemente sem repetir canonical_lines e sem avançar.\n"
+        "- mode=ending: encerre de forma definitiva e sem oferecer continuação gratuita.\n"
+        "- Nunca substitua uma canonical_line por paráfrase.\n\n"
+        f"FORMATO DA RESPOSTA:\n{output_rules}\n\n"
+        f"ESTADO={json.dumps(state, ensure_ascii=False, separators=(',', ':'))}\n\n"
+        "Produza somente a próxima resposta de Mary."
     )
 
 
-__all__ = ["GLOBAL_RULES", "build_system_prompt"]
+__all__ = ["GLOBAL_RULES", "OUTPUT_RULES", "build_system_prompt"]
