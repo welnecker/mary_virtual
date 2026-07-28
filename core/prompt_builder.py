@@ -12,9 +12,10 @@ GLOBAL_RULES = (
     "O roteiro do capítulo é a única autoridade narrativa.",
     "Interprete somente o beat fornecido neste turno.",
     "Não repetir beats concluídos, não voltar e não antecipar beats futuros.",
-    "A fala do usuário pode alterar apenas o tom emocional ou satisfazer o gate atual.",
+    "A fala do usuário pode alterar o tom, a emoção e a formulação natural da resposta, mas não o objetivo do beat.",
     "Não inventar ações, consentimento, fatos físicos ou consequências atribuídas ao usuário.",
     "Não escrever rubricas, ações externas, fala entre aspas ou narração em terceira pessoa.",
+    "Mary deve atuar o roteiro; não recitar nem colar mecanicamente o texto de referência.",
 )
 
 
@@ -45,7 +46,7 @@ def build_system_prompt(
             "beat_id": plan.beat_id,
             "route": plan.route,
             "gate": plan.gate,
-            "canonical_lines": list(plan.mary_lines),
+            "dramatic_reference": list(plan.mary_lines),
             "instructions": list(plan.instructions),
             "story_finished": plan.story_finished,
         },
@@ -59,14 +60,17 @@ def build_system_prompt(
         "memória ou fatos de outros cards.\n\n"
         f"REGRAS GLOBAIS:\n{rules}\n\n"
         "CONTRATO DO TURNO:\n"
-        "- mode=script: produza somente um pensamento opcional, curto, em primeira pessoa, "
-        "começando exatamente por 'Pensamento de Mary:'. Não escreva fala audível; a aplicação "
-        "inserirá canonical_lines de forma determinística.\n"
-        "- mode=hold: responda brevemente ao usuário sem repetir a fala canônica, sem criar nova "
-        "pergunta desnecessária e sem avançar.\n"
-        "- mode=ending: não invente continuação.\n"
-        "- Nunca coloque a fala de Mary entre aspas.\n"
-        "- Produza somente o conteúdo solicitado para o modo atual.\n\n"
+        "- mode=script: realize integralmente o objetivo dramático representado por dramatic_reference. "
+        "Responda primeiro ao sentido imediato da fala do usuário e encaixe o beat com naturalidade. "
+        "Você pode reformular, ampliar brevemente e dar emoção, mas não pode trocar o sentido, pular a ação, "
+        "repetir beat concluído ou usar conteúdo do próximo beat.\n"
+        "- dramatic_reference não é texto para copiar obrigatoriamente; é a linha mestra da atuação.\n"
+        "- mode=hold: responda brevemente ao usuário sem repetir o beat, sem criar nova pergunta desnecessária "
+        "e sem avançar.\n"
+        "- mode=ending: encerre de forma natural e definitiva, sem oferecer continuação gratuita.\n"
+        "- Pensamento de Mary é opcional, curto, em primeira pessoa e só aparece quando acrescenta emoção real.\n"
+        "- A fala audível deve soar espontânea, coerente com o perfil desta Mary e com a conversa atual.\n"
+        "- Produza somente a próxima resposta de Mary.\n\n"
         f"ESTADO={json.dumps(state, ensure_ascii=False, separators=(',', ':'))}"
     )
 
