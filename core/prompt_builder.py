@@ -4,25 +4,41 @@ import json
 from dataclasses import asdict
 from typing import Any, Iterable
 
-from .story_models import MaryProfile, StoryManifest, StorySession, TurnPlan
+from .story_models import Chapter, MaryProfile, StoryManifest, StorySession, TurnPlan
 
 
 GLOBAL_RULES = (
     "A história ativa é independente de qualquer outra história do catálogo.",
-    "O roteiro do capítulo é a única autoridade narrativa.",
-    "Interprete somente o beat fornecido neste turno.",
+    "O roteiro completo do capítulo é a única autoridade narrativa.",
+    "Mary deve conhecer o roteiro inteiro, mas atuar somente o beat atual.",
     "Não repetir beats concluídos, não voltar e não antecipar beats futuros.",
-    "A fala do usuário pode alterar o tom, a emoção e a formulação natural da resposta, mas não o objetivo do beat.",
+    "A fala do usuário pode alterar o tom, a emoção e a formulação natural da resposta, mas não a ordem do roteiro.",
     "Não inventar ações, consentimento, fatos físicos ou consequências atribuídas ao usuário.",
     "Não escrever rubricas, ações externas, fala entre aspas ou narração em terceira pessoa.",
-    "Mary deve atuar o roteiro; não recitar nem colar mecanicamente o texto de referência.",
+    "Mary deve interpretar o roteiro como atriz; nunca recitar mecanicamente nem colar a linha seca na resposta.",
 )
+
+
+def _chapter_screenplay(chapter: Chapter) -> list[dict[str, Any]]:
+    return [
+        {
+            "beat_id": beat.id,
+            "route": beat.route,
+            "script_lines": list(beat.mary_lines),
+            "gate": beat.gate,
+            "next_beat": beat.next_beat,
+            "completes": list(beat.completes),
+            "instructions": list(beat.instructions),
+        }
+        for beat in chapter.beats.values()
+    ]
 
 
 def build_system_prompt(
     *,
     manifest: StoryManifest,
     profile: MaryProfile,
+    chapter: Chapter,
     session: StorySession,
     plan: TurnPlan,
     recent_messages: Iterable[dict[str, Any]] = (),
@@ -32,6 +48,9 @@ def build_system_prompt(
             "id": manifest.id,
             "title": manifest.title,
             "chapter_id": session.chapter_id,
+            "chapter_title": chapter.title,
+            "opening_message": chapter.opening_message,
+            "full_screenplay": _chapter_screenplay(chapter),
         },
         "mary_profile": asdict(profile),
         "session": {
@@ -43,10 +62,10 @@ def build_system_prompt(
         },
         "turn": {
             "mode": plan.mode,
-            "beat_id": plan.beat_id,
-            "route": plan.route,
-            "gate": plan.gate,
-            "dramatic_reference": list(plan.mary_lines),
+            "active_beat_id": plan.beat_id,
+            "active_route": plan.route,
+            "active_gate": plan.gate,
+            "active_script_lines": list(plan.mary_lines),
             "instructions": list(plan.instructions),
             "story_finished": plan.story_finished,
         },
@@ -59,17 +78,17 @@ def build_system_prompt(
         "Cada card do catálogo possui uma Mary independente; não carregue personalidade, "
         "memória ou fatos de outros cards.\n\n"
         f"REGRAS GLOBAIS:\n{rules}\n\n"
-        "CONTRATO DO TURNO:\n"
-        "- mode=script: realize integralmente o objetivo dramático representado por dramatic_reference. "
-        "Responda primeiro ao sentido imediato da fala do usuário e encaixe o beat com naturalidade. "
-        "Você pode reformular, ampliar brevemente e dar emoção, mas não pode trocar o sentido, pular a ação, "
-        "repetir beat concluído ou usar conteúdo do próximo beat.\n"
-        "- dramatic_reference não é texto para copiar obrigatoriamente; é a linha mestra da atuação.\n"
-        "- mode=hold: responda brevemente ao usuário sem repetir o beat, sem criar nova pergunta desnecessária "
-        "e sem avançar.\n"
-        "- mode=ending: encerre de forma natural e definitiva, sem oferecer continuação gratuita.\n"
+        "COMO ATUAR O ROTEIRO:\n"
+        "- full_screenplay contém o roteiro completo do capítulo e deve ser lido como contexto dramático integral.\n"
+        "- active_beat_id indica o único ponto que Mary pode atuar neste turno.\n"
+        "- active_script_lines devem ser plenamente representadas no sentido da resposta, mas não copiadas de forma seca.\n"
+        "- Responda primeiro ao sentido imediato da fala do usuário e, dentro da mesma resposta, interprete o beat atual.\n"
+        "- Você pode reformular, personalizar, adicionar emoção, hesitação, humor ou vulnerabilidade coerentes com esta Mary.\n"
+        "- Não substitua a função dramática do beat, não pule a ação, não use falas de beats futuros e não repita beats concluídos.\n"
+        "- mode=hold: responda brevemente sem repetir o beat e sem avançar.\n"
+        "- mode=ending: encerre naturalmente e de forma definitiva, sem oferecer continuação gratuita.\n"
         "- Pensamento de Mary é opcional, curto, em primeira pessoa e só aparece quando acrescenta emoção real.\n"
-        "- A fala audível deve soar espontânea, coerente com o perfil desta Mary e com a conversa atual.\n"
+        "- A fala audível deve soar espontânea, humana e coerente com a conversa atual.\n"
         "- Produza somente a próxima resposta de Mary.\n\n"
         f"ESTADO={json.dumps(state, ensure_ascii=False, separators=(',', ':'))}"
     )
