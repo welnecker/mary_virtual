@@ -17,7 +17,7 @@ from .story_observer import observar_estado_narrativo
 from .story_sync import reconciliar_posicao_narrativa
 
 
-STORY_DIRECTOR_VERSION = "casada-frustrada-story-director-v4-locked-screenplay"
+STORY_DIRECTOR_VERSION = "casada-frustrada-story-director-v5-next-day-transition"
 
 
 def _text(value: Any) -> str:
@@ -30,9 +30,9 @@ def _normalize(value: Any) -> str:
     return re.sub(r"[^a-z0-9]+", " ", text).strip()
 
 
-def _history(messages: list[dict[str, Any]], role: str = "") -> str:
+def _history(messages: list[dict[str, Any]], role: str = "", limit: int = 120) -> str:
     parts: list[str] = []
-    for item in messages[-120:]:
+    for item in messages[-limit:]:
         if not isinstance(item, dict):
             continue
         item_role = _text(item.get("role"))
@@ -116,15 +116,44 @@ def _resolve_hidden_call_beat(messages: list[dict[str, Any]], visual: dict[str, 
     return fallback if fallback in BEAT_ORDER and (obter_beat(fallback) or {}).get("route") == "hidden_call" else "camera_setup"
 
 
+def _next_day_has_started(messages: list[dict[str, Any]]) -> bool:
+    recent = _history(messages, limit=18)
+    latest_user = _latest(messages, "user")
+    return (
+        _contains(
+            recent,
+            "acordou cedo",
+            "vai sair",
+            "vou ao shopping",
+            "vou no shopping",
+            "dar um pulo no shopping",
+            "saindo de casa",
+            "fechei a porta",
+            "ja estou no carro",
+            "estou no carro",
+            "cada sinal vermelho",
+            "indo para o motel",
+            "indo pro motel",
+        )
+        or _contains(latest_user, "ta vindo", "esta vindo", "ta chegando", "esta chegando")
+    )
+
+
 def _resolve_meeting_plan_beat(messages: list[dict[str, Any]], fallback: str) -> str:
     assistant = _history(messages, "assistant")
     latest_user = _latest(messages, "user")
     latest_assistant = _latest(messages, "assistant")
+
+    # Once morning/travel evidence exists, the farewell beat is conclusively past.
+    if _next_day_has_started(messages):
+        return "motel_preparation"
+
     user_awake = _contains(latest_user, "acordei", "to acordado", "estou acordado", "to ouvindo", "oi mary")
     user_accepts = _contains(latest_user, "sim", "claro", "pode ser", "vamos", "topo", "aceito", "combinado", "fechado")
-    if _contains(assistant, "boa noite", "sonha comigo"):
+
+    if _contains(latest_assistant, "boa noite", "sonha comigo"):
         return "good_night"
-    if _contains(assistant, "nao vai me dar bolo", "voce ta me devendo"):
+    if _contains(latest_assistant, "nao vai me dar bolo", "voce ta me devendo"):
         return "good_night"
     if _contains(assistant, "motel status", "amanha ao meio dia", "amanha meio dia"):
         return "demand_no_show" if user_accepts else "name_motel"
@@ -132,7 +161,7 @@ def _resolve_meeting_plan_beat(messages: list[dict[str, Any]], fallback: str) ->
         return "name_motel" if user_accepts else "propose_motel"
     if user_awake or _contains(latest_assistant, "ta acordado", "esta acordado"):
         return "propose_motel"
-    return fallback if fallback in {"midnight_return", "propose_motel", "name_motel", "demand_no_show", "good_night"} else "midnight_return"
+    return fallback if fallback in {"midnight_return", "propose_motel", "name_motel", "demand_no_show", "good_night", "motel_preparation"} else "midnight_return"
 
 
 def _motel_present(messages: list[dict[str, Any]]) -> bool:
@@ -223,9 +252,13 @@ def dirigir_turno(
         route = _text((obter_beat(beat) or {}).get("route")) or "secret_meeting"
         memory_reason = "locked_screenplay_executor_overrode_cursor"
     elif visual_state.get("first_call_ended"):
-        route = "secret_meeting_plan"
         beat = _resolve_meeting_plan_beat(messages, beat)
-        memory_reason = memory_reason or "first_call_ended_opens_meeting_plan"
+        route = _text((obter_beat(beat) or {}).get("route")) or "secret_meeting_plan"
+        memory_reason = memory_reason or (
+            "next_day_evidence_advanced_good_night"
+            if beat == "motel_preparation"
+            else "first_call_ended_opens_meeting_plan"
+        )
     elif route == "hidden_call" or visual_state.get("video_call_established"):
         route = "hidden_call"
         beat = _resolve_hidden_call_beat(messages, visual_state, beat)
