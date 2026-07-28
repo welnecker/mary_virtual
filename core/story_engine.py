@@ -54,8 +54,6 @@ class StoryEngine:
 
         beat = chapter.beats[session.current_beat]
 
-        # O beat já foi interpretado por Mary. A nova fala do usuário decide se
-        # podemos abrir o sucessor, permanecer no gate ou encerrar por recusa.
         if session.current_beat_emitted:
             if beat.gate:
                 decision = gate_decision or GateDecision.UNCLEAR
@@ -87,12 +85,12 @@ class StoryEngine:
             self._complete_and_advance(session, chapter)
             if not session.is_active:
                 return TurnPlan(
-                    mode="ending",
+                    mode="closed",
                     beat_id=beat.id,
-                    mary_lines=(chapter.ending_message,) if chapter.ending_message else (),
+                    mary_lines=(),
                     route=beat.route,
                     gate="",
-                    instructions=("A história terminou. Não iniciar continuação automática.",),
+                    instructions=(),
                     story_finished=True,
                 )
             beat = chapter.beats[session.current_beat]
@@ -123,8 +121,21 @@ class StoryEngine:
             )
         if session.current_beat_emitted:
             raise ValueError(f"Beat {emitted_beat_id!r} já foi emitido nesta posição.")
+
+        beat = chapter.beats[session.current_beat]
         session.current_beat_emitted = True
         session.turn_count += 1
+
+        # O último beat termina somente depois de sua fala canônica ter sido exibida.
+        if not beat.next_beat:
+            if beat.id not in session.completed_beats:
+                session.completed_beats.append(beat.id)
+            for fact in beat.completes:
+                if fact not in session.completed_facts:
+                    session.completed_facts.append(fact)
+            session.status = "completed"
+            session.ending_reason = "chapter_completed"
+
         return session
 
     def close_session(self, session: StorySession, *, reason: str) -> StorySession:
