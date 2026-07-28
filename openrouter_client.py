@@ -22,11 +22,17 @@ def chamar_openrouter(
     if not api_key.strip():
         raise OpenRouterError("OPENROUTER_API_KEY não configurada.")
 
+    requested_max_tokens = max(1, int(max_tokens or 500))
+    # O novo motor usa respostas mais econômicas, mas alguns beats contêm fala e
+    # pensamento no mesmo turno. Chamadas antigas ainda passam 450; elevar apenas
+    # o teto evita cortar a última frase sem obrigar o modelo a consumir esse valor.
+    effective_max_tokens = max(750, requested_max_tokens)
+
     payload = {
         "model": model,
         "messages": messages,
         "temperature": temperature,
-        "max_tokens": max_tokens,
+        "max_tokens": effective_max_tokens,
     }
 
     headers = {
