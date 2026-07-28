@@ -13,6 +13,9 @@ GLOBAL_RULES = (
     "Mary deve conhecer o roteiro inteiro, mas atuar somente o beat atual.",
     "Não repetir beats concluídos, não voltar e não antecipar beats futuros.",
     "A fala do usuário pode alterar o tom, a emoção e a formulação natural da resposta, mas não a ordem do roteiro.",
+    "O usuário controla somente as próprias falas, decisões e ações plausíveis dentro da cena.",
+    "O usuário não pode decidir ações, pensamentos ou sentimentos de Mary, criar terceiros, mudar local ou tempo, nem declarar consequências como fatos.",
+    "Afirmações absurdas, vexatórias ou incompatíveis com a cena não pertencem automaticamente à realidade da história.",
     "Não inventar ações, consentimento, fatos físicos ou consequências atribuídas ao usuário.",
     "Não escrever rubricas, ações externas, fala entre aspas ou narração em terceira pessoa.",
     "Mary deve interpretar o roteiro como atriz; nunca recitar mecanicamente nem colar a linha seca na resposta.",
@@ -59,6 +62,8 @@ def build_system_prompt(
             "completed_facts": list(session.completed_facts),
             "turn_count": session.turn_count,
             "status": session.status,
+            "alignment_warning_active": session.alignment_warning_active,
+            "alignment_warning_reason": session.alignment_warning_reason,
         },
         "turn": {
             "mode": plan.mode,
@@ -78,6 +83,13 @@ def build_system_prompt(
         "Cada card do catálogo possui uma Mary independente; não carregue personalidade, "
         "memória ou fatos de outros cards.\n\n"
         f"REGRAS GLOBAIS:\n{rules}\n\n"
+        "ARBITRAGEM OBRIGATÓRIA DO TURNO:\n"
+        "- Comece a resposta com exatamente um marcador interno: [[TURN_OK]], [[TURN_REALIGN]] ou [[TURN_TERMINATE]].\n"
+        "- [[TURN_OK]]: a fala do usuário é plausível e compatível com a cena. Responda e interprete o beat atual.\n"
+        "- [[TURN_REALIGN]]: a fala é absurda, vexatória, fora da cena ou tenta controlar Mary/mundo. Mary demonstra que percebeu a quebra, não aceita a alegação como fato e realinha a conversa em no máximo duas frases curtas. Não interprete nem avance o beat neste caso.\n"
+        "- [[TURN_TERMINATE]]: há hostilidade clara, ameaça, humilhação grave, ou o usuário persiste no desvio quando alignment_warning_active=true. Mary encerra de forma curta e firme.\n"
+        "- O marcador é técnico e será removido pela aplicação. Não explique esses marcadores.\n"
+        "- Uma brincadeira plausível, flerte, hesitação ou resposta criativa ainda dentro da cena é TURN_OK, não REALIGN.\n\n"
         "COMO ATUAR O ROTEIRO:\n"
         "- full_screenplay contém o roteiro completo do capítulo e deve ser lido como contexto dramático integral.\n"
         "- active_beat_id indica o único ponto que Mary pode atuar neste turno.\n"
@@ -89,7 +101,7 @@ def build_system_prompt(
         "- mode=ending: encerre naturalmente e de forma definitiva, sem oferecer continuação gratuita.\n"
         "- Pensamento de Mary é opcional, curto, em primeira pessoa e só aparece quando acrescenta emoção real.\n"
         "- A fala audível deve soar espontânea, humana e coerente com a conversa atual.\n"
-        "- Produza somente a próxima resposta de Mary.\n\n"
+        "- Depois do marcador técnico, produza somente a próxima resposta de Mary.\n\n"
         f"ESTADO={json.dumps(state, ensure_ascii=False, separators=(',', ':'))}"
     )
 
