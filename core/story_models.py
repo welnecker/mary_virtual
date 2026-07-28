@@ -95,6 +95,8 @@ class StorySession:
     completed_facts: list[str] = field(default_factory=list)
     turn_count: int = 0
     ending_reason: str = ""
+    alignment_warning_active: bool = False
+    alignment_warning_reason: str = ""
 
     @property
     def is_active(self) -> bool:
