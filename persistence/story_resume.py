@@ -80,30 +80,60 @@ def _enrich_with_interactions(row: dict[str, Any], *, user_id: str) -> dict[str,
     return result
 
 
-def _selection_key(row: dict[str, Any]) -> tuple[int, int, str, int, str, str]:
-    """Escolhe primeiro uma execução ativa com histórico real.
-
-    Uma sessão ativa vazia criada depois não pode ocultar outra sessão ativa que
-    contenha a conversa do usuário.
-    """
-    active = _is_active_row(row)
-    saved_count = _int(row.get("saved_interaction_count"), 0)
-    has_history = saved_count > 0
+def _time_key(row: dict[str, Any]) -> tuple[str, str, str]:
     return (
-        1 if active and has_history else 0,
-        1 if active else 0,
-        _text(row.get("last_interaction_timestamp")),
-        saved_count,
-        _text(row.get("last_interaction_at") or row.get("updated_at") or row.get("created_at")),
+        _text(row.get("last_interaction_timestamp") or row.get("last_interaction_at") or row.get("updated_at")),
+        _text(row.get("created_at")),
         _text(row.get("scenario_session_id")),
     )
+
+
+def _legacy_supermarket_session(row: dict[str, Any]) -> bool:
+    return (
+        _text(row.get("scenario_id")) == "casada_frustrada"
+        and _text(row.get("current_phase")) == "chapter_01"
+        and not _is_active_row(row)
+        and _int(row.get("saved_interaction_count"), 0) > 0
+    )
+
+
+def _choose_story_row(rows: list[dict[str, Any]]) -> dict[str, Any]:
+    active_with_history = [
+        row for row in rows
+        if _is_active_row(row) and _int(row.get("saved_interaction_count"), 0) > 0
+    ]
+    if active_with_history:
+        return max(active_with_history, key=_time_key)
+
+    active_empty = [row for row in rows if _is_active_row(row)]
+    legacy_history = [row for row in rows if _legacy_supermarket_session(row)]
+    if active_empty and legacy_history:
+        active = max(active_empty, key=_time_key)
+        legacy = max(legacy_history, key=_time_key)
+        migrated = dict(active)
+        migrated["resume_history_session_id"] = _text(legacy.get("scenario_session_id"))
+        migrated["resume_legacy_supermarket"] = True
+        migrated["last_user_text"] = _text(legacy.get("last_user_text"))
+        migrated["last_mary_response"] = _text(legacy.get("last_mary_response"))
+        migrated["last_interaction_number"] = _int(legacy.get("last_interaction_number"), 0)
+        migrated["last_interaction_timestamp"] = _text(legacy.get("last_interaction_timestamp"))
+        migrated["saved_interaction_count"] = _int(legacy.get("saved_interaction_count"), 0)
+        return migrated
+
+    if active_empty:
+        return max(active_empty, key=_time_key)
+
+    with_history = [row for row in rows if _int(row.get("saved_interaction_count"), 0) > 0]
+    if with_history:
+        return max(with_history, key=_time_key)
+    return max(rows, key=_time_key)
 
 
 def latest_story_sessions_by_scenario(*, user_id: str) -> dict[str, dict[str, Any]]:
     """Retorna a melhor execução retomável de cada história.
 
-    A escolha cruza SCENARIO_SESSIONS com INTERACTIONS. Uma linha ativa sem
-    histórico não mascara outra linha ativa que possua interações salvas.
+    Para Casada frustrada, uma execução antiga encerrada no supermercado pode
+    fornecer o histórico a uma sessão nova e vazia da história completa.
     """
     user_id = _text(user_id)
     if not user_id:
@@ -121,10 +151,11 @@ def latest_story_sessions_by_scenario(*, user_id: str) -> dict[str, dict[str, An
             _enrich_with_interactions(row, user_id=user_id)
         )
 
-    result: dict[str, dict[str, Any]] = {}
-    for scenario_id, rows in grouped.items():
-        result[scenario_id] = max(rows, key=_selection_key)
-    return result
+    return {
+        scenario_id: _choose_story_row(rows)
+        for scenario_id, rows in grouped.items()
+        if rows
+    }
 
 
 def catalog_story_state(row: dict[str, Any] | None) -> str:
