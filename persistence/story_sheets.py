@@ -155,7 +155,15 @@ def persist_story_session(
         "scene_state": {"current_beat_emitted": engine_session.current_beat_emitted},
         "story_progress": _story_payload(engine_session),
     })
-    return salvar_instancia_cenario(instance, houve_interacao=interaction_happened)
+    try:
+        saved = salvar_instancia_cenario(instance, houve_interacao=interaction_happened)
+    except Exception as exc:
+        # A conversa não pode ser perdida porque uma atualização auxiliar da sessão falhou.
+        # O chamador ainda deve conseguir registrar INTERACTIONS e mostrar a resposta.
+        instance["_story_persistence_error"] = f"{type(exc).__name__}: {exc}"
+        return instance
+    instance.pop("_story_persistence_error", None)
+    return saved
 
 
 def persist_interaction(
