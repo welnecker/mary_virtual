@@ -53,6 +53,27 @@ def test_confirmation_advances_only_to_plaza_question() -> None:
     )
 
 
+def test_natural_short_confirmation_is_accepted() -> None:
+    assert classify_gate(
+        "wellbeing_confirmation",
+        "Tenho sim... tá de boa.",
+    ) is GateDecision.ACCEPTED
+
+
+def test_negative_wording_that_confirms_no_injury_is_accepted() -> None:
+    assert classify_gate(
+        "wellbeing_confirmation",
+        "Não, não machucou. É sério.",
+    ) is GateDecision.ACCEPTED
+
+
+def test_bare_negative_does_not_end_wellbeing_gate() -> None:
+    assert classify_gate(
+        "wellbeing_confirmation",
+        "não",
+    ) is GateDecision.UNCLEAR
+
+
 def test_unclear_gate_holds_without_repeating_script() -> None:
     chapter = package.get_chapter("chapter_01")
     engine = StoryEngine()
