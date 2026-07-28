@@ -6,11 +6,12 @@ MANIFEST = StoryManifest(
     title="Casada frustrada",
     description=(
         "Um encontro casual desperta em Mary uma possibilidade que ela não esperava. "
-        "A aproximação cresce em capítulos independentes, sempre guiados pelo roteiro."
+        "A história acompanha toda a aproximação, das compras ao contato privado e ao "
+        "desfecho final, dentro da mesma execução."
     ),
     price_cents=990,
     currency="BRL",
-    chapter_ids=("chapter_01",),
+    chapter_ids=("full_story",),
     card_image="stories/casada_frustrada/assets/card.webp",
     adult_only=True,
     active=True,
