@@ -1,3 +1,7 @@
+from .interaction_history import (
+    latest_interaction_for_session,
+    load_story_messages,
+)
 from .story_resume import (
     catalog_story_state,
     hydrate_story_session,
@@ -8,7 +12,6 @@ from .story_sheets import (
     create_story_session,
     finish_runtime_session,
     load_catalog_overrides,
-    load_story_messages,
     persist_interaction,
     persist_story_session,
 )
@@ -19,6 +22,7 @@ __all__ = [
     "create_story_session",
     "finish_runtime_session",
     "hydrate_story_session",
+    "latest_interaction_for_session",
     "latest_story_sessions_by_scenario",
     "load_catalog_overrides",
     "load_story_messages",
