@@ -105,21 +105,13 @@ def _choose_story_row(rows: list[dict[str, Any]]) -> dict[str, Any]:
     if active_with_history:
         return max(active_with_history, key=_time_key)
 
-    active_empty = [row for row in rows if _is_active_row(row)]
     legacy_history = [row for row in rows if _legacy_supermarket_session(row)]
-    if active_empty and legacy_history:
-        active = max(active_empty, key=_time_key)
-        legacy = max(legacy_history, key=_time_key)
-        migrated = dict(active)
-        migrated["resume_history_session_id"] = _text(legacy.get("scenario_session_id"))
-        migrated["resume_legacy_supermarket"] = True
-        migrated["last_user_text"] = _text(legacy.get("last_user_text"))
-        migrated["last_mary_response"] = _text(legacy.get("last_mary_response"))
-        migrated["last_interaction_number"] = _int(legacy.get("last_interaction_number"), 0)
-        migrated["last_interaction_timestamp"] = _text(legacy.get("last_interaction_timestamp"))
-        migrated["saved_interaction_count"] = _int(legacy.get("saved_interaction_count"), 0)
-        return migrated
+    if legacy_history:
+        legacy = dict(max(legacy_history, key=_time_key))
+        legacy["resume_legacy_supermarket"] = True
+        return legacy
 
+    active_empty = [row for row in rows if _is_active_row(row)]
     if active_empty:
         return max(active_empty, key=_time_key)
 
@@ -130,11 +122,7 @@ def _choose_story_row(rows: list[dict[str, Any]]) -> dict[str, Any]:
 
 
 def latest_story_sessions_by_scenario(*, user_id: str) -> dict[str, dict[str, Any]]:
-    """Retorna a melhor execução retomável de cada história.
-
-    Para Casada frustrada, uma execução antiga encerrada no supermercado pode
-    fornecer o histórico a uma sessão nova e vazia da história completa.
-    """
+    """Retorna a melhor execução retomável de cada história."""
     user_id = _text(user_id)
     if not user_id:
         return {}
@@ -161,11 +149,59 @@ def latest_story_sessions_by_scenario(*, user_id: str) -> dict[str, dict[str, An
 def catalog_story_state(row: dict[str, Any] | None) -> str:
     if not isinstance(row, dict):
         return "new"
+    if _int(row.get("saved_interaction_count"), 0) > 0:
+        return "active"
     return "active" if _is_active_row(row) else "finished"
 
 
+def _migrate_legacy_payload(row: dict[str, Any], payload: dict[str, Any]) -> dict[str, Any]:
+    if not _bool(row.get("resume_legacy_supermarket"), False):
+        return payload
+
+    migrated = dict(payload)
+    migrated.update(
+        {
+            "chapter_id": "full_story",
+            "current_beat": "home_first_message",
+            "status": "active",
+            "current_beat_emitted": False,
+            "turn_count": max(
+                _int(row.get("saved_interaction_count"), 0),
+                _int(payload.get("turn_count"), 0),
+            ),
+            "ending_reason": "",
+            "alignment_warning_active": False,
+            "alignment_warning_reason": "",
+        }
+    )
+    migrated["completed_beats"] = [
+        "injury_check",
+        "recognize_plaza",
+        "first_farewell",
+        "second_encounter",
+        "market_crowded",
+        "cart_single_guess",
+        "home_weekend_routine",
+        "checkout_turn",
+        "ask_wait_help_car",
+        "open_trunk",
+        "liked_meeting",
+        "request_phone",
+        "exchange_numbers",
+        "car_farewell",
+    ]
+    migrated["completed_facts"] = [
+        "first_contact_closed",
+        "second_encounter_started",
+        "single_status_explored",
+        "help_to_car_completed",
+        "phone_numbers_exchanged",
+    ]
+    return migrated
+
+
 def hydrate_story_session(row: dict[str, Any]) -> StorySession:
-    """Reconstrói o StorySession persistido em story_progress_json."""
+    """Reconstrói a sessão e migra o encerramento legado do supermercado."""
     if not isinstance(row, dict):
         raise ValueError("Registro de sessão narrativa inválido.")
 
@@ -175,7 +211,6 @@ def hydrate_story_session(row: dict[str, Any]) -> StorySession:
 
     allowed = {field.name for field in fields(StorySession)}
     payload = {key: value for key, value in engine_data.items() if key in allowed}
-
     payload.update(
         {
             "access_id": _text(
@@ -196,16 +231,17 @@ def hydrate_story_session(row: dict[str, Any]) -> StorySession:
         }
     )
 
-    if not payload["access_id"] or not payload["story_id"]:
-        raise ValueError("A sessão persistida não possui identificadores obrigatórios.")
-    if not payload["chapter_id"] or not payload["current_beat"]:
-        raise ValueError("A sessão persistida não possui capítulo ou beat atual.")
-
     payload.setdefault("completed_beats", list(progress.get("completed_beats") or []))
     payload.setdefault("completed_facts", list(progress.get("completed_facts") or []))
     payload.setdefault("current_beat_emitted", False)
     payload.setdefault("alignment_warning_active", False)
     payload.setdefault("alignment_warning_reason", "")
+    payload = _migrate_legacy_payload(row, payload)
+
+    if not payload["access_id"] or not payload["story_id"]:
+        raise ValueError("A sessão persistida não possui identificadores obrigatórios.")
+    if not payload["chapter_id"] or not payload["current_beat"]:
+        raise ValueError("A sessão persistida não possui capítulo ou beat atual.")
     return StorySession(**payload)
 
 
