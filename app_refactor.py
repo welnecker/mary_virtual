@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from dataclasses import asdict
 from time import perf_counter
-from typing import Any
+from typing import Any, Mapping
 
 import streamlit as st
 
@@ -17,7 +17,10 @@ from persistence import (
     create_runtime_session,
     create_story_session,
     finish_runtime_session,
+    hydrate_story_session,
+    latest_story_sessions_by_scenario,
     load_catalog_overrides,
+    load_story_messages,
     persist_interaction,
     persist_story_session,
 )
@@ -41,6 +44,7 @@ def _init_state() -> None:
         "v2_user": None,
         "v2_runtime_session": None,
         "v2_catalog_rows": {},
+        "v2_story_sessions": {},
         "v2_story_id": "",
         "v2_session": None,
         "v2_scenario_instance": None,
@@ -83,6 +87,12 @@ def _active_package() -> StoryPackage:
     if not story_id:
         raise RuntimeError("Nenhuma história ativa.")
     return get_story(story_id)
+
+
+def _reload_story_sessions(user_id: str) -> dict[str, dict[str, Any]]:
+    sessions = latest_story_sessions_by_scenario(user_id=user_id)
+    st.session_state["v2_story_sessions"] = sessions
+    return sessions
 
 
 def _authenticate() -> bool:
@@ -130,10 +140,12 @@ def _authenticate() -> bool:
         app_version=APP_VERSION,
     )
     catalog_rows = load_catalog_overrides()
+    story_sessions = latest_story_sessions_by_scenario(user_id=user_id)
 
     st.session_state["v2_user"] = user
     st.session_state["v2_runtime_session"] = runtime_session
     st.session_state["v2_catalog_rows"] = catalog_rows
+    st.session_state["v2_story_sessions"] = story_sessions
     st.session_state["v2_error"] = ""
     st.rerun()
     return False
@@ -153,6 +165,7 @@ def _logout() -> None:
         st.session_state[key] = None if key != "v2_story_id" else ""
     st.session_state["v2_messages"] = []
     st.session_state["v2_catalog_rows"] = {}
+    st.session_state["v2_story_sessions"] = {}
     st.session_state["v2_view"] = "catalog"
     st.session_state["v2_error"] = ""
     st.rerun()
@@ -196,6 +209,56 @@ def _start_story(package: StoryPackage, chapter_id: str) -> None:
     st.session_state["v2_messages"] = [
         {"role": "assistant", "content": engine.opening_message(chapter)}
     ]
+    st.session_state["v2_story_sessions"][package.manifest.id] = scenario_instance
+    st.session_state["v2_error"] = ""
+    st.session_state["v2_view"] = "story"
+    st.rerun()
+
+
+def _continue_story(package: StoryPackage, persisted_row: Mapping[str, Any]) -> None:
+    user = _active_user()
+    runtime = _active_runtime_session()
+    row = dict(persisted_row)
+    scenario_session_id = str(row.get("scenario_session_id") or "").strip()
+    if not scenario_session_id:
+        raise ValueError("A execução salva não possui scenario_session_id.")
+
+    story_session = hydrate_story_session(row)
+    if story_session.story_id != package.manifest.id:
+        raise ValueError("A sessão salva pertence a outra história.")
+    if not story_session.is_active:
+        raise ValueError("Esta execução já foi encerrada. Use Recomeçar.")
+
+    chapter = package.get_chapter(story_session.chapter_id)
+    if story_session.current_beat not in chapter.beats:
+        raise ValueError(
+            f"O beat salvo {story_session.current_beat!r} não existe na versão atual da história."
+        )
+
+    historical = load_story_messages(
+        user_id=str(user["user_id"]),
+        scenario_session_id=scenario_session_id,
+        limit=120,
+    )
+    messages = [{"role": "assistant", "content": StoryEngine().opening_message(chapter)}]
+    messages.extend(historical)
+
+    atualizar_registro(
+        "SESSIONS",
+        coluna_chave="session_id",
+        valor_chave=str(runtime["session_id"]),
+        alteracoes={
+            "last_activity_at": utc_now_iso(),
+            "updated_at": utc_now_iso(),
+            "last_scenario_id": package.manifest.id,
+            "last_scenario_session_id": scenario_session_id,
+        },
+    )
+
+    st.session_state["v2_story_id"] = package.manifest.id
+    st.session_state["v2_session"] = story_session
+    st.session_state["v2_scenario_instance"] = row
+    st.session_state["v2_messages"] = messages
     st.session_state["v2_error"] = ""
     st.session_state["v2_view"] = "story"
     st.rerun()
@@ -213,6 +276,9 @@ def _close_story(reason: str) -> None:
             interaction_happened=False,
         )
 
+    user = st.session_state.get("v2_user")
+    if isinstance(user, dict):
+        _reload_story_sessions(str(user.get("user_id") or ""))
     st.session_state["v2_view"] = "catalog"
     st.session_state["v2_story_id"] = ""
     st.session_state["v2_session"] = None
@@ -286,6 +352,7 @@ def _send_message(user_text: str) -> None:
     st.session_state["v2_messages"] = messages
     st.session_state["v2_session"] = result.session
     st.session_state["v2_scenario_instance"] = scenario_instance
+    st.session_state["v2_story_sessions"][package.manifest.id] = scenario_instance
     st.session_state["v2_error"] = ""
     st.rerun()
 
@@ -336,5 +403,7 @@ if authenticated:
     else:
         render_catalog(
             on_start=_start_story,
+            on_continue=_continue_story,
             catalog_rows=st.session_state.get("v2_catalog_rows") or {},
+            story_sessions=st.session_state.get("v2_story_sessions") or {},
         )
