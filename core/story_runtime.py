@@ -38,6 +38,11 @@ def _parse_turn_marker(raw_response: str) -> tuple[str, str]:
     return marker, response
 
 
+def _restore_session(target: StorySession, snapshot: StorySession) -> None:
+    target.__dict__.clear()
+    target.__dict__.update(snapshot.__dict__)
+
+
 class StoryRuntime:
     """Orquestra uma história sem conhecer seu conteúdo específico.
 
@@ -59,6 +64,7 @@ class StoryRuntime:
         gate_decision: GateDecision | None = None,
     ) -> RuntimeResult:
         chapter = package.get_chapter(session.chapter_id)
+        pre_turn = self.engine.snapshot(session)
         plan = self.engine.plan_turn(
             session=session,
             chapter=chapter,
@@ -84,13 +90,17 @@ class StoryRuntime:
             raise ValueError("O modelo retornou uma resposta vazia.")
 
         if marker == "TURN_TERMINATE":
+            _restore_session(session, pre_turn)
             self.engine.close_session(session, reason="narrative_boundary_terminated")
             session.alignment_warning_active = False
             session.alignment_warning_reason = ""
             return RuntimeResult(response=response, plan=plan, session=session)
 
         if marker == "TURN_REALIGN":
-            if session.alignment_warning_active:
+            warning_was_active = pre_turn.alignment_warning_active
+            _restore_session(session, pre_turn)
+
+            if warning_was_active:
                 self.engine.close_session(session, reason="repeated_narrative_deviation")
                 session.alignment_warning_active = False
                 session.alignment_warning_reason = ""
