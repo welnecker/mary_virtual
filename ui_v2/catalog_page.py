@@ -89,7 +89,7 @@ def render_catalog(
                 badge = _text(row.get("card_badge"))
                 if badge:
                     st.caption(badge)
-                st.caption(f"{len(manifest.chapter_ids)} história completa")
+                st.caption("História completa")
                 if access_type == "free":
                     st.markdown("**Gratuito**")
                 else:
@@ -102,7 +102,7 @@ def render_catalog(
                         f"Em andamento{f' · {current_beat}' if current_beat else ''}"
                     )
                     if st.button(
-                        _text(row.get("button_label_unlocked")) or "Continuar",
+                        "Continuar",
                         key=f"continue_{manifest.id}",
                         type="primary",
                         use_container_width=True,
