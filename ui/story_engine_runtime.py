@@ -8,7 +8,7 @@ from typing import Any, Callable
 import gspread
 import streamlit as st
 
-from scenarios.engine.models import StorySession
+from scenarios.engine.models import ScreenplayLine, StorySession
 from scenarios.engine.progression import advance_session
 from scenarios.engine.prompt_builder import build_story_prompt
 from scenarios.engine.registry import story_registry
@@ -16,7 +16,7 @@ from scenarios.engine.screenplay_repository import ScreenplayRepository
 from scenarios.stories import register_stories
 
 
-STORY_ENGINE_RUNTIME_VERSION = "story-engine-runtime-v2-clean"
+STORY_ENGINE_RUNTIME_VERSION = "story-engine-runtime-v2-sheet-opening"
 _SUPPORTED_STORIES = {"casada_frustrada"}
 _INSTALLED = False
 _ORIGINAL_TITLE: Callable[..., Any] | None = None
@@ -76,17 +76,80 @@ def _worksheet_records(spreadsheet_id: str, worksheet_name: str) -> list[dict[st
     return spreadsheet.worksheet(worksheet_name).get_all_records()
 
 
+def _chapter_lines(session: StorySession) -> tuple[ScreenplayLine, ...]:
+    story = story_registry.get_story(session.story_id)
+    chapter = story.chapters[session.chapter_id]
+    records = _worksheet_records(_text(chapter.spreadsheet_id), chapter.worksheet)
+    return ScreenplayRepository.from_records(records)
+
+
+def _selected_lines(session: StorySession) -> tuple[ScreenplayLine, ...]:
+    return ScreenplayRepository.select(
+        _chapter_lines(session),
+        route=session.current_route,
+        beat=session.current_beat,
+    )
+
+
+def _opening_line(instance: dict[str, Any]) -> ScreenplayLine | None:
+    session = _session_from_instance(instance)
+    selected = _selected_lines(session)
+    return selected[0] if selected else None
+
+
+def _apply_sheet_opening(instance: dict[str, Any]) -> dict[str, Any]:
+    story_id = _text(instance.get("scenario_id"))
+    if story_id not in _SUPPORTED_STORIES:
+        return instance
+
+    progress = instance.get("story_progress")
+    progress = deepcopy(progress) if isinstance(progress, dict) else {}
+    resolved = _text(progress.get("opening_line_content"))
+    if resolved:
+        instance["opening_message"] = resolved
+        instance["story_progress"] = progress
+        return instance
+
+    line = _opening_line(instance)
+    if line is None:
+        return instance
+
+    session = _session_from_instance(instance)
+    instance["opening_message"] = line.content
+    progress.update(
+        {
+            "engine": "clean_v2",
+            "story_id": story_id,
+            "chapter_id": session.chapter_id,
+            "opening_line_order": line.order,
+            "opening_line_content": line.content,
+            "opening_line_route": line.route,
+            "opening_line_beat": line.beat,
+        }
+    )
+    instance["story_progress"] = progress
+    st.session_state["scenario_instance"] = instance
+    return instance
+
+
 def _prompt_for_current_beat(instance: dict[str, Any]) -> str:
     session = _session_from_instance(instance)
     story = story_registry.get_story(session.story_id)
     chapter = story.chapters[session.chapter_id]
-    records = _worksheet_records(_text(chapter.spreadsheet_id), chapter.worksheet)
-    lines = ScreenplayRepository.from_records(records)
-    selected = ScreenplayRepository.select(
-        lines,
-        route=session.current_route,
-        beat=session.current_beat,
-    )
+    selected = list(_selected_lines(session))
+
+    progress = instance.get("story_progress")
+    if isinstance(progress, dict):
+        opening_order = progress.get("opening_line_order")
+        opening_route = _text(progress.get("opening_line_route"))
+        opening_beat = _text(progress.get("opening_line_beat"))
+        if (
+            opening_order is not None
+            and session.current_route == opening_route
+            and session.current_beat == opening_beat
+        ):
+            selected = [line for line in selected if line.order != int(opening_order)]
+
     return build_story_prompt(
         story=story,
         chapter=chapter,
@@ -134,6 +197,21 @@ def _advance_current_story() -> None:
     _persist_session(instance, advanced)
 
 
+def _patch_initial_message(module: Any) -> None:
+    original = getattr(module, "criar_mensagem_inicial_cenario", None)
+    if not callable(original) or getattr(original, "_sheet_opening_wrapped", False):
+        return
+
+    @wraps(original)
+    def wrapper(instance: dict[str, Any], *args: Any, **kwargs: Any) -> Any:
+        if isinstance(instance, dict):
+            instance = _apply_sheet_opening(instance)
+        return original(instance, *args, **kwargs)
+
+    wrapper._sheet_opening_wrapped = True  # type: ignore[attr-defined]
+    setattr(module, "criar_mensagem_inicial_cenario", wrapper)
+
+
 def _patch_narrative_direction(module: Any) -> None:
     original = getattr(module, "montar_direcao_narrativa", None)
     if not callable(original) or getattr(original, "_clean_story_engine_wrapped", False):
@@ -175,6 +253,7 @@ def aplicar_story_engine_runtime() -> None:
     module = sys.modules.get("__main__")
     if module is None:
         return
+    _patch_initial_message(module)
     _patch_narrative_direction(module)
     _patch_process_interaction(module)
 
