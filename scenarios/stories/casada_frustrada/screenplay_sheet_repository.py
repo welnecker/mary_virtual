@@ -17,7 +17,7 @@ from scenarios.stories.casada_frustrada.immersive_screenplay import (
 
 SCREENPLAY_SPREADSHEET_ID = "1ldFgUbxaEgi13ltNgx991INXTAm3e4nuhB8bjnYSyZM"
 SCREENPLAY_WORKSHEET = "MARY_FRUSTRADA_CAP_01"
-SCREENPLAY_SOURCE_VERSION = "mary-frustrada-cap-01-google-sheets-v1"
+SCREENPLAY_SOURCE_VERSION = "mary-frustrada-cap-01-google-sheets-v2"
 SCREENPLAY_HEADERS = [
     "ordem",
     "cena",
@@ -65,12 +65,7 @@ def _obter_worksheet():
 
 def _normalizar_ativo(value: Any) -> bool:
     return str(value or "SIM").strip().casefold() in {
-        "sim",
-        "true",
-        "1",
-        "ativo",
-        "yes",
-        "on",
+        "sim", "true", "1", "ativo", "yes", "on"
     }
 
 
@@ -183,30 +178,55 @@ def _montar_seed_rows() -> list[list[Any]]:
     return rows
 
 
+def _escrever_intervalo(worksheet, range_name: str, values: list[list[Any]]) -> None:
+    try:
+        worksheet.update(
+            values=values,
+            range_name=range_name,
+            value_input_option="RAW",
+        )
+    except TypeError:
+        # Compatibilidade com versões antigas do gspread.
+        worksheet.update(range_name, values, value_input_option="RAW")
+    except (APIError, GSpreadException) as exc:
+        raise ScreenplaySheetError(
+            f"Não foi possível escrever o roteiro na aba {SCREENPLAY_WORKSHEET!r}: {exc}"
+        ) from exc
+
+
 def inicializar_aba_se_vazia() -> bool:
-    """Copia o roteiro local para a aba somente quando ela ainda não possui registros."""
+    """Copia o roteiro local quando a aba possui somente cabeçalhos ou está vazia."""
     worksheet = _obter_worksheet()
-    values = worksheet.get_all_values()
+
+    try:
+        values = worksheet.get_all_values()
+    except (APIError, GSpreadException) as exc:
+        raise ScreenplaySheetError(
+            f"Não foi possível verificar a aba {SCREENPLAY_WORKSHEET!r}: {exc}"
+        ) from exc
 
     if values and any(any(str(cell).strip() for cell in row) for row in values[1:]):
         return False
 
     if not values:
-        worksheet.update("A1:J1", [SCREENPLAY_HEADERS], value_input_option="RAW")
+        _escrever_intervalo(worksheet, "A1:J1", [SCREENPLAY_HEADERS])
     else:
         current_headers = [str(value).strip() for value in values[0]]
         if current_headers[: len(SCREENPLAY_HEADERS)] != SCREENPLAY_HEADERS:
             raise ScreenplaySheetError(
-                "Os cabeçalhos da aba de roteiro não correspondem ao contrato esperado."
+                "Os cabeçalhos da aba de roteiro não correspondem ao contrato esperado. "
+                f"Esperado: {SCREENPLAY_HEADERS}. Encontrado: {current_headers}."
             )
 
     rows = _montar_seed_rows()
-    if rows:
-        worksheet.update(
-            f"A2:J{len(rows) + 1}",
-            rows,
-            value_input_option="RAW",
-        )
+    if not rows:
+        raise ScreenplaySheetError("O roteiro local não gerou linhas para migração.")
+
+    _escrever_intervalo(
+        worksheet,
+        f"A2:J{len(rows) + 1}",
+        rows,
+    )
     carregar_registros_roteiro.clear()
     return True
 
@@ -214,10 +234,18 @@ def inicializar_aba_se_vazia() -> bool:
 @st.cache_data(show_spinner=False, ttl=60)
 def carregar_registros_roteiro() -> list[dict[str, Any]]:
     worksheet = _obter_worksheet()
-    records = worksheet.get_all_records(default_blank="")
-    if not records:
-        inicializar_aba_se_vazia()
+
+    # A inicialização ocorre antes de get_all_records para evitar que uma aba
+    # somente com cabeçalhos seja tratada silenciosamente como roteiro vazio.
+    inicializar_aba_se_vazia()
+
+    try:
         records = worksheet.get_all_records(default_blank="")
+    except (APIError, GSpreadException) as exc:
+        raise ScreenplaySheetError(
+            f"Não foi possível ler os registros da aba {SCREENPLAY_WORKSHEET!r}: {exc}"
+        ) from exc
+
     return [dict(record) for record in records]
 
 
@@ -232,9 +260,8 @@ def carregar_trecho_por_rota(route: str, current_beat: str = "") -> dict[str, An
         if not _normalizar_ativo(record.get("ativo", "SIM")):
             continue
         content = str(record.get("conteudo", "")).strip()
-        if not content:
-            continue
-        selected.append(dict(record))
+        if content:
+            selected.append(dict(record))
 
     selected.sort(key=lambda item: _normalizar_ordem(item.get("ordem")))
 
