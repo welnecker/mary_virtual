@@ -1,7 +1,7 @@
 from scenarios.engine.registry import StoryRegistry
 from scenarios.engine.screenplay_repository import ScreenplayRepository
 from scenarios.engine.session_engine import StorySessionEngine
-from scenarios.stories_v2.casada_frustrada.story import STORY
+from scenarios.stories.casada_frustrada.story import STORY
 
 
 def test_story_engine_starts_and_filters_current_beat() -> None:
