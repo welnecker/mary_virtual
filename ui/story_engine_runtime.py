@@ -5,9 +5,9 @@ from functools import wraps
 import sys
 from typing import Any, Callable
 
+import gspread
 import streamlit as st
 
-from google_sheets_repository import obter_planilha
 from scenarios.engine.models import StorySession
 from scenarios.engine.progression import advance_session
 from scenarios.engine.prompt_builder import build_story_prompt
@@ -50,12 +50,15 @@ def _session_from_instance(instance: dict[str, Any]) -> StorySession:
     story_id = _text(instance.get("scenario_id"))
     chapter_id = _chapter_id(instance)
     story = story_registry.get_story(story_id)
-    chapter = story.chapters[chapter_id]
+    chapter = story.chapters.get(chapter_id) or story.chapters[story.initial_chapter_id]
     route = _text(instance.get("current_route") or scene.get("current_route"))
     beat = _text(instance.get("current_beat") or scene.get("current_beat"))
+    if beat not in chapter.beats:
+        beat = chapter.initial_beat
+        route = chapter.initial_route
     return StorySession(
         story_id=story_id,
-        chapter_id=chapter_id,
+        chapter_id=chapter.chapter_id,
         current_route=route or chapter.initial_route,
         current_beat=beat or chapter.initial_beat,
         completed_beats=list(scene.get("completed_beats") or []),
@@ -65,7 +68,11 @@ def _session_from_instance(instance: dict[str, Any]) -> StorySession:
 
 @st.cache_data(ttl=60, show_spinner=False)
 def _worksheet_records(spreadsheet_id: str, worksheet_name: str) -> list[dict[str, Any]]:
-    spreadsheet = obter_planilha()
+    if not spreadsheet_id:
+        raise ValueError("O capítulo não possui spreadsheet_id configurado.")
+    credentials = dict(st.secrets["gcp_service_account"])
+    client = gspread.service_account_from_dict(credentials)
+    spreadsheet = client.open_by_key(spreadsheet_id)
     return spreadsheet.worksheet(worksheet_name).get_all_records()
 
 
@@ -73,10 +80,7 @@ def _prompt_for_current_beat(instance: dict[str, Any]) -> str:
     session = _session_from_instance(instance)
     story = story_registry.get_story(session.story_id)
     chapter = story.chapters[session.chapter_id]
-    records = _worksheet_records(
-        _text(chapter.spreadsheet_id),
-        chapter.worksheet,
-    )
+    records = _worksheet_records(_text(chapter.spreadsheet_id), chapter.worksheet)
     lines = ScreenplayRepository.from_records(records)
     selected = ScreenplayRepository.select(
         lines,
