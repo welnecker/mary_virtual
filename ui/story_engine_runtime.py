@@ -8,18 +8,18 @@ from typing import Any, Callable
 import streamlit as st
 
 from google_sheets_repository import obter_planilha
+from scenarios.engine.models import StorySession
 from scenarios.engine.progression import advance_session
 from scenarios.engine.prompt_builder import build_story_prompt
-from scenarios.engine.screenplay_repository import ScreenplayRepository
-from scenarios.engine.session_engine import StorySessionEngine
-from scenarios.engine.models import StorySession
-from scenarios.stories_v2 import register_v2_stories
 from scenarios.engine.registry import story_registry
+from scenarios.engine.screenplay_repository import ScreenplayRepository
+from scenarios.stories_v2 import register_v2_stories
 
 
 STORY_ENGINE_RUNTIME_VERSION = "story-engine-runtime-v2-clean"
 _SUPPORTED_STORIES = {"casada_frustrada"}
 _INSTALLED = False
+_ORIGINAL_TITLE: Callable[..., Any] | None = None
 
 
 def _text(value: Any) -> str:
@@ -66,10 +66,6 @@ def _session_from_instance(instance: dict[str, Any]) -> StorySession:
 @st.cache_data(ttl=60, show_spinner=False)
 def _worksheet_records(spreadsheet_id: str, worksheet_name: str) -> list[dict[str, Any]]:
     spreadsheet = obter_planilha()
-    if spreadsheet_id and spreadsheet.id != spreadsheet_id:
-        # A instalação atual usa uma planilha central. O id do capítulo é validado,
-        # mas a conexão compartilhada continua sendo a autoridade de credenciais.
-        pass
     return spreadsheet.worksheet(worksheet_name).get_all_records()
 
 
@@ -180,10 +176,19 @@ def aplicar_story_engine_runtime() -> None:
 
 
 def install_story_engine_runtime() -> None:
-    global _INSTALLED
+    global _INSTALLED, _ORIGINAL_TITLE
     if _INSTALLED:
         return
-    aplicar_story_engine_runtime()
+    register_v2_stories()
+    _ORIGINAL_TITLE = st.title
+
+    @wraps(_ORIGINAL_TITLE)
+    def patched_title(*args: Any, **kwargs: Any) -> Any:
+        aplicar_story_engine_runtime()
+        assert _ORIGINAL_TITLE is not None
+        return _ORIGINAL_TITLE(*args, **kwargs)
+
+    st.title = patched_title
     _INSTALLED = True
 
 
