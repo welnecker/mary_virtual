@@ -5,7 +5,7 @@ from functools import wraps
 from typing import Any, Callable
 
 from scenarios.card import montar_contexto_card, normalizar_card_package
-from scenarios.stories_v2.casada_frustrada.card import obter_card as obter_card_casada
+from scenarios.stories.casada_frustrada.card import obter_card as obter_card_casada
 from scenarios.stories.vizinha_porta_trancada.card import obter_card as obter_card_vizinha
 
 
