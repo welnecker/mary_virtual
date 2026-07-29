@@ -4,7 +4,7 @@ from copy import deepcopy
 from typing import Any
 
 from scenarios.schema import ACCESS_TYPE_PAID, normalizar_config_cenario
-from scenarios.stories_v2.casada_frustrada.chapters.cap_01.config import CHAPTER
+from scenarios.stories.casada_frustrada.chapters.cap_01.config import CHAPTER
 
 
 PUBLIC_SCENARIO_MODULE_VERSION = "casada-frustrada-public-v2-clean"
