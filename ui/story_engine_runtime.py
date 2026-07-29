@@ -16,7 +16,7 @@ from scenarios.engine.screenplay_repository import ScreenplayRepository
 from scenarios.stories import register_stories
 
 
-STORY_ENGINE_RUNTIME_VERSION = "story-engine-runtime-v2-explicit-opening-event"
+STORY_ENGINE_RUNTIME_VERSION = "story-engine-runtime-v2-ordered-line-consumption"
 _SUPPORTED_STORIES = {"casada_frustrada"}
 _OPENING_CONDITION = "abertura da história"
 _INSTALLED = False
@@ -104,6 +104,18 @@ def _selected_lines(session: StorySession) -> tuple[ScreenplayLine, ...]:
     )
 
 
+def _consumed_orders(instance: dict[str, Any]) -> set[int]:
+    progress = instance.get("story_progress")
+    values = progress.get("consumed_line_orders") if isinstance(progress, dict) else []
+    result: set[int] = set()
+    for value in values or []:
+        try:
+            result.add(int(value))
+        except (TypeError, ValueError):
+            continue
+    return result
+
+
 def _opening_line(instance: dict[str, Any]) -> ScreenplayLine:
     session = _session_from_instance(instance)
     story = story_registry.get_story(session.story_id)
@@ -117,36 +129,19 @@ def _opening_line(instance: dict[str, Any]) -> ScreenplayLine:
             and _condition_key(line.condition) == _OPENING_CONDITION
         )
     )
-
     if not candidates:
         raise RuntimeError(
             "A abertura do roteiro não foi encontrada. "
-            f"Aba={chapter.worksheet!r}, "
-            f"rota esperada={session.current_route!r}, "
-            f"beat esperado={session.current_beat!r}, "
-            f"condicao esperada={_OPENING_CONDITION!r}. "
-            "É obrigatória exatamente uma linha ativa com conteudo preenchido."
+            f"Aba={chapter.worksheet!r}, rota={session.current_route!r}, "
+            f"beat={session.current_beat!r}, condicao={_OPENING_CONDITION!r}."
         )
-
     if len(candidates) > 1:
         orders = ", ".join(str(line.order) for line in candidates)
         raise RuntimeError(
-            "Existem múltiplas linhas de abertura para o mesmo beat. "
-            f"Aba={chapter.worksheet!r}, "
-            f"rota={session.current_route!r}, "
-            f"beat={session.current_beat!r}, "
-            f"condicao={_OPENING_CONDITION!r}, "
-            f"ordens encontradas=[{orders}]."
+            "Existem múltiplas linhas de abertura. "
+            f"Aba={chapter.worksheet!r}, ordens=[{orders}]."
         )
-
-    line = candidates[0]
-    if not _text(line.content):
-        raise RuntimeError(
-            "A linha de abertura possui conteudo vazio. "
-            f"Aba={chapter.worksheet!r}, ordem={line.order}, "
-            f"rota={line.route!r}, beat={line.beat!r}."
-        )
-    return line
+    return candidates[0]
 
 
 def _apply_sheet_opening(
@@ -158,16 +153,12 @@ def _apply_sheet_opening(
     if story_id not in _SUPPORTED_STORIES:
         return instance
 
-    progress = instance.get("story_progress")
-    progress = deepcopy(progress) if isinstance(progress, dict) else {}
     line = _opening_line(instance)
     session = _session_from_instance(instance)
-
-    consumed = list(progress.get("consumed_line_orders") or [])
-    consumed = [int(value) for value in consumed if str(value).strip()]
-    if line.order not in consumed:
-        consumed.append(line.order)
-
+    progress = instance.get("story_progress")
+    progress = deepcopy(progress) if isinstance(progress, dict) else {}
+    consumed = set() if force_new else _consumed_orders(instance)
+    consumed.add(line.order)
     progress.update(
         {
             "engine": "clean_v2",
@@ -178,18 +169,17 @@ def _apply_sheet_opening(
             "opening_line_route": line.route,
             "opening_line_beat": line.beat,
             "opening_line_condition": _OPENING_CONDITION,
-            "consumed_line_orders": consumed,
+            "consumed_line_orders": sorted(consumed),
+            "pending_line_order": None,
         }
     )
-
     instance["opening_message"] = ""
+    instance["story_progress"] = progress
     if force_new:
         instance["opening_sent"] = False
         scene = _scene(instance)
         scene["opening_sent"] = False
         instance["scene_state"] = scene
-
-    instance["story_progress"] = progress
     return instance
 
 
@@ -199,8 +189,6 @@ def _ensure_opening_visible() -> None:
         return
     if _text(instance.get("scenario_id")) not in _SUPPORTED_STORIES:
         return
-    if bool(instance.get("opening_sent", False)):
-        return
 
     instance = _apply_sheet_opening(instance)
     progress = instance.get("story_progress")
@@ -208,14 +196,24 @@ def _ensure_opening_visible() -> None:
         raise RuntimeError("O estado da abertura não foi criado corretamente.")
 
     content = _text(progress.get("opening_line_content"))
-    if not content:
-        raise RuntimeError("O conteúdo da abertura não foi registrado.")
+    opening_order = int(progress.get("opening_line_order", -1))
+    if not content or opening_order < 0:
+        raise RuntimeError("A abertura foi localizada, mas não pôde ser registrada.")
 
     messages = st.session_state.get("messages")
-    if not isinstance(messages, list):
-        messages = []
+    messages = list(messages) if isinstance(messages, list) else []
 
-    opening_order = int(progress["opening_line_order"])
+    # Remove bolhas vazias produzidas pelo caminho legado de opening_message.
+    messages = [
+        message
+        for message in messages
+        if not (
+            isinstance(message, dict)
+            and message.get("role") == "assistant"
+            and not _text(message.get("content"))
+        )
+    ]
+
     already_present = any(
         isinstance(message, dict)
         and message.get("role") == "assistant"
@@ -223,7 +221,6 @@ def _ensure_opening_visible() -> None:
         and int(message.get("order", -1)) == opening_order
         for message in messages
     )
-
     if not already_present:
         messages.insert(
             0,
@@ -241,34 +238,61 @@ def _ensure_opening_visible() -> None:
     scene = _scene(instance)
     scene["opening_sent"] = True
     instance["scene_state"] = scene
-
     st.session_state["messages"] = messages
     st.session_state["scenario_instance"] = instance
     st.session_state["initial_message_created"] = True
+
+
+def _next_movement_line(instance: dict[str, Any]) -> ScreenplayLine:
+    session = _session_from_instance(instance)
+    consumed = _consumed_orders(instance)
+    candidates = [
+        line
+        for line in _selected_lines(session)
+        if (
+            line.beat == session.current_beat
+            and line.kind.casefold() != "regra"
+            and line.order not in consumed
+            and _condition_key(line.condition) != _OPENING_CONDITION
+        )
+    ]
+    if not candidates:
+        raise RuntimeError(
+            "O beat atual não possui próximo movimento disponível. "
+            f"rota={session.current_route!r}, beat={session.current_beat!r}, "
+            f"ordens_consumidas={sorted(consumed)}."
+        )
+    return min(candidates, key=lambda line: line.order)
+
+
+def _route_rules(session: StorySession) -> list[ScreenplayLine]:
+    return [
+        line
+        for line in _selected_lines(session)
+        if line.kind.casefold() == "regra" and not line.beat
+    ]
 
 
 def _prompt_for_current_beat(instance: dict[str, Any]) -> str:
     session = _session_from_instance(instance)
     story = story_registry.get_story(session.story_id)
     chapter = story.chapters[session.chapter_id]
-    selected = list(_selected_lines(session))
+    movement = _next_movement_line(instance)
+    lines = [*_route_rules(session), movement]
 
     progress = instance.get("story_progress")
-    consumed_orders: set[int] = set()
-    if isinstance(progress, dict):
-        for value in progress.get("consumed_line_orders") or []:
-            try:
-                consumed_orders.add(int(value))
-            except (TypeError, ValueError):
-                continue
-
-    selected = [line for line in selected if line.order not in consumed_orders]
+    progress = deepcopy(progress) if isinstance(progress, dict) else {}
+    progress["pending_line_order"] = movement.order
+    progress["pending_line_route"] = movement.route
+    progress["pending_line_beat"] = movement.beat
+    instance["story_progress"] = progress
+    st.session_state["scenario_instance"] = instance
 
     return build_story_prompt(
         story=story,
         chapter=chapter,
         session=session,
-        lines=selected,
+        lines=lines,
     )
 
 
@@ -297,26 +321,48 @@ def _persist_session(instance: dict[str, Any], session: StorySession) -> None:
     st.session_state["scenario_instance"] = instance
 
 
-def _advance_current_story() -> None:
+def _consume_pending_line_and_advance_if_finished() -> None:
     instance = _instance()
     if not isinstance(instance, dict):
         return
-    story_id = _text(instance.get("scenario_id"))
-    if story_id not in _SUPPORTED_STORIES:
+    if _text(instance.get("scenario_id")) not in _SUPPORTED_STORIES:
         return
+
+    progress = instance.get("story_progress")
+    progress = deepcopy(progress) if isinstance(progress, dict) else {}
+    pending = progress.get("pending_line_order")
+    if pending is None:
+        raise RuntimeError("A resposta terminou sem uma linha pendente do roteiro.")
+
+    consumed = _consumed_orders(instance)
+    consumed.add(int(pending))
+    progress["consumed_line_orders"] = sorted(consumed)
+    progress["pending_line_order"] = None
+    instance["story_progress"] = progress
+
     session = _session_from_instance(instance)
-    story = story_registry.get_story(story_id)
+    remaining = [
+        line
+        for line in _selected_lines(session)
+        if (
+            line.beat == session.current_beat
+            and line.kind.casefold() != "regra"
+            and line.order not in consumed
+            and _condition_key(line.condition) != _OPENING_CONDITION
+        )
+    ]
+    if remaining:
+        _persist_session(instance, session)
+        return
+
+    story = story_registry.get_story(session.story_id)
     chapter = story.chapters[session.chapter_id]
     _persist_session(instance, advance_session(session, chapter))
 
 
 def _patch_start_scenario(module: Any) -> None:
     original = getattr(module, "iniciar_cenario_para_usuario", None)
-    if not callable(original) or getattr(
-        original,
-        "_strict_story_start_wrapped",
-        False,
-    ):
+    if not callable(original) or getattr(original, "_strict_story_start_wrapped", False):
         return
 
     @wraps(original)
@@ -330,13 +376,25 @@ def _patch_start_scenario(module: Any) -> None:
     setattr(module, "iniciar_cenario_para_usuario", wrapper)
 
 
+def _patch_initial_message(module: Any) -> None:
+    original = getattr(module, "criar_mensagem_inicial_cenario", None)
+    if not callable(original) or getattr(original, "_ordered_opening_wrapped", False):
+        return
+
+    @wraps(original)
+    def wrapper(*args: Any, **kwargs: Any) -> Any:
+        result = original(*args, **kwargs)
+        # Executa depois do caminho legado, quando o histórico oficial já existe.
+        _ensure_opening_visible()
+        return result
+
+    wrapper._ordered_opening_wrapped = True  # type: ignore[attr-defined]
+    setattr(module, "criar_mensagem_inicial_cenario", wrapper)
+
+
 def _patch_narrative_direction(module: Any) -> None:
     original = getattr(module, "montar_direcao_narrativa", None)
-    if not callable(original) or getattr(
-        original,
-        "_clean_story_engine_wrapped",
-        False,
-    ):
+    if not callable(original) or getattr(original, "_clean_story_engine_wrapped", False):
         return
 
     @wraps(original)
@@ -356,17 +414,13 @@ def _patch_narrative_direction(module: Any) -> None:
 
 def _patch_process_interaction(module: Any) -> None:
     original = getattr(module, "processar_interacao", None)
-    if not callable(original) or getattr(
-        original,
-        "_clean_story_process_wrapped",
-        False,
-    ):
+    if not callable(original) or getattr(original, "_clean_story_process_wrapped", False):
         return
 
     @wraps(original)
     def wrapper(*args: Any, **kwargs: Any) -> Any:
         result = original(*args, **kwargs)
-        _advance_current_story()
+        _consume_pending_line_and_advance_if_finished()
         return result
 
     wrapper._clean_story_process_wrapped = True  # type: ignore[attr-defined]
@@ -379,9 +433,9 @@ def aplicar_story_engine_runtime() -> None:
     if module is None:
         return
     _patch_start_scenario(module)
+    _patch_initial_message(module)
     _patch_narrative_direction(module)
     _patch_process_interaction(module)
-    _ensure_opening_visible()
 
 
 def install_story_engine_runtime() -> None:
