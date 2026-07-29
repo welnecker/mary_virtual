@@ -16,7 +16,7 @@ from scenarios.engine.screenplay_repository import ScreenplayRepository
 from scenarios.stories import register_stories
 
 
-STORY_ENGINE_RUNTIME_VERSION = "story-engine-runtime-v2-sheet-opening"
+STORY_ENGINE_RUNTIME_VERSION = "story-engine-runtime-v2-strict-sheet-opening"
 _SUPPORTED_STORIES = {"casada_frustrada"}
 _INSTALLED = False
 _ORIGINAL_TITLE: Callable[..., Any] | None = None
@@ -91,10 +91,31 @@ def _selected_lines(session: StorySession) -> tuple[ScreenplayLine, ...]:
     )
 
 
-def _opening_line(instance: dict[str, Any]) -> ScreenplayLine | None:
+def _opening_line(instance: dict[str, Any]) -> ScreenplayLine:
     session = _session_from_instance(instance)
+    story = story_registry.get_story(session.story_id)
+    chapter = story.chapters[session.chapter_id]
     selected = _selected_lines(session)
-    return selected[0] if selected else None
+
+    if not selected:
+        raise RuntimeError(
+            "A abertura do roteiro não foi encontrada. "
+            f"Aba={chapter.worksheet!r}, "
+            f"rota esperada={session.current_route!r}, "
+            f"beat esperado={session.current_beat!r}. "
+            "Verifique se existe ao menos uma linha com conteudo preenchido, "
+            "ativo=SIM e correspondência exata de rota e beat."
+        )
+
+    first = selected[0]
+    if not _text(first.content):
+        raise RuntimeError(
+            "A primeira linha selecionada para a abertura possui conteudo vazio. "
+            f"Aba={chapter.worksheet!r}, ordem={first.order}, "
+            f"rota={first.route!r}, beat={first.beat!r}."
+        )
+
+    return first
 
 
 def _apply_sheet_opening(instance: dict[str, Any]) -> dict[str, Any]:
@@ -111,9 +132,6 @@ def _apply_sheet_opening(instance: dict[str, Any]) -> dict[str, Any]:
         return instance
 
     line = _opening_line(instance)
-    if line is None:
-        return instance
-
     session = _session_from_instance(instance)
     instance["opening_message"] = line.content
     progress.update(
