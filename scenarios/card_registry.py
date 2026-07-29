@@ -5,11 +5,11 @@ from functools import wraps
 from typing import Any, Callable
 
 from scenarios.card import montar_contexto_card, normalizar_card_package
-from scenarios.stories.casada_frustrada.card import obter_card as obter_card_casada
+from scenarios.stories_v2.casada_frustrada.card import obter_card as obter_card_casada
 from scenarios.stories.vizinha_porta_trancada.card import obter_card as obter_card_vizinha
 
 
-CARD_REGISTRY_VERSION = "scenario-card-registry-v1-two-independent-marys"
+CARD_REGISTRY_VERSION = "scenario-card-registry-v2-clean-story-engine"
 CardLoader = Callable[[], dict[str, Any]]
 
 CARD_LOADERS: dict[str, CardLoader] = {
