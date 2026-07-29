@@ -13,7 +13,7 @@ from scenarios.engine.progression import advance_session
 from scenarios.engine.prompt_builder import build_story_prompt
 from scenarios.engine.registry import story_registry
 from scenarios.engine.screenplay_repository import ScreenplayRepository
-from scenarios.stories_v2 import register_v2_stories
+from scenarios.stories import register_stories
 
 
 STORY_ENGINE_RUNTIME_VERSION = "story-engine-runtime-v2-clean"
@@ -171,7 +171,7 @@ def _patch_process_interaction(module: Any) -> None:
 
 
 def aplicar_story_engine_runtime() -> None:
-    register_v2_stories()
+    register_stories()
     module = sys.modules.get("__main__")
     if module is None:
         return
@@ -183,7 +183,7 @@ def install_story_engine_runtime() -> None:
     global _INSTALLED, _ORIGINAL_TITLE
     if _INSTALLED:
         return
-    register_v2_stories()
+    register_stories()
     _ORIGINAL_TITLE = st.title
 
     @wraps(_ORIGINAL_TITLE)
