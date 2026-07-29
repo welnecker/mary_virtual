@@ -16,7 +16,7 @@ from scenarios.engine.screenplay_repository import ScreenplayRepository
 from scenarios.stories import register_stories
 
 
-STORY_ENGINE_RUNTIME_VERSION = "story-engine-runtime-v2-strict-sheet-opening"
+STORY_ENGINE_RUNTIME_VERSION = "story-engine-runtime-v2-strict-start-opening"
 _SUPPORTED_STORIES = {"casada_frustrada"}
 _INSTALLED = False
 _ORIGINAL_TITLE: Callable[..., Any] | None = None
@@ -48,9 +48,9 @@ def _chapter_id(instance: dict[str, Any]) -> str:
 def _session_from_instance(instance: dict[str, Any]) -> StorySession:
     scene = _scene(instance)
     story_id = _text(instance.get("scenario_id"))
-    chapter_id = _chapter_id(instance)
     story = story_registry.get_story(story_id)
-    chapter = story.chapters.get(chapter_id) or story.chapters[story.initial_chapter_id]
+    requested_chapter = _chapter_id(instance)
+    chapter = story.chapters.get(requested_chapter) or story.chapters[story.initial_chapter_id]
     route = _text(instance.get("current_route") or scene.get("current_route"))
     beat = _text(instance.get("current_beat") or scene.get("current_beat"))
     if beat not in chapter.beats:
@@ -96,57 +96,64 @@ def _opening_line(instance: dict[str, Any]) -> ScreenplayLine:
     story = story_registry.get_story(session.story_id)
     chapter = story.chapters[session.chapter_id]
     selected = _selected_lines(session)
-
-    if not selected:
+    exact = tuple(
+        line for line in selected
+        if line.route == session.current_route and line.beat == session.current_beat
+    )
+    if not exact:
         raise RuntimeError(
             "A abertura do roteiro não foi encontrada. "
-            f"Aba={chapter.worksheet!r}, "
-            f"rota esperada={session.current_route!r}, "
+            f"Aba={chapter.worksheet!r}, rota esperada={session.current_route!r}, "
             f"beat esperado={session.current_beat!r}. "
-            "Verifique se existe ao menos uma linha com conteudo preenchido, "
-            "ativo=SIM e correspondência exata de rota e beat."
+            "É obrigatória uma linha com conteudo preenchido, ativo=SIM e "
+            "correspondência exata de rota e beat."
         )
-
-    first = selected[0]
+    first = exact[0]
     if not _text(first.content):
         raise RuntimeError(
-            "A primeira linha selecionada para a abertura possui conteudo vazio. "
+            "A linha inicial possui conteudo vazio. "
             f"Aba={chapter.worksheet!r}, ordem={first.order}, "
             f"rota={first.route!r}, beat={first.beat!r}."
         )
-
     return first
 
 
-def _apply_sheet_opening(instance: dict[str, Any]) -> dict[str, Any]:
+def _apply_sheet_opening(
+    instance: dict[str, Any], *, force_new: bool = False
+) -> dict[str, Any]:
     story_id = _text(instance.get("scenario_id"))
     if story_id not in _SUPPORTED_STORIES:
         return instance
 
     progress = instance.get("story_progress")
     progress = deepcopy(progress) if isinstance(progress, dict) else {}
-    resolved = _text(progress.get("opening_line_content"))
+    resolved = "" if force_new else _text(progress.get("opening_line_content"))
+
     if resolved:
         instance["opening_message"] = resolved
-        instance["story_progress"] = progress
-        return instance
+    else:
+        line = _opening_line(instance)
+        session = _session_from_instance(instance)
+        instance["opening_message"] = line.content
+        progress.update(
+            {
+                "engine": "clean_v2",
+                "story_id": story_id,
+                "chapter_id": session.chapter_id,
+                "opening_line_order": line.order,
+                "opening_line_content": line.content,
+                "opening_line_route": line.route,
+                "opening_line_beat": line.beat,
+            }
+        )
 
-    line = _opening_line(instance)
-    session = _session_from_instance(instance)
-    instance["opening_message"] = line.content
-    progress.update(
-        {
-            "engine": "clean_v2",
-            "story_id": story_id,
-            "chapter_id": session.chapter_id,
-            "opening_line_order": line.order,
-            "opening_line_content": line.content,
-            "opening_line_route": line.route,
-            "opening_line_beat": line.beat,
-        }
-    )
+    if force_new:
+        instance["opening_sent"] = False
+        scene = _scene(instance)
+        scene["opening_sent"] = False
+        instance["scene_state"] = scene
+
     instance["story_progress"] = progress
-    st.session_state["scenario_instance"] = instance
     return instance
 
 
@@ -211,8 +218,23 @@ def _advance_current_story() -> None:
     session = _session_from_instance(instance)
     story = story_registry.get_story(story_id)
     chapter = story.chapters[session.chapter_id]
-    advanced = advance_session(session, chapter)
-    _persist_session(instance, advanced)
+    _persist_session(instance, advance_session(session, chapter))
+
+
+def _patch_start_scenario(module: Any) -> None:
+    original = getattr(module, "iniciar_cenario_para_usuario", None)
+    if not callable(original) or getattr(original, "_strict_story_start_wrapped", False):
+        return
+
+    @wraps(original)
+    def wrapper(*args: Any, **kwargs: Any) -> dict[str, Any]:
+        instance = original(*args, **kwargs)
+        if isinstance(instance, dict):
+            instance = _apply_sheet_opening(instance, force_new=True)
+        return instance
+
+    wrapper._strict_story_start_wrapped = True  # type: ignore[attr-defined]
+    setattr(module, "iniciar_cenario_para_usuario", wrapper)
 
 
 def _patch_initial_message(module: Any) -> None:
@@ -224,6 +246,7 @@ def _patch_initial_message(module: Any) -> None:
     def wrapper(instance: dict[str, Any], *args: Any, **kwargs: Any) -> Any:
         if isinstance(instance, dict):
             instance = _apply_sheet_opening(instance)
+            st.session_state["scenario_instance"] = instance
         return original(instance, *args, **kwargs)
 
     wrapper._sheet_opening_wrapped = True  # type: ignore[attr-defined]
@@ -241,8 +264,7 @@ def _patch_narrative_direction(module: Any) -> None:
         instance = _instance()
         if not isinstance(instance, dict):
             return base
-        story_id = _text(instance.get("scenario_id"))
-        if story_id not in _SUPPORTED_STORIES:
+        if _text(instance.get("scenario_id")) not in _SUPPORTED_STORIES:
             return base
         screenplay = _prompt_for_current_beat(instance)
         return "\n\n".join(part for part in (base, screenplay) if part)
@@ -271,6 +293,7 @@ def aplicar_story_engine_runtime() -> None:
     module = sys.modules.get("__main__")
     if module is None:
         return
+    _patch_start_scenario(module)
     _patch_initial_message(module)
     _patch_narrative_direction(module)
     _patch_process_interaction(module)
