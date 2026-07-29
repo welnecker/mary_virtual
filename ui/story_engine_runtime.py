@@ -9,6 +9,7 @@ from typing import Any, Callable
 import gspread
 import streamlit as st
 
+from repositories.scenario_session_repository import salvar_instancia_cenario
 from scenarios.engine.models import ScreenplayLine, StorySession
 from scenarios.engine.progression import advance_session
 from scenarios.engine.registry import story_registry
@@ -16,11 +17,12 @@ from scenarios.engine.screenplay_repository import ScreenplayRepository
 from scenarios.stories import register_stories
 
 
-STORY_ENGINE_RUNTIME_VERSION = "story-engine-runtime-v2-strict-authoritative-screenplay"
+STORY_ENGINE_RUNTIME_VERSION = "story-engine-runtime-v2-rerun-safe-strict"
 _SUPPORTED_STORIES = {"casada_frustrada"}
 _OPENING_CONDITION = "abertura da história"
 _INSTALLED = False
 _ORIGINAL_TITLE: Callable[..., Any] | None = None
+_ORIGINAL_RERUN: Callable[..., Any] | None = None
 
 
 def _text(value: Any) -> str:
@@ -34,6 +36,10 @@ def _key(value: Any) -> str:
 def _instance() -> dict[str, Any] | None:
     value = st.session_state.get("scenario_instance")
     return value if isinstance(value, dict) else None
+
+
+def _supported(instance: dict[str, Any] | None) -> bool:
+    return isinstance(instance, dict) and _text(instance.get("scenario_id")) in _SUPPORTED_STORIES
 
 
 def _scene(instance: dict[str, Any]) -> dict[str, Any]:
@@ -217,37 +223,23 @@ def _response_follows_movement(response: str, movement: str) -> bool:
     return len(expected & actual) >= required
 
 
-def _last_assistant_message() -> dict[str, Any] | None:
-    messages = st.session_state.get("messages")
-    if not isinstance(messages, list):
-        return None
-    for message in reversed(messages):
-        if isinstance(message, dict) and message.get("role") == "assistant":
-            return message
-    return None
+def _enforce_response_text(response: str) -> str:
+    instance = _instance()
+    if not _supported(instance):
+        return response
 
-
-def _enforce_pending_movement(instance: dict[str, Any]) -> None:
+    assert instance is not None
     progress = instance.get("story_progress")
     if not isinstance(progress, dict):
-        raise RuntimeError("O estado do roteiro não existe após a resposta.")
+        raise RuntimeError("O estado do roteiro não existe após a geração.")
 
     movement = _text(progress.get("pending_line_content"))
     if not movement:
         raise RuntimeError("A linha pendente do roteiro não possui conteúdo.")
 
-    assistant_message = _last_assistant_message()
-    if assistant_message is None:
-        raise RuntimeError("A interação terminou sem resposta de Mary.")
-
-    response = _text(assistant_message.get("content"))
     if not _response_follows_movement(response, movement):
-        assistant_message["content"] = movement
-        assistant_message["screenplay_fallback"] = True
-
-    assistant_message["screenplay_order"] = progress.get("pending_line_order")
-    assistant_message["screenplay_route"] = progress.get("pending_line_route")
-    assistant_message["screenplay_beat"] = progress.get("pending_line_beat")
+        return movement
+    return _text(response)
 
 
 def _persist_session(instance: dict[str, Any], session: StorySession) -> None:
@@ -282,16 +274,15 @@ def _persist_session(instance: dict[str, Any], session: StorySession) -> None:
 
 def _consume_pending_and_advance() -> None:
     instance = _instance()
-    if not isinstance(instance, dict):
-        return
-    if _text(instance.get("scenario_id")) not in _SUPPORTED_STORIES:
+    if not _supported(instance):
         return
 
+    assert instance is not None
     progress = instance.get("story_progress")
     progress = deepcopy(progress) if isinstance(progress, dict) else {}
     pending = progress.get("pending_line_order")
     if pending is None:
-        raise RuntimeError("A resposta terminou sem ordem pendente do roteiro.")
+        return
 
     consumed = _consumed_orders(instance)
     consumed.add(int(pending))
@@ -320,15 +311,18 @@ def _consume_pending_and_advance() -> None:
 
     if remaining:
         _persist_session(instance, session)
-        return
+    else:
+        story = story_registry.get_story(session.story_id)
+        chapter = story.chapters[session.chapter_id]
+        _persist_session(instance, advance_session(session, chapter))
 
-    story = story_registry.get_story(session.story_id)
-    chapter = story.chapters[session.chapter_id]
-    _persist_session(instance, advance_session(session, chapter))
+    final_instance = _instance()
+    if isinstance(final_instance, dict):
+        salvar_instancia_cenario(final_instance, houve_interacao=False)
 
 
 def _prepare_new_instance(instance: dict[str, Any]) -> dict[str, Any]:
-    if _text(instance.get("scenario_id")) not in _SUPPORTED_STORIES:
+    if not _supported(instance):
         return instance
 
     progress = instance.get("story_progress")
@@ -354,9 +348,7 @@ def _prepare_new_instance(instance: dict[str, Any]) -> dict[str, Any]:
 
 def _disable_initial_message() -> None:
     instance = _instance()
-    if not isinstance(instance, dict):
-        return
-    if _text(instance.get("scenario_id")) not in _SUPPORTED_STORIES:
+    if not _supported(instance):
         return
 
     messages = st.session_state.get("messages")
@@ -398,8 +390,7 @@ def _patch_initial_message(module: Any) -> None:
 
     @wraps(original)
     def wrapper(*args: Any, **kwargs: Any) -> Any:
-        instance = _instance()
-        if isinstance(instance, dict) and _text(instance.get("scenario_id")) in _SUPPORTED_STORIES:
+        if _supported(_instance()):
             _disable_initial_message()
             return None
         return original(*args, **kwargs)
@@ -416,7 +407,8 @@ def _patch_narrative_direction(module: Any) -> None:
     @wraps(original)
     def wrapper(*args: Any, **kwargs: Any) -> str:
         instance = _instance()
-        if isinstance(instance, dict) and _text(instance.get("scenario_id")) in _SUPPORTED_STORIES:
+        if _supported(instance):
+            assert instance is not None
             return _strict_prompt(instance)
         return str(original(*args, **kwargs) or "").strip()
 
@@ -424,22 +416,35 @@ def _patch_narrative_direction(module: Any) -> None:
     setattr(module, "montar_direcao_narrativa", wrapper)
 
 
-def _patch_process_interaction(module: Any) -> None:
-    original = getattr(module, "processar_interacao", None)
-    if not callable(original) or getattr(original, "_strict_story_process_wrapped", False):
+def _patch_openrouter_call(module: Any) -> None:
+    original = getattr(module, "chamar_openrouter", None)
+    if not callable(original) or getattr(original, "_strict_screenplay_response_wrapped", False):
         return
 
     @wraps(original)
-    def wrapper(*args: Any, **kwargs: Any) -> Any:
-        result = original(*args, **kwargs)
-        instance = _instance()
-        if isinstance(instance, dict) and _text(instance.get("scenario_id")) in _SUPPORTED_STORIES:
-            _enforce_pending_movement(instance)
-            _consume_pending_and_advance()
-        return result
+    def wrapper(*args: Any, **kwargs: Any) -> str:
+        response = original(*args, **kwargs)
+        return _enforce_response_text(str(response or ""))
 
-    wrapper._strict_story_process_wrapped = True  # type: ignore[attr-defined]
-    setattr(module, "processar_interacao", wrapper)
+    wrapper._strict_screenplay_response_wrapped = True  # type: ignore[attr-defined]
+    setattr(module, "chamar_openrouter", wrapper)
+
+
+def _install_rerun_guard() -> None:
+    global _ORIGINAL_RERUN
+    if _ORIGINAL_RERUN is not None:
+        return
+
+    _ORIGINAL_RERUN = st.rerun
+
+    @wraps(_ORIGINAL_RERUN)
+    def guarded_rerun(*args: Any, **kwargs: Any) -> Any:
+        if _supported(_instance()):
+            _consume_pending_and_advance()
+        assert _ORIGINAL_RERUN is not None
+        return _ORIGINAL_RERUN(*args, **kwargs)
+
+    st.rerun = guarded_rerun
 
 
 def aplicar_story_engine_runtime() -> None:
@@ -450,7 +455,8 @@ def aplicar_story_engine_runtime() -> None:
     _patch_start_scenario(module)
     _patch_initial_message(module)
     _patch_narrative_direction(module)
-    _patch_process_interaction(module)
+    _patch_openrouter_call(module)
+    _install_rerun_guard()
 
 
 def install_story_engine_runtime() -> None:
