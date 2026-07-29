@@ -8,6 +8,28 @@ from scenarios.stories_v2.casada_frustrada.chapters.cap_01.config import CHAPTER
 
 
 CARD_VERSION = "casada-frustrada-card-v2-clean-engine"
+_SEXUAL_ROUTES = {
+    "hidden_call",
+    "secret_meeting",
+    "growing_tension",
+    "intimacy",
+    "climax",
+    "aftercare",
+}
+
+
+def _build_routes() -> dict[str, Any]:
+    routes: dict[str, Any] = {}
+    for beat in CHAPTER.beats.values():
+        routes.setdefault(
+            beat.route,
+            {
+                "initial_beat": beat.beat_id,
+                "sexual_expression_allowed": beat.route in _SEXUAL_ROUTES,
+            },
+        )
+    return routes
+
 
 CARD_PACKAGE: dict[str, Any] = {
     "scenario_id": "casada_frustrada",
@@ -29,13 +51,7 @@ CARD_PACKAGE: dict[str, Any] = {
         "style": "natural, direta e emocionalmente presente",
         "one_question_max": True,
     },
-    "routes": {
-        beat.route: {
-            "initial_beat": beat.beat_id,
-            "sexual_expression_allowed": False,
-        }
-        for beat in CHAPTER.beats.values()
-    },
+    "routes": _build_routes(),
     "screenplay": {
         "source": {
             "type": "google_sheets",
