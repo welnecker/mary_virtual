@@ -8,7 +8,7 @@ from .story_state import normalizar_estado_narrativo
 from .story_structure import build_story_compass
 
 
-PROMPT_CONTEXT_VERSION = "casada-frustrada-prompt-context-v2-screenplay"
+PROMPT_CONTEXT_VERSION = "casada-frustrada-prompt-context-v3-sheet-screenplay"
 
 
 def aplicar_estado_narrativo_ao_compasso(
@@ -69,7 +69,7 @@ def montar_contexto_interpretativo(
         build_story_compass(route, current_beat),
         story_state_value,
     )
-    context["official_screenplay"] = obter_trecho_roteiro(route)
+    context["official_screenplay"] = obter_trecho_roteiro(route, current_beat)
     context["source_authority"] = (
         "official_screenplay é a fonte dramática principal; possible_movements apenas resume "
         "funções abertas e diagnostic_beat_reference não determina a fala."
