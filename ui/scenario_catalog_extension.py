@@ -10,13 +10,6 @@ from scenarios.casada_frustrada import (
     obter_rotas,
 )
 from ui.card_runtime_integration import install_card_runtime_integration
-from ui.casada_frustrada_failure_guard import install_casada_frustrada_failure_guard
-from ui.casada_frustrada_memory_persistence import (
-    install_casada_frustrada_memory_persistence,
-)
-from ui.casada_frustrada_script_runtime import (
-    install_casada_frustrada_script_runtime,
-)
 from ui.interaction_persistence import install_interaction_persistence
 from ui.mary_relationship_compaction import install_mary_relationship_compaction
 from ui.persistence_hot_path_optimizer import install_persistence_hot_path_optimizer
@@ -30,13 +23,11 @@ from ui.scene_transition_presentation import install_scene_transition_presentati
 from ui.session_persistence import install_session_persistence
 from ui.sheets_read_quota_guard import install_sheets_read_quota_guard
 from ui.sidebar_rollback_and_thought_style import install_sidebar_rollback_and_thought_style
+from ui.story_engine_runtime import install_story_engine_runtime
 from ui.user_account_persistence import install_user_account_persistence
 
 
-SCENARIO_CATALOG_EXTENSION_VERSION = (
-    "scenario-catalog-extension-v38-canonical-story-memory"
-)
-
+SCENARIO_CATALOG_EXTENSION_VERSION = "scenario-catalog-extension-v39-clean-story-engine"
 _INSTALLED = False
 
 
@@ -61,14 +52,11 @@ def install_scenario_catalog_extension() -> None:
     install_scenario_event_compaction()
     install_scenario_history_recovery()
 
-    # Runtime genérico para os demais cards.
+    # Integrações genéricas compartilhadas pelos cards.
     install_card_runtime_integration()
-
     install_scene_transition_presentation()
     install_scenario_finish_button_sidebar()
     install_sidebar_rollback_and_thought_style()
-    install_casada_frustrada_failure_guard()
-
     install_mary_relationship_compaction()
     install_scenario_catalog_visibility_fix()
     install_user_account_persistence()
@@ -76,10 +64,8 @@ def install_scenario_catalog_extension() -> None:
     install_interaction_persistence()
     install_scenario_event_persistence()
 
-    # Autoridade final da Casada Frustrada.
-    install_casada_frustrada_script_runtime()
-    # Funde a memória canônica na instância antes do salvamento já existente.
-    install_casada_frustrada_memory_persistence()
+    # Única autoridade narrativa da Casada Frustrada.
+    install_story_engine_runtime()
 
     _INSTALLED = True
 
