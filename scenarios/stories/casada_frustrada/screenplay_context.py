@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from typing import Any
 
+from .beat_graph import BEATS
 from .immersive_screenplay import (
     HIDDEN_CALL_DIALOGUE,
     IMMERSIVE_SCREENPLAY_VERSION,
@@ -17,7 +18,7 @@ from .screenplay_sheet_repository import (
 )
 
 
-SCREENPLAY_CONTEXT_VERSION = "casada-frustrada-screenplay-context-v2-google-sheets"
+SCREENPLAY_CONTEXT_VERSION = "casada-frustrada-screenplay-context-v3-route-from-beat"
 
 
 def _between(text: str, start: str, end: str | None = None) -> str:
@@ -41,6 +42,18 @@ def _between(text: str, start: str, end: str | None = None) -> str:
 
 def _join_sections(*sections: str) -> str:
     return "\n\n".join(section.strip() for section in sections if section.strip())
+
+
+def _resolver_rota(route: str, current_beat: str) -> str:
+    route_id = str(route or "").strip()
+    if route_id:
+        return route_id
+
+    beat_id = str(current_beat or "").strip()
+    beat = BEATS.get(beat_id)
+    if isinstance(beat, dict):
+        return str(beat.get("route", "") or "").strip()
+    return ""
 
 
 def _obter_trecho_local(route_id: str) -> tuple[str, str]:
@@ -84,8 +97,8 @@ def _obter_trecho_local(route_id: str) -> tuple[str, str]:
 
 
 def obter_trecho_roteiro(route: str, current_beat: str = "") -> dict[str, Any]:
-    route_id = str(route or "").strip()
     beat_id = str(current_beat or "").strip()
+    route_id = _resolver_rota(route, beat_id)
 
     try:
         remote = carregar_trecho_por_rota(route_id, beat_id)
