@@ -1,16 +1,39 @@
 from __future__ import annotations
 
-from .models import StorySession
+from collections.abc import Iterable
+
+from .models import ChapterDefinition, ScreenplayLine, StoryDefinition, StorySession
+from .screenplay_renderer import render_screenplay
 
 
 def build_story_prompt(
     *,
-    story_title: str,
-    chapter_title: str,
     session: StorySession,
-    screenplay: str,
+    story_title: str = "",
+    chapter_title: str = "",
+    screenplay: str = "",
     permanent_context: str = "",
+    story: StoryDefinition | None = None,
+    chapter: ChapterDefinition | None = None,
+    lines: Iterable[ScreenplayLine] | None = None,
 ) -> str:
+    """Monta o prompt do beat atual.
+
+    Aceita o contrato textual direto e o contrato estruturado usado pelo
+    runtime. Isso mantém uma única implementação para testes e execução.
+    """
+    if story is not None:
+        story_title = story.title
+    if chapter is not None:
+        chapter_title = chapter.title
+    if lines is not None:
+        screenplay = render_screenplay(lines)
+
+    if not story_title.strip():
+        raise TypeError("build_story_prompt requer story_title ou story.")
+    if not chapter_title.strip():
+        raise TypeError("build_story_prompt requer chapter_title ou chapter.")
+
     parts = [
         f"HISTÓRIA: {story_title}",
         f"CAPÍTULO: {chapter_title}",
