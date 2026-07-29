@@ -108,6 +108,15 @@ SCENARIO_CONFIG: dict[str, Any] = {
         "input_locked": False,
         "show_return_to_menu": False,
     },
+    "phases": {
+        "opening": {"objective": "Resolver o esbarrão e iniciar o primeiro contato."},
+        "familiarity": {"objective": "Construir reconhecimento, conversa e aproximação."},
+        "tension": {"objective": "Transformar interesse em desejo e decisão concreta."},
+        "intimacy": {"objective": "Desenvolver intimidade com reciprocidade e continuidade."},
+        "climax": {"objective": "Concluir a progressão corporal autorizada pelo estado."},
+        "aftercare": {"objective": "Mostrar consequência, presença e desaceleração."},
+        "ending": {"objective": "Encerrar o capítulo com uma conclusão clara ou gancho."},
+    },
     "narrative_rules": [
         "Executar somente o beat atual.",
         "Introduzir no máximo um movimento narrativo novo por resposta.",
