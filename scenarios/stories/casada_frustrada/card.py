@@ -19,11 +19,17 @@ from scenarios.stories.casada_frustrada.immersive_screenplay import (
 )
 from scenarios.stories.casada_frustrada.psychology import PSYCHOLOGY
 from scenarios.stories.casada_frustrada.routes import ROUTES
+from scenarios.stories.casada_frustrada.screenplay_sheet_repository import (
+    SCREENPLAY_SPREADSHEET_ID,
+    SCREENPLAY_WORKSHEET,
+    ScreenplaySheetError,
+    inicializar_aba_se_vazia,
+)
 from scenarios.stories.casada_frustrada.transitions import TRANSITIONS
 from scenarios.stories.casada_frustrada.voice import VOICE
 
 
-CARD_VERSION = "casada-frustrada-card-v4-beat-driven"
+CARD_VERSION = "casada-frustrada-card-v5-sheet-screenplay"
 
 SUPERMARKET_ROUTES = {
     "supermarket_encounter",
@@ -101,9 +107,13 @@ CARD_PACKAGE: dict[str, Any] = {
     "psychology": PSYCHOLOGY,
     "voice": VOICE,
     "routes": CARD_ROUTES,
-    # O texto extenso permanece como material de autoria e fallback. Em execução,
-    # somente a janela compacta do beat atual deve ser enviada ao modelo.
     "screenplay": {
+        "source": {
+            "type": "google_sheets",
+            "spreadsheet_id": SCREENPLAY_SPREADSHEET_ID,
+            "worksheet": SCREENPLAY_WORKSHEET,
+            "fallback": "immersive_screenplay.py",
+        },
         "route_groups": {
             "supermarket": sorted(SUPERMARKET_ROUTES),
             "messages": ["messages"],
@@ -159,6 +169,12 @@ CARD_PACKAGE: dict[str, Any] = {
 
 
 def obter_card() -> dict[str, Any]:
+    try:
+        inicializar_aba_se_vazia()
+    except ScreenplaySheetError:
+        # O card continua disponível com fallback local; a leitura remota tenta novamente
+        # quando o contexto do roteiro for montado.
+        pass
     return normalizar_card_package(deepcopy(CARD_PACKAGE))
 
 
