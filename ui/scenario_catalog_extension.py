@@ -23,11 +23,12 @@ from ui.scene_transition_presentation import install_scene_transition_presentati
 from ui.session_persistence import install_session_persistence
 from ui.sheets_read_quota_guard import install_sheets_read_quota_guard
 from ui.sidebar_rollback_and_thought_style import install_sidebar_rollback_and_thought_style
+from ui.story_engine_render_sync import install_render_sync_runtime
 from ui.story_engine_runtime import install_story_engine_runtime
 from ui.user_account_persistence import install_user_account_persistence
 
 
-SCENARIO_CATALOG_EXTENSION_VERSION = "scenario-catalog-extension-v39-clean-story-engine"
+SCENARIO_CATALOG_EXTENSION_VERSION = "scenario-catalog-extension-v40-clean-story-engine"
 _INSTALLED = False
 
 
@@ -64,8 +65,9 @@ def install_scenario_catalog_extension() -> None:
     install_interaction_persistence()
     install_scenario_event_persistence()
 
-    # Única autoridade narrativa da Casada Frustrada.
+    # Autoridade narrativa e sincronização local de renderização.
     install_story_engine_runtime()
+    install_render_sync_runtime()
 
     _INSTALLED = True
 
