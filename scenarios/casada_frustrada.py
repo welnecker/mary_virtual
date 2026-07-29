@@ -14,14 +14,32 @@ ROUTES_VERSION = "casada-frustrada-routes-v2-clean"
 RECOVERIES_VERSION = "casada-frustrada-recoveries-v2-clean"
 ENDINGS_VERSION = "casada-frustrada-endings-v2-clean"
 
+
+def _build_routes() -> dict[str, Any]:
+    routes: dict[str, Any] = {}
+    ordered_beats = list(CHAPTER.beats.values())
+    for index, beat in enumerate(ordered_beats):
+        route = routes.setdefault(
+            beat.route,
+            {
+                "route_id": beat.route,
+                "initial_beat": beat.beat_id,
+                "possible_next_routes": [],
+            },
+        )
+        if index + 1 < len(ordered_beats):
+            next_route = ordered_beats[index + 1].route
+            if next_route != beat.route and next_route not in route["possible_next_routes"]:
+                route["possible_next_routes"].append(next_route)
+    return routes
+
+
 SCENARIO_CONFIG: dict[str, Any] = {
     "scenario_id": SCENARIO_ID,
     "scenario_version": SCENARIO_VERSION,
     "category": "encontro_secreto",
     "title": "Casada frustrada",
-    "short_description": (
-        "Um esbarrão no supermercado desperta em Mary uma possibilidade inesperada."
-    ),
+    "short_description": "Um esbarrão no supermercado desperta em Mary uma possibilidade inesperada.",
     "adult_only": True,
     "status": "active",
     "display_order": 2,
@@ -97,14 +115,7 @@ SCENARIO_CONFIG: dict[str, Any] = {
     ],
 }
 
-ROUTES: dict[str, Any] = {
-    beat.route: {
-        "route_id": beat.route,
-        "initial_beat": beat.beat_id,
-        "possible_next_routes": [],
-    }
-    for beat in CHAPTER.beats.values()
-}
+ROUTES: dict[str, Any] = _build_routes()
 RECOVERY_ROUTES: dict[str, Any] = {}
 ENDINGS: dict[str, Any] = {}
 
