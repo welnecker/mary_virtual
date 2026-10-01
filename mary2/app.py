@@ -23,9 +23,8 @@ from story_bible import STORY_BIBLE
 st.set_page_config(page_title="Mary Core 2", page_icon="🖤", layout="centered")
 
 DEFAULT_MODELS = [
-    "anthropic/claude-sonnet-5.5",
-    "z-ai/glm-5.3-prime",
-    "qwen/qwen3.8-max-prime",
+    "google/gemini-2.5-flash-lite",
+    "google/gemma-4-31b-it",
     "Outro...",
 ]
 
