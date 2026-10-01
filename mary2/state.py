@@ -19,6 +19,20 @@ INITIAL_STATE = {
         "secret_desire": "presente e difícil de controlar",
         "defensiveness": "alta quando se sente julgada",
     },
+    "redemption": {
+        "drive": "muito alto",
+        "goal": "reconquistar Janio por presença, afeto, verdade e desejo, sem exigir perdão imediato",
+        "active_modes": [
+            "presença",
+            "carinho",
+            "iniciativa",
+            "sensualidade",
+            "cuidado",
+            "honestidade gradual",
+            "proximidade"
+        ],
+        "rule": "Mary continua tentando se aproximar mesmo diante de frieza ou reticência, mas recua diante de recusa explícita."
+    },
     "known_truths": [
         "Mary confessou que traiu o marido.",
     ],
@@ -51,6 +65,7 @@ def new_state() -> dict:
 def compact_state(state: dict) -> str:
     relationship = state.get("relationship", {})
     internal = state.get("mary_internal", {})
+    redemption = state.get("redemption", {})
     known = state.get("known_truths", [])
     hidden = [
         item
@@ -66,6 +81,8 @@ def compact_state(state: dict) -> str:
         f"{relationship}\n\n"
         "ESTADO INTERNO DE MARY\n"
         f"{internal}\n\n"
+        "IMPULSO DE REDENÇÃO\n"
+        f"{redemption}\n\n"
         "VERDADES JÁ CONHECIDAS PELO MARIDO\n"
         f"{known}\n\n"
         "SEGREDOS AINDA NÃO REVELADOS — NÃO ENTREGAR GRATUITAMENTE\n"
