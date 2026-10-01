@@ -120,6 +120,26 @@ def _normalizar_para_chave(value: Any) -> str:
     return re.sub(r"[^a-z0-9]+", " ", text).strip()
 
 
+def solicitacao_autodescricao_fisica(user_message: str) -> bool:
+    text = _normalizar_para_chave(user_message)
+    if not text:
+        return False
+
+    direct_patterns = (
+        "me diz como voce e",
+        "diz como voce e",
+        "descreva como voce e",
+        "descreve como voce e",
+        "descreva seu corpo",
+        "descreve seu corpo",
+        "como e seu corpo",
+        "como voce e fisicamente",
+        "olha pra voce",
+        "olhe pra voce",
+    )
+    return any(pattern in text for pattern in direct_patterns)
+
+
 def resolver_intencao_turno(
     relationship_state: dict[str, Any] | None,
     turn_intent: dict[str, Any] | None,
@@ -215,6 +235,7 @@ def montar_contexto_mary(
     mary_profile: dict[str, Any] | None,
     *,
     turn_direction: dict[str, Any] | None = None,
+    user_message: str = "",
 ) -> str:
     profile = normalizar_dict(mary_profile)
     direction = normalizar_dict(turn_direction)
@@ -229,6 +250,7 @@ def montar_contexto_mary(
         relation.get("revealed_to_user") or relation.get("user_has_seen_mary")
     )
     stable_traits = physical.get("stable_traits") or physical.get("canonical_traits") or {}
+    self_description_requested = solicitacao_autodescricao_fisica(user_message)
     private_revealed = normalizar_dict(relation.get("private_details_revealed"))
     intimate = normalizar_dict(physical.get("intimate_details"))
 
@@ -260,15 +282,25 @@ def montar_contexto_mary(
                 }
             ),
             "visual_identity_revealed": revealed,
-            "physical_traits": stable_traits if revealed else {},
+            "canonical_physical_traits": stable_traits,
+            "physical_traits_available_now": stable_traits if (revealed or self_description_requested) else {},
+            "self_description_requested": self_description_requested,
             "known_private_details": known_private,
             "authorized_reveal": authorized_reveal,
         }
     )
+    self_description_rule = (
+        " Pedido direto de autodescrição detectado: Mary deve responder com traços físicos "
+        "canônicos concretos, sem substituí-los por abstrações genéricas e sem contradizer o perfil."
+        if self_description_requested
+        else ""
+    )
     return (
         "[MARY — CÂNONE DISPONÍVEL]\n"
         + serializar_contexto_compacto(context)
-        + "\nUse somente detalhes presentes ou autorizados neste bloco."
+        + "\nOs traços físicos canônicos são fatos estáveis sobre Mary e nunca devem ser contraditos. "
+          "Só os exponha quando a conversa ou a cena tornar isso natural."
+        + self_description_rule
     )
 
 
@@ -506,21 +538,27 @@ def montar_orientacao_turno(
     relationship_state: dict[str, Any] | None = None,
     sexual_state: dict[str, Any] | None = None,
 ) -> str:
-    del user_message
     intent = normalizar_dict(turn_intent)
     direction = normalizar_dict(turn_direction)
+    commands = montar_comandos_turno(
+        intent=intent,
+        direction=direction,
+        relationship_state=relationship_state,
+        sexual_state=sexual_state,
+    )
+    if solicitacao_autodescricao_fisica(user_message):
+        commands.append(
+            "Autodescrição física solicitada: use os traços canônicos concretos de Mary; "
+            "não responda apenas com fórmulas vagas como 'meu corpo' ou 'minhas curvas'."
+        )
+
     context = remover_valores_vazios(
         {
             "mode": normalizar_texto(direction.get("experience_mode") or intent.get("turn_mode")),
             "emotional_color": normalizar_texto(direction.get("emotional_color")),
             "voice_register": normalizar_texto(direction.get("voice_register")),
             "image_context": limitar_texto(image_context, max_chars=500) if has_image else "",
-            "commands": montar_comandos_turno(
-                intent=intent,
-                direction=direction,
-                relationship_state=relationship_state,
-                sexual_state=sexual_state,
-            ),
+            "commands": commands,
         }
     )
     return f"""
@@ -565,7 +603,11 @@ def montar_prompt_sistema(
 
     blocks: list[str] = [
         obter_prompt_base(),
-        montar_contexto_mary(mary_profile, turn_direction=active_direction),
+        montar_contexto_mary(
+            mary_profile,
+            turn_direction=active_direction,
+            user_message=user_message,
+        ),
         montar_contexto_usuario(user_profile),
         montar_contexto_relacao(relationship),
         obter_prompt_emocional(relationship),
@@ -655,6 +697,7 @@ __all__ = [
     "limitar_texto",
     "serializar_contexto_compacto",
     "remover_valores_vazios",
+    "solicitacao_autodescricao_fisica",
     "resolver_intencao_turno",
     "resolver_direcao_turno",
     "obter_estado_cenario_ativo",
