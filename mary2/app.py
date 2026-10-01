@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import json
+from copy import deepcopy
+
 import streamlit as st
 
 from director import direct_scene
@@ -11,6 +13,7 @@ from output_filter import sanitize_mary_output
 from persistence import (
     PersistenceError,
     create_run,
+    delete_interactions_from_seq,
     ensure_schema,
     load_latest_run,
     save_turn,
@@ -125,6 +128,8 @@ for key, default in {
     "persistence_loaded": False,
     "persistence_error": "",
     "spreadsheet_url": "",
+    "rollback_notice": "",
+    "rollback_retry_text": "",
 }.items():
     if key not in st.session_state:
         st.session_state[key] = default
@@ -184,6 +189,13 @@ if persistence and not st.session_state.persistence_loaded:
 
 st.title("Mary Core 2")
 st.caption("Novela interativa: Mary, Janio e Ricardo.")
+
+if st.session_state.rollback_notice:
+    st.success(st.session_state.rollback_notice)
+    st.session_state.rollback_notice = ""
+    if st.session_state.rollback_retry_text:
+        st.caption("Fala removida para você reenviar com o prompt atualizado:")
+        st.code(st.session_state.rollback_retry_text)
 
 with st.sidebar:
     st.subheader("Você interpreta")
@@ -266,6 +278,118 @@ with st.sidebar:
     else:
         st.caption("Persistência Google Sheets ainda não configurada.")
 
+    if (
+        persistence
+        and st.session_state.run_id
+        and st.session_state.turn_records
+        and not st.session_state.persistence_error
+    ):
+        with st.expander("Corrigir interações"):
+            rewindable = [
+                record
+                for record in st.session_state.turn_records
+                if int(record.get("seq", 0) or 0) > 0
+            ]
+
+            if rewindable:
+                rewindable = list(reversed(rewindable))
+
+                def _rollback_label(record: dict) -> str:
+                    seq = int(record.get("seq", 0) or 0)
+                    role = str(record.get("user_role", "") or "")
+                    user_preview = str(
+                        record.get("user_text")
+                        or record.get("direction")
+                        or "(direção de cena)"
+                    ).replace("\n", " ").strip()
+                    mary_preview = str(record.get("mary_text", "") or "").replace(
+                        "\n", " "
+                    ).strip()
+                    if len(user_preview) > 42:
+                        user_preview = user_preview[:39] + "..."
+                    if len(mary_preview) > 42:
+                        mary_preview = mary_preview[:39] + "..."
+                    return f"#{seq} · {role}: {user_preview} → Mary: {mary_preview}"
+
+                selected_record = st.selectbox(
+                    "Voltar até antes de qual resposta?",
+                    rewindable,
+                    format_func=_rollback_label,
+                    key="rollback_selected_record",
+                )
+
+                st.caption(
+                    "A interação escolhida e todas as posteriores serão apagadas. "
+                    "Memória, cena e estado voltam ao ponto imediatamente anterior."
+                )
+                confirm_rollback = st.checkbox(
+                    "Confirmo que quero apagar deste ponto em diante",
+                    key="confirm_rollback",
+                )
+
+                if st.button(
+                    "Voltar até antes desta interação",
+                    use_container_width=True,
+                    disabled=not confirm_rollback,
+                ):
+                    selected_seq = int(selected_record.get("seq", 0) or 0)
+                    retry_text = str(
+                        selected_record.get("user_text")
+                        or selected_record.get("direction")
+                        or ""
+                    ).strip()
+
+                    try:
+                        delete_interactions_from_seq(
+                            service_account_info=persistence["service_account_info"],
+                            spreadsheet_id=persistence["spreadsheet_id"],
+                            spreadsheet_title=persistence["spreadsheet_title"],
+                            owner_email=persistence["owner_email"],
+                            run_id=st.session_state.run_id,
+                            from_seq=selected_seq,
+                        )
+
+                        saved = load_latest_run(
+                            service_account_info=persistence["service_account_info"],
+                            spreadsheet_id=persistence["spreadsheet_id"],
+                            spreadsheet_title=persistence["spreadsheet_title"],
+                            owner_email=persistence["owner_email"],
+                            player_id=persistence["player_id"],
+                            interaction_limit=30,
+                        )
+                        if not saved:
+                            raise PersistenceError(
+                                "A run não pôde ser recarregada após o rollback."
+                            )
+
+                        st.session_state.run_id = saved["run_id"]
+                        st.session_state.active_user_role = saved["active_user_role"]
+                        st.session_state.canonical_memory = (
+                            saved["canonical_memory"] or INITIAL_CANONICAL_MEMORY
+                        )
+                        st.session_state.scene_state = (
+                            saved["scene_state"] or dict(INITIAL_SCENE)
+                        )
+                        st.session_state.story_state = (
+                            saved["story_state"] or new_state()
+                        )
+                        st.session_state.turn_records = saved["turn_records"]
+                        st.session_state.messages = saved["messages"]
+                        st.session_state.persistence_error = ""
+                        st.session_state.rollback_notice = (
+                            f"História restaurada para antes da interação #{selected_seq}."
+                        )
+                        st.session_state.rollback_retry_text = retry_text
+                        st.rerun()
+                    except Exception as exc:
+                        st.session_state.persistence_error = str(exc)
+                        st.error(f"Não foi possível corrigir a interação: {exc}")
+            else:
+                st.caption(
+                    "As interações desta run são anteriores ao rollback seguro. "
+                    "Novas interações passarão a ser corrigíveis."
+                )
+
     with st.expander("Cena atual"):
         st.json(st.session_state.scene_state)
 
@@ -315,6 +439,20 @@ if user_text:
         director_model = str(st.secrets.get("MARY_DIRECTOR_MODEL", model)).strip() or model
         input_model = str(st.secrets.get("MARY_INPUT_MODEL", director_model)).strip() or director_model
 
+        previous_scene_role = str(
+            st.session_state.scene_state.get(
+                "user_role",
+                st.session_state.active_user_role,
+            )
+            or "JANIO"
+        ).upper()
+        pre_turn_snapshot = {
+            "active_user_role": previous_scene_role,
+            "canonical_memory": st.session_state.canonical_memory,
+            "scene_state": deepcopy(st.session_state.scene_state),
+            "story_state": deepcopy(st.session_state.story_state),
+        }
+
         parsed_input = parse_user_input(
             api_key=api_key,
             model=input_model,
@@ -325,6 +463,7 @@ if user_text:
         scene_direction = parsed_input["scene_direction"]
         dialogue_text = parsed_input["dialogue"]
         user_spoke = bool(dialogue_text)
+        st.session_state.rollback_retry_text = ""
 
         if user_spoke:
             st.session_state.messages.append(
@@ -375,6 +514,7 @@ if user_text:
         caption = scene.get("scene_caption", "") if scene.get("show_caption") else ""
 
         turn_record = {
+            "seq": 0,
             "caption": caption,
             "direction": scene_direction,
             "user_role": user_role,
@@ -424,7 +564,7 @@ if user_text:
                         archive_previous=False,
                     )
 
-                save_turn(
+                saved_seq = save_turn(
                     service_account_info=persistence["service_account_info"],
                     spreadsheet_id=info["spreadsheet_id"],
                     spreadsheet_title=persistence["spreadsheet_title"],
@@ -436,7 +576,9 @@ if user_text:
                     scene_state=st.session_state.scene_state,
                     story_state=st.session_state.story_state,
                     turn_record=turn_record,
+                    pre_turn_snapshot=pre_turn_snapshot,
                 )
+                turn_record["seq"] = saved_seq
                 st.session_state.persistence_error = ""
             except Exception as exc:
                 # A história continua funcionando mesmo se o Google falhar.
