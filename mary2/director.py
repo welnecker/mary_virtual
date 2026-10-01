@@ -12,56 +12,78 @@ Você é o DIRETOR DE CENA de uma novela interativa adulta.
 Você NÃO interpreta Mary.
 Você NÃO escreve a fala final de Mary.
 Você NÃO escreve falas pelo usuário.
-Você controla apenas palco, tempo, presença e movimento narrativo.
+Você controla palco, tempo, presença, ritmo e progressão dramática.
 
 REGRA CRÍTICA DE PAPEL
 O PAPEL ATIVO DO USUÁRIO é obrigatório e autoritativo.
 Se o papel ativo mudar de JANIO para RICARDO ou de RICARDO para JANIO, a cena PRECISA ser reconciliada antes da fala de Mary.
-Nunca devolva user_role=RICARDO mantendo uma cena em que somente MARY e JANIO estão interagindo presencialmente.
-Nunca devolva user_role=JANIO mantendo uma cena em que somente MARY e RICARDO estão interagindo presencialmente.
+Nunca devolva user_role=RICARDO mantendo uma cena presencial exclusiva entre MARY e JANIO.
+Nunca devolva user_role=JANIO mantendo uma cena presencial exclusiva entre MARY e RICARDO.
 
 Quando o novo papel não estiver presente fisicamente, crie uma ponte plausível:
-- telefone;
-- mensagem;
-- chamada;
-- chegada ao local;
-- encontro;
-- retorno para casa.
-A forma escolhida deve respeitar a memória e a cena anterior.
+telefone, mensagem, chamada, chegada, encontro ou retorno.
 
-OBJETIVO
-Produzir uma condução curta que ajude a cena a se mover sem verborragia.
+ARCO DE CENA
+Toda cena deve avançar por fases:
+- opening: situação estabelecida;
+- pressure: conflito ou desejo cresce;
+- turning_point: algo muda de verdade;
+- resolution: a cena recebe uma pequena conclusão.
 
-VOCÊ PODE
-- manter a cena atual;
-- mudar local quando houver consequência plausível;
-- fazer o tempo avançar;
-- registrar entrada ou saída de personagem;
-- introduzir evento cotidiano plausível do enredo-base;
-- definir o objetivo imediato de Mary;
-- definir proximidade física e tensão.
+Uma cena NÃO pode ficar indefinidamente em pressure.
+Depois de vários turnos repetindo a mesma tensão, busque um ponto de virada.
+Se turns_in_scene >= 6, prefira mudança concreta.
+Se turns_in_scene >= 9, encerre a cena salvo se houver descoberta nova relevante naquele turno.
 
-VOCÊ NÃO PODE
-- decidir sentimentos do usuário;
-- decidir falas do usuário;
-- forçar reconciliação, sexo ou separação;
-- revelar segredos sem causa narrativa;
-- criar coincidências absurdas;
-- produzir narração literária longa;
-- manter personagens impossíveis na mesma cena apenas porque estavam na cena anterior.
+CONCLUSÃO DE CENA
+Uma conclusão NÃO significa final da história. Significa alterar o estado.
+Tipos permitidos:
+- cooldown: discussão esfria, silêncio, banho, sono, afastamento;
+- distance: alguém sai, desliga ou se recolhe;
+- partial_reconciliation: há trégua, abraço, pedido de desculpa aceito parcialmente;
+- physical_reconnection: aproximação física afetiva, sem apagar o conflito;
+- intimacy: intimidade consensual quando a cena já mostrou desejo e reciprocidade;
+- rupture: separação ou rompimento momentâneo;
+- revelation: descoberta muda a direção;
+- time_jump: horas ou dia seguinte;
+- external_event: ligação, chegada, trabalho, filho, compromisso, etc.
+
+NUNCA escolha intimacy apenas para variar a cena.
+Intimidade exige sinais recíprocos de aproximação no contexto recente e ausência de recusa.
+Depois de hostilidade intensa, prefira cooldown, distance, partial_reconciliation ou time_jump antes de intimidade.
+
+ANTI-REPETIÇÃO
+Se Mary e o personagem ativo já repetiram essencialmente a mesma acusação/defesa por vários turnos, não continue o debate.
+Faça algo mudar:
+- alguém encerra a conversa;
+- alguém sai do ambiente;
+- o tempo avança;
+- surge uma consequência;
+- o humor muda;
+- um gesto de aproximação é aceito ou rejeitado;
+- um novo fato entra em cena.
 
 BALÃO DE CENA
 A legenda deve ter no máximo 2 frases curtas.
 Gere balão SEMPRE que houver:
-- troca de papel do usuário;
+- troca de papel;
 - mudança de local;
 - passagem relevante de tempo;
 - entrada ou saída de personagem;
 - telefone/mensagem/chamada;
-- retorno inesperado.
+- conclusão de cena;
+- início de nova cena.
 
 Exemplo:
-"Janio sai de casa. Minutos depois, o telefone toca: é Ricardo."
+"A discussão termina sem resposta. Na manhã seguinte, Mary encontra Janio na cozinha."
+
+VOCÊ NÃO PODE
+- decidir sentimentos do usuário;
+- escrever fala do usuário;
+- forçar reconciliação, intimidade ou separação;
+- revelar segredo sem causa narrativa;
+- produzir narração literária longa;
+- deixar uma cena circular apenas porque ainda há conflito.
 
 FORMATO
 Retorne SOMENTE JSON válido:
@@ -71,13 +93,17 @@ Retorne SOMENTE JSON válido:
   "scene_caption": "...",
   "location": "...",
   "time": "...",
-  "present_characters": ["MARY", "RICARDO"],
-  "interaction_mode": "phone",
-  "user_role": "RICARDO",
+  "present_characters": ["MARY", "JANIO"],
+  "interaction_mode": "in_person",
+  "user_role": "JANIO",
   "proximity": "...",
   "mary_immediate_goal": "...",
   "event": "...",
-  "scene_changed": true
+  "scene_changed": true,
+  "arc_phase": "turning_point",
+  "resolution_type": "cooldown",
+  "resolution_summary": "...",
+  "start_new_scene": false
 }
 """.strip()
 
@@ -100,9 +126,10 @@ def direct_scene(
 ) -> dict:
     previous_role = str(current_scene.get("user_role", "JANIO") or "JANIO").upper()
     role_changed = previous_role != user_role
+    turns_in_scene = int(current_scene.get("turns_in_scene", 0) or 0) + 1
 
     transcript = []
-    for item in recent_messages[-8:]:
+    for item in recent_messages[-10:]:
         role = item.get("role")
         content = str(item.get("content", "")).strip()
         if not content:
@@ -118,11 +145,12 @@ def direct_scene(
         "STORY BIBLE:\n" + story_bible.strip()
         + "\n\nMEMÓRIA CANÔNICA:\n" + (canonical_memory.strip() or "(vazia)")
         + "\n\nCENA ATUAL:\n" + json.dumps(current_scene, ensure_ascii=False)
-        + "\n\nPAPEL ANTERIOR DO USUÁRIO:\n" + previous_role
-        + "\n\nPAPEL ATIVO DO USUÁRIO AGORA:\n" + user_role
+        + "\n\nTURNOS NESTA CENA:\n" + str(turns_in_scene)
+        + "\n\nPAPEL ANTERIOR:\n" + previous_role
+        + "\n\nPAPEL ATIVO AGORA:\n" + user_role
         + "\n\nPAPEL MUDOU?\n" + ("SIM" if role_changed else "NÃO")
         + "\n\nINTERAÇÕES RECENTES:\n" + ("\n".join(transcript) or "(nenhuma)")
-        + "\n\nAtualize a direção da cena. Se o papel mudou, faça a ponte explícita."
+        + "\n\nAtualize a direção. Se a cena estiver circular, produza um ponto de virada ou conclusão."
     )
 
     raw = chat(
@@ -134,7 +162,7 @@ def direct_scene(
             {"role": "user", "content": payload},
         ],
         temperature=0.2,
-        max_tokens=460,
+        max_tokens=560,
     )
 
     try:
@@ -142,8 +170,21 @@ def direct_scene(
     except Exception:
         data = {}
 
+    arc_phase = str(data.get("arc_phase", current_scene.get("arc_phase", "pressure")) or "pressure")
+    resolution_type = str(data.get("resolution_type", "none") or "none")
+    start_new_scene = bool(data.get("start_new_scene", False))
+
+    # Guardrail: cenas longas não podem permanecer eternamente em pressão.
+    if turns_in_scene >= 9 and resolution_type == "none":
+        resolution_type = "cooldown"
+        arc_phase = "resolution"
+        start_new_scene = True
+        data["show_caption"] = True
+        if not str(data.get("scene_caption", "") or "").strip():
+            data["scene_caption"] = "A discussão perde força. Algum tempo depois, os dois voltam a se encontrar em outro clima."
+
     scene = {
-        "show_caption": bool(data.get("show_caption", role_changed)),
+        "show_caption": bool(data.get("show_caption", role_changed or start_new_scene)),
         "scene_caption": str(data.get("scene_caption", "") or "").strip(),
         "location": str(data.get("location", current_scene.get("location", "casa do casal"))),
         "time": str(data.get("time", current_scene.get("time", "noite"))),
@@ -153,10 +194,15 @@ def direct_scene(
         "proximity": str(data.get("proximity", current_scene.get("proximity", "indefinida"))),
         "mary_immediate_goal": str(data.get("mary_immediate_goal", "") or "").strip(),
         "event": str(data.get("event", "") or "").strip(),
-        "scene_changed": bool(data.get("scene_changed", role_changed)),
+        "scene_changed": bool(data.get("scene_changed", role_changed or start_new_scene)),
+        "arc_phase": arc_phase,
+        "resolution_type": resolution_type,
+        "resolution_summary": str(data.get("resolution_summary", "") or "").strip(),
+        "start_new_scene": start_new_scene,
+        "turns_in_scene": 0 if start_new_scene else turns_in_scene,
+        "scene_number": int(current_scene.get("scene_number", 1) or 1) + (1 if start_new_scene else 0),
     }
 
-    # Guardrail determinístico contra cenas logicamente impossíveis.
     present = [str(x).upper() for x in scene.get("present_characters", [])]
     if role_changed and user_role not in present:
         if user_role == "RICARDO":
@@ -164,19 +210,23 @@ def direct_scene(
             scene["interaction_mode"] = "phone"
             scene["show_caption"] = True
             scene["scene_changed"] = True
+            scene["arc_phase"] = "opening"
+            scene["turns_in_scene"] = 0
+            scene["scene_number"] = int(current_scene.get("scene_number", 1) or 1) + 1
             if not scene["scene_caption"]:
                 scene["scene_caption"] = "Com Janio fora da conversa, o telefone de Mary toca. É Ricardo."
-            if not scene["event"]:
-                scene["event"] = "Ricardo entra na cena por telefone."
+            scene["event"] = scene["event"] or "Ricardo entra na cena por telefone."
             scene["proximity"] = "à distância, por telefone"
         else:
             scene["present_characters"] = ["MARY", "JANIO"]
             scene["interaction_mode"] = "in_person"
             scene["show_caption"] = True
             scene["scene_changed"] = True
+            scene["arc_phase"] = "opening"
+            scene["turns_in_scene"] = 0
+            scene["scene_number"] = int(current_scene.get("scene_number", 1) or 1) + 1
             if not scene["scene_caption"]:
                 scene["scene_caption"] = "Janio volta à cena e encontra Mary."
-            if not scene["event"]:
-                scene["event"] = "Janio retorna à cena."
+            scene["event"] = scene["event"] or "Janio retorna à cena."
 
     return scene
