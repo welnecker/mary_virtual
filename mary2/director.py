@@ -59,6 +59,21 @@ Nesse caso:
 - deixe espaço para o balão de Mary completar a emoção.
 Prefira gesto concreto a explicação emocional.
 
+
+MOVIMENTO FÍSICO E ABANDONO NÃO SÃO A MESMA COISA
+- Distinga deslocamento local de ruptura emocional.
+- "Vou pro quarto", "vou tomar banho", "vou deitar", "vou pra cozinha", "vou sentar ali" ou equivalente NÃO significa "vou embora" nem "vou te deixar".
+- Só trate como abandono/saída da relação quando o texto indicar isso de forma clara.
+- Se o usuário anuncia deslocamento físico plausível, atualize location, proximity, event e scene_changed conforme necessário.
+- Não mantenha "mesmo ambiente, sem contato" se as falas recentes indicarem aproximação, colo, abraço, cama, outro cômodo ou outro arranjo físico.
+- O estado da cena deve acompanhar o que acabou de acontecer, mesmo quando a mudança veio dentro de uma fala e não em DIREÇÃO DE CENA separada.
+
+OBJETIVO IMEDIATO DE MARY
+- mary_immediate_goal nunca deve virar bordão.
+- Não use como objetivo padrão "impedir Janio de ir embora", "fazer Janio ficar", "pedir outra chance" ou "não ser deixada" se não houver ameaça real de partida.
+- Derive um objetivo concreto do momento atual: responder, observar, acompanhar, provocar, esclarecer, aproximar-se, recuar, descansar, mudar de assunto, aceitar silêncio, buscar contato, terminar a discussão, etc.
+- Se o objetivo anterior já foi cumprido ou perdeu sentido, substitua-o.
+
 ARCO DE CENA
 Toda cena deve avançar por fases:
 - opening: situação estabelecida;
@@ -188,9 +203,9 @@ def direct_scene(
         + "\n\nINTERAÇÕES RECENTES:\n" + ("\n".join(transcript) or "(nenhuma)")
         + "\n\nAtualize a direção. A direção explícita do usuário tem prioridade. "
           "As INTERAÇÕES RECENTES têm prioridade sobre campos antigos da CENA ATUAL quando houver conflito. "
-          "Se as falas recentes mostrarem aproximação, toque, aceitação, afastamento ou mudança de clima, "
-          "atualize proximity, event, arc_phase e demais campos para refletir o que realmente aconteceu. "
-          "Nunca mantenha alguém 'indo embora' se a conversa recente já mostra reconexão ou proximidade. "
+          "Se as falas recentes mostrarem aproximação, toque, aceitação, afastamento, deslocamento entre cômodos ou mudança de clima, "
+          "atualize location, proximity, event, arc_phase e demais campos para refletir o que realmente aconteceu. "
+          "Nunca mantenha alguém 'indo embora' se a pessoa apenas mudou de cômodo ou se a conversa recente já mostra reconexão ou proximidade. "
           "Se o personagem não falou, prepare Mary para tomar iniciativa concreta. "
           "Só proponha transição quando houver estagnação real, nunca por contagem de turnos."
     )
