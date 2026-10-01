@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import streamlit as st
 
-from memory import render_recent_memory
+from memory_engine import update_story_memory
 from openrouter_client import OpenRouterError, chat
 from prompts import build_system_prompt
 from state import compact_state, new_state
@@ -10,8 +10,6 @@ from state import compact_state, new_state
 
 st.set_page_config(page_title="Mary Core 2", page_icon="🖤", layout="centered")
 
-# IDs conferidos na API pública do OpenRouter em 2026-10-01.
-# O campo "Outro..." permite testar qualquer modelo novo sem alterar o código.
 DEFAULT_MODELS = [
     "anthropic/claude-sonnet-5.5",
     "z-ai/glm-5.3-prime",
@@ -19,10 +17,27 @@ DEFAULT_MODELS = [
     "Outro...",
 ]
 
+INITIAL_CANONICAL_MEMORY = """
+FATOS E REVELAÇÕES
+- Mary confessou ao marido que o traiu.
+
+ESTADO ATUAL DA RELAÇÃO
+- O casamento é antigo, forte e está profundamente ferido pela confissão.
+
+FERIDAS / CONSEQUÊNCIAS ATIVAS
+- A confiança do marido em Mary foi abalada.
+- Mary teme perder o marido e quer preservar o vínculo.
+
+PENDÊNCIAS E VERDADES INCOMPLETAS
+- Há aspectos da traição que Mary ainda não contou.
+""".strip()
+
 if "messages" not in st.session_state:
     st.session_state.messages = []
 if "story_state" not in st.session_state:
     st.session_state.story_state = new_state()
+if "canonical_memory" not in st.session_state:
+    st.session_state.canonical_memory = INITIAL_CANONICAL_MEMORY
 
 st.title("Mary Core 2")
 st.caption("Laboratório de personalidade, memória e drama relacional.")
@@ -63,10 +78,14 @@ with st.sidebar:
     if st.button("Reiniciar história", use_container_width=True):
         st.session_state.messages = []
         st.session_state.story_state = new_state()
+        st.session_state.canonical_memory = INITIAL_CANONICAL_MEMORY
         st.rerun()
 
     with st.expander("Estado interno"):
         st.json(st.session_state.story_state)
+
+    with st.expander("Memória canônica"):
+        st.text(st.session_state.canonical_memory)
 
 for message in st.session_state.messages:
     with st.chat_message(message["role"]):
@@ -87,6 +106,8 @@ if user_text:
     with st.chat_message("user"):
         st.markdown(user_text)
 
+    answer = None
+
     try:
         if not model:
             raise OpenRouterError("Informe um ID de modelo do OpenRouter.")
@@ -94,15 +115,16 @@ if user_text:
         api_key = str(st.secrets["OPENROUTER_API_KEY"]).strip()
         fallback = str(st.secrets.get("MARY_FALLBACK_MODEL", "")).strip() or None
 
-        recent_memory = render_recent_memory(st.session_state.messages, limit=10)
         system_prompt = build_system_prompt(
             state_text=compact_state(st.session_state.story_state),
-            recent_memory=recent_memory,
+            canonical_memory=st.session_state.canonical_memory,
         )
 
+        # A memória longa fica no system prompt.
+        # O histórico cru é apenas a janela imediata, sem duplicação.
         llm_messages = [
             {"role": "system", "content": system_prompt},
-            *st.session_state.messages[-10:],
+            *st.session_state.messages[-12:],
         ]
 
         answer = chat(
@@ -123,6 +145,24 @@ if user_text:
         answer = f"Erro inesperado: {exc}"
 
     st.session_state.messages.append({"role": "assistant", "content": answer})
+
+    # Atualiza a memória depois do turno concluído. Se a atualização falhar,
+    # o diálogo continua funcionando com a memória anterior.
+    if answer and not answer.startswith("Erro"):
+        try:
+            memory_model = str(
+                st.secrets.get("MARY_MEMORY_MODEL", model)
+            ).strip() or model
+
+            st.session_state.canonical_memory = update_story_memory(
+                api_key=api_key,
+                model=memory_model,
+                fallback_model=fallback,
+                current_memory=st.session_state.canonical_memory,
+                recent_messages=st.session_state.messages[-8:],
+            )
+        except Exception:
+            pass
 
     with st.chat_message("assistant"):
         st.markdown(answer)
