@@ -26,10 +26,16 @@ REGRAS
   mudanças de relação e questões ainda abertas.
 - Não arquive conversa banal.
 - NÃO repita o mesmo fato em formas quase idênticas.
-- Consolide duplicatas.
+- Consolide duplicatas agressivamente.
+- Não transforme repetição de emoção em novos fatos.
+- Se Mary repetir vergonha, culpa, medo de perder Janio, vontade de tentar, vontade de ficar ou pedido para não ser deixada, preserve no máximo UMA síntese enquanto nada novo tiver acontecido.
+- Frases diferentes com a mesma função emocional contam como duplicata.
+- Só registre mudança emocional quando houver mudança real de posição, decisão, ação, relação ou consequência.
+- Não registre autoinsultos passageiros ("nojenta", "burra", "egoísta", etc.) como fatos canônicos permanentes, salvo se produzirem consequência narrativa relevante.
 - Não analise moralmente os personagens.
 - Não escreva sugestões para a próxima cena.
-- Seja conciso. Máximo aproximado de 1800 caracteres.
+- Seja conciso. Prefira 8 a 14 bullets úteis no total. Máximo aproximado de 1500 caracteres.
+- Ao atualizar, também REMOVA bullets antigos que ficaram redundantes ou foram absorvidos por uma síntese melhor.
 
 FORMATO EXATO
 
