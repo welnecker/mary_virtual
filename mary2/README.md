@@ -88,7 +88,7 @@ Nunca versionar a credencial real.
 
 ```toml
 OPENROUTER_API_KEY = "sua-chave"
-MARY_DEFAULT_MODEL = "anthropic/claude-sonnet-5.5"
+MARY_DEFAULT_MODEL = "google/gemini-2.5-flash-lite"
 MARY_FALLBACK_MODEL = ""
 MARY_MEMORY_MODEL = ""
 MARY_DIRECTOR_MODEL = ""
