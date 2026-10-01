@@ -33,6 +33,10 @@ INTERACTION_HEADERS = [
     "scene_caption",
     "user_text",
     "mary_text",
+    "active_user_role_before",
+    "canonical_memory_before",
+    "scene_json_before",
+    "story_state_json_before",
 ]
 
 
@@ -100,9 +104,18 @@ def _ensure_worksheet(book, title: str, headers: list[str]):
     if not existing:
         ws.append_row(headers, value_input_option="RAW")
     elif existing != headers:
-        raise PersistenceError(
-            f"Cabeçalho inesperado em {title}. Esperado: {headers}; atual: {existing}"
-        )
+        # Migração segura: novas versões podem apenas acrescentar colunas ao final.
+        # Isso preserva planilhas já existentes sem exigir recriação manual.
+        if len(existing) < len(headers) and existing == headers[: len(existing)]:
+            ws.update(
+                range_name=f"A1:{gspread.utils.rowcol_to_a1(1, len(headers))}",
+                values=[headers],
+                value_input_option="RAW",
+            )
+        else:
+            raise PersistenceError(
+                f"Cabeçalho inesperado em {title}. Esperado: {headers}; atual: {existing}"
+            )
     return ws
 
 
@@ -201,6 +214,7 @@ def save_turn(
     scene_state: dict,
     story_state: dict,
     turn_record: dict,
+    pre_turn_snapshot: dict | None = None,
     spreadsheet_id: str = "",
     spreadsheet_title: str = "MARY_CORE_PERSISTENCE",
     owner_email: str = "",
@@ -227,6 +241,7 @@ def save_turn(
         seq = 1
 
     now = _now()
+    before = pre_turn_snapshot if isinstance(pre_turn_snapshot, dict) else {}
     interactions_ws.append_row(
         [
             run_id,
@@ -237,6 +252,10 @@ def save_turn(
             turn_record.get("caption", ""),
             turn_record.get("user_text", ""),
             turn_record.get("mary_text", ""),
+            before.get("active_user_role", active_user_role),
+            before.get("canonical_memory", ""),
+            json.dumps(before.get("scene_state", {}), ensure_ascii=False),
+            json.dumps(before.get("story_state", {}), ensure_ascii=False),
         ],
         value_input_option="RAW",
     )
@@ -298,6 +317,7 @@ def load_latest_run(
     messages = []
     for item in rows:
         record = {
+            "seq": int(item.get("seq", 0) or 0),
             "caption": str(item.get("scene_caption", "") or ""),
             "direction": str(item.get("scene_direction", "") or ""),
             "user_role": str(item.get("user_role", "JANIO") or "JANIO"),
@@ -338,4 +358,139 @@ def load_latest_run(
         "last_seq": int(run.get("last_seq", 0) or 0),
         "spreadsheet_id": book.id,
         "spreadsheet_url": book.url,
+    }
+
+
+
+def _parse_json_object(value: object, *, field_name: str) -> dict:
+    raw = str(value or "").strip()
+    if not raw:
+        raise PersistenceError(
+            f"A interação selecionada não possui snapshot de {field_name}. "
+            "Ela foi salva antes da versão com rollback seguro."
+        )
+    try:
+        parsed = json.loads(raw)
+    except Exception as exc:
+        raise PersistenceError(
+            f"Snapshot inválido de {field_name} na interação selecionada."
+        ) from exc
+    if not isinstance(parsed, dict):
+        raise PersistenceError(
+            f"Snapshot inválido de {field_name} na interação selecionada."
+        )
+    return parsed
+
+
+def delete_interactions_from_seq(
+    *,
+    service_account_info: dict,
+    run_id: str,
+    from_seq: int,
+    spreadsheet_id: str = "",
+    spreadsheet_title: str = "MARY_CORE_PERSISTENCE",
+    owner_email: str = "",
+) -> dict:
+    """Apaga a interação escolhida e tudo depois, restaurando o estado anterior."""
+
+    from_seq = int(from_seq)
+    if from_seq < 1:
+        raise PersistenceError("Sequência inválida para rollback.")
+
+    book = open_or_create_book(
+        service_account_info=service_account_info,
+        spreadsheet_id=spreadsheet_id,
+        spreadsheet_title=spreadsheet_title,
+        owner_email=owner_email,
+    )
+    runs_ws = _ensure_worksheet(book, RUNS_SHEET, RUN_HEADERS)
+    interactions_ws = _ensure_worksheet(
+        book,
+        INTERACTIONS_SHEET,
+        INTERACTION_HEADERS,
+    )
+
+    run_row = _find_run_row(runs_ws, run_id)
+    if run_row is None:
+        raise PersistenceError(f"run_id não encontrado: {run_id}")
+
+    records = interactions_ws.get_all_records()
+    selected: dict | None = None
+    rows_to_delete: list[int] = []
+    remaining_seqs: list[int] = []
+
+    for sheet_row, item in enumerate(records, start=2):
+        if str(item.get("run_id", "")) != run_id:
+            continue
+        try:
+            seq = int(item.get("seq", 0) or 0)
+        except Exception:
+            continue
+
+        if seq == from_seq:
+            selected = item
+        if seq >= from_seq:
+            rows_to_delete.append(sheet_row)
+        else:
+            remaining_seqs.append(seq)
+
+    if selected is None:
+        raise PersistenceError(
+            f"Interação #{from_seq} não encontrada na run atual."
+        )
+
+    canonical_before = str(
+        selected.get("canonical_memory_before", "") or ""
+    ).strip()
+    if not canonical_before:
+        raise PersistenceError(
+            "Esta interação foi salva antes da versão com rollback seguro. "
+            "Para não corromper a continuidade, ela não foi apagada."
+        )
+
+    scene_before = _parse_json_object(
+        selected.get("scene_json_before"),
+        field_name="cena",
+    )
+    story_before = _parse_json_object(
+        selected.get("story_state_json_before"),
+        field_name="estado",
+    )
+    active_role_before = str(
+        selected.get("active_user_role_before", "JANIO") or "JANIO"
+    ).strip().upper()
+    if active_role_before not in {"JANIO", "RICARDO"}:
+        active_role_before = "JANIO"
+
+    # Só apaga depois de validar todos os snapshots necessários.
+    for sheet_row in sorted(rows_to_delete, reverse=True):
+        interactions_ws.delete_rows(sheet_row)
+
+    run_values = runs_ws.row_values(run_row)
+    created_at = run_values[3] if len(run_values) > 3 else _now()
+    now = _now()
+    last_seq = max(remaining_seqs, default=0)
+
+    runs_ws.update(
+        range_name=f"C{run_row}:J{run_row}",
+        values=[[
+            "active",
+            created_at,
+            now,
+            last_seq,
+            active_role_before,
+            canonical_before,
+            json.dumps(scene_before, ensure_ascii=False),
+            json.dumps(story_before, ensure_ascii=False),
+        ]],
+        value_input_option="RAW",
+    )
+
+    return {
+        "deleted_count": len(rows_to_delete),
+        "last_seq": last_seq,
+        "active_user_role": active_role_before,
+        "canonical_memory": canonical_before,
+        "scene_state": scene_before,
+        "story_state": story_before,
     }
