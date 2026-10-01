@@ -8,6 +8,13 @@ from input_router import parse_user_input
 from memory_engine import update_story_memory
 from openrouter_client import OpenRouterError, chat
 from output_filter import sanitize_mary_output
+from persistence import (
+    PersistenceError,
+    create_run,
+    ensure_schema,
+    load_latest_run,
+    save_turn,
+)
 from prompts import build_system_prompt
 from state import compact_state, new_state
 from story_bible import STORY_BIBLE
@@ -49,29 +56,130 @@ INITIAL_SCENE = {
     "scene_changed": False,
     "show_caption": False,
     "scene_caption": "",
+    "arc_phase": "opening",
+    "resolution_type": "none",
+    "resolution_summary": "",
+    "start_new_scene": False,
+    "turns_in_scene": 0,
+    "scene_number": 1,
 }
 
-if "messages" not in st.session_state:
+
+def reset_local_story() -> None:
     st.session_state.messages = []
-if "story_state" not in st.session_state:
     st.session_state.story_state = new_state()
-if "canonical_memory" not in st.session_state:
     st.session_state.canonical_memory = INITIAL_CANONICAL_MEMORY
-if "scene_state" not in st.session_state:
     st.session_state.scene_state = dict(INITIAL_SCENE)
-if "turn_records" not in st.session_state:
     st.session_state.turn_records = []
+    st.session_state.active_user_role = "JANIO"
+
+
+def persistence_config() -> dict | None:
+    try:
+        service_account = dict(st.secrets["GOOGLE_SERVICE_ACCOUNT"])
+    except Exception:
+        return None
+
+    if not service_account:
+        return None
+
+    return {
+        "service_account_info": service_account,
+        "spreadsheet_id": str(st.secrets.get("MARY_SHEETS_ID", "")).strip(),
+        "spreadsheet_title": str(
+            st.secrets.get("MARY_SHEETS_TITLE", "MARY_CORE_PERSISTENCE")
+        ).strip() or "MARY_CORE_PERSISTENCE",
+        "owner_email": str(st.secrets.get("MARY_SHEETS_OWNER_EMAIL", "")).strip(),
+        "player_id": str(st.secrets.get("MARY_PLAYER_ID", "janio")).strip() or "janio",
+    }
+
+
+for key, default in {
+    "messages": [],
+    "story_state": new_state(),
+    "canonical_memory": INITIAL_CANONICAL_MEMORY,
+    "scene_state": dict(INITIAL_SCENE),
+    "turn_records": [],
+    "run_id": "",
+    "active_user_role": "JANIO",
+    "persistence_loaded": False,
+    "persistence_error": "",
+    "spreadsheet_url": "",
+}.items():
+    if key not in st.session_state:
+        st.session_state[key] = default
+
+
+# Recupera a história uma única vez por sessão Streamlit.
+persistence = persistence_config()
+if persistence and not st.session_state.persistence_loaded:
+    try:
+        info = ensure_schema(
+            service_account_info=persistence["service_account_info"],
+            spreadsheet_id=persistence["spreadsheet_id"],
+            spreadsheet_title=persistence["spreadsheet_title"],
+            owner_email=persistence["owner_email"],
+        )
+        st.session_state.spreadsheet_url = info["spreadsheet_url"]
+
+        saved = load_latest_run(
+            service_account_info=persistence["service_account_info"],
+            spreadsheet_id=info["spreadsheet_id"],
+            spreadsheet_title=persistence["spreadsheet_title"],
+            owner_email=persistence["owner_email"],
+            player_id=persistence["player_id"],
+            interaction_limit=30,
+        )
+
+        if saved:
+            st.session_state.run_id = saved["run_id"]
+            st.session_state.active_user_role = saved["active_user_role"]
+            st.session_state.canonical_memory = (
+                saved["canonical_memory"] or INITIAL_CANONICAL_MEMORY
+            )
+            st.session_state.scene_state = saved["scene_state"] or dict(INITIAL_SCENE)
+            st.session_state.story_state = saved["story_state"] or new_state()
+            st.session_state.turn_records = saved["turn_records"]
+            st.session_state.messages = saved["messages"]
+        else:
+            st.session_state.run_id = create_run(
+                service_account_info=persistence["service_account_info"],
+                spreadsheet_id=info["spreadsheet_id"],
+                spreadsheet_title=persistence["spreadsheet_title"],
+                owner_email=persistence["owner_email"],
+                player_id=persistence["player_id"],
+                active_user_role=st.session_state.active_user_role,
+                canonical_memory=st.session_state.canonical_memory,
+                scene_state=st.session_state.scene_state,
+                story_state=st.session_state.story_state,
+                archive_previous=False,
+            )
+
+        st.session_state.persistence_loaded = True
+        st.session_state.persistence_error = ""
+    except Exception as exc:
+        st.session_state.persistence_loaded = True
+        st.session_state.persistence_error = str(exc)
+
 
 st.title("Mary Core 2")
 st.caption("Novela interativa: Mary, Janio e Ricardo.")
 
 with st.sidebar:
     st.subheader("Você interpreta")
+
+    role_options = ["JANIO", "RICARDO"]
+    current_role = st.session_state.active_user_role
+    if current_role not in role_options:
+        current_role = "JANIO"
+
     user_role = st.radio(
         "Papel ativo",
-        ["JANIO", "RICARDO"],
+        role_options,
+        index=role_options.index(current_role),
         horizontal=True,
     )
+    st.session_state.active_user_role = user_role
 
     st.subheader("Modelo")
     configured_default = str(
@@ -95,13 +203,48 @@ with st.sidebar:
 
     temperature = st.slider("Temperatura", 0.2, 1.3, 0.9, 0.1)
 
-    if st.button("Reiniciar história", use_container_width=True):
-        st.session_state.messages = []
-        st.session_state.story_state = new_state()
-        st.session_state.canonical_memory = INITIAL_CANONICAL_MEMORY
-        st.session_state.scene_state = dict(INITIAL_SCENE)
-        st.session_state.turn_records = []
+    if st.button("Nova história", use_container_width=True):
+        reset_local_story()
+
+        if persistence:
+            try:
+                info = ensure_schema(
+                    service_account_info=persistence["service_account_info"],
+                    spreadsheet_id=persistence["spreadsheet_id"],
+                    spreadsheet_title=persistence["spreadsheet_title"],
+                    owner_email=persistence["owner_email"],
+                )
+                st.session_state.spreadsheet_url = info["spreadsheet_url"]
+                st.session_state.run_id = create_run(
+                    service_account_info=persistence["service_account_info"],
+                    spreadsheet_id=info["spreadsheet_id"],
+                    spreadsheet_title=persistence["spreadsheet_title"],
+                    owner_email=persistence["owner_email"],
+                    player_id=persistence["player_id"],
+                    active_user_role="JANIO",
+                    canonical_memory=INITIAL_CANONICAL_MEMORY,
+                    scene_state=dict(INITIAL_SCENE),
+                    story_state=new_state(),
+                    archive_previous=True,
+                )
+                st.session_state.persistence_error = ""
+            except Exception as exc:
+                st.session_state.persistence_error = str(exc)
+
         st.rerun()
+
+    if persistence and not st.session_state.persistence_error:
+        st.success("História persistente ativa")
+        if st.session_state.spreadsheet_url:
+            st.markdown(f"[Abrir planilha de memória]({st.session_state.spreadsheet_url})")
+        if st.session_state.run_id:
+            st.caption(f"Run: {st.session_state.run_id}")
+    elif st.session_state.persistence_error:
+        st.warning("Persistência indisponível nesta sessão.")
+        with st.expander("Detalhe técnico"):
+            st.code(st.session_state.persistence_error)
+    else:
+        st.caption("Persistência Google Sheets ainda não configurada.")
 
     with st.expander("Cena atual"):
         st.json(st.session_state.scene_state)
@@ -111,6 +254,7 @@ with st.sidebar:
 
     with st.expander("Estado interno"):
         st.json(st.session_state.story_state)
+
 
 for record in st.session_state.turn_records:
     if record.get("direction"):
@@ -123,13 +267,23 @@ for record in st.session_state.turn_records:
     with st.chat_message("assistant"):
         st.markdown(record["mary_text"])
 
+
 if not st.session_state.turn_records:
-    st.info("Na casa do casal, pouco depois da confissão, Mary tenta impedir que Janio encerre a conversa.")
+    st.info(
+        "Na casa do casal, pouco depois da confissão, "
+        "Mary tenta impedir que Janio encerre a conversa."
+    )
     with st.chat_message("assistant"):
         st.markdown("Janio... olha pra mim. Só... não vai embora ainda.")
 
-placeholder = "Fale como Janio..." if user_role == "JANIO" else "Fale como Ricardo..."
+
+placeholder = (
+    "Fale ou dirija a cena como Janio..."
+    if user_role == "JANIO"
+    else "Fale ou dirija a cena como Ricardo..."
+)
 user_text = st.chat_input(placeholder)
+
 
 if user_text:
     try:
@@ -200,15 +354,14 @@ if user_text:
 
         caption = scene.get("scene_caption", "") if scene.get("show_caption") else ""
 
-        st.session_state.turn_records.append(
-            {
-                "caption": caption,
-                "direction": scene_direction,
-                "user_role": user_role,
-                "user_text": dialogue_text,
-                "mary_text": answer,
-            }
-        )
+        turn_record = {
+            "caption": caption,
+            "direction": scene_direction,
+            "user_role": user_role,
+            "user_text": dialogue_text,
+            "mary_text": answer,
+        }
+        st.session_state.turn_records.append(turn_record)
 
         if answer and not answer.startswith("Erro"):
             try:
@@ -226,11 +379,56 @@ if user_text:
             except Exception:
                 pass
 
+        # Persiste depois da memória canônica ser atualizada.
+        if persistence:
+            try:
+                info = ensure_schema(
+                    service_account_info=persistence["service_account_info"],
+                    spreadsheet_id=persistence["spreadsheet_id"],
+                    spreadsheet_title=persistence["spreadsheet_title"],
+                    owner_email=persistence["owner_email"],
+                )
+                st.session_state.spreadsheet_url = info["spreadsheet_url"]
+
+                if not st.session_state.run_id:
+                    st.session_state.run_id = create_run(
+                        service_account_info=persistence["service_account_info"],
+                        spreadsheet_id=info["spreadsheet_id"],
+                        spreadsheet_title=persistence["spreadsheet_title"],
+                        owner_email=persistence["owner_email"],
+                        player_id=persistence["player_id"],
+                        active_user_role=user_role,
+                        canonical_memory=st.session_state.canonical_memory,
+                        scene_state=st.session_state.scene_state,
+                        story_state=st.session_state.story_state,
+                        archive_previous=False,
+                    )
+
+                save_turn(
+                    service_account_info=persistence["service_account_info"],
+                    spreadsheet_id=info["spreadsheet_id"],
+                    spreadsheet_title=persistence["spreadsheet_title"],
+                    owner_email=persistence["owner_email"],
+                    run_id=st.session_state.run_id,
+                    player_id=persistence["player_id"],
+                    active_user_role=user_role,
+                    canonical_memory=st.session_state.canonical_memory,
+                    scene_state=st.session_state.scene_state,
+                    story_state=st.session_state.story_state,
+                    turn_record=turn_record,
+                )
+                st.session_state.persistence_error = ""
+            except Exception as exc:
+                # A história continua funcionando mesmo se o Google falhar.
+                st.session_state.persistence_error = str(exc)
+
         st.rerun()
 
     except KeyError:
         st.error("OPENROUTER_API_KEY não encontrada em st.secrets.")
     except OpenRouterError as exc:
         st.error(f"Erro OpenRouter: {exc}")
+    except PersistenceError as exc:
+        st.error(f"Erro de persistência: {exc}")
     except Exception as exc:
         st.error(f"Erro inesperado: {exc}")
