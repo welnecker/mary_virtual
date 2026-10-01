@@ -24,41 +24,34 @@ Quando o novo papel não estiver presente fisicamente, crie uma ponte plausível
 telefone, mensagem, chamada, chegada, encontro ou retorno.
 
 
-AMBIENTES E POSSIBILIDADES DRAMÁTICAS
+DIREÇÃO LIVRE DO USUÁRIO
 
-Use o ambiente como campo de possibilidades, não como roteiro fechado.
+O usuário pode alterar tempo, local e situação em linguagem natural.
+Quando houver uma DIREÇÃO DE CENA EXPLÍCITA, ela é autoridade narrativa.
+Exemplos:
+- "No dia seguinte, Mary acorda primeiro, vendo Janio dormir."
+- "Horas depois, no trabalho, Janio liga para Mary."
+- "No shopping, Mary percebe Ricardo do outro lado do corredor."
+- "À noite, no quarto, Janio permanece em silêncio."
 
-QUARTO + NOITE/MADRUGADA + JANIO
-Favoreça: intimidade, carência, provocação, reconexão física, desejo conjugal, conversa baixa, silêncio tenso, tentativa de beijo, rejeição ou acolhimento.
-Se houver abertura recíproca, pode haver physical_reconnection ou intimacy.
-Não transforme automaticamente em conversa terapêutica.
+Não transforme isso em fala do personagem.
+Atualize a cena a partir da instrução.
+Preserve os fatos explicitamente dados pelo usuário.
+Complete apenas o que estiver faltando e puder ser inferido com segurança.
 
-CASA + MANHÃ + JANIO
-Favoreça: consequência da noite anterior, rotina quebrada, cuidado silencioso, distância, tentativa curta de proximidade, trabalho, filho, café, despedida.
+Não use catálogo fixo de ambientes.
+Derive dinamicamente as possibilidades dramáticas a partir de:
+- local;
+- horário;
+- personagens presentes;
+- relação entre eles;
+- memória canônica;
+- tensão acumulada;
+- ações já ocorridas.
 
-SALA + NOITE + JANIO
-Favoreça: confronto, confissão, revelação, decisão, saída, retorno, discussão intensa.
-
-CARRO + JANIO
-Favoreça: conversa confinada, silêncio, cobrança, revelação, explosão curta, tentativa de reconexão.
-
-TRABALHO + JANIO
-Favoreça: telefonema, mensagem, vergonha social, Ricardo por perto, medo de exposição, descoberta, pressão externa.
-
-SHOPPING + RICARDO
-Favoreça: telefonema, encontro discreto, risco de flagrante, provocação, desejo, recuo, segredo.
-
-TELEFONE + RICARDO
-Favoreça: cobrança, saudade, provocação, risco, segredo, tentativa de corte, tentação.
-
-LUGAR RESERVADO + RICARDO
-Favoreça: tensão, desejo, escolha, recuo, culpa, decisão.
-Nunca trate encontro com Ricardo como amor automático.
-
-REGRA
-Ambiente e horário devem alterar o tipo de cena provável.
-Não use sempre discussão como padrão.
-Quando houver contexto íntimo com Janio e memória recente permitir, considere aproximação física e sensual como progressão válida.
+Se a entrada do usuário for SOMENTE direção de cena, prepare a situação para Mary tomar a primeira iniciativa concreta.
+A iniciativa pode ser física, verbal ou prática.
+Prefira uma ação simples que faça a cena andar em vez de uma explicação emocional longa.
 
 ARCO DE CENA
 Toda cena deve avançar por fases:
@@ -160,6 +153,8 @@ def direct_scene(
     current_scene: dict,
     user_role: str,
     recent_messages: list[dict[str, str]],
+    scene_direction: str = "",
+    user_spoke: bool = True,
 ) -> dict:
     previous_role = str(current_scene.get("user_role", "JANIO") or "JANIO").upper()
     role_changed = previous_role != user_role
@@ -186,8 +181,12 @@ def direct_scene(
         + "\n\nPAPEL ANTERIOR:\n" + previous_role
         + "\n\nPAPEL ATIVO AGORA:\n" + user_role
         + "\n\nPAPEL MUDOU?\n" + ("SIM" if role_changed else "NÃO")
+        + "\n\nDIREÇÃO DE CENA EXPLÍCITA DO USUÁRIO:\n" + (scene_direction.strip() or "(nenhuma)")
+        + "\n\nO PERSONAGEM ATIVO FALOU NESTE TURNO?\n" + ("SIM" if user_spoke else "NÃO")
         + "\n\nINTERAÇÕES RECENTES:\n" + ("\n".join(transcript) or "(nenhuma)")
-        + "\n\nAtualize a direção. Se a cena estiver circular, produza um ponto de virada ou conclusão."
+        + "\n\nAtualize a direção. A direção explícita do usuário tem prioridade. "
+          "Se o personagem não falou, prepare Mary para tomar iniciativa concreta. "
+          "Se a cena estiver circular, produza um ponto de virada ou conclusão."
     )
 
     raw = chat(
@@ -238,6 +237,8 @@ def direct_scene(
         "start_new_scene": start_new_scene,
         "turns_in_scene": 0 if start_new_scene else turns_in_scene,
         "scene_number": int(current_scene.get("scene_number", 1) or 1) + (1 if start_new_scene else 0),
+        "user_scene_direction": scene_direction.strip(),
+        "mary_should_initiate": not user_spoke,
     }
 
     present = [str(x).upper() for x in scene.get("present_characters", [])]
