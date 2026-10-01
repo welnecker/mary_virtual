@@ -75,13 +75,34 @@ def reset_local_story() -> None:
 
 
 def persistence_config() -> dict | None:
+    service_account = None
+
+    # Compatibilidade com o secret já usado no projeto:
+    # GOOGLE_CREDS_JSON pode ser uma string JSON completa.
     try:
-        service_account = dict(st.secrets["GOOGLE_SERVICE_ACCOUNT"])
+        raw_creds = st.secrets.get("GOOGLE_CREDS_JSON", "")
+        if raw_creds:
+            if isinstance(raw_creds, str):
+                service_account = json.loads(raw_creds)
+            else:
+                service_account = dict(raw_creds)
     except Exception:
-        return None
+        service_account = None
+
+    # Fallback opcional para configuração TOML estruturada.
+    if not service_account:
+        try:
+            service_account = dict(st.secrets["GOOGLE_SERVICE_ACCOUNT"])
+        except Exception:
+            service_account = None
 
     if not service_account:
         return None
+
+    # Corrige quebras de linha escapadas na private_key quando necessário.
+    private_key = service_account.get("private_key")
+    if isinstance(private_key, str):
+        service_account["private_key"] = private_key.replace("\\n", "\n")
 
     return {
         "service_account_info": service_account,
