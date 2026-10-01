@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import re
+
 from openrouter_client import chat
 
 
@@ -9,19 +11,22 @@ Não interprete Mary e não escreva diálogos.
 
 Sua tarefa é atualizar uma MEMÓRIA CANÔNICA compacta usando:
 1. a memória canônica anterior;
-2. as interações recentes entre MARIDO e MARY.
+2. as interações recentes entre JANIO, RICARDO e MARY.
 
 REGRAS
 - Preserve fatos anteriores, salvo quando houver correção explícita posterior.
 - Não invente acontecimentos.
 - Não transforme suspeita em fato.
-- Declaração do marido sobre si mesmo pode ser registrada como fato declarado por ele.
+- Mantenha autoria correta: JANIO é Janio; RICARDO é Ricardo; MARY é Mary.
+- Nunca atribua a Janio algo dito por Ricardo, nem o contrário.
 - Confissão de Mary sobre o que ela própria fez pode ser registrada como admissão de Mary.
 - Quando algo ainda estiver ambíguo, registre como pendência, não como verdade.
 - Guarde especialmente: identidade de terceiros, traições e detalhes já revelados,
-  revelações íntimas relevantes, decisões de ir/ficar, promessas, rupturas,
-  flagrantes, mentiras descobertas, mudanças de relação e questões ainda abertas.
-- Não arquive conversa banal nem repita a mesma informação.
+  decisões de ir/ficar, promessas, rupturas, flagrantes, mentiras descobertas,
+  mudanças de relação e questões ainda abertas.
+- Não arquive conversa banal.
+- NÃO repita o mesmo fato em formas quase idênticas.
+- Consolide duplicatas.
 - Não analise moralmente os personagens.
 - Não escreva sugestões para a próxima cena.
 - Seja conciso. Máximo aproximado de 1800 caracteres.
@@ -42,6 +47,14 @@ PENDÊNCIAS E VERDADES INCOMPLETAS
 """.strip()
 
 
+def _parse_user_role(content: str) -> tuple[str, str]:
+    text = str(content or "").strip()
+    match = re.match(r"^\[PAPEL=(JANIO|RICARDO)\]\s*(.*)$", text, re.I | re.S)
+    if match:
+        return match.group(1).upper(), match.group(2).strip()
+    return "JANIO", text
+
+
 def update_story_memory(
     *,
     api_key: str,
@@ -52,20 +65,24 @@ def update_story_memory(
 ) -> str:
     transcript: list[str] = []
 
-    for item in recent_messages[-8:]:
+    for item in recent_messages[-10:]:
         role = item.get("role")
         content = str(item.get("content", "")).strip()
         if not content:
             continue
-        who = "MARIDO" if role == "user" else "MARY"
-        transcript.append(f"{who}: {content}")
+
+        if role == "user":
+            who, clean = _parse_user_role(content)
+            transcript.append(f"{who}: {clean}")
+        else:
+            transcript.append(f"MARY: {content}")
 
     user_payload = (
         "MEMÓRIA CANÔNICA ANTERIOR:\n"
         + (current_memory.strip() or "(vazia)")
         + "\n\nINTERAÇÕES RECENTES:\n"
         + ("\n".join(transcript) or "(nenhuma)")
-        + "\n\nAtualize a memória canônica."
+        + "\n\nAtualize e consolide a memória canônica sem duplicações."
     )
 
     return chat(
@@ -76,6 +93,6 @@ def update_story_memory(
             {"role": "system", "content": MEMORY_SYSTEM_PROMPT},
             {"role": "user", "content": user_payload},
         ],
-        temperature=0.1,
-        max_tokens=550,
+        temperature=0.05,
+        max_tokens=520,
     )
