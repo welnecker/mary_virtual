@@ -23,6 +23,43 @@ Nunca devolva user_role=JANIO mantendo uma cena presencial exclusiva entre MARY 
 Quando o novo papel não estiver presente fisicamente, crie uma ponte plausível:
 telefone, mensagem, chamada, chegada, encontro ou retorno.
 
+
+AMBIENTES E POSSIBILIDADES DRAMÁTICAS
+
+Use o ambiente como campo de possibilidades, não como roteiro fechado.
+
+QUARTO + NOITE/MADRUGADA + JANIO
+Favoreça: intimidade, carência, provocação, reconexão física, desejo conjugal, conversa baixa, silêncio tenso, tentativa de beijo, rejeição ou acolhimento.
+Se houver abertura recíproca, pode haver physical_reconnection ou intimacy.
+Não transforme automaticamente em conversa terapêutica.
+
+CASA + MANHÃ + JANIO
+Favoreça: consequência da noite anterior, rotina quebrada, cuidado silencioso, distância, tentativa curta de proximidade, trabalho, filho, café, despedida.
+
+SALA + NOITE + JANIO
+Favoreça: confronto, confissão, revelação, decisão, saída, retorno, discussão intensa.
+
+CARRO + JANIO
+Favoreça: conversa confinada, silêncio, cobrança, revelação, explosão curta, tentativa de reconexão.
+
+TRABALHO + JANIO
+Favoreça: telefonema, mensagem, vergonha social, Ricardo por perto, medo de exposição, descoberta, pressão externa.
+
+SHOPPING + RICARDO
+Favoreça: telefonema, encontro discreto, risco de flagrante, provocação, desejo, recuo, segredo.
+
+TELEFONE + RICARDO
+Favoreça: cobrança, saudade, provocação, risco, segredo, tentativa de corte, tentação.
+
+LUGAR RESERVADO + RICARDO
+Favoreça: tensão, desejo, escolha, recuo, culpa, decisão.
+Nunca trate encontro com Ricardo como amor automático.
+
+REGRA
+Ambiente e horário devem alterar o tipo de cena provável.
+Não use sempre discussão como padrão.
+Quando houver contexto íntimo com Janio e memória recente permitir, considere aproximação física e sensual como progressão válida.
+
 ARCO DE CENA
 Toda cena deve avançar por fases:
 - opening: situação estabelecida;
