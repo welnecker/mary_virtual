@@ -48,23 +48,63 @@ def new_run_id() -> str:
     return f"mary_{uuid4().hex[:16]}"
 
 
-def _open_book(*, spreadsheet_id: str, service_account_info: dict):
+def _client(service_account_info: dict):
     scopes = [
         "https://www.googleapis.com/auth/spreadsheets",
         "https://www.googleapis.com/auth/drive",
     ]
     creds = Credentials.from_service_account_info(service_account_info, scopes=scopes)
-    client = gspread.authorize(creds)
-    return client.open_by_key(spreadsheet_id)
+    return gspread.authorize(creds)
+
+
+def open_or_create_book(
+    *,
+    service_account_info: dict,
+    spreadsheet_id: str = "",
+    spreadsheet_title: str = "MARY_CORE_PERSISTENCE",
+    owner_email: str = "",
+):
+    client = _client(service_account_info)
+
+    if spreadsheet_id.strip():
+        return client.open_by_key(spreadsheet_id.strip())
+
+    title = spreadsheet_title.strip() or "MARY_CORE_PERSISTENCE"
+
+    try:
+        return client.open(title)
+    except gspread.SpreadsheetNotFound:
+        book = client.create(title)
+        if owner_email.strip():
+            try:
+                book.share(
+                    owner_email.strip(),
+                    perm_type="user",
+                    role="writer",
+                    notify=False,
+                )
+            except Exception:
+                # A persistência não deve falhar apenas porque o compartilhamento
+                # automático não foi permitido pela configuração do Drive.
+                pass
+        return book
 
 
 def _ensure_worksheet(book, title: str, headers: list[str]):
     try:
         ws = book.worksheet(title)
     except gspread.WorksheetNotFound:
-        ws = book.add_worksheet(title=title, rows=1000, cols=max(len(headers), 10))
-        ws.append_row(headers, value_input_option="RAW")
-        return ws
+        # Reaproveita a aba vazia padrão na primeira criação.
+        worksheets = book.worksheets()
+        if (
+            len(worksheets) == 1
+            and worksheets[0].title in {"Sheet1", "Página1", "Planilha1"}
+            and not worksheets[0].get_all_values()
+        ):
+            ws = worksheets[0]
+            ws.update_title(title)
+        else:
+            ws = book.add_worksheet(title=title, rows=1000, cols=max(len(headers), 10))
 
     existing = ws.row_values(1)
     if not existing:
@@ -76,28 +116,45 @@ def _ensure_worksheet(book, title: str, headers: list[str]):
     return ws
 
 
-def ensure_schema(*, spreadsheet_id: str, service_account_info: dict) -> None:
-    book = _open_book(
-        spreadsheet_id=spreadsheet_id,
+def ensure_schema(
+    *,
+    service_account_info: dict,
+    spreadsheet_id: str = "",
+    spreadsheet_title: str = "MARY_CORE_PERSISTENCE",
+    owner_email: str = "",
+) -> dict:
+    book = open_or_create_book(
         service_account_info=service_account_info,
+        spreadsheet_id=spreadsheet_id,
+        spreadsheet_title=spreadsheet_title,
+        owner_email=owner_email,
     )
     _ensure_worksheet(book, RUNS_SHEET, RUN_HEADERS)
     _ensure_worksheet(book, INTERACTIONS_SHEET, INTERACTION_HEADERS)
+    return {
+        "spreadsheet_id": book.id,
+        "spreadsheet_title": book.title,
+        "spreadsheet_url": book.url,
+    }
 
 
 def create_run(
     *,
-    spreadsheet_id: str,
     service_account_info: dict,
     player_id: str,
     active_user_role: str,
     canonical_memory: str,
     scene_state: dict,
     story_state: dict,
+    spreadsheet_id: str = "",
+    spreadsheet_title: str = "MARY_CORE_PERSISTENCE",
+    owner_email: str = "",
 ) -> str:
-    book = _open_book(
-        spreadsheet_id=spreadsheet_id,
+    book = open_or_create_book(
         service_account_info=service_account_info,
+        spreadsheet_id=spreadsheet_id,
+        spreadsheet_title=spreadsheet_title,
+        owner_email=owner_email,
     )
     ws = _ensure_worksheet(book, RUNS_SHEET, RUN_HEADERS)
 
@@ -131,7 +188,6 @@ def _find_run_row(ws, run_id: str) -> int | None:
 
 def save_turn(
     *,
-    spreadsheet_id: str,
     service_account_info: dict,
     run_id: str,
     player_id: str,
@@ -140,10 +196,15 @@ def save_turn(
     scene_state: dict,
     story_state: dict,
     turn_record: dict,
+    spreadsheet_id: str = "",
+    spreadsheet_title: str = "MARY_CORE_PERSISTENCE",
+    owner_email: str = "",
 ) -> int:
-    book = _open_book(
-        spreadsheet_id=spreadsheet_id,
+    book = open_or_create_book(
         service_account_info=service_account_info,
+        spreadsheet_id=spreadsheet_id,
+        spreadsheet_title=spreadsheet_title,
+        owner_email=owner_email,
     )
     runs_ws = _ensure_worksheet(book, RUNS_SHEET, RUN_HEADERS)
     interactions_ws = _ensure_worksheet(book, INTERACTIONS_SHEET, INTERACTION_HEADERS)
@@ -152,7 +213,9 @@ def save_turn(
     if row is None:
         raise PersistenceError(f"run_id não encontrado: {run_id}")
 
-    current_seq = runs_ws.cell(row, 6).value or "0"
+    row_values = runs_ws.row_values(row)
+    created_at = row_values[3] if len(row_values) > 3 else _now()
+    current_seq = row_values[5] if len(row_values) > 5 else "0"
     try:
         seq = int(current_seq) + 1
     except Exception:
@@ -177,7 +240,7 @@ def save_turn(
         range_name=f"C{row}:J{row}",
         values=[[
             "active",
-            runs_ws.cell(row, 4).value or now,
+            created_at,
             now,
             seq,
             active_user_role,
@@ -192,14 +255,18 @@ def save_turn(
 
 def load_latest_run(
     *,
-    spreadsheet_id: str,
     service_account_info: dict,
     player_id: str,
     interaction_limit: int = 30,
+    spreadsheet_id: str = "",
+    spreadsheet_title: str = "MARY_CORE_PERSISTENCE",
+    owner_email: str = "",
 ) -> dict | None:
-    book = _open_book(
-        spreadsheet_id=spreadsheet_id,
+    book = open_or_create_book(
         service_account_info=service_account_info,
+        spreadsheet_id=spreadsheet_id,
+        spreadsheet_title=spreadsheet_title,
+        owner_email=owner_email,
     )
     runs_ws = _ensure_worksheet(book, RUNS_SHEET, RUN_HEADERS)
     interactions_ws = _ensure_worksheet(book, INTERACTIONS_SHEET, INTERACTION_HEADERS)
@@ -264,4 +331,6 @@ def load_latest_run(
         "turn_records": turn_records,
         "messages": messages,
         "last_seq": int(run.get("last_seq", 0) or 0),
+        "spreadsheet_id": book.id,
+        "spreadsheet_url": book.url,
     }
