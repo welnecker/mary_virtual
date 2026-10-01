@@ -49,10 +49,9 @@ def new_run_id() -> str:
 
 
 def _client(service_account_info: dict):
-    scopes = [
-        "https://www.googleapis.com/auth/spreadsheets",
-        "https://www.googleapis.com/auth/drive",
-    ]
+    # Persistência usa apenas a Google Sheets API.
+    # Não depende da Google Drive API.
+    scopes = ["https://www.googleapis.com/auth/spreadsheets"]
     creds = Credentials.from_service_account_info(service_account_info, scopes=scopes)
     return gspread.authorize(creds)
 
@@ -66,28 +65,19 @@ def open_or_create_book(
 ):
     client = _client(service_account_info)
 
-    if spreadsheet_id.strip():
-        return client.open_by_key(spreadsheet_id.strip())
+    if not spreadsheet_id.strip():
+        service_email = str(service_account_info.get("client_email", "") or "").strip()
+        hint = (
+            f" Compartilhe a planilha com {service_email} como Editor."
+            if service_email else ""
+        )
+        raise PersistenceError(
+            "MARY_SHEETS_ID não configurado. Crie uma planilha Google vazia, "
+            "copie o ID da URL para MARY_SHEETS_ID e compartilhe-a com a service account."
+            + hint
+        )
 
-    title = spreadsheet_title.strip() or "MARY_CORE_PERSISTENCE"
-
-    try:
-        return client.open(title)
-    except gspread.SpreadsheetNotFound:
-        book = client.create(title)
-        if owner_email.strip():
-            try:
-                book.share(
-                    owner_email.strip(),
-                    perm_type="user",
-                    role="writer",
-                    notify=False,
-                )
-            except Exception:
-                # A persistência não deve falhar apenas porque o compartilhamento
-                # automático não foi permitido pela configuração do Drive.
-                pass
-        return book
+    return client.open_by_key(spreadsheet_id.strip())
 
 
 def _ensure_worksheet(book, title: str, headers: list[str]):
