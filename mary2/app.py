@@ -4,6 +4,7 @@ import json
 import streamlit as st
 
 from director import direct_scene
+from input_router import parse_user_input
 from memory_engine import update_story_memory
 from openrouter_client import OpenRouterError, chat
 from output_filter import sanitize_mary_output
@@ -112,10 +113,13 @@ with st.sidebar:
         st.json(st.session_state.story_state)
 
 for record in st.session_state.turn_records:
+    if record.get("direction"):
+        st.caption("🎬 " + record["direction"])
     if record.get("caption"):
         st.info(record["caption"])
-    with st.chat_message(record["user_role"].lower()):
-        st.markdown(record["user_text"])
+    if record.get("user_text"):
+        with st.chat_message(record["user_role"].lower()):
+            st.markdown(record["user_text"])
     with st.chat_message("assistant"):
         st.markdown(record["mary_text"])
 
@@ -135,10 +139,23 @@ if user_text:
         api_key = str(st.secrets["OPENROUTER_API_KEY"]).strip()
         fallback = str(st.secrets.get("MARY_FALLBACK_MODEL", "")).strip() or None
         director_model = str(st.secrets.get("MARY_DIRECTOR_MODEL", model)).strip() or model
+        input_model = str(st.secrets.get("MARY_INPUT_MODEL", director_model)).strip() or director_model
 
-        st.session_state.messages.append(
-            {"role": "user", "content": f"[PAPEL={user_role}] {user_text}"}
+        parsed_input = parse_user_input(
+            api_key=api_key,
+            model=input_model,
+            fallback_model=fallback,
+            user_role=user_role,
+            raw_text=user_text,
         )
+        scene_direction = parsed_input["scene_direction"]
+        dialogue_text = parsed_input["dialogue"]
+        user_spoke = bool(dialogue_text)
+
+        if user_spoke:
+            st.session_state.messages.append(
+                {"role": "user", "content": f"[PAPEL={user_role}] {dialogue_text}"}
+            )
 
         scene = direct_scene(
             api_key=api_key,
@@ -149,6 +166,8 @@ if user_text:
             current_scene=st.session_state.scene_state,
             user_role=user_role,
             recent_messages=st.session_state.messages,
+            scene_direction=scene_direction,
+            user_spoke=user_spoke,
         )
         st.session_state.scene_state = scene
 
@@ -184,8 +203,9 @@ if user_text:
         st.session_state.turn_records.append(
             {
                 "caption": caption,
+                "direction": scene_direction,
                 "user_role": user_role,
-                "user_text": user_text,
+                "user_text": dialogue_text,
                 "mary_text": answer,
             }
         )
