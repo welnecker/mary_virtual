@@ -66,10 +66,11 @@ Toda cena deve avançar por fases:
 - turning_point: algo muda de verdade;
 - resolution: a cena recebe uma pequena conclusão.
 
-Uma cena NÃO pode ficar indefinidamente em pressure.
-Depois de vários turnos repetindo a mesma tensão, busque um ponto de virada.
-Se turns_in_scene >= 6, prefira mudança concreta.
-Se turns_in_scene >= 9, encerre a cena salvo se houver descoberta nova relevante naquele turno.
+Uma cena não deve ficar indefinidamente repetindo exatamente a mesma tensão.
+Mas NUNCA mude, encerre ou faça salto temporal apenas porque passou um número de turnos.
+A contagem serve só como informação de contexto.
+Considere progresso real quando houver mudança de atitude, aproximação, afastamento, revelação, aceitação, recusa, gesto físico, mudança de assunto ou novo objetivo.
+Se a cena continua viva e mudando, preserve-a.
 
 CONCLUSÃO DE CENA
 Uma conclusão NÃO significa final da história. Significa alterar o estado.
@@ -89,15 +90,10 @@ Intimidade exige sinais recíprocos de aproximação no contexto recente e ausê
 Depois de hostilidade intensa, prefira cooldown, distance, partial_reconciliation ou time_jump antes de intimidade.
 
 ANTI-REPETIÇÃO
-Se Mary e o personagem ativo já repetiram essencialmente a mesma acusação/defesa por vários turnos, não continue o debate.
-Faça algo mudar:
-- alguém encerra a conversa;
-- alguém sai do ambiente;
-- o tempo avança;
-- surge uma consequência;
-- o humor muda;
-- um gesto de aproximação é aceito ou rejeitado;
-- um novo fato entra em cena.
+Se Mary e o personagem ativo estiverem repetindo essencialmente a mesma acusação ou defesa SEM qualquer mudança nova, procure um movimento coerente.
+Não imponha saída, salto temporal ou encerramento.
+Primeiro reconheça mudanças já presentes nas interações recentes: aproximação, toque, convite, aceitação, recuo, mudança de tom, carinho, desejo, silêncio ou nova informação.
+A consequência deve nascer do que os personagens acabaram de fazer, não de um mecanismo de rotação de cenas.
 
 BALÃO DE CENA
 A legenda deve ter no máximo 2 frases curtas.
@@ -191,8 +187,12 @@ def direct_scene(
         + "\n\nO PERSONAGEM ATIVO FALOU NESTE TURNO?\n" + ("SIM" if user_spoke else "NÃO")
         + "\n\nINTERAÇÕES RECENTES:\n" + ("\n".join(transcript) or "(nenhuma)")
         + "\n\nAtualize a direção. A direção explícita do usuário tem prioridade. "
+          "As INTERAÇÕES RECENTES têm prioridade sobre campos antigos da CENA ATUAL quando houver conflito. "
+          "Se as falas recentes mostrarem aproximação, toque, aceitação, afastamento ou mudança de clima, "
+          "atualize proximity, event, arc_phase e demais campos para refletir o que realmente aconteceu. "
+          "Nunca mantenha alguém 'indo embora' se a conversa recente já mostra reconexão ou proximidade. "
           "Se o personagem não falou, prepare Mary para tomar iniciativa concreta. "
-          "Se a cena estiver circular, produza um ponto de virada ou conclusão."
+          "Só proponha transição quando houver estagnação real, nunca por contagem de turnos."
     )
 
     raw = chat(
@@ -216,14 +216,6 @@ def direct_scene(
     resolution_type = str(data.get("resolution_type", "none") or "none")
     start_new_scene = bool(data.get("start_new_scene", False))
 
-    # Guardrail: cenas longas não podem permanecer eternamente em pressão.
-    if turns_in_scene >= 9 and resolution_type == "none":
-        resolution_type = "cooldown"
-        arc_phase = "resolution"
-        start_new_scene = True
-        data["show_caption"] = True
-        if not str(data.get("scene_caption", "") or "").strip():
-            data["scene_caption"] = "A discussão perde força. Algum tempo depois, os dois voltam a se encontrar em outro clima."
 
     scene = {
         "show_caption": bool(data.get("show_caption", role_changed or start_new_scene)),
