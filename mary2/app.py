@@ -6,6 +6,7 @@ import streamlit as st
 from director import direct_scene
 from memory_engine import update_story_memory
 from openrouter_client import OpenRouterError, chat
+from output_filter import sanitize_mary_output
 from prompts import build_system_prompt
 from state import compact_state, new_state
 from story_bible import STORY_BIBLE
@@ -39,6 +40,7 @@ INITIAL_SCENE = {
     "location": "casa do casal",
     "time": "noite, pouco depois da confissão",
     "present_characters": ["MARY", "JANIO"],
+    "interaction_mode": "in_person",
     "user_role": "JANIO",
     "proximity": "mesmo ambiente, sem contato",
     "mary_immediate_goal": "fazer Janio permanecer na conversa",
@@ -134,7 +136,6 @@ if user_text:
         fallback = str(st.secrets.get("MARY_FALLBACK_MODEL", "")).strip() or None
         director_model = str(st.secrets.get("MARY_DIRECTOR_MODEL", model)).strip() or model
 
-        # Registra o turno bruto com marcação explícita do papel do usuário.
         st.session_state.messages.append(
             {"role": "user", "content": f"[PAPEL={user_role}] {user_text}"}
         )
@@ -172,6 +173,7 @@ if user_text:
             messages=llm_messages,
             temperature=temperature,
         )
+        answer = sanitize_mary_output(answer)
 
         st.session_state.messages.append(
             {"role": "assistant", "content": answer}
@@ -199,7 +201,7 @@ if user_text:
                     model=memory_model,
                     fallback_model=fallback,
                     current_memory=st.session_state.canonical_memory,
-                    recent_messages=st.session_state.messages[-8:],
+                    recent_messages=st.session_state.messages[-10:],
                 )
             except Exception:
                 pass
