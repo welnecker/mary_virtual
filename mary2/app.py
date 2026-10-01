@@ -16,6 +16,7 @@ from persistence import (
     delete_interactions_from_seq,
     ensure_schema,
     load_latest_run,
+    load_run_interactions,
     save_turn,
 )
 from prompts import build_system_prompt
@@ -114,6 +115,87 @@ def persistence_config() -> dict | None:
         ).strip() or "MARY_CORE_PERSISTENCE",
         "owner_email": str(st.secrets.get("MARY_SHEETS_OWNER_EMAIL", "")).strip(),
         "player_id": str(st.secrets.get("MARY_PLAYER_ID", "janio")).strip() or "janio",
+    }
+
+
+def reconstruct_legacy_snapshot(
+    *,
+    persistence: dict,
+    run_id: str,
+    before_seq: int,
+    api_key: str,
+    director_model: str,
+    memory_model: str,
+    fallback_model: str | None,
+) -> dict:
+    """Reconstrói o estado imediatamente anterior a uma interação antiga."""
+
+    rows = load_run_interactions(
+        service_account_info=persistence["service_account_info"],
+        spreadsheet_id=persistence["spreadsheet_id"],
+        spreadsheet_title=persistence["spreadsheet_title"],
+        owner_email=persistence["owner_email"],
+        run_id=run_id,
+    )
+
+    rows = [
+        row
+        for row in rows
+        if int(row.get("seq", 0) or 0) < int(before_seq)
+    ]
+
+    scene_state = dict(INITIAL_SCENE)
+    story_state = new_state()
+    canonical_memory = INITIAL_CANONICAL_MEMORY
+    messages: list[dict[str, str]] = []
+    active_role = "JANIO"
+
+    for row in rows:
+        role = str(row.get("user_role", "JANIO") or "JANIO").upper()
+        if role not in {"JANIO", "RICARDO"}:
+            role = "JANIO"
+
+        direction = str(row.get("scene_direction", "") or "").strip()
+        user_text = str(row.get("user_text", "") or "").strip()
+        mary_text = str(row.get("mary_text", "") or "").strip()
+        user_spoke = bool(user_text)
+
+        if user_spoke:
+            messages.append(
+                {"role": "user", "content": f"[PAPEL={role}] {user_text}"}
+            )
+
+        scene_state = direct_scene(
+            api_key=api_key,
+            model=director_model,
+            fallback_model=fallback_model,
+            story_bible=STORY_BIBLE,
+            canonical_memory=canonical_memory,
+            current_scene=scene_state,
+            user_role=role,
+            recent_messages=messages,
+            scene_direction=direction,
+            user_spoke=user_spoke,
+        )
+
+        if mary_text:
+            messages.append({"role": "assistant", "content": mary_text})
+
+            canonical_memory = update_story_memory(
+                api_key=api_key,
+                model=memory_model,
+                fallback_model=fallback_model,
+                current_memory=canonical_memory,
+                recent_messages=messages[-10:],
+            )
+
+        active_role = role
+
+    return {
+        "active_user_role": active_role,
+        "canonical_memory": canonical_memory,
+        "scene_state": scene_state,
+        "story_state": story_state,
     }
 
 
@@ -340,6 +422,54 @@ with st.sidebar:
                     ).strip()
 
                     try:
+                        api_key = str(st.secrets["OPENROUTER_API_KEY"]).strip()
+                        fallback = str(
+                            st.secrets.get("MARY_FALLBACK_MODEL", "")
+                        ).strip() or None
+                        director_model = str(
+                            st.secrets.get("MARY_DIRECTOR_MODEL", model)
+                        ).strip() or model
+                        memory_model = str(
+                            st.secrets.get("MARY_MEMORY_MODEL", model)
+                        ).strip() or model
+
+                        selected_rows = load_run_interactions(
+                            service_account_info=persistence["service_account_info"],
+                            spreadsheet_id=persistence["spreadsheet_id"],
+                            spreadsheet_title=persistence["spreadsheet_title"],
+                            owner_email=persistence["owner_email"],
+                            run_id=st.session_state.run_id,
+                        )
+                        selected_sheet_record = next(
+                            (
+                                row
+                                for row in selected_rows
+                                if int(row.get("seq", 0) or 0) == selected_seq
+                            ),
+                            {},
+                        )
+
+                        fallback_snapshot = None
+                        if not str(
+                            selected_sheet_record.get(
+                                "canonical_memory_before",
+                                "",
+                            )
+                            or ""
+                        ).strip():
+                            with st.spinner(
+                                "Reconstruindo o estado anterior desta interação..."
+                            ):
+                                fallback_snapshot = reconstruct_legacy_snapshot(
+                                    persistence=persistence,
+                                    run_id=st.session_state.run_id,
+                                    before_seq=selected_seq,
+                                    api_key=api_key,
+                                    director_model=director_model,
+                                    memory_model=memory_model,
+                                    fallback_model=fallback,
+                                )
+
                         delete_interactions_from_seq(
                             service_account_info=persistence["service_account_info"],
                             spreadsheet_id=persistence["spreadsheet_id"],
@@ -347,6 +477,7 @@ with st.sidebar:
                             owner_email=persistence["owner_email"],
                             run_id=st.session_state.run_id,
                             from_seq=selected_seq,
+                            fallback_snapshot=fallback_snapshot,
                         )
 
                         saved = load_latest_run(
@@ -385,10 +516,7 @@ with st.sidebar:
                         st.session_state.persistence_error = str(exc)
                         st.error(f"Não foi possível corrigir a interação: {exc}")
             else:
-                st.caption(
-                    "As interações desta run são anteriores ao rollback seguro. "
-                    "Novas interações passarão a ser corrigíveis."
-                )
+                st.caption("Não há interações disponíveis para correção nesta run.")
 
     with st.expander("Cena atual"):
         st.json(st.session_state.scene_state)
