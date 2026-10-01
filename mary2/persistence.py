@@ -362,6 +362,34 @@ def load_latest_run(
 
 
 
+
+def load_run_interactions(
+    *,
+    service_account_info: dict,
+    run_id: str,
+    spreadsheet_id: str = "",
+    spreadsheet_title: str = "MARY_CORE_PERSISTENCE",
+    owner_email: str = "",
+) -> list[dict]:
+    book = open_or_create_book(
+        service_account_info=service_account_info,
+        spreadsheet_id=spreadsheet_id,
+        spreadsheet_title=spreadsheet_title,
+        owner_email=owner_email,
+    )
+    interactions_ws = _ensure_worksheet(
+        book,
+        INTERACTIONS_SHEET,
+        INTERACTION_HEADERS,
+    )
+    rows = [
+        dict(item)
+        for item in interactions_ws.get_all_records()
+        if str(item.get("run_id", "")) == run_id
+    ]
+    rows.sort(key=lambda item: int(item.get("seq", 0) or 0))
+    return rows
+
 def _parse_json_object(value: object, *, field_name: str) -> dict:
     raw = str(value or "").strip()
     if not raw:
@@ -390,8 +418,13 @@ def delete_interactions_from_seq(
     spreadsheet_id: str = "",
     spreadsheet_title: str = "MARY_CORE_PERSISTENCE",
     owner_email: str = "",
+    fallback_snapshot: dict | None = None,
 ) -> dict:
-    """Apaga a interação escolhida e tudo depois, restaurando o estado anterior."""
+    """Apaga a interação escolhida e tudo depois, restaurando o estado anterior.
+
+    Para interações antigas sem snapshot persistido, o chamador pode fornecer
+    fallback_snapshot reconstruído a partir do histórico anterior.
+    """
 
     from_seq = int(from_seq)
     if from_seq < 1:
@@ -442,23 +475,44 @@ def delete_interactions_from_seq(
     canonical_before = str(
         selected.get("canonical_memory_before", "") or ""
     ).strip()
-    if not canonical_before:
-        raise PersistenceError(
-            "Esta interação foi salva antes da versão com rollback seguro. "
-            "Para não corromper a continuidade, ela não foi apagada."
-        )
 
-    scene_before = _parse_json_object(
-        selected.get("scene_json_before"),
-        field_name="cena",
-    )
-    story_before = _parse_json_object(
-        selected.get("story_state_json_before"),
-        field_name="estado",
-    )
-    active_role_before = str(
-        selected.get("active_user_role_before", "JANIO") or "JANIO"
-    ).strip().upper()
+    if canonical_before:
+        scene_before = _parse_json_object(
+            selected.get("scene_json_before"),
+            field_name="cena",
+        )
+        story_before = _parse_json_object(
+            selected.get("story_state_json_before"),
+            field_name="estado",
+        )
+        active_role_before = str(
+            selected.get("active_user_role_before", "JANIO") or "JANIO"
+        ).strip().upper()
+    else:
+        reconstructed = (
+            fallback_snapshot
+            if isinstance(fallback_snapshot, dict)
+            else {}
+        )
+        canonical_before = str(
+            reconstructed.get("canonical_memory", "") or ""
+        ).strip()
+        scene_before = reconstructed.get("scene_state")
+        story_before = reconstructed.get("story_state")
+        active_role_before = str(
+            reconstructed.get("active_user_role", "JANIO") or "JANIO"
+        ).strip().upper()
+
+        if (
+            not canonical_before
+            or not isinstance(scene_before, dict)
+            or not isinstance(story_before, dict)
+        ):
+            raise PersistenceError(
+                "A interação antiga não possui snapshot e a reconstrução "
+                "do estado anterior não foi fornecida."
+            )
+
     if active_role_before not in {"JANIO", "RICARDO"}:
         active_role_before = "JANIO"
 
