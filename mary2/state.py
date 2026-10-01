@@ -63,7 +63,6 @@ def new_state() -> dict:
 
 
 def compact_state(state: dict) -> str:
-    relationship = state.get("relationship", {})
     internal = state.get("mary_internal", {})
     redemption = state.get("redemption", {})
     known = state.get("known_truths", [])
@@ -72,21 +71,19 @@ def compact_state(state: dict) -> str:
         for item in state.get("hidden_truths", [])
         if not item.get("revealed")
     ]
-    scene = state.get("scene", {})
 
     hidden_summaries = [item.get("summary", "") for item in hidden]
 
     return (
-        "ESTADO DO CASAMENTO\n"
-        f"{relationship}\n\n"
-        "ESTADO INTERNO DE MARY\n"
+        "IMPULSOS ESTÁVEIS DE MARY — NÃO TRATAR COMO SNAPSHOT DA CENA\n"
         f"{internal}\n\n"
         "IMPULSO DE REDENÇÃO\n"
         f"{redemption}\n\n"
-        "VERDADES JÁ CONHECIDAS PELO MARIDO\n"
+        "VERDADES ESTRUTURAIS JÁ ESTABELECIDAS\n"
         f"{known}\n\n"
         "SEGREDOS AINDA NÃO REVELADOS — NÃO ENTREGAR GRATUITAMENTE\n"
         f"{hidden_summaries}\n\n"
-        "CENA ATUAL\n"
-        f"{scene}"
+        "IMPORTANTE: o estado atual do relacionamento e da cena vem da MEMÓRIA CANÔNICA "
+        "e da CENA ATUAL fornecidas separadamente. Não restaure local, momento, distância "
+        "ou intensidade emocional a partir deste bloco."
     )
