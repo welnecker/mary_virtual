@@ -10,11 +10,13 @@ from state import compact_state, new_state
 
 st.set_page_config(page_title="Mary Core 2", page_icon="🖤", layout="centered")
 
+# IDs conferidos na API pública do OpenRouter em 2026-10-01.
+# O campo "Outro..." permite testar qualquer modelo novo sem alterar o código.
 DEFAULT_MODELS = [
-    "openai/gpt-4.1-mini",
-    "openai/gpt-4.1",
-    "anthropic/claude-sonnet-4",
-    "google/gemini-2.5-pro",
+    "anthropic/claude-sonnet-5.5",
+    "z-ai/glm-5.3-prime",
+    "qwen/qwen3.8-max-prime",
+    "Outro...",
 ]
 
 if "messages" not in st.session_state:
@@ -36,11 +38,19 @@ with st.sidebar:
     if configured_default and configured_default not in choices:
         choices.insert(0, configured_default)
 
-    model = st.selectbox(
+    selected = st.selectbox(
         "OpenRouter",
         choices,
         index=choices.index(configured_default) if configured_default in choices else 0,
     )
+
+    if selected == "Outro...":
+        model = st.text_input(
+            "ID do modelo",
+            placeholder="provedor/modelo",
+        ).strip()
+    else:
+        model = selected
 
     temperature = st.slider(
         "Temperatura",
@@ -78,6 +88,9 @@ if user_text:
         st.markdown(user_text)
 
     try:
+        if not model:
+            raise OpenRouterError("Informe um ID de modelo do OpenRouter.")
+
         api_key = str(st.secrets["OPENROUTER_API_KEY"]).strip()
         fallback = str(st.secrets.get("MARY_FALLBACK_MODEL", "")).strip() or None
 
