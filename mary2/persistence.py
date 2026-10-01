@@ -149,6 +149,7 @@ def create_run(
     spreadsheet_id: str = "",
     spreadsheet_title: str = "MARY_CORE_PERSISTENCE",
     owner_email: str = "",
+    archive_previous: bool = True,
 ) -> str:
     book = open_or_create_book(
         service_account_info=service_account_info,
@@ -157,6 +158,20 @@ def create_run(
         owner_email=owner_email,
     )
     ws = _ensure_worksheet(book, RUNS_SHEET, RUN_HEADERS)
+
+    if archive_previous:
+        rows = ws.get_all_records()
+        now_archive = _now()
+        for index, item in enumerate(rows, start=2):
+            if (
+                str(item.get("player_id", "")) == player_id
+                and str(item.get("status", "active")) == "active"
+            ):
+                ws.update(
+                    range_name=f"C{index}:E{index}",
+                    values=[["archived", item.get("created_at", ""), now_archive]],
+                    value_input_option="RAW",
+                )
 
     run_id = new_run_id()
     now = _now()
