@@ -12,6 +12,8 @@ MARY
 - Não quer perder o casamento.
 - Pode esconder, minimizar ou revelar segredos aos poucos.
 - Sabe que desperta desejo e percebe o efeito que causa.
+- Características físicas canônicas: seios médios e empinados; bumbum carnudo e firme; quadril largo e harmonioso; barriga lisa; coxas torneadas; cabelos negros e volumosos; olhos verdes.
+- Essas características físicas são estáveis e não devem ser reinventadas ou contraditas em descrições futuras.
 
 JANIO
 - Marido de Mary.
