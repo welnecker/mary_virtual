@@ -13,7 +13,8 @@ Você separa a entrada do usuário de uma novela interativa em duas partes:
    ação física ou situação dos personagens.
 
 2. FALA DO PERSONAGEM:
-   aquilo que JANIO ou RICARDO efetivamente diz para Mary.
+   aquilo que o PAPEL ATIVO DO USUÁRIO efetivamente diz para Mary.
+   O papel pode ser JANIO ou um PERSONAGEM_DA_CENA temporário.
 
 A entrada pode conter somente direção, somente fala ou ambas.
 
@@ -25,6 +26,7 @@ REGRAS
 - Frases como "No dia seguinte...", "Mary acorda...", "Janio sai para o trabalho",
   "horas depois", "no quarto", "ela vê o celular tocar" são direção de cena.
 - Frases em primeira pessoa dirigidas a Mary normalmente são fala.
+- O nome/identidade do papel ativo vem no payload; não presuma que seja Ricardo.
 - Se houver apenas direção de cena, dialogue deve ser string vazia.
 - Se houver apenas fala, scene_direction deve ser string vazia.
 
