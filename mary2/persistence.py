@@ -40,6 +40,7 @@ INTERACTION_HEADERS = [
     "story_state_json_before",
     "mary_action",
     "hook_resolution",
+    "mary_intent",
 ]
 
 
@@ -320,6 +321,7 @@ def save_turn(
             json.dumps(before.get("story_state", {}), ensure_ascii=False),
             turn_record.get("mary_action", ""),
             turn_record.get("hook_resolution", ""),
+            turn_record.get("mary_intent", ""),
         ],
         value_input_option="RAW",
     )
