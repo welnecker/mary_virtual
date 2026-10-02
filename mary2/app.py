@@ -5,6 +5,12 @@ from copy import deepcopy
 
 import streamlit as st
 
+from chapters import (
+    chapter_choices,
+    chapter_prompt,
+    chapter_ready_for_choice,
+    get_chapter,
+)
 from director import direct_scene
 from input_router import parse_user_input
 from memory_engine import update_story_memory
@@ -18,6 +24,7 @@ from persistence import (
     load_latest_run,
     load_run_interactions,
     save_turn,
+    update_run_snapshot,
 )
 from prompts import build_system_prompt
 from state import compact_state, migrate_state, new_state
@@ -86,6 +93,92 @@ def reset_local_story() -> None:
     st.session_state.scene_state = dict(INITIAL_SCENE)
     st.session_state.turn_records = []
     st.session_state.active_user_role = "JANIO"
+
+
+def _messages_from_records(records: list[dict]) -> list[dict[str, str]]:
+    messages: list[dict[str, str]] = []
+    for record in records:
+        if record.get("user_text"):
+            messages.append({
+                "role": "user",
+                "content": (
+                    f"[PAPEL={record.get('user_role', 'JANIO')}] "
+                    f"{record.get('user_text', '')}"
+                ),
+            })
+        if record.get("mary_text"):
+            messages.append({
+                "role": "assistant",
+                "content": str(record.get("mary_text", "") or ""),
+            })
+    return messages
+
+
+def _chapter_id() -> str:
+    narrative = st.session_state.story_state.get("narrative", {})
+    return str(narrative.get("chapter_id", "confissao_inicial") or "confissao_inicial")
+
+
+def _chapter_turns() -> int:
+    narrative = st.session_state.story_state.get("narrative", {})
+    return int(narrative.get("chapter_turns", 0) or 0)
+
+
+def activate_chapter(
+    *,
+    next_chapter_id: str,
+    choice_id: str,
+    persistence: dict | None,
+) -> None:
+    chapter = get_chapter(next_chapter_id)
+    narrative = st.session_state.story_state.setdefault("narrative", {})
+
+    last_seq = int(st.session_state.get("run_last_seq", 0) or 0)
+    narrative["chapter_id"] = next_chapter_id
+    narrative["chapter_turns"] = 0
+    narrative["chapter_opening_pending"] = True
+    narrative["chapter_start_seq"] = last_seq + 1
+    narrative["last_choice_id"] = choice_id
+
+    scene = deepcopy(INITIAL_SCENE)
+    scene.update(deepcopy(chapter.get("initial_scene", {}) or {}))
+    st.session_state.scene_state = scene
+
+    next_role = str(scene.get("user_role", "JANIO") or "JANIO").upper()
+    if next_role not in {"JANIO", "PERSONAGEM_DA_CENA"}:
+        next_role = "JANIO"
+    st.session_state.active_user_role = next_role
+
+    decision_fact = {
+        "romper": "Janio e Mary decidiram romper o casamento após a confissão.",
+        "reconciliar": "Janio e Mary decidiram tentar permanecer juntos após a confissão.",
+    }.get(choice_id, "")
+    if decision_fact and decision_fact not in st.session_state.canonical_memory:
+        st.session_state.canonical_memory = (
+            st.session_state.canonical_memory.rstrip()
+            + "\n\nDECISÃO ESTRUTURAL\n- "
+            + decision_fact
+        )
+
+    # O histórico permanece na planilha, mas o novo capítulo começa com
+    # contexto recente limpo para o LLM e tela limpa para o usuário.
+    st.session_state.messages = []
+    st.session_state.turn_records = []
+
+    if persistence and st.session_state.run_id:
+        update_run_snapshot(
+            service_account_info=persistence["service_account_info"],
+            spreadsheet_id=persistence["spreadsheet_id"],
+            spreadsheet_title=persistence["spreadsheet_title"],
+            owner_email=persistence["owner_email"],
+            run_id=st.session_state.run_id,
+            active_user_role=st.session_state.active_user_role,
+            canonical_memory=st.session_state.canonical_memory,
+            scene_state=st.session_state.scene_state,
+            story_state=st.session_state.story_state,
+        )
+
+    st.rerun()
 
 
 def persistence_config() -> dict | None:
@@ -234,6 +327,7 @@ for key, default in {
     "spreadsheet_url": "",
     "rollback_notice": "",
     "rollback_retry_text": "",
+    "run_last_seq": 0,
 }.items():
     if key not in st.session_state:
         st.session_state[key] = default
@@ -268,8 +362,23 @@ if persistence and not st.session_state.persistence_loaded:
             )
             st.session_state.scene_state = saved["scene_state"] or dict(INITIAL_SCENE)
             st.session_state.story_state = migrate_state(saved["story_state"])
-            st.session_state.turn_records = saved["turn_records"]
-            st.session_state.messages = saved["messages"]
+            st.session_state.run_last_seq = int(saved.get("last_seq", 0) or 0)
+
+            chapter_start_seq = int(
+                st.session_state.story_state.get("narrative", {}).get(
+                    "chapter_start_seq",
+                    1,
+                )
+                or 1
+            )
+            st.session_state.turn_records = [
+                record
+                for record in saved["turn_records"]
+                if int(record.get("seq", 0) or 0) >= chapter_start_seq
+            ]
+            st.session_state.messages = _messages_from_records(
+                st.session_state.turn_records
+            )
         else:
             st.session_state.run_id = create_run(
                 service_account_info=persistence["service_account_info"],
@@ -283,6 +392,7 @@ if persistence and not st.session_state.persistence_loaded:
                 story_state=st.session_state.story_state,
                 archive_previous=False,
             )
+            st.session_state.run_last_seq = 0
 
         st.session_state.persistence_loaded = True
         st.session_state.persistence_error = ""
@@ -293,6 +403,9 @@ if persistence and not st.session_state.persistence_loaded:
 
 st.title("Mary Core 2")
 st.caption("Novela interativa aberta: Mary e Janio no centro, o mundo ao redor em movimento.")
+
+current_chapter = get_chapter(_chapter_id())
+st.caption(f"Capítulo atual: **{current_chapter.get('title', _chapter_id())}**")
 
 if st.session_state.rollback_notice:
     st.success(st.session_state.rollback_notice)
@@ -563,8 +676,24 @@ with st.sidebar:
                         st.session_state.story_state = migrate_state(
                             saved["story_state"]
                         )
-                        st.session_state.turn_records = saved["turn_records"]
-                        st.session_state.messages = saved["messages"]
+                        st.session_state.run_last_seq = int(
+                            saved.get("last_seq", 0) or 0
+                        )
+                        chapter_start_seq = int(
+                            st.session_state.story_state.get("narrative", {}).get(
+                                "chapter_start_seq",
+                                1,
+                            )
+                            or 1
+                        )
+                        st.session_state.turn_records = [
+                            record
+                            for record in saved["turn_records"]
+                            if int(record.get("seq", 0) or 0) >= chapter_start_seq
+                        ]
+                        st.session_state.messages = _messages_from_records(
+                            st.session_state.turn_records
+                        )
                         st.session_state.persistence_error = ""
                         st.session_state.rollback_notice = (
                             f"História restaurada para antes da interação #{selected_seq}."
@@ -609,12 +738,46 @@ for record in st.session_state.turn_records:
 
 
 if not st.session_state.turn_records:
-    st.info(
-        "Na casa do casal, pouco depois da confissão, "
-        "Mary tenta impedir que Janio encerre a conversa."
-    )
-    with st.chat_message("assistant"):
-        st.markdown("Janio... olha pra mim. Só... não vai embora ainda.")
+    opening_caption = str(current_chapter.get("opening_caption", "") or "").strip()
+    opening_mary = str(current_chapter.get("opening_mary", "") or "").strip()
+
+    if opening_caption:
+        st.info(opening_caption)
+    elif _chapter_id() == "confissao_inicial":
+        st.info(
+            "Na casa do casal, pouco depois da confissão, "
+            "Mary tenta impedir que Janio encerre a conversa."
+        )
+
+    if opening_mary:
+        with st.chat_message("assistant"):
+            st.markdown(opening_mary)
+    elif _chapter_id() == "confissao_inicial":
+        with st.chat_message("assistant"):
+            st.markdown("Janio... olha pra mim. Só... não vai embora ainda.")
+
+
+chapter_id = _chapter_id()
+chapter_turns = _chapter_turns()
+if chapter_ready_for_choice(chapter_id, chapter_turns):
+    available_choices = chapter_choices(chapter_id)
+    st.divider()
+    st.subheader("Decisão")
+    st.caption("Escolha o rumo do próximo capítulo.")
+
+    choice_columns = st.columns(len(available_choices))
+    for column, choice in zip(choice_columns, available_choices):
+        with column:
+            if st.button(
+                str(choice.get("label", "Escolher")),
+                key=f"chapter_choice_{chapter_id}_{choice.get('id', '')}",
+                use_container_width=True,
+            ):
+                activate_chapter(
+                    next_chapter_id=str(choice.get("next_chapter", "") or ""),
+                    choice_id=str(choice.get("id", "") or ""),
+                    persistence=persistence,
+                )
 
 
 if user_role == "JANIO":
@@ -682,6 +845,7 @@ if user_text:
             recent_messages=st.session_state.messages,
             scene_direction=scene_direction,
             user_spoke=user_spoke,
+            chapter_text=chapter_prompt(_chapter_id()),
         )
 
         scene_text = json.dumps(scene, ensure_ascii=False)
@@ -691,6 +855,7 @@ if user_text:
             canonical_memory=st.session_state.canonical_memory,
             scene_text=scene_text,
             user_role=user_role,
+            chapter_text=chapter_prompt(_chapter_id()),
         )
 
         llm_messages = [
@@ -747,6 +912,11 @@ if user_text:
         st.session_state.messages.append(
             {"role": "assistant", "content": answer}
         )
+
+        narrative = st.session_state.story_state.setdefault("narrative", {})
+        narrative["chapter_turns"] = int(
+            narrative.get("chapter_turns", 0) or 0
+        ) + 1
 
         caption = scene.get("scene_caption", "") if scene.get("show_caption") else ""
 
@@ -818,6 +988,7 @@ if user_text:
                     pre_turn_snapshot=pre_turn_snapshot,
                 )
                 turn_record["seq"] = saved_seq
+                st.session_state.run_last_seq = saved_seq
                 st.session_state.persistence_error = ""
             except Exception as exc:
                 # A história continua funcionando mesmo se o Google falhar.
