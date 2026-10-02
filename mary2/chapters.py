@@ -20,6 +20,17 @@ O objetivo dramático deste capítulo é chegar organicamente a uma escolha:
 romper ou tentar reconciliar.
 """.strip(),
         "decision_after_turns": 3,
+        "memory_state": {
+            "relationship": [
+                "O casamento entre Mary e Janio está em crise profunda após a confissão da traição.",
+            ],
+            "wounds": [
+                "A confiança de Janio em Mary foi abalada.",
+            ],
+            "pending": [
+                "Janio ainda decidirá se rompe ou tenta permanecer no casamento.",
+            ],
+        },
         "choices": [
             {"id": "romper", "label": "Romper", "next_chapter": "pos_rompimento"},
             {"id": "reconciliar", "label": "Tentar reconciliar", "next_chapter": "pos_reconciliacao"},
@@ -47,6 +58,19 @@ tentar tocar o dia.
 """.strip(),
         "decision_after_turns": 5,
         "choices": [],
+        "memory_state": {
+            "relationship": [
+                "Mary e Janio romperam após a confissão da traição.",
+                "O vínculo entre os dois continua importante, mas eles não estão mais vivendo como casal neste capítulo.",
+            ],
+            "wounds": [
+                "A separação é recente e ainda produz dor, raiva, saudade e ambivalência.",
+            ],
+            "pending": [
+                "Como Mary reorganizará a própria vida depois do rompimento.",
+                "Se e quando Mary e Janio voltarão a se procurar permanece em aberto.",
+            ],
+        },
         "opening_caption": (
             "Na manhã seguinte, Mary acorda sozinha no apartamento. "
             "A ressaca da discussão ainda ecoa, mas o dia já começou."
@@ -112,6 +136,18 @@ Não puxe a conversa de volta para a confissão sem que Janio faça isso.
 """.strip(),
         "decision_after_turns": 5,
         "choices": [],
+        "memory_state": {
+            "relationship": [
+                "Mary e Janio decidiram tentar permanecer juntos após a confissão.",
+                "A reconciliação começou, mas a confiança ainda não está restaurada.",
+            ],
+            "wounds": [
+                "A traição continua tendo consequências, sem precisar dominar todas as conversas.",
+            ],
+            "pending": [
+                "Como a confiança e a convivência do casal evoluirão a partir desta decisão.",
+            ],
+        },
         "opening_caption": (
             "Na manhã seguinte, a casa está estranhamente silenciosa. "
             "A decisão de tentar ficar juntos é nova demais para parecer normal."
@@ -177,3 +213,55 @@ def chapter_ready_for_choice(chapter_id: str, chapter_turns: int) -> bool:
     choices = chapter.get("choices", []) or []
     minimum = int(chapter.get("decision_after_turns", 0) or 0)
     return bool(choices) and int(chapter_turns or 0) >= minimum
+
+
+
+def _extract_facts(memory: str) -> list[str]:
+    """Preserva somente fatos históricos ao atravessar fronteira de capítulo."""
+    lines = str(memory or "").splitlines()
+    facts: list[str] = []
+    in_facts = False
+    for raw in lines:
+        line = raw.strip()
+        if line == "FATOS E REVELAÇÕES":
+            in_facts = True
+            continue
+        if in_facts and line and not line.startswith("-"):
+            break
+        if in_facts and line.startswith("-"):
+            fact = line[1:].strip()
+            if fact and fact not in facts:
+                facts.append(fact)
+    return facts
+
+
+def rebase_memory_for_chapter(
+    *,
+    current_memory: str,
+    chapter_id: str,
+    decision_fact: str = "",
+) -> str:
+    """Troca o estado corrente da memória sem apagar os fatos históricos."""
+    chapter = get_chapter(chapter_id)
+    memory_state = chapter.get("memory_state", {}) or {}
+
+    facts = _extract_facts(current_memory)
+    if decision_fact and decision_fact not in facts:
+        facts.append(decision_fact)
+
+    relationship = list(memory_state.get("relationship", []) or [])
+    wounds = list(memory_state.get("wounds", []) or [])
+    pending = list(memory_state.get("pending", []) or [])
+
+    def section(title: str, items: list[str]) -> str:
+        clean = [str(item).strip() for item in items if str(item).strip()]
+        if not clean:
+            clean = ["Nenhum item ativo neste capítulo."]
+        return title + "\n" + "\n".join(f"- {item}" for item in clean)
+
+    return "\n\n".join([
+        section("FATOS E REVELAÇÕES", facts),
+        section("ESTADO ATUAL DA RELAÇÃO", relationship),
+        section("FERIDAS / CONSEQUÊNCIAS ATIVAS", wounds),
+        section("PENDÊNCIAS E VERDADES INCOMPLETAS", pending),
+    ])
