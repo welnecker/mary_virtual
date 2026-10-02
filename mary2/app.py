@@ -6,15 +6,15 @@ from copy import deepcopy
 import streamlit as st
 
 from chapters import (
+    apply_choice_to_story,
     chapter_choices,
     chapter_prompt,
     chapter_ready_for_choice,
+    find_choice,
     get_chapter,
-    rebase_memory_for_chapter,
 )
 from director import direct_scene
 from input_router import parse_user_input
-from memory_engine import update_story_memory
 from openrouter_client import OpenRouterError, chat
 from output_filter import looks_like_action_narration, sanitize_mary_output
 from persistence import (
@@ -28,8 +28,8 @@ from persistence import (
     update_run_snapshot,
 )
 from prompts import build_system_prompt
-from state import apply_chapter_state, compact_state, migrate_state, new_state
-from story_bible import STORY_BIBLE
+from state import current_status_text, migrate_state, new_state, story_ledger_text
+from story_bible import PHYSICAL_CANON
 
 
 st.set_page_config(page_title="Mary Core 2", page_icon="🖤", layout="centered")
@@ -40,58 +40,15 @@ DEFAULT_MODELS = [
     "Outro...",
 ]
 
-INITIAL_CANONICAL_MEMORY = """
-FATOS E REVELAÇÕES
-- Mary confessou a Janio que o traiu com Ricardo.
-
-ESTADO ATUAL DA RELAÇÃO
-- O casamento entre Mary e Janio é antigo, forte e está profundamente ferido pela traição.
-
-FERIDAS / CONSEQUÊNCIAS ATIVAS
-- A confiança de Janio em Mary foi abalada.
-- Mary teme perder Janio e quer preservar o vínculo.
-
-PENDÊNCIAS E VERDADES INCOMPLETAS
-- Há aspectos da relação entre Mary e Ricardo que Janio ainda não conhece.
-""".strip()
-
-INITIAL_SCENE = {
-    "location": "casa do casal",
-    "time": "noite, pouco depois da confissão",
-    "present_characters": ["MARY", "JANIO"],
-    "interaction_mode": "in_person",
-    "user_role": "JANIO",
-    "proximity": "mesmo ambiente, sem contato",
-    "mary_immediate_goal": "fazer Janio permanecer na conversa",
-    "mary_action": "",
-    "open_hook": False,
-    "hook_resolution": "",
-    "temporary_character": {
-        "active": False,
-        "name": "",
-        "description": "",
-        "relation_to_mary": "",
-        "user_can_play": False,
-    },
-    "return_anchor": "Mary e Janio continuam sendo o eixo principal da história.",
-    "event": "",
-    "scene_changed": False,
-    "show_caption": False,
-    "scene_caption": "",
-    "arc_phase": "opening",
-    "resolution_type": "none",
-    "resolution_summary": "",
-    "start_new_scene": False,
-    "turns_in_scene": 0,
-    "scene_number": 1,
-}
+INITIAL_SCENE = deepcopy(
+    get_chapter("confissao_inicial").get("initial_scene", {})
+)
 
 
 def reset_local_story() -> None:
     st.session_state.messages = []
     st.session_state.story_state = new_state()
-    st.session_state.canonical_memory = INITIAL_CANONICAL_MEMORY
-    st.session_state.scene_state = dict(INITIAL_SCENE)
+    st.session_state.scene_state = deepcopy(INITIAL_SCENE)
     st.session_state.turn_records = []
     st.session_state.active_user_role = "JANIO"
     st.session_state.run_last_seq = 0
