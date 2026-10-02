@@ -20,7 +20,7 @@ from persistence import (
     save_turn,
 )
 from prompts import build_system_prompt
-from state import compact_state, new_state
+from state import compact_state, migrate_state, new_state
 from story_bible import STORY_BIBLE
 
 
@@ -267,7 +267,7 @@ if persistence and not st.session_state.persistence_loaded:
                 saved["canonical_memory"] or INITIAL_CANONICAL_MEMORY
             )
             st.session_state.scene_state = saved["scene_state"] or dict(INITIAL_SCENE)
-            st.session_state.story_state = saved["story_state"] or new_state()
+            st.session_state.story_state = migrate_state(saved["story_state"])
             st.session_state.turn_records = saved["turn_records"]
             st.session_state.messages = saved["messages"]
         else:
@@ -560,8 +560,8 @@ with st.sidebar:
                         st.session_state.scene_state = (
                             saved["scene_state"] or dict(INITIAL_SCENE)
                         )
-                        st.session_state.story_state = (
-                            saved["story_state"] or new_state()
+                        st.session_state.story_state = migrate_state(
+                            saved["story_state"]
                         )
                         st.session_state.turn_records = saved["turn_records"]
                         st.session_state.messages = saved["messages"]
@@ -664,6 +664,8 @@ if user_text:
         user_spoke = bool(dialogue_text)
         st.session_state.rollback_retry_text = ""
 
+        messages_before_turn = deepcopy(st.session_state.messages)
+
         if user_spoke:
             st.session_state.messages.append(
                 {"role": "user", "content": f"[PAPEL={user_role}] {dialogue_text}"}
@@ -681,7 +683,6 @@ if user_text:
             scene_direction=scene_direction,
             user_spoke=user_spoke,
         )
-        st.session_state.scene_state = scene
 
         scene_text = json.dumps(scene, ensure_ascii=False)
         system_prompt = build_system_prompt(
@@ -697,15 +698,52 @@ if user_text:
             *st.session_state.messages[-12:],
         ]
 
-        answer = chat(
-            api_key=api_key,
-            model=model,
-            fallback_model=fallback,
-            messages=llm_messages,
-            temperature=temperature,
-        )
-        answer = sanitize_mary_output(answer)
+        try:
+            raw_answer = chat(
+                api_key=api_key,
+                model=model,
+                fallback_model=fallback,
+                messages=llm_messages,
+                temperature=temperature,
+            )
+            answer = sanitize_mary_output(raw_answer)
 
+            if not answer:
+                retry_messages = [
+                    *llm_messages,
+                    {
+                        "role": "system",
+                        "content": (
+                            "CORREÇÃO DE FORMATO: sua resposta anterior continha apenas "
+                            "rubrica/narração e foi descartada. Responda novamente SOMENTE "
+                            "com a fala verbal de Mary, em primeira pessoa, sem asteriscos, "
+                            "sem narração e sem descrever ações."
+                        ),
+                    },
+                ]
+                raw_answer = chat(
+                    api_key=api_key,
+                    model=model,
+                    fallback_model=fallback,
+                    messages=retry_messages,
+                    temperature=max(0.2, min(float(temperature), 0.8)),
+                )
+                answer = sanitize_mary_output(raw_answer)
+
+            if not answer:
+                raise OpenRouterError(
+                    "O modelo não produziu fala verbal de Mary após duas tentativas."
+                )
+        except Exception:
+            # Turno atômico: nada da tentativa incompleta fica na sessão.
+            st.session_state.scene_state = deepcopy(
+                pre_turn_snapshot["scene_state"]
+            )
+            st.session_state.messages = messages_before_turn
+            raise
+
+        # Só confirma a cena depois que Mary respondeu de fato.
+        st.session_state.scene_state = scene
         st.session_state.messages.append(
             {"role": "assistant", "content": answer}
         )
