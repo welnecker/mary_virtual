@@ -164,19 +164,20 @@ def create_run(
     )
     ws = _ensure_worksheet(book, RUNS_SHEET, RUN_HEADERS)
 
-    if archive_previous:
-        rows = ws.get_all_records()
-        now_archive = _now()
-        for index, item in enumerate(rows, start=2):
-            if (
-                str(item.get("player_id", "")) == player_id
-                and str(item.get("status", "active")) == "active"
-            ):
-                ws.update(
-                    range_name=f"C{index}:E{index}",
-                    values=[["archived", item.get("created_at", ""), now_archive]],
-                    value_input_option="RAW",
-                )
+    # Uma run ativa por player. Mesmo a criação automática de inicialização
+    # arquiva qualquer ativa anterior para evitar duplicação em reruns/reloads.
+    rows = ws.get_all_records()
+    now_archive = _now()
+    for index, item in enumerate(rows, start=2):
+        if (
+            str(item.get("player_id", "")) == player_id
+            and str(item.get("status", "active")) == "active"
+        ):
+            ws.update(
+                range_name=f"C{index}:E{index}",
+                values=[["archived", item.get("created_at", ""), now_archive]],
+                value_input_option="RAW",
+            )
 
     run_id = new_run_id()
     now = _now()
@@ -195,6 +196,17 @@ def create_run(
         ],
         value_input_option="RAW",
     )
+
+    # Guarda adicional para reruns sequenciais: mantém somente a run recém-criada ativa.
+    refreshed = ws.get_all_records()
+    for index, item in enumerate(refreshed, start=2):
+        if (
+            str(item.get("player_id", "")) == player_id
+            and str(item.get("status", "active")) == "active"
+            and str(item.get("run_id", "")) != run_id
+        ):
+            ws.update_cell(index, 3, "archived")
+
     return run_id
 
 
