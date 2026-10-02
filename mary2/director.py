@@ -52,18 +52,35 @@ ou intimidade consensual, essa escolha já está resolvida: execute a etapa conc
 descrita no capítulo. Só interrompa esse caminho diante de recuo ou recusa explícita.
 
 AÇÃO DE MARY
-Você pode escolher UMA ação curta e concreta de Mary em mary_action.
+mary_action representa SOMENTE a nova ação de Mary neste turno.
+Nunca repita automaticamente a ação do turno anterior.
+
+Quando sexual_intensity estiver rising, high ou climax e não houver recusa/recuo:
+- Mary não deve ficar fisicamente passiva esperando o parceiro narrar tudo;
+- produza UMA ação nova, concreta e voluntária de Mary coerente com o estado atual;
+- essa ação pode aproximar, tocar, beijar, se despir, conduzir o parceiro, mudar
+  de posição, intensificar uma carícia ou expressar fisicamente o próprio desejo;
+- varie a iniciativa conforme a interação; não repita a mesma ação em turnos sucessivos.
+
+Fora de contexto íntimo, mary_action pode ficar vazio quando nenhuma ação nova for necessária.
+
 A ação deve pertencer somente a Mary.
 Não escreva fala em mary_action.
 Não force contato recusado.
 Se o personagem ativo fizer convite físico consensual, preserve corretamente
 quem deve executar a ação e com quem.
 Não inverta sujeito e objeto.
-Se a interação recente já mostra toque, abraço, colo, afastamento ou mudança de
-posição, atualize proximity; não mantenha estado antigo por inércia.
+Se a interação recente já mostra toque, roupa removida, beijo, carícia, sexo oral,
+mudança de posição ou outra mudança física, atualize proximity/event; não mantenha
+estado antigo por inércia.
 
 CONTINUIDADE
 As interações recentes prevalecem sobre campos antigos da cena quando houver conflito.
+A fala do usuário pode conter ações físicas misturadas ao diálogo. Quando o texto
+descrever claramente uma ação que acabou de acontecer ("beijo", "tiro a roupa",
+"deixa eu tirar... isso", onomatopeia de beijo/toque ou equivalente), trate essa
+ação como fato atual da cena, mesmo que o roteador a tenha colocado em dialogue.
+Não trate pedido, hipótese ou intenção futura como ação já concluída.
 Movimento entre cômodos não significa automaticamente ruptura emocional.
 Cansaço, sono, banho, trabalho ou silêncio não significam automaticamente rejeição.
 
@@ -84,7 +101,9 @@ O payload pode trazer TRANSIÇÃO CONDICIONAL=SIM e uma CONDIÇÃO OBJETIVA DE S
 Nesse caso:
 - avalie a condição usando somente fatos já presentes na cena, direção atual,
   fala atual e a própria mary_action que você está produzindo;
-- microstep_complete=true somente quando o evento descrito na condição realmente ocorreu;
+- microstep_complete=true quando os fatos observáveis já satisfizerem a condição,
+  mesmo que esses fatos tenham aparecido dentro da fala do usuário;
+- não exija a palavra exata usada na condição: reconheça equivalência semântica;
 - não marque true por número de turnos, intensidade vaga, "clima" ou impressão;
 - enquanto a condição não ocorreu, mantenha false;
 - recuo, recusa explícita ou mudança de direção do usuário têm prioridade.
@@ -249,9 +268,10 @@ def direct_scene(
         "mary_action": str(
             data.get("mary_action", "")
             or (
-                ""
-                if scene_direction.strip()
-                else current_scene.get("mary_action", "")
+                current_scene.get("mary_action", "")
+                if int(current_scene.get("turns_in_scene", 0) or 0) == 0
+                and not scene_direction.strip()
+                else ""
             )
             or ""
         ).strip(),
