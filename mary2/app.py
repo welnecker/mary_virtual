@@ -16,7 +16,7 @@ from chapters import (
 from director import direct_scene
 from input_router import parse_user_input
 from openrouter_client import OpenRouterError, chat
-from output_filter import looks_like_action_narration, sanitize_mary_output
+from output_filter import looks_like_action_narration, parse_mary_response, sanitize_mary_output
 from persistence import (
     PersistenceError,
     create_run,
@@ -35,7 +35,7 @@ from story_bible import PHYSICAL_CANON
 
 st.set_page_config(page_title="Mary Core 2", page_icon="🖤", layout="centered")
 
-BUILD_ID = "2026-10-02-mary-voice-v8"
+BUILD_ID = "2026-10-02-mary-intent-v9"
 
 DEFAULT_MODELS = [
     "google/gemini-2.5-flash-lite",
@@ -888,8 +888,9 @@ def generate_model_chapter_opening(
         ],
         temperature=temperature,
     )
-    narration_leak = looks_like_action_narration(raw_answer)
-    answer = sanitize_mary_output(raw_answer)
+    mary_intent, mary_speech_raw = parse_mary_response(raw_answer)
+    narration_leak = looks_like_action_narration(mary_speech_raw)
+    answer = sanitize_mary_output(mary_speech_raw)
 
     if not answer or narration_leak:
         raw_answer = chat(
@@ -902,15 +903,19 @@ def generate_model_chapter_opening(
                 {
                     "role": "system",
                     "content": (
-                        "CORREÇÃO DE FORMATO: responda somente com palavras que Mary "
-                        "diria em voz alta. Sem rubricas, narração ou ações."
+                        "CORREÇÃO DE FORMATO: use exatamente [INTENCAO] e [FALA]. "
+                        "[INTENCAO] deve ser uma frase curta em primeira pessoa, sem narração. "
+                        "[FALA] deve conter somente palavras que Mary diria em voz alta, "
+                        "também em primeira pessoa. A fala deve ser maior que a intenção. "
+                        "Sem rubricas, literatura ou ações narradas."
                     ),
                 },
             ],
             temperature=max(0.2, min(float(temperature), 0.8)),
         )
-        narration_leak = looks_like_action_narration(raw_answer)
-        answer = sanitize_mary_output(raw_answer)
+        mary_intent, mary_speech_raw = parse_mary_response(raw_answer)
+        narration_leak = looks_like_action_narration(mary_speech_raw)
+        answer = sanitize_mary_output(mary_speech_raw)
 
     if not answer or narration_leak:
         raise OpenRouterError(
@@ -928,6 +933,7 @@ def generate_model_chapter_opening(
         "direction": "",
         "mary_action": str(scene.get("mary_action", "") or "").strip(),
         "hook_resolution": str(scene.get("hook_resolution", "") or "").strip(),
+        "mary_intent": mary_intent,
         "user_role": user_role,
         "user_text": "",
         "mary_text": answer,
@@ -1024,6 +1030,8 @@ for record in st.session_state.turn_records:
                 st.caption("Janio")
             st.markdown(record["user_text"])
     with st.chat_message("assistant"):
+        if record.get("mary_intent"):
+            st.caption("💭 " + str(record["mary_intent"]))
         st.markdown(record["mary_text"])
 
 
@@ -1182,8 +1190,9 @@ if user_text:
                 messages=llm_messages,
                 temperature=temperature,
             )
-            narration_leak = looks_like_action_narration(raw_answer)
-            answer = sanitize_mary_output(raw_answer)
+            mary_intent, mary_speech_raw = parse_mary_response(raw_answer)
+            narration_leak = looks_like_action_narration(mary_speech_raw)
+            answer = sanitize_mary_output(mary_speech_raw)
 
             if not answer or narration_leak:
                 retry_messages = [
@@ -1191,12 +1200,12 @@ if user_text:
                     {
                         "role": "system",
                         "content": (
-                            "CORREÇÃO DE FORMATO: sua resposta anterior continha rubrica, "
-                            "narração de ações ou ficou sem fala útil. Responda novamente "
-                            "SOMENTE com palavras que Mary diria em voz alta. Não escreva "
-                            "ações como 'levanto', 'sento', 'olho', 'pego', 'fico esperando'. "
-                            "Sem asteriscos, sem narração, sem descrição corporal de ação. "
-                            "As ações pertencem exclusivamente ao Diretor."
+                            "CORREÇÃO DE FORMATO: use exatamente [INTENCAO] e [FALA]. "
+                            "[INTENCAO] é uma frase curta em primeira pessoa sobre o que Mary "
+                            "quer ou pretende agora. [FALA] é a fala principal, em primeira pessoa, "
+                            "e deve ser maior que a intenção. Não escreva narração externa, "
+                            "rubricas, metáforas literárias ou ações como descrição. "
+                            "As ações físicas pertencem exclusivamente ao Diretor."
                         ),
                     },
                 ]
@@ -1207,8 +1216,9 @@ if user_text:
                     messages=retry_messages,
                     temperature=max(0.2, min(float(temperature), 0.8)),
                 )
-                narration_leak = looks_like_action_narration(raw_answer)
-                answer = sanitize_mary_output(raw_answer)
+                mary_intent, mary_speech_raw = parse_mary_response(raw_answer)
+                narration_leak = looks_like_action_narration(mary_speech_raw)
+                answer = sanitize_mary_output(mary_speech_raw)
 
             if not answer or narration_leak:
                 raise OpenRouterError(
@@ -1254,6 +1264,7 @@ if user_text:
             "direction": scene_direction,
             "mary_action": str(scene.get("mary_action", "") or "").strip(),
             "hook_resolution": str(scene.get("hook_resolution", "") or "").strip(),
+            "mary_intent": mary_intent,
             "user_role": user_role,
             "user_text": dialogue_text,
             "mary_text": answer,
