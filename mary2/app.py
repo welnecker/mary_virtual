@@ -192,8 +192,7 @@ def reconstruct_legacy_snapshot(
     memory_model: str,
     fallback_model: str | None,
 ) -> dict:
-    """Reconstrói o estado imediatamente anterior a uma interação antiga."""
-
+    """Fallback para snapshots antigos; não cria memória narrativa por LLM."""
     rows = load_run_interactions(
         service_account_info=persistence["service_account_info"],
         spreadsheet_id=persistence["spreadsheet_id"],
@@ -201,33 +200,19 @@ def reconstruct_legacy_snapshot(
         owner_email=persistence["owner_email"],
         run_id=run_id,
     )
-
     rows = [
-        row
-        for row in rows
+        row for row in rows
         if int(row.get("seq", 0) or 0) < int(before_seq)
     ]
 
-    scene_state = dict(INITIAL_SCENE)
     story_state = new_state()
-    canonical_memory = INITIAL_CANONICAL_MEMORY
+    scene_state = deepcopy(INITIAL_SCENE)
     messages: list[dict[str, str]] = []
     active_role = "JANIO"
 
     for row in rows:
         role = str(row.get("user_role", "JANIO") or "JANIO").upper()
-        if role == "RICARDO":
-            # Compatibilidade com runs antigas: Ricardo passa a ser tratado
-            # como personagem circunstancial, não como papel principal.
-            role = "PERSONAGEM_DA_CENA"
-            scene_state["temporary_character"] = {
-                "active": True,
-                "name": "Ricardo",
-                "description": "personagem ligado ao passado da crise",
-                "relation_to_mary": "conhecido do passado",
-                "user_can_play": True,
-            }
-        elif role not in {"JANIO", "PERSONAGEM_DA_CENA"}:
+        if role not in {"JANIO", "PERSONAGEM_DA_CENA"}:
             role = "JANIO"
 
         direction = str(row.get("scene_direction", "") or "").strip()
@@ -244,31 +229,30 @@ def reconstruct_legacy_snapshot(
             api_key=api_key,
             model=director_model,
             fallback_model=fallback_model,
-            story_bible=STORY_BIBLE,
-            canonical_memory=canonical_memory,
+            physical_canon=PHYSICAL_CANON,
+            story_ledger=story_ledger_text(story_state),
+            current_status=current_status_text(story_state),
             current_scene=scene_state,
             user_role=role,
             recent_messages=messages,
             scene_direction=direction,
             user_spoke=user_spoke,
+            chapter_text=chapter_prompt(
+                story_state.get("narrative", {}).get(
+                    "chapter_id",
+                    "confissao_inicial",
+                )
+            ),
         )
 
         if mary_text:
             messages.append({"role": "assistant", "content": mary_text})
 
-            canonical_memory = update_story_memory(
-                api_key=api_key,
-                model=memory_model,
-                fallback_model=fallback_model,
-                current_memory=canonical_memory,
-                recent_messages=messages[-10:],
-            )
-
         active_role = role
 
     return {
         "active_user_role": active_role,
-        "canonical_memory": canonical_memory,
+        "canonical_memory": story_ledger_text(story_state),
         "scene_state": scene_state,
         "story_state": story_state,
     }
@@ -623,9 +607,6 @@ with st.sidebar:
 
                         st.session_state.run_id = saved["run_id"]
                         st.session_state.active_user_role = saved["active_user_role"]
-                        st.session_state.canonical_memory = (
-                            saved["canonical_memory"] or INITIAL_CANONICAL_MEMORY
-                        )
                         st.session_state.scene_state = (
                             saved["scene_state"] or dict(INITIAL_SCENE)
                         )
@@ -665,11 +646,14 @@ with st.sidebar:
     with st.expander("Cena atual"):
         st.json(st.session_state.scene_state)
 
-    with st.expander("Memória canônica"):
-        st.text(st.session_state.canonical_memory)
+    with st.expander("Story ledger"):
+        st.text(story_ledger_text(st.session_state.story_state))
 
-    with st.expander("Estado interno"):
-        st.json(st.session_state.story_state)
+    with st.expander("Status atual"):
+        st.json(st.session_state.story_state.get("current_status", {}))
+
+    with st.expander("Estado do capítulo"):
+        st.json(st.session_state.story_state.get("narrative", {}))
 
 
 for record in st.session_state.turn_records:
@@ -766,7 +750,7 @@ if user_text:
         ).upper()
         pre_turn_snapshot = {
             "active_user_role": previous_scene_role,
-            "canonical_memory": st.session_state.canonical_memory,
+            "canonical_memory": story_ledger_text(st.session_state.story_state),
             "scene_state": deepcopy(st.session_state.scene_state),
             "story_state": deepcopy(st.session_state.story_state),
         }
@@ -794,8 +778,9 @@ if user_text:
             api_key=api_key,
             model=director_model,
             fallback_model=fallback,
-            story_bible=STORY_BIBLE,
-            canonical_memory=story_ledger_text(st.session_state.story_state),
+            physical_canon=PHYSICAL_CANON,
+            story_ledger=story_ledger_text(st.session_state.story_state),
+            current_status=current_status_text(st.session_state.story_state),
             current_scene=st.session_state.scene_state,
             user_role=user_role,
             recent_messages=st.session_state.messages,
@@ -806,12 +791,12 @@ if user_text:
 
         scene_text = json.dumps(scene, ensure_ascii=False)
         system_prompt = build_system_prompt(
-            story_bible=STORY_BIBLE,
-            state_text=compact_state(st.session_state.story_state),
-            canonical_memory=story_ledger_text(st.session_state.story_state),
+            physical_canon=PHYSICAL_CANON,
+            story_ledger=story_ledger_text(st.session_state.story_state),
+            current_status=current_status_text(st.session_state.story_state),
+            chapter_text=chapter_prompt(_chapter_id()),
             scene_text=scene_text,
             user_role=user_role,
-            chapter_text=chapter_prompt(_chapter_id()),
         )
 
         llm_messages = [
@@ -894,23 +879,9 @@ if user_text:
         }
         st.session_state.turn_records.append(turn_record)
 
-        if answer and not answer.startswith("Erro"):
-            try:
-                memory_model = str(
-                    st.secrets.get("MARY_MEMORY_MODEL", model)
-                ).strip() or model
+        # O ledger não é atualizado pelo LLM. Só decisões estruturais de capítulo o alteram.
 
-                st.session_state.canonical_memory = update_story_memory(
-                    api_key=api_key,
-                    model=memory_model,
-                    fallback_model=fallback,
-                    current_memory=st.session_state.canonical_memory,
-                    recent_messages=st.session_state.messages[-10:],
-                )
-            except Exception:
-                pass
-
-        # Persiste depois da memória canônica ser atualizada.
+        # Persiste o turno com ledger/status estruturais atuais.
         if persistence:
             try:
                 info = ensure_schema(
