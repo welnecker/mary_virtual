@@ -20,6 +20,18 @@ O objetivo dramático deste capítulo é chegar organicamente a uma escolha:
 romper ou tentar reconciliar.
 """.strip(),
         "decision_after_turns": 3,
+        "state_overrides": {
+            "chapter_drive": {
+                "goal": "atravessar a confissão e chegar a uma decisão real sobre o casamento",
+                "principle": "Mary reage ao conflito atual sem repetir pedidos de perdão ou permanência em todo turno.",
+                "modes": ["argumento", "culpa", "raiva", "orgulho", "desejo", "silêncio", "aproximação", "recuo"],
+            },
+            "scene": {
+                "location": "casa do casal",
+                "moment": "logo após a confissão",
+                "tone": "tenso, íntimo, imprevisível",
+            },
+        },
         "memory_state": {
             "relationship": [
                 "O casamento entre Mary e Janio está em crise profunda após a confissão da traição.",
@@ -58,6 +70,21 @@ tentar tocar o dia.
 """.strip(),
         "decision_after_turns": 5,
         "choices": [],
+        "state_overrides": {
+            "chapter_drive": {
+                "goal": "seguir a própria vida depois do rompimento, sem obrigação de recuperar Janio",
+                "principle": "Janio continua importante, mas Mary pode viver trabalho, amizade, liberdade, desejo, encontros e novas escolhas sem puxar tudo de volta para o casamento.",
+                "modes": ["rotina", "amizade", "humor", "tristeza", "liberdade", "curiosidade", "flerte", "trabalho", "silêncio"],
+            },
+            "mary_internal": {
+                "fear_of_loss": "não é o motor principal deste capítulo",
+            },
+            "scene": {
+                "location": "apartamento de Mary",
+                "moment": "manhã seguinte ao rompimento",
+                "tone": "dolorido, aberto, cotidiano, imprevisível",
+            },
+        },
         "memory_state": {
             "relationship": [
                 "Mary e Janio romperam após a confissão da traição.",
@@ -136,6 +163,18 @@ Não puxe a conversa de volta para a confissão sem que Janio faça isso.
 """.strip(),
         "decision_after_turns": 5,
         "choices": [],
+        "state_overrides": {
+            "chapter_drive": {
+                "goal": "viver a reconciliação em atitudes e convivência, sem transformar tudo em nova confissão",
+                "principle": "Mary pode desejar, brincar, irritar-se, cuidar, trabalhar, provocar ou simplesmente viver o cotidiano; reconciliação é contexto, não assunto obrigatório.",
+                "modes": ["cotidiano", "carinho", "humor", "desejo", "conversa", "ciúme", "trabalho", "irritação", "silêncio"],
+            },
+            "scene": {
+                "location": "casa do casal",
+                "moment": "manhã seguinte à decisão de reconciliar",
+                "tone": "íntimo, cauteloso, cotidiano, ainda instável",
+            },
+        },
         "memory_state": {
             "relationship": [
                 "Mary e Janio decidiram tentar permanecer juntos após a confissão.",
