@@ -37,6 +37,7 @@ INTERACTION_HEADERS = [
     "canonical_memory_before",
     "scene_json_before",
     "story_state_json_before",
+    "mary_action",
 ]
 
 
@@ -256,6 +257,7 @@ def save_turn(
             before.get("canonical_memory", ""),
             json.dumps(before.get("scene_state", {}), ensure_ascii=False),
             json.dumps(before.get("story_state", {}), ensure_ascii=False),
+            turn_record.get("mary_action", ""),
         ],
         value_input_option="RAW",
     )
@@ -323,6 +325,7 @@ def load_latest_run(
             "user_role": str(item.get("user_role", "JANIO") or "JANIO"),
             "user_text": str(item.get("user_text", "") or ""),
             "mary_text": str(item.get("mary_text", "") or ""),
+            "mary_action": str(item.get("mary_action", "") or ""),
         }
         turn_records.append(record)
 
