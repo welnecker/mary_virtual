@@ -10,6 +10,7 @@ from chapters import (
     chapter_prompt,
     chapter_ready_for_choice,
     get_chapter,
+    rebase_memory_for_chapter,
 )
 from director import direct_scene
 from input_router import parse_user_input
@@ -154,12 +155,12 @@ def activate_chapter(
         "romper": "Janio e Mary decidiram romper o casamento após a confissão.",
         "reconciliar": "Janio e Mary decidiram tentar permanecer juntos após a confissão.",
     }.get(choice_id, "")
-    if decision_fact and decision_fact not in st.session_state.canonical_memory:
-        st.session_state.canonical_memory = (
-            st.session_state.canonical_memory.rstrip()
-            + "\n\nDECISÃO ESTRUTURAL\n- "
-            + decision_fact
-        )
+
+    st.session_state.canonical_memory = rebase_memory_for_chapter(
+        current_memory=st.session_state.canonical_memory,
+        chapter_id=next_chapter_id,
+        decision_fact=decision_fact,
+    )
 
     # O histórico permanece na planilha, mas o novo capítulo começa com
     # contexto recente limpo para o LLM e tela limpa para o usuário.
