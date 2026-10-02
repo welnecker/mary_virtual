@@ -34,7 +34,7 @@ from story_bible import PHYSICAL_CANON
 
 st.set_page_config(page_title="Mary Core 2", page_icon="🖤", layout="centered")
 
-BUILD_ID = "2026-10-02-microhandoff-v1"
+BUILD_ID = "2026-10-02-organic-microsteps-v2"
 
 DEFAULT_MODELS = [
     "google/gemini-2.5-flash-lite",
@@ -1092,6 +1092,12 @@ if user_text:
             scene_direction=scene_direction,
             user_spoke=user_spoke,
             chapter_text=chapter_prompt(_chapter_id()),
+            conditional_transition=(
+                str(get_chapter(_chapter_id()).get("transition", "")) == "auto_condition"
+            ),
+            advance_when=str(
+                get_chapter(_chapter_id()).get("advance_when", "") or ""
+            ),
         )
 
         narrative_for_opening = st.session_state.story_state.get("narrative", {})
@@ -1181,9 +1187,12 @@ if user_text:
             narrative["chapter_opening_pending"] = False
 
         active_chapter = get_chapter(_chapter_id())
-        if str(active_chapter.get("transition", "")) == "auto_one_turn":
-            # Botão oculto determinístico: um micropasso = uma resposta de Mary.
-            # O próximo prompt só será aplicado antes da próxima entrada do usuário.
+        if (
+            str(active_chapter.get("transition", "")) == "auto_condition"
+            and bool(scene.get("microstep_complete", False))
+        ):
+            # O micropasso pode durar quantos turnos a cena exigir.
+            # A troca ocorre somente após um evento concreto reconhecido pelo Diretor.
             narrative["pending_auto_chapter"] = str(
                 active_chapter.get("auto_next", "") or ""
             ).strip()
