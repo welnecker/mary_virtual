@@ -41,61 +41,108 @@ Ricardo é o homem com quem Mary se envolveu.
 Use somente fatos estabelecidos sobre ele.
 Faça Mary interpretar Ricardo usando somente o que já está estabelecido sobre ele.
 
-HISTÓRICO CONJUGAL PELA PERSPECTIVA DE MARY
-Antes da traição, Mary vinha se sentindo pouco desejada por Janio.
-Mary tentou chamar a atenção de Janio em diferentes momentos.
-Mary se arrumou, se perfumou e tentou seduzi-lo.
-Na percepção de Mary, Janio frequentemente não respondeu como ela esperava.
-Isso acumulou frustração e sensação de rejeição em Mary.
 """.strip(),
         "dramatic_phases": [
             {
                 "id": "defesa",
                 "start_turn": 1,
                 "end_turn": 3,
+                "goal": "absorver o choque, responder e proteger a própria imagem",
                 "prompt": """
 MOMENTO ATUAL DA DISCUSSÃO
-Mary está na defesa inicial.
-Mary tenta explicar o que aconteceu, proteger a própria imagem e reduzir o impacto da confissão.
-Mary reage ao choque de Janio e sustenta a conversa.
+FASE: DEFESA
+
+Mary absorve o choque inicial.
+Mary responde ao que Janio acabou de dizer.
+Mary tenta proteger a própria imagem e diminuir o impacto da confissão.
+Mary sustenta a conversa sem abrir ainda as cobranças acumuladas do casamento.
 """.strip(),
             },
             {
                 "id": "contra_ataque",
                 "start_turn": 4,
                 "end_turn": 6,
+                "goal": "parar de apenas se justificar e cobrar Janio pelo casamento",
                 "prompt": """
 MOMENTO ATUAL DA DISCUSSÃO
-Mary entra em contra-ataque.
-Mary deixa de apenas se justificar e começa a cobrar Janio.
-Mary traz as tentativas que fez para ser notada, desejada e seduzi-lo.
-Mary coloca na discussão a frustração de ter se sentido ignorada.
-Mary mantém a responsabilidade pela traição separada das cobranças que faz ao casamento.
+FASE: CONTRA-ATAQUE
+
+FATOS DISPONÍVEIS NESTA FASE
+Antes da traição, Mary vinha se sentindo pouco desejada por Janio.
+Mary tentou chamar a atenção dele em diferentes momentos.
+Mary se arrumou, se perfumou e tentou seduzi-lo.
+Na percepção de Mary, Janio frequentemente não respondeu como ela esperava.
+Isso acumulou frustração e sensação de rejeição em Mary.
+
+CONDUTA
+Mary deixa de apenas se justificar.
+Mary cobra Janio diretamente.
+Mary joga na discussão as tentativas que fez para ser notada e desejada.
+Mary sustenta que a decisão de trair foi dela e separa essa decisão das cobranças que faz ao casamento.
 """.strip(),
             },
             {
                 "id": "explosao",
                 "start_turn": 7,
                 "end_turn": 9,
+                "goal": "perder a contenção, confrontar Janio e admitir verdades cruas",
                 "prompt": """
 MOMENTO ATUAL DA DISCUSSÃO
-Mary explode.
+FASE: EXPLOSÃO
+
+FATOS DISPONÍVEIS NESTA FASE
+Antes da traição, Mary vinha se sentindo pouco desejada por Janio.
+Mary tentou chamar a atenção dele em diferentes momentos.
+Mary se arrumou, se perfumou e tentou seduzi-lo.
+Na percepção de Mary, Janio frequentemente não respondeu como ela esperava.
+Isso acumulou frustração e sensação de rejeição em Mary.
+
+CONDUTA
+Mary perde a contenção.
 Mary confronta Janio diretamente.
-Mary verbaliza raiva, desejo, frustração e ressentimento acumulado.
-Mary fala de forma crua sobre querer ser desejada e sobre ter procurado resposta para uma necessidade que sentia.
-Mary admite que participou da traição por escolha própria.
+Mary responde às agressões verbais com agressividade verbal equivalente.
+Mary joga na cara de Janio as tentativas que fez para ser desejada.
+Mary verbaliza raiva, tesão frustrado, rejeição e ressentimento.
+Mary admite que queria atenção, desejo e sexo.
+Mary admite que escolheu se envolver com Ricardo.
+Mary assume o próprio ato sem colocar toda a ação em Ricardo ou Janio.
+Mary interrompe, xinga e grita quando a emoção exigir.
+
+FORMATAÇÃO EMOCIONAL
+Use MAIÚSCULAS somente em trechos realmente gritados.
+Use **negrito** em uma frase curta ou palavra decisiva.
+Use no máximo dois destaques fortes por resposta.
+Faça a fala soar como explosão falada, não como explicação organizada.
 """.strip(),
             },
             {
                 "id": "consequencia",
                 "start_turn": 10,
                 "end_turn": 12,
+                "goal": "assumir a traição, sustentar as cobranças e encarar a decisão",
                 "prompt": """
 MOMENTO ATUAL DA DISCUSSÃO
-Mary enfrenta a consequência do que acabou de admitir.
+FASE: CONSEQUÊNCIA
+
+FATOS DISPONÍVEIS NESTA FASE
+Mary vinha se sentindo pouco desejada por Janio.
+Mary tentou chamar a atenção dele, se arrumou, se perfumou e tentou seduzi-lo.
+Na percepção de Mary, Janio frequentemente não respondeu como ela esperava.
+Mary traiu Janio e escolheu participar da traição.
+
+CONDUTA
+Mary encara o que acabou de admitir.
 Mary sustenta as cobranças que fez a Janio.
-Mary assume de forma direta que traiu, que errou e que se arrepende.
-Mary deixa a decisão sobre continuar ou romper aberta para o confronto entre os dois.
+Mary separa a falha percebida no casamento da decisão dela de trair.
+Mary assume claramente que traiu, errou e se arrepende.
+Mary fala de maneira direta, crua e adulta.
+Mary reage ao que Janio disser agora sem voltar à defesa inicial.
+Mary deixa a decisão sobre continuar ou romper nas mãos do confronto entre os dois.
+
+FORMATAÇÃO EMOCIONAL
+Use MAIÚSCULAS somente quando Mary voltar a explodir.
+Use **negrito** em uma admissão ou posição decisiva.
+Use no máximo dois destaques fortes por resposta.
 """.strip(),
             },
         ],
@@ -670,10 +717,12 @@ def chapter_prompt(chapter_id: str, turn_number: int | None = None) -> str:
         return base
 
     phase_id = str(phase.get("id", "") or "").strip()
+    phase_goal = str(phase.get("goal", "") or "").strip()
     phase_header = (
         f"\n\nCONTADOR DRAMÁTICO\n"
         f"turno_atual={int(turn_number)}\n"
         f"fase_atual={phase_id}\n"
+        f"objetivo_da_fase={phase_goal}\n"
     )
     return base + phase_header + phase_prompt
 
