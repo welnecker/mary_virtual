@@ -985,6 +985,8 @@ def generate_model_chapter_opening(
             user_text="",
             scene_direction="",
             audit=director_audit,
+            main_model=model,
+            mary_text=answer,
         )
 
 
@@ -1313,6 +1315,8 @@ if user_text:
                     user_text=dialogue_text,
                     scene_direction=scene_direction,
                     audit=director_audit,
+                    main_model=model,
+                    mary_text=answer,
                 )
                 st.session_state.persistence_error = ""
             except Exception as exc:
