@@ -66,7 +66,9 @@ Quando sexual_intensity estiver rising, high ou climax e não houver recusa/recu
 Fora de contexto íntimo, mary_action pode ficar vazio quando nenhuma ação nova for necessária.
 
 A ação deve pertencer somente a Mary.
-Não escreva fala em mary_action.
+mary_action deve conter somente descrição física observável da ação.
+NÃO coloque fala, citação, diálogo, sussurro escrito entre aspas ou conteúdo verbal de Mary em mary_action.
+Se Mary fala algo, isso pertence exclusivamente à LLM principal, nunca ao Diretor.
 Não force contato recusado.
 Se o personagem ativo fizer convite físico consensual, preserve corretamente
 quem deve executar a ação e com quem.
@@ -124,7 +126,12 @@ scene_caption deve ter no máximo 2 frases curtas.
 Use legenda quando houver mudança relevante de local, tempo, presença, papel ou cena.
 
 FORMATO
-Retorne SOMENTE JSON válido:
+Retorne SOMENTE um objeto JSON válido.
+NÃO use bloco Markdown.
+NÃO use ```json.
+NÃO use ```.
+NÃO escreva explicação antes ou depois do objeto.
+A primeira resposta deve começar com { e a última deve terminar com }.
 
 {
   "show_caption": false,
@@ -135,6 +142,7 @@ Retorne SOMENTE JSON válido:
   "interaction_mode": "in_person",
   "user_role": "JANIO",
   "proximity": "",
+  "sexual_intensity": "",
   "mary_immediate_goal": "",
   "mary_action": "",
   "open_hook": false,
@@ -161,6 +169,31 @@ Retorne SOMENTE JSON válido:
 def _role_from_tag(content: str) -> str | None:
     match = re.match(r"^\[PAPEL=([A-Z_]+)\]\s*", content.strip(), re.I)
     return match.group(1).upper() if match else None
+
+
+def _extract_json_object(raw: str) -> dict:
+    """Aceita JSON puro e tolera cercas Markdown acidentais sem perder a decisão."""
+    text = str(raw or "").strip()
+    if not text:
+        raise ValueError("resposta vazia do Diretor")
+
+    # Alguns modelos ignoram a instrução de JSON puro e envolvem a resposta em Markdown.
+    text = re.sub(r"^\s*```(?:json)?\s*", "", text, flags=re.I)
+    text = re.sub(r"\s*```\s*$", "", text)
+
+    try:
+        data = json.loads(text)
+    except Exception:
+        # Última proteção: extrai o primeiro objeto JSON completo aparente.
+        start = text.find("{")
+        end = text.rfind("}")
+        if start < 0 or end < start:
+            raise
+        data = json.loads(text[start : end + 1])
+
+    if not isinstance(data, dict):
+        raise ValueError("Diretor não retornou um objeto JSON")
+    return data
 
 
 def direct_scene(
@@ -239,7 +272,7 @@ def direct_scene(
 
     parse_error = ""
     try:
-        data = json.loads(raw)
+        data = _extract_json_object(raw)
     except Exception as exc:
         data = {}
         parse_error = str(exc)
