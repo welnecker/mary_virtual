@@ -4,6 +4,12 @@ from copy import deepcopy
 
 
 INITIAL_STATE = {
+    "narrative": {
+        "chapter_id": "confissao_inicial",
+        "chapter_turns": 0,
+        "chapter_opening_pending": False,
+        "last_choice_id": "",
+    },
     "relationship": {
         "bond": "forte, antigo e ferido",
         "trust": "abalada",
@@ -105,6 +111,22 @@ def migrate_state(state: dict | None) -> dict:
     current = new_state()
     if not isinstance(state, dict):
         return current
+
+    # Preserva o capítulo atual quando a run já usa a arquitetura modular.
+    narrative = state.get("narrative")
+    if isinstance(narrative, dict):
+        chapter_id = str(narrative.get("chapter_id", "") or "").strip()
+        if chapter_id:
+            current["narrative"]["chapter_id"] = chapter_id
+        current["narrative"]["chapter_turns"] = int(
+            narrative.get("chapter_turns", 0) or 0
+        )
+        current["narrative"]["chapter_opening_pending"] = bool(
+            narrative.get("chapter_opening_pending", False)
+        )
+        current["narrative"]["last_choice_id"] = str(
+            narrative.get("last_choice_id", "") or ""
+        ).strip()
 
     # relationship/scene não são usados como snapshot no prompt; mantemos o
     # formato atual para evitar regras antigas vazando de runs persistidas.
