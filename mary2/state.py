@@ -10,8 +10,10 @@ INITIAL_STATE = {
         "chapter_turns": 0,
         "chapter_opening_pending": False,
         "chapter_start_seq": 1,
+        "prompt_start_seq": 1,
         "last_choice_id": "",
         "pending_auto_chapter": "",
+        "handoff": {},
     },
     "story_ledger": [],
     "current_status": {
@@ -52,9 +54,24 @@ def migrate_state(state: dict | None) -> dict:
             "chapter_turns": int(narrative.get("chapter_turns", 0) or 0),
             "chapter_opening_pending": bool(narrative.get("chapter_opening_pending", False)),
             "chapter_start_seq": max(1, int(narrative.get("chapter_start_seq", 1) or 1)),
+            "prompt_start_seq": max(
+                1,
+                int(
+                    narrative.get(
+                        "prompt_start_seq",
+                        narrative.get("chapter_start_seq", 1),
+                    )
+                    or 1
+                ),
+            ),
             "last_choice_id": str(narrative.get("last_choice_id", "") or ""),
             "pending_auto_chapter": str(
                 narrative.get("pending_auto_chapter", "") or ""
+            ),
+            "handoff": (
+                deepcopy(narrative.get("handoff"))
+                if isinstance(narrative.get("handoff"), dict)
+                else {}
             ),
         })
 
