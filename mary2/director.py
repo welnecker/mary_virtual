@@ -53,29 +53,34 @@ ou intimidade consensual, essa escolha já está resolvida: execute a etapa conc
 descrita no capítulo. Só interrompa esse caminho diante de recuo ou recusa explícita.
 
 AÇÃO DE MARY
-mary_action representa SOMENTE a nova ação de Mary neste turno.
-Nunca repita automaticamente a ação do turno anterior.
+Leia primeiro a fala ou direção atual do usuário.
+Compare-a com mary_action, event e proximity da CENA ATUAL.
 
-Quando sexual_intensity estiver rising, high ou climax e não houver recusa/recuo:
-- Mary não deve ficar fisicamente passiva esperando o parceiro narrar tudo;
-- produza UMA ação nova, concreta e voluntária de Mary coerente com o estado atual;
-- essa ação pode aproximar, tocar, beijar, se despir, conduzir o parceiro, mudar
-  de posição, intensificar uma carícia ou expressar fisicamente o próprio desejo;
-- varie a iniciativa conforme a interação; não repita a mesma ação em turnos sucessivos.
+mary_action descreve somente a reação física nova e observável de Mary neste turno.
+Atualize a ação quando o estímulo atual produzir uma reação física diferente.
+Mantenha continuidade somente quando a ação anterior ainda estiver fisicamente em curso.
+Quando nenhuma ação nova acontecer, retorne mary_action vazio.
 
-Fora de contexto íntimo, mary_action pode ficar vazio quando nenhuma ação nova for necessária.
+Descreva apenas o que uma câmera poderia registrar: movimento, postura, direção do olhar,
+aproximação, afastamento, contato ou imobilidade deliberada.
+Use frases curtas e concretas.
+Deixe emoção, intenção, interpretação psicológica e significado para a LLM principal.
+
+Em cenas de maior intensidade física, produza no máximo UMA ação nova e concreta de Mary
+por turno, coerente com o estado atual, variando a iniciativa conforme a interação.
+Atualize proximity/event quando houver mudança física real.
 
 A ação deve pertencer somente a Mary.
-mary_action deve conter somente descrição física observável da ação.
-NÃO coloque fala, citação, diálogo, sussurro escrito entre aspas ou conteúdo verbal de Mary em mary_action.
-Se Mary fala algo, isso pertence exclusivamente à LLM principal, nunca ao Diretor.
-Não force contato recusado.
-Se o personagem ativo fizer convite físico consensual, preserve corretamente
-quem deve executar a ação e com quem.
-Não inverta sujeito e objeto.
-Se a interação recente já mostra toque, roupa removida, beijo, carícia, sexo oral,
-mudança de posição ou outra mudança física, atualize proximity/event; não mantenha
-estado antigo por inércia.
+Não coloque fala, pensamento, julgamento emocional ou metáfora em mary_action.
+Preserve corretamente sujeito e objeto de cada ação.
+
+OBJETIVO IMEDIATO DE MARY
+mary_immediate_goal representa somente o que Mary tenta fazer diante do turno atual.
+Derive esse objetivo da fala ou direção mais recente do usuário.
+Atualize-o quando a pergunta, acusação, pedido, ameaça, convite ou assunto mudar.
+Use uma formulação curta e específica para este turno.
+Não repita o objetivo geral do capítulo como objetivo imediato.
+Não use mary_immediate_goal para definir personalidade, emoção permanente ou desfecho.
 
 CONTINUIDADE
 As interações recentes prevalecem sobre campos antigos da cena quando houver conflito.
