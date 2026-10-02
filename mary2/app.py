@@ -342,7 +342,7 @@ if persistence and not st.session_state.persistence_loaded:
 
 
 st.title("Mary Core 2")
-st.caption("Novela interativa aberta: Mary e Janio no centro, o mundo ao redor em movimento.")
+st.caption("Novela interativa por capítulos, com contexto renovado a cada decisão.")
 
 current_chapter = get_chapter(_chapter_id())
 st.caption(f"Capítulo atual: **{current_chapter.get('title', _chapter_id())}**")
@@ -364,14 +364,25 @@ with st.sidebar:
     if not isinstance(temporary_character, dict):
         temporary_character = {}
 
-    role_options = ["JANIO"]
+    allowed_roles = list(
+        current_chapter.get("allowed_roles", ["JANIO"]) or ["JANIO"]
+    )
     temporary_available = bool(
         temporary_character.get("active")
         and temporary_character.get("user_can_play")
         and str(temporary_character.get("name", "") or "").strip()
     )
-    if temporary_available:
-        role_options.append("PERSONAGEM_DA_CENA")
+
+    role_options = []
+    for allowed_role in allowed_roles:
+        role_name = str(allowed_role).upper()
+        if role_name == "JANIO":
+            role_options.append("JANIO")
+        elif role_name == "PERSONAGEM_DA_CENA" and temporary_available:
+            role_options.append("PERSONAGEM_DA_CENA")
+
+    if not role_options:
+        role_options = ["JANIO"]
 
     current_role = st.session_state.active_user_role
     if current_role not in role_options:
