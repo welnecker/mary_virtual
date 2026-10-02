@@ -223,11 +223,12 @@ def direct_scene(
         ),
         "mary_immediate_goal": str(data.get("mary_immediate_goal", "") or "").strip(),
         "mary_action": str(
-            data.get(
-                "mary_action",
-                current_scene.get("mary_action", ""),
+            data.get("mary_action", "")
+            or (
+                ""
+                if scene_direction.strip()
+                else current_scene.get("mary_action", "")
             )
-            or current_scene.get("mary_action", "")
             or ""
         ).strip(),
         "open_hook": bool(data.get("open_hook", False)),
