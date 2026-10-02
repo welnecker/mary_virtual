@@ -69,6 +69,15 @@ Uma cena pode avançar entre opening, pressure, turning_point e resolution.
 Não encerre ou mude de cena apenas por contagem de turnos.
 Use mudança real de atitude, ação, informação, presença, local ou objetivo.
 
+MICROCAPÍTULOS AUTOMÁTICOS
+O payload pode informar AUTO_TRANSITION=SIM e um CRITÉRIO DE CONCLUSÃO.
+Somente nesse caso avalie se o objetivo do micropasso foi realmente cumprido.
+- Se ainda não foi cumprido, microchapter_complete=false.
+- Se foi cumprido de forma clara na interação atual ou no estado resultante da cena, microchapter_complete=true.
+- Não marque true apenas porque passou um turno.
+- Uma direção explícita do usuário pode cumprir ou interromper a progressão.
+- Não force avanço quando houver hesitação, recuo ou falta de reciprocidade.
+
 LEGENDA
 scene_caption deve ter no máximo 2 frases curtas.
 Use legenda quando houver mudança relevante de local, tempo, presença, papel ou cena.
@@ -102,7 +111,8 @@ Retorne SOMENTE JSON válido:
   "arc_phase": "opening",
   "resolution_type": "none",
   "resolution_summary": "",
-  "start_new_scene": false
+  "start_new_scene": false,
+  "microchapter_complete": false
 }
 """.strip()
 
@@ -126,6 +136,8 @@ def direct_scene(
     scene_direction: str = "",
     user_spoke: bool = True,
     chapter_text: str = "",
+    auto_transition: bool = False,
+    completion_criterion: str = "",
 ) -> dict:
     previous_role = str(current_scene.get("user_role", "JANIO") or "JANIO").upper()
     role_changed = previous_role != user_role
@@ -156,6 +168,9 @@ def direct_scene(
         + "\n\nPAPEL MUDOU?\n" + ("SIM" if role_changed else "NÃO")
         + "\n\nDIREÇÃO EXPLÍCITA DO USUÁRIO:\n" + (scene_direction.strip() or "(nenhuma)")
         + "\n\nO PERSONAGEM ATIVO FALOU?\n" + ("SIM" if user_spoke else "NÃO")
+        + "\n\nAUTO_TRANSITION:\n" + ("SIM" if auto_transition else "NÃO")
+        + "\n\nCRITÉRIO DE CONCLUSÃO DO MICROPASSO:\n"
+        + (completion_criterion.strip() if auto_transition and completion_criterion.strip() else "(não se aplica)")
         + "\n\nINTERAÇÕES RECENTES DESTE CAPÍTULO:\n"
         + ("\n".join(transcript) or "(nenhuma)")
         + "\n\nAtualize somente a cena atual. "
@@ -163,7 +178,8 @@ def direct_scene(
           "A direção explícita e as interações recentes prevalecem sobre campos antigos. "
           "Se houver mudança física real, atualize proximity/event/mary_action. "
           "Se houver gancho aberto, resolva a lacuna de forma jogável. "
-          "Se o personagem não falou, Mary pode tomar uma iniciativa concreta coerente."
+          "Se o personagem não falou, Mary pode tomar uma iniciativa concreta coerente. "
+          "Quando AUTO_TRANSITION=SIM, avalie o critério de conclusão e preencha microchapter_complete."
     )
 
     raw = chat(
@@ -233,6 +249,11 @@ def direct_scene(
         + (1 if start_new_scene else 0),
         "user_scene_direction": scene_direction.strip(),
         "mary_should_initiate": not user_spoke,
+        "microchapter_complete": (
+            bool(data.get("microchapter_complete", False))
+            if auto_transition
+            else False
+        ),
     }
 
     temporary = scene.get("temporary_character")
