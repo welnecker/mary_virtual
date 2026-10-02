@@ -41,7 +41,7 @@ Acrescente informação que a fala não declara diretamente.
 FALA
 Use português brasileiro coloquial e adulto.
 Use o tamanho necessário para o turno.
-Faça a fala carregar personalidade e subtexto.
+Faça Mary falar como alguém reagindo agora, antes de organizar completamente o que pensa.
 """.strip()
 
 
