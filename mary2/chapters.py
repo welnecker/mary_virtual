@@ -293,19 +293,24 @@ automática neste capítulo.
     "intimidade_aproximacao": {
         "title": "Intimidade — aproximação",
         "allowed_roles": ["JANIO"],
-        "transition": "auto",
+        "transition": "auto_one_turn",
         "auto_next": "intimidade_contato",
-        "completion_criterion": "A aproximação e o desejo recíproco ficaram claramente estabelecidos.",
         "prompt": """
-CONTEXTO
-Mary e Janio escolheram avançar para uma intimidade consensual.
+FATO JÁ DECIDIDO
+Mary e Janio escolheram seguir para uma intimidade consensual. Não reavalie essa escolha.
 
-MICROPASSO
-Aproximação.
+O QUE ACONTECE NESTE TURNO
+Eles começam a se beijar e a se aproximar fisicamente.
+Mary participa ativamente e responde ao que Janio disser ou fizer.
 
-OBJETIVO
-Construir proximidade física e verbal entre os dois, sem pular diretamente para
-etapas posteriores. Preserve reciprocidade, personalidade e ritmo.
+NÃO FAÇA
+Não volte a discutir se devem continuar.
+Não transforme este turno em conversa sobre culpa ou reconciliação.
+Não use frases vagas sobre "o momento", "o depois", "ir devagar" ou "sentir".
+Não avance ainda para a próxima etapa.
+
+RESULTADO ESPERADO
+Ao final desta resposta, beijo e aproximação física já aconteceram.
 """.strip(),
         "decision_after_turns": 0,
         "choices": [],
@@ -330,19 +335,24 @@ etapas posteriores. Preserve reciprocidade, personalidade e ritmo.
     "intimidade_contato": {
         "title": "Intimidade — contato",
         "allowed_roles": ["JANIO"],
-        "transition": "auto",
+        "transition": "auto_one_turn",
         "auto_next": "intimidade_preparacao",
-        "completion_criterion": "O contato íntimo consensual avançou de forma clara.",
         "prompt": """
-CONTEXTO
-A aproximação entre Mary e Janio já aconteceu.
+FATO JÁ DECIDIDO
+Mary e Janio já se beijaram e estão fisicamente próximos.
 
-MICROPASSO
-Contato.
+O QUE ACONTECE NESTE TURNO
+O contato físico avança de forma consensual. Mary corresponde de modo ativo,
+podendo provocar, brincar, orientar, reagir ou tomar iniciativa.
 
-OBJETIVO
-Desenvolver o contato íntimo consensual com naturalidade e reciprocidade.
-Não recomece o flerte inicial e não encerre a sequência ainda.
+NÃO FAÇA
+Não recomece o beijo como se nada tivesse acontecido.
+Não volte à discussão sobre a traição.
+Não descreva a situação de forma abstrata.
+Não conclua a sequência ainda.
+
+RESULTADO ESPERADO
+Ao final desta resposta, o contato físico já avançou para a próxima etapa.
 """.strip(),
         "decision_after_turns": 0, "choices": [],
         "opening_caption": "A aproximação evolui para um contato mais íntimo.",
@@ -366,19 +376,24 @@ Não recomece o flerte inicial e não encerre a sequência ainda.
     "intimidade_preparacao": {
         "title": "Intimidade — preparação",
         "allowed_roles": ["JANIO"],
-        "transition": "auto",
+        "transition": "auto_one_turn",
         "auto_next": "intimidade_central",
-        "completion_criterion": "A preparação íntima consensual avançou o suficiente para a etapa central.",
         "prompt": """
-CONTEXTO
-Mary e Janio já passaram pela aproximação e pelo contato inicial.
+FATO JÁ DECIDIDO
+Beijo e contato físico já aconteceram.
 
-MICROPASSO
-Preparação.
+O QUE ACONTECE NESTE TURNO
+A intimidade avança para a preparação imediatamente anterior ao momento central.
+Mary continua participante ativa e responde especificamente às ações e falas de Janio.
 
-OBJETIVO
-Desenvolver a intimidade que antecede o momento central, mantendo reciprocidade,
-desejo e personalidade. Não volte ao início e não conclua a sequência ainda.
+NÃO FAÇA
+Não recomece etapas anteriores.
+Não faça Mary discursar sobre a relação.
+Não use linguagem abstrata para adiar a ação.
+Não conclua a sequência neste turno.
+
+RESULTADO ESPERADO
+Ao final desta resposta, a preparação já aconteceu e a próxima etapa pode começar.
 """.strip(),
         "decision_after_turns": 0, "choices": [],
         "opening_caption": "A intimidade avança mais um passo.",
@@ -402,20 +417,23 @@ desejo e personalidade. Não volte ao início e não conclua a sequência ainda.
     "intimidade_central": {
         "title": "Intimidade — momento central",
         "allowed_roles": ["JANIO"],
-        "transition": "auto",
+        "transition": "auto_one_turn",
         "auto_next": "intimidade_conclusao",
-        "completion_criterion": "O momento central da intimidade chegou a um fechamento natural.",
         "prompt": """
-CONTEXTO
+FATO JÁ DECIDIDO
 A aproximação e a preparação já aconteceram.
 
-MICROPASSO
-Momento central da intimidade consensual.
+O QUE ACONTECE NESTE TURNO
+A intimidade chega ao seu momento central. Mary participa ativamente e reage ao
+que Janio disser ou fizer, sem abandonar sua voz, humor ou personalidade.
 
-OBJETIVO
-Viver esta etapa como continuação natural do que já foi construído, mantendo
-reciprocidade e a voz de Mary. Não transforme automaticamente a intimidade em
-discurso sobre a reconciliação.
+NÃO FAÇA
+Não volte às etapas anteriores.
+Não transforme este turno em conversa sobre perdão, culpa ou cura do relacionamento.
+Não substitua a ação por frases vagas.
+
+RESULTADO ESPERADO
+Ao final desta resposta, o momento central ocorreu e a sequência pode seguir para o desfecho.
 """.strip(),
         "decision_after_turns": 0, "choices": [],
         "opening_caption": "A intimidade chega ao seu momento central.",
@@ -439,19 +457,23 @@ discurso sobre a reconciliação.
     "intimidade_conclusao": {
         "title": "Intimidade — conclusão",
         "allowed_roles": ["JANIO"],
-        "transition": "auto",
+        "transition": "auto_one_turn",
         "auto_next": "intimidade_aftercare",
-        "completion_criterion": "A intensidade terminou e os dois chegaram ao momento imediatamente posterior.",
         "prompt": """
-CONTEXTO
-O momento central da intimidade consensual chegou ao seu desfecho.
+FATO JÁ DECIDIDO
+O momento central já aconteceu.
 
-MICROPASSO
-Conclusão.
+O QUE ACONTECE NESTE TURNO
+A intensidade física termina. Mary reage imediatamente ao fim desse momento com
+uma fala coerente com o que acabou de acontecer.
 
-OBJETIVO
-Concluir a intensidade sem saltar imediatamente para uma conversa longa.
-Deixe a reação imediata de Mary surgir naturalmente.
+NÃO FAÇA
+Não recomece etapas anteriores.
+Não faça uma análise longa do relacionamento.
+Não trate a intimidade como solução automática para a traição.
+
+RESULTADO ESPERADO
+Ao final desta resposta, o momento central terminou e começa o pós-intimidade.
 """.strip(),
         "decision_after_turns": 0, "choices": [],
         "opening_caption": "A intensidade termina e o ritmo desacelera.",
@@ -476,20 +498,23 @@ Deixe a reação imediata de Mary surgir naturalmente.
     "intimidade_aftercare": {
         "title": "Intimidade — depois",
         "allowed_roles": ["JANIO"],
-        "transition": "auto",
+        "transition": "auto_one_turn",
         "auto_next": "pos_intimidade",
-        "completion_criterion": "O momento posterior de proximidade ou conversa breve encontrou um fechamento natural.",
         "prompt": """
-CONTEXTO
-Mary e Janio acabaram de viver uma intimidade consensual.
+FATO JÁ DECIDIDO
+A intimidade terminou e Mary e Janio continuam juntos no mesmo ambiente.
 
-MICROPASSO
-Momento posterior.
+O QUE ACONTECE NESTE TURNO
+Mostre o momento imediatamente posterior: proximidade, cuidado, humor, silêncio,
+carinho ou conversa curta, conforme o que Janio disser.
 
-OBJETIVO
-Permitir proximidade, cuidado, humor, silêncio, carinho ou conversa breve conforme
-o clima real entre os dois. Não transforme o momento automaticamente em promessa,
-cura completa ou solução para todos os problemas.
+NÃO FAÇA
+Não transforme isso em promessa de reconciliação perfeita.
+Não faça discurso terapêutico.
+Não volte a narrar etapas anteriores.
+
+RESULTADO ESPERADO
+Ao final desta resposta, o pós-intimidade imediato terminou e a vida cotidiana pode continuar.
 """.strip(),
         "decision_after_turns": 0, "choices": [],
         "opening_caption": "Depois, o ritmo muda e sobra a proximidade.",
