@@ -37,7 +37,7 @@ from story_bible import PHYSICAL_CANON
 
 st.set_page_config(page_title="Mary Core 2", page_icon="🖤", layout="centered")
 
-BUILD_ID = "2026-10-02-exclusive-microprompts-v20"
+BUILD_ID = "2026-10-02-speech-first-phase-context-v21"
 
 DEFAULT_MODELS = [
     "google/gemini-2.5-flash-lite",
@@ -910,7 +910,7 @@ def generate_model_chapter_opening(
         "content": (
             "INÍCIO AUTOMÁTICO DO CAPÍTULO: esta é a primeira fala real de Mary "
             "neste capítulo. Inicie a cena conforme CAPÍTULO ATUAL e CENA ATUAL. "
-            "Não espere uma fala do usuário. Responda somente com o que Mary diria."
+            "Não espere uma fala do usuário. Gere a resposta no formato [FALA] e depois [PENSAMENTO]."
         ),
     }
 
@@ -939,9 +939,9 @@ def generate_model_chapter_opening(
                 {
                     "role": "system",
                     "content": (
-                        "CORREÇÃO DE FORMATO: use exatamente [INTENCAO] e [FALA]. "
-                        "[INTENCAO] deve ser uma frase curta em primeira pessoa, sem narração. "
+                        "CORREÇÃO DE FORMATO: use exatamente [FALA] e depois [PENSAMENTO]. "
                         "[FALA] deve conter somente palavras que Mary diria em voz alta, "
+                        "[PENSAMENTO] deve ser uma frase curta em primeira pessoa escrita depois da fala, "
                         "também em primeira pessoa. Gestos, aparência, postura e movimentos "
                         "pertencem ao Diretor. Use sensação corporal somente quando Mary "
                         "realmente a verbalizaria numa conversa."
@@ -1173,6 +1173,7 @@ if user_text:
             )
 
         current_turn_number = _chapter_turns() + 1
+        chapter_config = get_chapter(_chapter_id())
         current_phase = chapter_phase(_chapter_id(), current_turn_number)
         current_phase_id = str(current_phase.get("id", "") or "").strip()
         current_phase_goal = str(current_phase.get("goal", "") or "").strip()
@@ -1180,6 +1181,25 @@ if user_text:
             st.session_state.scene_state.get("chapter_phase", "") or ""
         ).strip()
         phase_changed = bool(current_phase_id) and current_phase_id != previous_phase_id
+
+        narrative_state = st.session_state.story_state.setdefault("narrative", {})
+        phase_context_mode = str(
+            chapter_config.get("phase_context", "") or ""
+        ).strip().lower()
+
+        if phase_changed and phase_context_mode == "phase":
+            # A fase nova começa com a fala atual do usuário, não com exemplos
+            # linguísticos/comportamentais das fases encerradas.
+            narrative_state["phase_start_message_index"] = len(messages_before_turn)
+            narrative_state["active_phase_id"] = current_phase_id
+
+        phase_messages = st.session_state.messages
+        if current_phase_id and phase_context_mode == "phase":
+            start_index = int(
+                narrative_state.get("phase_start_message_index", 0) or 0
+            )
+            start_index = max(0, min(start_index, len(st.session_state.messages)))
+            phase_messages = st.session_state.messages[start_index:]
 
         scene_for_director = deepcopy(st.session_state.scene_state)
         scene_for_director["chapter_turn_current"] = current_turn_number
@@ -1211,7 +1231,7 @@ if user_text:
             current_status=current_status_text(st.session_state.story_state),
             current_scene=scene_for_director,
             user_role=user_role,
-            recent_messages=st.session_state.messages,
+            recent_messages=phase_messages,
             scene_direction=scene_direction,
             user_spoke=user_spoke,
             chapter_text=current_chapter_prompt,
@@ -1227,8 +1247,10 @@ if user_text:
         scene["chapter_phase"] = current_phase_id
         scene["chapter_phase_goal"] = current_phase_goal
         if current_phase_id:
-            # O Diretor não decide a fase dramática de capítulos contados.
+            # Em capítulos com microprompt, o runtime já define a direção
+            # psicológica. O Diretor permanece responsável pela cena física.
             scene["arc_phase"] = current_phase_id
+            scene["mary_immediate_goal"] = ""
 
         narrative_for_opening = st.session_state.story_state.get("narrative", {})
         if narrative_for_opening.get("chapter_opening_pending"):
@@ -1252,7 +1274,7 @@ if user_text:
 
         llm_messages = [
             {"role": "system", "content": system_prompt},
-            *st.session_state.messages[-24:],
+            *phase_messages[-24:],
         ]
 
         try:
@@ -1273,10 +1295,10 @@ if user_text:
                     {
                         "role": "system",
                         "content": (
-                            "CORREÇÃO DE FORMATO: use exatamente [INTENCAO] e [FALA]. "
-                            "[INTENCAO] é uma frase curta em primeira pessoa sobre o que Mary "
-                            "quer ou pretende agora. [FALA] é a fala principal, em primeira pessoa, "
-                            "e deve ser maior que a intenção. Não escreva narração externa, "
+                            "CORREÇÃO DE FORMATO: use exatamente [FALA] e depois [PENSAMENTO]. "
+                            "[FALA] contém somente o que Mary diz em voz alta. "
+                            "[PENSAMENTO] é uma frase curta em primeira pessoa escrita somente "
+                            "depois da fala; não planeje nem explique a fala. Não escreva narração externa, "
                             "rubricas, metáforas literárias ou ações como descrição. "
                             "As ações físicas pertencem exclusivamente ao Diretor."
                         ),
