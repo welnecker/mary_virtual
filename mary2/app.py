@@ -73,6 +73,36 @@ def _messages_from_records(records: list[dict]) -> list[dict[str, str]]:
     return messages
 
 
+def _handoff_from_record(record: dict | None) -> dict:
+    if not isinstance(record, dict):
+        return {}
+    return {
+        "user_role": str(record.get("user_role", "") or "").strip(),
+        "user_text": str(record.get("user_text", "") or "").strip(),
+        "mary_text": str(record.get("mary_text", "") or "").strip(),
+        "mary_action": str(record.get("mary_action", "") or "").strip(),
+    }
+
+
+def _handoff_text(state: dict) -> str:
+    narrative = state.get("narrative", {}) if isinstance(state, dict) else {}
+    handoff = narrative.get("handoff", {}) if isinstance(narrative, dict) else {}
+    if not isinstance(handoff, dict) or not any(str(v or "").strip() for v in handoff.values()):
+        return "(nenhum)"
+    parts = []
+    user_text = str(handoff.get("user_text", "") or "").strip()
+    mary_text = str(handoff.get("mary_text", "") or "").strip()
+    mary_action = str(handoff.get("mary_action", "") or "").strip()
+    user_role = str(handoff.get("user_role", "") or "").strip()
+    if user_text:
+        parts.append(f"Última fala de {user_role or 'USUÁRIO'}: {user_text}")
+    if mary_action:
+        parts.append(f"Última ação de Mary: {mary_action}")
+    if mary_text:
+        parts.append(f"Última fala de Mary: {mary_text}")
+    return "\n".join(parts) or "(nenhum)"
+
+
 def _chapter_id() -> str:
     narrative = st.session_state.story_state.get("narrative", {})
     return str(narrative.get("chapter_id", "confissao_inicial") or "confissao_inicial")
@@ -102,13 +132,19 @@ def activate_chapter(
     )
 
     last_seq = int(st.session_state.get("run_last_seq", 0) or 0)
+    handoff = {}
+    if bool(choice.get("carry_handoff", False)) and st.session_state.turn_records:
+        handoff = _handoff_from_record(st.session_state.turn_records[-1])
+
     narrative = st.session_state.story_state.setdefault("narrative", {})
     narrative["chapter_id"] = next_chapter_id
     narrative["chapter_turns"] = 0
     narrative["chapter_opening_pending"] = True
     narrative["chapter_start_seq"] = last_seq + 1
+    narrative["prompt_start_seq"] = last_seq + 1
     narrative["last_choice_id"] = choice_id
     narrative["pending_auto_chapter"] = ""
+    narrative["handoff"] = handoff
 
     chapter = get_chapter(next_chapter_id)
     st.session_state.scene_state = deepcopy(
@@ -151,12 +187,19 @@ def apply_pending_auto_transition(persistence: dict | None) -> bool:
 
     chapter = get_chapter(next_chapter_id)
     last_seq = int(st.session_state.get("run_last_seq", 0) or 0)
+    handoff = (
+        _handoff_from_record(st.session_state.turn_records[-1])
+        if st.session_state.turn_records
+        else {}
+    )
 
     narrative["chapter_id"] = next_chapter_id
     narrative["chapter_turns"] = 0
     narrative["chapter_opening_pending"] = True
-    narrative["chapter_start_seq"] = last_seq + 1
+    # A sequência continua visível; só o contexto enviado à LLM recomeça aqui.
+    narrative["prompt_start_seq"] = last_seq + 1
     narrative["pending_auto_chapter"] = ""
+    narrative["handoff"] = handoff
 
     st.session_state.scene_state = deepcopy(
         chapter.get("initial_scene", {}) or {}
@@ -169,9 +212,8 @@ def apply_pending_auto_transition(persistence: dict | None) -> bool:
         next_role = "JANIO"
     st.session_state.active_user_role = next_role
 
-    # Fronteira real de prompt entre micropassos.
+    # Fronteira real de prompt: limpa contexto da LLM, preserva histórico visual.
     st.session_state.messages = []
-    st.session_state.turn_records = []
 
     if persistence and st.session_state.run_id:
         update_run_snapshot(
@@ -766,6 +808,7 @@ def generate_model_chapter_opening(
         chapter_text=chapter_prompt(_chapter_id()),
         scene_text=json.dumps(scene, ensure_ascii=False),
         user_role=user_role,
+        handoff_text=_handoff_text(st.session_state.story_state),
     )
 
     opening_instruction = {
@@ -1043,6 +1086,7 @@ if user_text:
             chapter_text=chapter_prompt(_chapter_id()),
             scene_text=scene_text,
             user_role=user_role,
+            handoff_text=_handoff_text(st.session_state.story_state),
         )
 
         llm_messages = [
