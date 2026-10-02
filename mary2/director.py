@@ -267,6 +267,7 @@ def direct_scene(
     recent_messages: list[dict[str, str]],
     scene_direction: str = "",
     user_spoke: bool = True,
+    chapter_text: str = "",
 ) -> dict:
     previous_role = str(current_scene.get("user_role", "JANIO") or "JANIO").upper()
     role_changed = previous_role != user_role
@@ -287,6 +288,7 @@ def direct_scene(
 
     payload = (
         "STORY BIBLE:\n" + story_bible.strip()
+        + "\n\nCAPÍTULO ATIVO:\n" + (chapter_text.strip() or "(nenhum capítulo específico)")
         + "\n\nMEMÓRIA CANÔNICA:\n" + (canonical_memory.strip() or "(vazia)")
         + "\n\nCENA ATUAL:\n" + json.dumps(current_scene, ensure_ascii=False)
         + "\n\nTURNOS NESTA CENA:\n" + str(turns_in_scene)
