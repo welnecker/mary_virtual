@@ -73,12 +73,21 @@ Não encerre ou mude de cena apenas por contagem de turnos.
 Use mudança real de atitude, ação, informação, presença, local ou objetivo.
 
 EXECUÇÃO DO CAPÍTULO ATUAL
-Se o CAPÍTULO ATUAL contiver "O QUE ACONTECE NESTE TURNO", trate essa seção como
-uma instrução concreta de cena, não como sugestão.
-Quando a instrução exigir uma ação visível de Mary, preencha mary_action com UMA
-ação concreta que execute esse passo, salvo se a direção do usuário trouxer recusa
-ou mudança explícita incompatível.
-Não substitua uma ação concreta exigida pelo capítulo por estado emocional abstrato.
+O CAPÍTULO ATUAL define o espaço da cena, não uma fala ou ação obrigatória.
+Escolha mary_action somente a partir do que o personagem ativo acabou de dizer/fazer,
+da direção explícita e do estado físico atual.
+Não use uma ação para "cumprir etapa"; use uma ação porque ela é a reação concreta
+mais coerente naquele instante.
+
+MICROPASSO COM SAÍDA CONDICIONAL
+O payload pode trazer TRANSIÇÃO CONDICIONAL=SIM e uma CONDIÇÃO OBJETIVA DE SAÍDA.
+Nesse caso:
+- avalie a condição usando somente fatos já presentes na cena, direção atual,
+  fala atual e a própria mary_action que você está produzindo;
+- microstep_complete=true somente quando o evento descrito na condição realmente ocorreu;
+- não marque true por número de turnos, intensidade vaga, "clima" ou impressão;
+- enquanto a condição não ocorreu, mantenha false;
+- recuo, recusa explícita ou mudança de direção do usuário têm prioridade.
 
 LEGENDA
 scene_caption deve ter no máximo 2 frases curtas.
@@ -113,7 +122,8 @@ Retorne SOMENTE JSON válido:
   "arc_phase": "opening",
   "resolution_type": "none",
   "resolution_summary": "",
-  "start_new_scene": false
+  "start_new_scene": false,
+  "microstep_complete": false
 }
 """.strip()
 
@@ -137,6 +147,8 @@ def direct_scene(
     scene_direction: str = "",
     user_spoke: bool = True,
     chapter_text: str = "",
+    conditional_transition: bool = False,
+    advance_when: str = "",
 ) -> dict:
     previous_role = str(current_scene.get("user_role", "JANIO") or "JANIO").upper()
     role_changed = previous_role != user_role
@@ -167,6 +179,9 @@ def direct_scene(
         + "\n\nPAPEL MUDOU?\n" + ("SIM" if role_changed else "NÃO")
         + "\n\nDIREÇÃO EXPLÍCITA DO USUÁRIO:\n" + (scene_direction.strip() or "(nenhuma)")
         + "\n\nO PERSONAGEM ATIVO FALOU?\n" + ("SIM" if user_spoke else "NÃO")
+        + "\n\nTRANSIÇÃO CONDICIONAL:\n" + ("SIM" if conditional_transition else "NÃO")
+        + "\n\nCONDIÇÃO OBJETIVA DE SAÍDA:\n"
+        + (advance_when.strip() if conditional_transition and advance_when.strip() else "(não se aplica)")
         + "\n\nINTERAÇÕES RECENTES DESTE CAPÍTULO:\n"
         + ("\n".join(transcript) or "(nenhuma)")
         + "\n\nAtualize somente a cena atual. "
@@ -174,7 +189,8 @@ def direct_scene(
           "A direção explícita e as interações recentes prevalecem sobre campos antigos. "
           "Se houver mudança física real, atualize proximity/event/mary_action. "
           "Se houver gancho aberto, resolva a lacuna de forma jogável. "
-          "Se o personagem não falou, Mary pode tomar uma iniciativa concreta coerente."
+          "Se o personagem não falou, Mary pode tomar uma iniciativa concreta coerente. "
+          "Quando TRANSIÇÃO CONDICIONAL=SIM, avalie a condição objetiva e preencha microstep_complete."
     )
 
     raw = chat(
@@ -221,6 +237,14 @@ def direct_scene(
             data.get("proximity", current_scene.get("proximity", "indefinida"))
             or "indefinida"
         ),
+        "sexual_intensity": str(
+            data.get(
+                "sexual_intensity",
+                current_scene.get("sexual_intensity", ""),
+            )
+            or current_scene.get("sexual_intensity", "")
+            or ""
+        ).strip(),
         "mary_immediate_goal": str(data.get("mary_immediate_goal", "") or "").strip(),
         "mary_action": str(
             data.get("mary_action", "")
@@ -252,6 +276,11 @@ def direct_scene(
         + (1 if start_new_scene else 0),
         "user_scene_direction": scene_direction.strip(),
         "mary_should_initiate": not user_spoke,
+        "microstep_complete": (
+            bool(data.get("microstep_complete", False))
+            if conditional_transition
+            else False
+        ),
     }
 
     temporary = scene.get("temporary_character")
