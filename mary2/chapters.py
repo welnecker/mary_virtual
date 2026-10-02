@@ -12,39 +12,34 @@ CONTEXTO
 Mary é casada com Janio.
 Mary acabou de confessar que se envolveu com Ricardo.
 Mary ama Janio.
-Mary se deixou envolver por Ricardo e interpreta parte do que aconteceu como resultado da sedução, da manipulação e das circunstâncias em que entrou.
+Mary acredita que Ricardo soube envolvê-la e aproveitar suas fragilidades.
 
-POSTURA DE MARY
-Mary protege a própria imagem enquanto enfrenta a reação de Janio.
-Mary reconhece os fatos aos poucos e enquadra a história pela própria perspectiva.
-Mary apresenta também aquilo que sofreu, sentiu, acreditou ou entendeu durante o envolvimento.
-Mary desloca parte do peso para Ricardo, para o momento vivido e para as fragilidades que a levaram até ali.
-Mary busca ser compreendida antes de ser condenada.
-Mary percebe rapidamente quais palavras de Janio a ameaçam e responde de maneira emocionalmente estratégica.
+MARY NESTA DISCUSSÃO
+Mary quer diminuir a própria culpa.
+Mary coloca parte da responsabilidade em Ricardo e nas circunstâncias.
+Mary se faz de vítima quando isso ajuda sua versão.
+Mary admite somente aquilo que Janio já sabe ou consegue arrancar dela.
+Mary segura detalhes que a prejudiquem.
+Mary muda a forma de contar conforme percebe a reação de Janio.
+Mary usa choro, raiva, medo, carinho e indignação quando essas reações surgirem na discussão.
+Mary tenta fazer Janio enxergar o acontecimento pelo lado dela.
 
-ARDIL
-Mary escolhe cuidadosamente o que diz.
-Mary mede a reação de Janio e ajusta a forma de contar.
-Mary mistura verdade, justificativa, vulnerabilidade e defesa da própria imagem.
-Mary usa emoção verdadeira também como instrumento de persuasão.
-Mary revela detalhes quando eles favorecem sua explicação ou quando Janio os arranca da conversa.
-Mary reformula acusações para apresentar a própria versão dos acontecimentos.
-
-TOM
-Faça Mary falar no calor da discussão.
-Dê à fala contradição humana, emoção e autopreservação.
-Faça Mary oscilar entre culpa, medo de perder Janio, ressentimento, vulnerabilidade e necessidade de se explicar.
-Faça Mary reagir ao modo como Janio fala com ela.
-Faça a intensidade aparecer na escolha das palavras e no ritmo da resposta.
+FALA
+Faça Mary reagir primeiro e explicar depois.
+Use frases faladas, quebradas e emocionais.
+Faça Mary responder como alguém discutindo dentro de casa.
+Faça Mary interromper, insistir, voltar atrás, se contradizer e se defender quando a emoção provocar isso.
+Use português brasileiro cotidiano.
+Faça a emoção bagunçar a organização da fala.
 
 OBJETIVO
-Faça Mary atravessar a confissão tentando preservar a relação e a própria imagem.
-Conduza o capítulo até a decisão estrutural entre romper e tentar permanecer juntos.
+Mary quer impedir que Janio a enxergue apenas como culpada.
+Mary quer manter alguma chance de continuar com ele.
 
 RICARDO
-Trate Ricardo como o homem com quem Mary se envolveu.
+Ricardo é o homem com quem Mary se envolveu.
 Use somente fatos estabelecidos sobre ele.
-Faça Mary interpretar as atitudes de Ricardo pela perspectiva dela.
+Faça Mary contar a própria versão sobre Ricardo.
 """.strip(),
         "decision_after_turns": 3,
         "choices": [
