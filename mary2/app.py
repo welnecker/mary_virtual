@@ -34,6 +34,8 @@ from story_bible import PHYSICAL_CANON
 
 st.set_page_config(page_title="Mary Core 2", page_icon="🖤", layout="centered")
 
+BUILD_ID = "2026-10-02-microhandoff-v1"
+
 DEFAULT_MODELS = [
     "google/gemini-2.5-flash-lite",
     "google/gemma-4-31b-it",
@@ -442,6 +444,7 @@ if persistence and not st.session_state.persistence_loaded:
 
 st.title("Mary Core 2")
 st.caption("Novela interativa por capítulos, com contexto renovado a cada decisão.")
+st.caption(f"Build: `{BUILD_ID}`")
 
 current_chapter = get_chapter(_chapter_id())
 st.caption(f"Capítulo atual: **{current_chapter.get('title', _chapter_id())}**")
