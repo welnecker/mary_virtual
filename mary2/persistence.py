@@ -10,6 +10,7 @@ from google.oauth2.service_account import Credentials
 
 RUNS_SHEET = "STORY_RUNS"
 INTERACTIONS_SHEET = "INTERACTIONS"
+DIRECTOR_AUDIT_SHEET = "DIRECTOR_AUDIT"
 
 RUN_HEADERS = [
     "run_id",
@@ -39,6 +40,34 @@ INTERACTION_HEADERS = [
     "story_state_json_before",
     "mary_action",
     "hook_resolution",
+]
+
+
+DIRECTOR_AUDIT_HEADERS = [
+    "run_id",
+    "seq",
+    "created_at",
+    "chapter_id",
+    "user_role",
+    "user_text",
+    "scene_direction",
+    "director_model",
+    "duration_ms",
+    "conditional_transition",
+    "advance_when",
+    "scene_before_json",
+    "director_input_payload",
+    "director_raw_response",
+    "director_parsed_json",
+    "parse_error",
+    "mary_action",
+    "event",
+    "proximity_before",
+    "proximity_after",
+    "sexual_intensity_before",
+    "sexual_intensity_after",
+    "microstep_complete",
+    "scene_after_json",
 ]
 
 
@@ -152,6 +181,7 @@ def ensure_schema(
     )
     _ensure_worksheet(book, RUNS_SHEET, RUN_HEADERS)
     _ensure_worksheet(book, INTERACTIONS_SHEET, INTERACTION_HEADERS)
+    _ensure_worksheet(book, DIRECTOR_AUDIT_SHEET, DIRECTOR_AUDIT_HEADERS)
     return {
         "spreadsheet_id": book.id,
         "spreadsheet_title": book.title,
@@ -307,6 +337,77 @@ def save_turn(
         value_input_option="RAW",
     )
     return seq
+
+
+def _audit_cell(value, limit: int = 45000) -> str:
+    if isinstance(value, (dict, list)):
+        text = json.dumps(value, ensure_ascii=False)
+    else:
+        text = str(value or "")
+    if len(text) <= limit:
+        return text
+    return text[:limit] + "\n...[TRUNCADO PARA LIMITE DA CÉLULA]"
+
+
+def save_director_audit(
+    *,
+    service_account_info: dict,
+    run_id: str,
+    seq: int,
+    chapter_id: str,
+    user_role: str,
+    user_text: str,
+    scene_direction: str,
+    audit: dict,
+    spreadsheet_id: str = "",
+    spreadsheet_title: str = "MARY_CORE_PERSISTENCE",
+    owner_email: str = "",
+) -> None:
+    """Registra a atuação bruta do Diretor sem alterar a narrativa."""
+    if not isinstance(audit, dict) or not audit:
+        return
+
+    book = open_or_create_book(
+        service_account_info=service_account_info,
+        spreadsheet_id=spreadsheet_id,
+        spreadsheet_title=spreadsheet_title,
+        owner_email=owner_email,
+    )
+    ws = _ensure_worksheet(book, DIRECTOR_AUDIT_SHEET, DIRECTOR_AUDIT_HEADERS)
+
+    before = audit.get("scene_before", {})
+    after = audit.get("scene_after", {})
+    parsed = audit.get("parsed_response", {})
+
+    ws.append_row(
+        [
+            run_id,
+            int(seq or 0),
+            _now(),
+            chapter_id,
+            user_role,
+            user_text,
+            scene_direction,
+            str(audit.get("model", "") or ""),
+            audit.get("duration_ms", ""),
+            bool(audit.get("conditional_transition", False)),
+            str(audit.get("advance_when", "") or ""),
+            _audit_cell(before),
+            _audit_cell(audit.get("input_payload", "")),
+            _audit_cell(audit.get("raw_response", "")),
+            _audit_cell(parsed),
+            str(audit.get("parse_error", "") or ""),
+            str(after.get("mary_action", "") or ""),
+            str(after.get("event", "") or ""),
+            str(before.get("proximity", "") or "") if isinstance(before, dict) else "",
+            str(after.get("proximity", "") or "") if isinstance(after, dict) else "",
+            str(before.get("sexual_intensity", "") or "") if isinstance(before, dict) else "",
+            str(after.get("sexual_intensity", "") or "") if isinstance(after, dict) else "",
+            bool(after.get("microstep_complete", False)) if isinstance(after, dict) else False,
+            _audit_cell(after),
+        ],
+        value_input_option="RAW",
+    )
 
 
 def update_run_snapshot(
