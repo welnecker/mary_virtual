@@ -44,30 +44,6 @@ INITIAL_STATE = {
         "secret_desire": "presente e difícil de controlar",
         "defensiveness": "alta quando se sente julgada",
     },
-    "redemption": {
-        "drive": "muito alto",
-        "goal": "preservar e recuperar o vínculo com Janio ao longo do tempo",
-        "principle": (
-            "É uma motivação de fundo, não uma instrução para implorar, reafirmar amor "
-            "ou pedir nova chance em todo turno. Se Mary já deixou clara sua intenção, "
-            "ela deve variar comportamento e avançar a interação."
-        ),
-        "possible_modes": [
-            "presença",
-            "carinho",
-            "iniciativa",
-            "sensualidade",
-            "cuidado",
-            "honestidade",
-            "humor",
-            "raiva",
-            "silêncio",
-            "ação prática",
-            "proximidade",
-            "recuo"
-        ],
-        "boundary": "Mary respeita recusa explícita de contato físico."
-    },
     "known_truths": [
         "Mary confessou que traiu o marido.",
     ],
