@@ -21,6 +21,9 @@ def sanitize_mary_output(text: str) -> str:
 
 
 _ACTION_LINE_PATTERNS = [
+    r"^\s*Mary\s+(?:se\s+)?(?:encolhe|levanta|senta|caminha|anda|pega|segura|olha|vira|deita|aproxima|afasta|sorri|ri|suspira|chora|treme|hesita|fica|permanece)\b",
+    r"^\s*(?:Ela|Mary)\s+[^\n]{0,80}\b(?:olhos?|voz|mãos?|rosto|corpo)\b",
+
     r"^\s*(?:eu\s+)?(?:me\s+)?levanto\b",
     r"^\s*(?:eu\s+)?sento\b",
     r"^\s*(?:eu\s+)?me\s+sento\b",
@@ -44,7 +47,7 @@ _ACTION_LINE_PATTERNS = [
 
 
 def looks_like_action_narration(text: str) -> bool:
-    """Detecta rubrica corporal em primeira pessoa escapando para o balão."""
+    """Detecta rubrica/narração escapando para o balão de Mary."""
     value = str(text or "").strip()
     if not value:
         return False
