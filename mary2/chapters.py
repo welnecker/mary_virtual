@@ -292,6 +292,7 @@ automática neste capítulo.
     },
 
     "intimidade_aproximacao": {
+        "inherit_scene": True,
         "title": "Intimidade — aproximação",
         "allowed_roles": ["JANIO"],
         "transition": "auto_condition",
@@ -343,6 +344,7 @@ Não use linguagem de etapa, progresso, comando ou roteiro.
     },
 
     "intimidade_contato": {
+        "inherit_scene": True,
         "title": "Intimidade — carícias",
         "allowed_roles": ["JANIO"],
         "transition": "auto_condition",
@@ -392,6 +394,7 @@ Não converta a cena em conversa cotidiana ou discussão da relação.
     },
 
     "intimidade_preparacao": {
+        "inherit_scene": True,
         "title": "Intimidade — preliminares",
         "allowed_roles": ["JANIO"],
         "transition": "auto_condition",
@@ -441,6 +444,7 @@ Evite ordens mecânicas, conversa mole, sarcasmo intelectual e comentários sobr
     },
 
     "intimidade_central": {
+        "inherit_scene": True,
         "title": "Intimidade — sexo",
         "allowed_roles": ["JANIO"],
         "transition": "auto_condition",
@@ -493,6 +497,7 @@ Não encerre o sexo porque passou um turno.
     },
 
     "intimidade_conclusao": {
+        "inherit_scene": True,
         "title": "Intimidade — clímax e conclusão",
         "allowed_roles": ["JANIO"],
         "transition": "auto_condition",
@@ -541,6 +546,7 @@ Não faça análise emocional longa.
     },
 
     "intimidade_aftercare": {
+        "inherit_scene": True,
         "title": "Intimidade — depois",
         "allowed_roles": ["JANIO"],
         "transition": "auto_condition",
