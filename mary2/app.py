@@ -9,6 +9,7 @@ import streamlit as st
 from chapters import (
     apply_choice_to_story,
     chapter_choices,
+    chapter_phase,
     chapter_prompt,
     chapter_ready_for_choice,
     find_choice,
@@ -36,7 +37,7 @@ from story_bible import PHYSICAL_CANON
 
 st.set_page_config(page_title="Mary Core 2", page_icon="🖤", layout="centered")
 
-BUILD_ID = "2026-10-02-twelve-turn-context-v17"
+BUILD_ID = "2026-10-02-dramatic-counter-v18"
 
 DEFAULT_MODELS = [
     "google/gemini-2.5-flash-lite",
@@ -1171,6 +1172,19 @@ if user_text:
                 {"role": "user", "content": f"[PAPEL={user_role}] {dialogue_text}"}
             )
 
+        current_turn_number = _chapter_turns() + 1
+        current_phase = chapter_phase(_chapter_id(), current_turn_number)
+        current_phase_id = str(current_phase.get("id", "") or "").strip()
+
+        scene_for_director = deepcopy(st.session_state.scene_state)
+        scene_for_director["chapter_turn_current"] = current_turn_number
+        scene_for_director["chapter_phase"] = current_phase_id
+
+        current_chapter_prompt = chapter_prompt(
+            _chapter_id(),
+            turn_number=current_turn_number,
+        )
+
         scene = direct_scene(
             api_key=api_key,
             model=director_model,
@@ -1178,12 +1192,12 @@ if user_text:
             physical_canon=PHYSICAL_CANON,
             story_ledger=story_ledger_text(st.session_state.story_state),
             current_status=current_status_text(st.session_state.story_state),
-            current_scene=st.session_state.scene_state,
+            current_scene=scene_for_director,
             user_role=user_role,
             recent_messages=st.session_state.messages,
             scene_direction=scene_direction,
             user_spoke=user_spoke,
-            chapter_text=chapter_prompt(_chapter_id()),
+            chapter_text=current_chapter_prompt,
             conditional_transition=(
                 str(get_chapter(_chapter_id()).get("transition", "")) == "auto_condition"
             ),
@@ -1192,6 +1206,8 @@ if user_text:
             ),
         )
         director_audit = scene.pop("_director_audit", {})
+        scene["chapter_turn_current"] = current_turn_number
+        scene["chapter_phase"] = current_phase_id
 
         narrative_for_opening = st.session_state.story_state.get("narrative", {})
         if narrative_for_opening.get("chapter_opening_pending"):
@@ -1207,7 +1223,7 @@ if user_text:
             physical_canon=PHYSICAL_CANON,
             story_ledger=story_ledger_text(st.session_state.story_state),
             current_status=current_status_text(st.session_state.story_state),
-            chapter_text=chapter_prompt(_chapter_id()),
+            chapter_text=current_chapter_prompt,
             scene_text=scene_text,
             user_role=user_role,
             handoff_text=_handoff_text(st.session_state.story_state),
