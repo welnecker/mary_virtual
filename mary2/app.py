@@ -385,7 +385,7 @@ with st.sidebar:
 
     current_role = st.session_state.active_user_role
     if current_role not in role_options:
-        current_role = "JANIO"
+        current_role = role_options[0]
 
     def _role_label(value: str) -> str:
         if value == "JANIO":
