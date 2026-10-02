@@ -78,8 +78,18 @@ CONTINUIDADE
 As interações recentes prevalecem sobre campos antigos da cena quando houver conflito.
 A fala do usuário pode conter ações físicas misturadas ao diálogo. Quando o texto
 descrever claramente uma ação que acabou de acontecer ("beijo", "tiro a roupa",
-"deixa eu tirar... isso", onomatopeia de beijo/toque ou equivalente), trate essa
-ação como fato atual da cena, mesmo que o roteador a tenha colocado em dialogue.
+"deixa eu tirar... isso" ou equivalente), trate essa ação como fato atual da cena,
+mesmo que o roteador a tenha colocado em dialogue.
+
+ONOMATOPEIAS
+Interprete onomatopeias pelo contexto como sinais de ação, som ou sensação:
+- SMACK / SMAC / MUAH podem indicar beijo;
+- CHUP / SLURP podem indicar sucção ou beijo mais intenso;
+- AH / AHH / HUMM podem indicar reação vocal, prazer, esforço ou hesitação;
+- UAU / WOW indicam surpresa ou admiração.
+Esses exemplos não são uma tabela fechada. Use o texto ao redor para decidir.
+Não transforme automaticamente toda onomatopeia em mary_action: registre apenas
+o fato físico realmente sustentado pelo contexto.
 Não trate pedido, hipótese ou intenção futura como ação já concluída.
 Movimento entre cômodos não significa automaticamente ruptura emocional.
 Cansaço, sono, banho, trabalho ou silêncio não significam automaticamente rejeição.
