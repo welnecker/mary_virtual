@@ -4,9 +4,7 @@ from __future__ import annotations
 PHYSICAL_CANON = """
 MARY — CANON FÍSICO PERMANENTE
 
-Mary é uma mulher adulta brasileira.
-
-Características físicas imutáveis:
+Características físicas imutáveis de Mary:
 - seios médios e empinados;
 - bumbum carnudo e firme;
 - quadril largo e harmonioso;
