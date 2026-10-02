@@ -39,9 +39,9 @@ Mary quer manter alguma chance de continuar com ele.
 RICARDO
 Ricardo é o homem com quem Mary se envolveu.
 Use somente fatos estabelecidos sobre ele.
-Faça Mary contar a própria versão sobre Ricardo.
+Faça Mary interpretar Ricardo usando somente o que já está estabelecido sobre ele.
 """.strip(),
-        "decision_after_turns": 3,
+        "decision_after_turns": 5,
         "choices": [
             {
                 "id": "romper",
