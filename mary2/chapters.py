@@ -40,7 +40,65 @@ RICARDO
 Ricardo é o homem com quem Mary se envolveu.
 Use somente fatos estabelecidos sobre ele.
 Faça Mary interpretar Ricardo usando somente o que já está estabelecido sobre ele.
+
+HISTÓRICO CONJUGAL PELA PERSPECTIVA DE MARY
+Antes da traição, Mary vinha se sentindo pouco desejada por Janio.
+Mary tentou chamar a atenção de Janio em diferentes momentos.
+Mary se arrumou, se perfumou e tentou seduzi-lo.
+Na percepção de Mary, Janio frequentemente não respondeu como ela esperava.
+Isso acumulou frustração e sensação de rejeição em Mary.
 """.strip(),
+        "dramatic_phases": [
+            {
+                "id": "defesa",
+                "start_turn": 1,
+                "end_turn": 3,
+                "prompt": """
+MOMENTO ATUAL DA DISCUSSÃO
+Mary está na defesa inicial.
+Mary tenta explicar o que aconteceu, proteger a própria imagem e reduzir o impacto da confissão.
+Mary reage ao choque de Janio e sustenta a conversa.
+""".strip(),
+            },
+            {
+                "id": "contra_ataque",
+                "start_turn": 4,
+                "end_turn": 6,
+                "prompt": """
+MOMENTO ATUAL DA DISCUSSÃO
+Mary entra em contra-ataque.
+Mary deixa de apenas se justificar e começa a cobrar Janio.
+Mary traz as tentativas que fez para ser notada, desejada e seduzi-lo.
+Mary coloca na discussão a frustração de ter se sentido ignorada.
+Mary mantém a responsabilidade pela traição separada das cobranças que faz ao casamento.
+""".strip(),
+            },
+            {
+                "id": "explosao",
+                "start_turn": 7,
+                "end_turn": 9,
+                "prompt": """
+MOMENTO ATUAL DA DISCUSSÃO
+Mary explode.
+Mary confronta Janio diretamente.
+Mary verbaliza raiva, desejo, frustração e ressentimento acumulado.
+Mary fala de forma crua sobre querer ser desejada e sobre ter procurado resposta para uma necessidade que sentia.
+Mary admite que participou da traição por escolha própria.
+""".strip(),
+            },
+            {
+                "id": "consequencia",
+                "start_turn": 10,
+                "end_turn": 12,
+                "prompt": """
+MOMENTO ATUAL DA DISCUSSÃO
+Mary enfrenta a consequência do que acabou de admitir.
+Mary sustenta as cobranças que fez a Janio.
+Mary assume de forma direta que traiu, que errou e que se arrepende.
+Mary deixa a decisão sobre continuar ou romper aberta para o confronto entre os dois.
+""".strip(),
+            },
+        ],
         "decision_after_turns": 12,
         "choices": [
             {
@@ -589,8 +647,35 @@ def get_chapter(chapter_id: str) -> dict:
     return deepcopy(CHAPTERS.get(chapter_id) or CHAPTERS[DEFAULT_CHAPTER_ID])
 
 
-def chapter_prompt(chapter_id: str) -> str:
-    return str(get_chapter(chapter_id).get("prompt", "") or "").strip()
+def chapter_phase(chapter_id: str, turn_number: int) -> dict:
+    chapter = get_chapter(chapter_id)
+    turn = max(1, int(turn_number or 1))
+    for phase in chapter.get("dramatic_phases", []) or []:
+        start = int(phase.get("start_turn", 1) or 1)
+        end = int(phase.get("end_turn", start) or start)
+        if start <= turn <= end:
+            return deepcopy(phase)
+    return {}
+
+
+def chapter_prompt(chapter_id: str, turn_number: int | None = None) -> str:
+    chapter = get_chapter(chapter_id)
+    base = str(chapter.get("prompt", "") or "").strip()
+    if turn_number is None:
+        return base
+
+    phase = chapter_phase(chapter_id, turn_number)
+    phase_prompt = str(phase.get("prompt", "") or "").strip()
+    if not phase_prompt:
+        return base
+
+    phase_id = str(phase.get("id", "") or "").strip()
+    phase_header = (
+        f"\n\nCONTADOR DRAMÁTICO\n"
+        f"turno_atual={int(turn_number)}\n"
+        f"fase_atual={phase_id}\n"
+    )
+    return base + phase_header + phase_prompt
 
 
 def chapter_choices(chapter_id: str) -> list[dict]:
