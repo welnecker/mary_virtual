@@ -133,7 +133,7 @@ def activate_chapter(
             owner_email=persistence["owner_email"],
             run_id=st.session_state.run_id,
             active_user_role=st.session_state.active_user_role,
-            canonical_memory=story_ledger_text(st.session_state.story_state),
+            story_ledger=story_ledger_text(st.session_state.story_state),
             scene_state=st.session_state.scene_state,
             story_state=st.session_state.story_state,
         )
@@ -252,7 +252,7 @@ def reconstruct_legacy_snapshot(
 
     return {
         "active_user_role": active_role,
-        "canonical_memory": story_ledger_text(story_state),
+        "story_ledger": story_ledger_text(story_state),
         "scene_state": scene_state,
         "story_state": story_state,
     }
@@ -327,7 +327,7 @@ if persistence and not st.session_state.persistence_loaded:
                 owner_email=persistence["owner_email"],
                 player_id=persistence["player_id"],
                 active_user_role=st.session_state.active_user_role,
-                canonical_memory=story_ledger_text(st.session_state.story_state),
+                story_ledger=story_ledger_text(st.session_state.story_state),
                 scene_state=st.session_state.scene_state,
                 story_state=st.session_state.story_state,
                 archive_previous=False,
@@ -448,7 +448,7 @@ with st.sidebar:
                     owner_email=persistence["owner_email"],
                     player_id=persistence["player_id"],
                     active_user_role="JANIO",
-                    canonical_memory=story_ledger_text(new_state()),
+                    story_ledger=story_ledger_text(new_state()),
                     scene_state=dict(INITIAL_SCENE),
                     story_state=new_state(),
                     archive_previous=True,
@@ -564,7 +564,7 @@ with st.sidebar:
                         fallback_snapshot = None
                         if not str(
                             selected_sheet_record.get(
-                                "canonical_memory_before",
+                                "story_ledger_before",
                                 "",
                             )
                             or ""
@@ -750,7 +750,7 @@ if user_text:
         ).upper()
         pre_turn_snapshot = {
             "active_user_role": previous_scene_role,
-            "canonical_memory": story_ledger_text(st.session_state.story_state),
+            "story_ledger": story_ledger_text(st.session_state.story_state),
             "scene_state": deepcopy(st.session_state.scene_state),
             "story_state": deepcopy(st.session_state.story_state),
         }
@@ -900,7 +900,7 @@ if user_text:
                         owner_email=persistence["owner_email"],
                         player_id=persistence["player_id"],
                         active_user_role=user_role,
-                        canonical_memory=story_ledger_text(st.session_state.story_state),
+                        story_ledger=story_ledger_text(st.session_state.story_state),
                         scene_state=st.session_state.scene_state,
                         story_state=st.session_state.story_state,
                         archive_previous=False,
@@ -914,7 +914,7 @@ if user_text:
                     run_id=st.session_state.run_id,
                     player_id=persistence["player_id"],
                     active_user_role=user_role,
-                    canonical_memory=story_ledger_text(st.session_state.story_state),
+                    story_ledger=story_ledger_text(st.session_state.story_state),
                     scene_state=st.session_state.scene_state,
                     story_state=st.session_state.story_state,
                     turn_record=turn_record,
