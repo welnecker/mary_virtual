@@ -8,6 +8,7 @@ INITIAL_STATE = {
         "chapter_id": "confissao_inicial",
         "chapter_turns": 0,
         "chapter_opening_pending": False,
+        "chapter_start_seq": 1,
         "last_choice_id": "",
     },
     "relationship": {
@@ -123,6 +124,9 @@ def migrate_state(state: dict | None) -> dict:
         )
         current["narrative"]["chapter_opening_pending"] = bool(
             narrative.get("chapter_opening_pending", False)
+        )
+        current["narrative"]["chapter_start_seq"] = max(
+            1, int(narrative.get("chapter_start_seq", 1) or 1)
         )
         current["narrative"]["last_choice_id"] = str(
             narrative.get("last_choice_id", "") or ""
