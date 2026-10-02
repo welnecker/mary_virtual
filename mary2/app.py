@@ -15,7 +15,7 @@ from director import direct_scene
 from input_router import parse_user_input
 from memory_engine import update_story_memory
 from openrouter_client import OpenRouterError, chat
-from output_filter import sanitize_mary_output
+from output_filter import looks_like_action_narration, sanitize_mary_output
 from persistence import (
     PersistenceError,
     create_run,
@@ -872,18 +872,21 @@ if user_text:
                 messages=llm_messages,
                 temperature=temperature,
             )
+            narration_leak = looks_like_action_narration(raw_answer)
             answer = sanitize_mary_output(raw_answer)
 
-            if not answer:
+            if not answer or narration_leak:
                 retry_messages = [
                     *llm_messages,
                     {
                         "role": "system",
                         "content": (
-                            "CORREÇÃO DE FORMATO: sua resposta anterior continha apenas "
-                            "rubrica/narração e foi descartada. Responda novamente SOMENTE "
-                            "com a fala verbal de Mary, em primeira pessoa, sem asteriscos, "
-                            "sem narração e sem descrever ações."
+                            "CORREÇÃO DE FORMATO: sua resposta anterior continha rubrica, "
+                            "narração de ações ou ficou sem fala útil. Responda novamente "
+                            "SOMENTE com palavras que Mary diria em voz alta. Não escreva "
+                            "ações como 'levanto', 'sento', 'olho', 'pego', 'fico esperando'. "
+                            "Sem asteriscos, sem narração, sem descrição corporal de ação. "
+                            "As ações pertencem exclusivamente ao Diretor."
                         ),
                     },
                 ]
@@ -894,11 +897,12 @@ if user_text:
                     messages=retry_messages,
                     temperature=max(0.2, min(float(temperature), 0.8)),
                 )
+                narration_leak = looks_like_action_narration(raw_answer)
                 answer = sanitize_mary_output(raw_answer)
 
-            if not answer:
+            if not answer or narration_leak:
                 raise OpenRouterError(
-                    "O modelo não produziu fala verbal de Mary após duas tentativas."
+                    "O modelo não produziu fala verbal limpa de Mary após duas tentativas."
                 )
         except Exception:
             # Turno atômico: nada da tentativa incompleta fica na sessão.
@@ -918,6 +922,8 @@ if user_text:
         narrative["chapter_turns"] = int(
             narrative.get("chapter_turns", 0) or 0
         ) + 1
+        if narrative.get("chapter_opening_pending"):
+            narrative["chapter_opening_pending"] = False
 
         caption = scene.get("scene_caption", "") if scene.get("show_caption") else ""
 
