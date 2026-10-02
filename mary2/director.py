@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import re
+import time
 
 from openrouter_client import chat
 
@@ -222,6 +223,7 @@ def direct_scene(
           "Quando TRANSIÇÃO CONDICIONAL=SIM, avalie a condição objetiva e preencha microstep_complete."
     )
 
+    started_at = time.perf_counter()
     raw = chat(
         api_key=api_key,
         model=model,
@@ -233,11 +235,14 @@ def direct_scene(
         temperature=0.2,
         max_tokens=760,
     )
+    duration_ms = round((time.perf_counter() - started_at) * 1000.0, 1)
 
+    parse_error = ""
     try:
         data = json.loads(raw)
-    except Exception:
+    except Exception as exc:
         data = {}
+        parse_error = str(exc)
 
     arc_phase = str(
         data.get("arc_phase", current_scene.get("arc_phase", "opening"))
@@ -320,5 +325,25 @@ def direct_scene(
     if user_role == "PERSONAGEM_DA_CENA" and not bool(temporary.get("active")):
         # Se o papel temporário deixou de existir, o runtime volta ao papel padrão.
         scene["user_role"] = "JANIO"
+
+    # Metadados privados de auditoria. O app remove este bloco antes de enviar
+    # a CENA ATUAL para a LLM principal e antes de persistir scene_state.
+    scene["_director_audit"] = {
+        "model": model,
+        "fallback_model": fallback_model or "",
+        "duration_ms": duration_ms,
+        "input_payload": payload,
+        "raw_response": raw,
+        "parsed_response": data,
+        "parse_error": parse_error,
+        "scene_before": current_scene,
+        "scene_after": {
+            key: value
+            for key, value in scene.items()
+            if key != "_director_audit"
+        },
+        "conditional_transition": conditional_transition,
+        "advance_when": advance_when,
+    }
 
     return scene
