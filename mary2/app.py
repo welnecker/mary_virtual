@@ -133,14 +133,7 @@ def activate_chapter(
     persistence: dict | None,
 ) -> None:
     chapter = get_chapter(next_chapter_id)
-    narrative = st.session_state.story_state.setdefault("narrative", {})
-
     last_seq = int(st.session_state.get("run_last_seq", 0) or 0)
-    narrative["chapter_id"] = next_chapter_id
-    narrative["chapter_turns"] = 0
-    narrative["chapter_opening_pending"] = True
-    narrative["chapter_start_seq"] = last_seq + 1
-    narrative["last_choice_id"] = choice_id
 
     st.session_state.story_state = apply_chapter_state(
         st.session_state.story_state,
