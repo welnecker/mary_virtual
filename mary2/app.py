@@ -36,7 +36,7 @@ from story_bible import PHYSICAL_CANON
 
 st.set_page_config(page_title="Mary Core 2", page_icon="🖤", layout="centered")
 
-BUILD_ID = "2026-10-02-confession-ten-turns-v16"
+BUILD_ID = "2026-10-02-twelve-turn-context-v17"
 
 DEFAULT_MODELS = [
     "google/gemini-2.5-flash-lite",
@@ -1215,7 +1215,7 @@ if user_text:
 
         llm_messages = [
             {"role": "system", "content": system_prompt},
-            *st.session_state.messages[-12:],
+            *st.session_state.messages[-24:],
         ]
 
         try:
