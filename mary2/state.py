@@ -97,3 +97,32 @@ def compact_state(state: dict) -> str:
         "e da CENA ATUAL fornecidas separadamente. Não restaure local, momento, distância "
         "ou intensidade emocional a partir deste bloco."
     )
+
+
+
+def migrate_state(state: dict | None) -> dict:
+    """Atualiza runs antigas para a estrutura atual sem apagar verdades reveladas."""
+    current = new_state()
+    if not isinstance(state, dict):
+        return current
+
+    # relationship/scene não são usados como snapshot no prompt; mantemos o
+    # formato atual para evitar regras antigas vazando de runs persistidas.
+    # Preserva apenas fatos/segredos que podem ter evoluído durante a história.
+    known = state.get("known_truths")
+    if isinstance(known, list) and known:
+        current["known_truths"] = deepcopy(known)
+
+    old_hidden = state.get("hidden_truths")
+    if isinstance(old_hidden, list):
+        by_id = {
+            str(item.get("id")): item
+            for item in old_hidden
+            if isinstance(item, dict) and item.get("id")
+        }
+        for item in current["hidden_truths"]:
+            old = by_id.get(str(item.get("id")))
+            if old and bool(old.get("revealed")):
+                item["revealed"] = True
+
+    return current
