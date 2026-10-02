@@ -108,6 +108,7 @@ def activate_chapter(
     narrative["chapter_opening_pending"] = True
     narrative["chapter_start_seq"] = last_seq + 1
     narrative["last_choice_id"] = choice_id
+    narrative["pending_auto_chapter"] = ""
 
     chapter = get_chapter(next_chapter_id)
     st.session_state.scene_state = deepcopy(
@@ -139,6 +140,53 @@ def activate_chapter(
         )
 
     st.rerun()
+
+
+def apply_pending_auto_transition(persistence: dict | None) -> bool:
+    """Aplica o próximo microcapítulo sem botão visível."""
+    narrative = st.session_state.story_state.setdefault("narrative", {})
+    next_chapter_id = str(narrative.get("pending_auto_chapter", "") or "").strip()
+    if not next_chapter_id:
+        return False
+
+    chapter = get_chapter(next_chapter_id)
+    last_seq = int(st.session_state.get("run_last_seq", 0) or 0)
+
+    narrative["chapter_id"] = next_chapter_id
+    narrative["chapter_turns"] = 0
+    narrative["chapter_opening_pending"] = True
+    narrative["chapter_start_seq"] = last_seq + 1
+    narrative["pending_auto_chapter"] = ""
+
+    st.session_state.scene_state = deepcopy(
+        chapter.get("initial_scene", {}) or {}
+    )
+
+    next_role = str(
+        st.session_state.scene_state.get("user_role", "JANIO") or "JANIO"
+    ).upper()
+    if next_role not in {"JANIO", "PERSONAGEM_DA_CENA"}:
+        next_role = "JANIO"
+    st.session_state.active_user_role = next_role
+
+    # Fronteira real de prompt entre micropassos.
+    st.session_state.messages = []
+    st.session_state.turn_records = []
+
+    if persistence and st.session_state.run_id:
+        update_run_snapshot(
+            service_account_info=persistence["service_account_info"],
+            spreadsheet_id=persistence["spreadsheet_id"],
+            spreadsheet_title=persistence["spreadsheet_title"],
+            owner_email=persistence["owner_email"],
+            run_id=st.session_state.run_id,
+            active_user_role=st.session_state.active_user_role,
+            story_ledger=story_ledger_text(st.session_state.story_state),
+            scene_state=st.session_state.scene_state,
+            story_state=st.session_state.story_state,
+        )
+
+    return True
 
 
 def persistence_config() -> dict | None:
@@ -747,6 +795,9 @@ if user_text:
         director_model = str(st.secrets.get("MARY_DIRECTOR_MODEL", model)).strip() or model
         input_model = str(st.secrets.get("MARY_INPUT_MODEL", director_model)).strip() or director_model
 
+        # Um micropasso concluído troca de prompt antes de processar a próxima fala.
+        apply_pending_auto_transition(persistence)
+
         previous_scene_role = str(
             st.session_state.scene_state.get(
                 "user_role",
@@ -793,7 +844,22 @@ if user_text:
             scene_direction=scene_direction,
             user_spoke=user_spoke,
             chapter_text=chapter_prompt(_chapter_id()),
+            auto_transition=(
+                str(get_chapter(_chapter_id()).get("transition", "")) == "auto"
+            ),
+            completion_criterion=str(
+                get_chapter(_chapter_id()).get("completion_criterion", "") or ""
+            ),
         )
+
+        narrative_for_opening = st.session_state.story_state.get("narrative", {})
+        if narrative_for_opening.get("chapter_opening_pending"):
+            opening_caption = str(
+                get_chapter(_chapter_id()).get("opening_caption", "") or ""
+            ).strip()
+            if opening_caption:
+                scene["show_caption"] = True
+                scene["scene_caption"] = opening_caption
 
         scene_text = json.dumps(scene, ensure_ascii=False)
         system_prompt = build_system_prompt(
@@ -870,6 +936,15 @@ if user_text:
         ) + 1
         if narrative.get("chapter_opening_pending"):
             narrative["chapter_opening_pending"] = False
+
+        active_chapter = get_chapter(_chapter_id())
+        if (
+            str(active_chapter.get("transition", "")) == "auto"
+            and bool(scene.get("microchapter_complete", False))
+        ):
+            narrative["pending_auto_chapter"] = str(
+                active_chapter.get("auto_next", "") or ""
+            ).strip()
 
         caption = scene.get("scene_caption", "") if scene.get("show_caption") else ""
 
