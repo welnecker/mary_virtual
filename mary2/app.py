@@ -37,7 +37,7 @@ from story_bible import PHYSICAL_CANON
 
 st.set_page_config(page_title="Mary Core 2", page_icon="🖤", layout="centered")
 
-BUILD_ID = "2026-10-02-visceral-phases-v19"
+BUILD_ID = "2026-10-02-exclusive-microprompts-v20"
 
 DEFAULT_MODELS = [
     "google/gemini-2.5-flash-lite",
