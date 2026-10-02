@@ -189,10 +189,9 @@ def reconstruct_legacy_snapshot(
     before_seq: int,
     api_key: str,
     director_model: str,
-    memory_model: str,
     fallback_model: str | None,
 ) -> dict:
-    """Fallback para snapshots antigos; não cria memória narrativa por LLM."""
+    """Fallback para snapshots antigos sem reconstrução narrativa por LLM."""
     rows = load_run_interactions(
         service_account_info=persistence["service_account_info"],
         spreadsheet_id=persistence["spreadsheet_id"],
@@ -473,7 +472,7 @@ with st.sidebar:
     if persistence and not st.session_state.persistence_error:
         st.success("História persistente ativa")
         if st.session_state.spreadsheet_url:
-            st.markdown(f"[Abrir planilha de memória]({st.session_state.spreadsheet_url})")
+            st.markdown(f"[Abrir planilha da história]({st.session_state.spreadsheet_url})")
         if st.session_state.run_id:
             st.caption(f"Run: {st.session_state.run_id}")
     elif st.session_state.persistence_error:
@@ -525,7 +524,7 @@ with st.sidebar:
 
                 st.caption(
                     "A interação escolhida e todas as posteriores serão apagadas. "
-                    "Memória, cena e estado voltam ao ponto imediatamente anterior."
+                    "Ledger, cena e estado voltam ao ponto imediatamente anterior."
                 )
                 confirm_rollback = st.checkbox(
                     "Confirmo que quero apagar deste ponto em diante",
@@ -551,9 +550,6 @@ with st.sidebar:
                         ).strip() or None
                         director_model = str(
                             st.secrets.get("MARY_DIRECTOR_MODEL", model)
-                        ).strip() or model
-                        memory_model = str(
-                            st.secrets.get("MARY_MEMORY_MODEL", model)
                         ).strip() or model
 
                         selected_rows = load_run_interactions(
@@ -589,7 +585,6 @@ with st.sidebar:
                                     before_seq=selected_seq,
                                     api_key=api_key,
                                     director_model=director_model,
-                                    memory_model=memory_model,
                                     fallback_model=fallback,
                                 )
 
