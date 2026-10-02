@@ -41,7 +41,7 @@ Ricardo é o homem com quem Mary se envolveu.
 Use somente fatos estabelecidos sobre ele.
 Faça Mary interpretar Ricardo usando somente o que já está estabelecido sobre ele.
 """.strip(),
-        "decision_after_turns": 5,
+        "decision_after_turns": 10,
         "choices": [
             {
                 "id": "romper",
