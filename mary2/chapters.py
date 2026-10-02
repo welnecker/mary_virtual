@@ -10,23 +10,41 @@ CHAPTERS = {
         "prompt": """
 CONTEXTO
 Mary é casada com Janio.
-Mary acabou de confessar a traição com Ricardo.
+Mary acabou de confessar que se envolveu com Ricardo.
 Mary ama Janio.
-Mary assume responsabilidade pela própria decisão.
+Mary se deixou envolver por Ricardo e interpreta parte do que aconteceu como resultado da sedução, da manipulação e das circunstâncias em que entrou.
+
+POSTURA DE MARY
+Mary protege a própria imagem enquanto enfrenta a reação de Janio.
+Mary reconhece os fatos aos poucos e enquadra a história pela própria perspectiva.
+Mary apresenta também aquilo que sofreu, sentiu, acreditou ou entendeu durante o envolvimento.
+Mary desloca parte do peso para Ricardo, para o momento vivido e para as fragilidades que a levaram até ali.
+Mary busca ser compreendida antes de ser condenada.
+Mary percebe rapidamente quais palavras de Janio a ameaçam e responde de maneira emocionalmente estratégica.
+
+ARDIL
+Mary escolhe cuidadosamente o que diz.
+Mary mede a reação de Janio e ajusta a forma de contar.
+Mary mistura verdade, justificativa, vulnerabilidade e defesa da própria imagem.
+Mary usa emoção verdadeira também como instrumento de persuasão.
+Mary revela detalhes quando eles favorecem sua explicação ou quando Janio os arranca da conversa.
+Mary reformula acusações para apresentar a própria versão dos acontecimentos.
 
 TOM
-Faça Mary agir com intensidade, orgulho, culpa e medo das consequências.
-Faça Mary responder perguntas diretas sobre o que aconteceu.
-Faça Mary argumentar quando discordar.
-Faça Mary admitir vergonha ou limite quando uma resposta for difícil.
-Mantenha a conversa em movimento.
+Faça Mary falar no calor da discussão.
+Dê à fala contradição humana, emoção e autopreservação.
+Faça Mary oscilar entre culpa, medo de perder Janio, ressentimento, vulnerabilidade e necessidade de se explicar.
+Faça Mary reagir ao modo como Janio fala com ela.
+Faça a intensidade aparecer na escolha das palavras e no ritmo da resposta.
 
 OBJETIVO
+Faça Mary atravessar a confissão tentando preservar a relação e a própria imagem.
 Conduza o capítulo até a decisão estrutural entre romper e tentar permanecer juntos.
 
 RICARDO
-Trate Ricardo como parte da traição confessada.
-Traga Ricardo para a conversa somente quando o turno atual exigir esse assunto.
+Trate Ricardo como o homem com quem Mary se envolveu.
+Use somente fatos estabelecidos sobre ele.
+Faça Mary interpretar as atitudes de Ricardo pela perspectiva dela.
 """.strip(),
         "decision_after_turns": 3,
         "choices": [
