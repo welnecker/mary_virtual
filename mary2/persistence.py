@@ -281,6 +281,53 @@ def save_turn(
     return seq
 
 
+def update_run_snapshot(
+    *,
+    service_account_info: dict,
+    run_id: str,
+    active_user_role: str,
+    canonical_memory: str,
+    scene_state: dict,
+    story_state: dict,
+    spreadsheet_id: str = "",
+    spreadsheet_title: str = "MARY_CORE_PERSISTENCE",
+    owner_email: str = "",
+) -> None:
+    """Atualiza o snapshot da run sem criar uma interação.
+
+    Usado em transições de capítulo/decisões de interface.
+    """
+    book = open_or_create_book(
+        service_account_info=service_account_info,
+        spreadsheet_id=spreadsheet_id,
+        spreadsheet_title=spreadsheet_title,
+        owner_email=owner_email,
+    )
+    runs_ws = _ensure_worksheet(book, RUNS_SHEET, RUN_HEADERS)
+    row = _find_run_row(runs_ws, run_id)
+    if row is None:
+        raise PersistenceError(f"run_id não encontrado: {run_id}")
+
+    row_values = runs_ws.row_values(row)
+    created_at = row_values[3] if len(row_values) > 3 else _now()
+    last_seq = row_values[5] if len(row_values) > 5 else "0"
+
+    runs_ws.update(
+        range_name=f"C{row}:J{row}",
+        values=[[
+            "active",
+            created_at,
+            _now(),
+            last_seq,
+            active_user_role,
+            canonical_memory,
+            json.dumps(scene_state, ensure_ascii=False),
+            json.dumps(story_state, ensure_ascii=False),
+        ]],
+        value_input_option="RAW",
+    )
+
+
 def load_latest_run(
     *,
     service_account_info: dict,
