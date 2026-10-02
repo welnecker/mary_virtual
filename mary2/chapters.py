@@ -215,9 +215,8 @@ Não retome a confissão sem que a conversa atual faça isso.
             "Na manhã seguinte, a casa está silenciosa. "
             "Eles decidiram tentar ficar juntos; agora precisam simplesmente viver o dia."
         ),
-        "opening_mary": (
-            "Bom dia... acho que agora vem a parte difícil: parar de falar sobre ontem e viver hoje."
-        ),
+        "model_opening": True,
+        "opening_mary": "",
         "initial_scene": {
             "location": "casa do casal",
             "time": "manhã seguinte à decisão de permanecer juntos",
