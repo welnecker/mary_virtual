@@ -11,6 +11,7 @@ INITIAL_STATE = {
         "chapter_opening_pending": False,
         "chapter_start_seq": 1,
         "last_choice_id": "",
+        "pending_auto_chapter": "",
     },
     "story_ledger": [],
     "current_status": {
@@ -52,6 +53,9 @@ def migrate_state(state: dict | None) -> dict:
             "chapter_opening_pending": bool(narrative.get("chapter_opening_pending", False)),
             "chapter_start_seq": max(1, int(narrative.get("chapter_start_seq", 1) or 1)),
             "last_choice_id": str(narrative.get("last_choice_id", "") or ""),
+            "pending_auto_chapter": str(
+                narrative.get("pending_auto_chapter", "") or ""
+            ),
         })
 
     ledger = state.get("story_ledger")
