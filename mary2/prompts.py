@@ -422,6 +422,7 @@ def build_system_prompt(
     canonical_memory: str,
     scene_text: str,
     user_role: str,
+    chapter_text: str = "",
 ) -> str:
     return (
         MARY_CORE
@@ -429,6 +430,8 @@ def build_system_prompt(
         + story_bible.strip()
         + "\n\nESTADO ESTRUTURAL\n"
         + state_text.strip()
+        + "\n\nCAPÍTULO ATIVO\n"
+        + (chapter_text.strip() or "Nenhum capítulo específico ativo.")
         + "\n\nMEMÓRIA CANÔNICA DA HISTÓRIA\n"
         + (canonical_memory.strip() or "Nenhum fato adicional promovido ainda.")
         + "\n\nCENA ATUAL\n"
