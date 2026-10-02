@@ -93,6 +93,7 @@ def reset_local_story() -> None:
     st.session_state.scene_state = dict(INITIAL_SCENE)
     st.session_state.turn_records = []
     st.session_state.active_user_role = "JANIO"
+    st.session_state.run_last_seq = 0
 
 
 def _messages_from_records(records: list[dict]) -> list[dict[str, str]]:
