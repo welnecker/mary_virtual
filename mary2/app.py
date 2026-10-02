@@ -844,12 +844,6 @@ if user_text:
             scene_direction=scene_direction,
             user_spoke=user_spoke,
             chapter_text=chapter_prompt(_chapter_id()),
-            auto_transition=(
-                str(get_chapter(_chapter_id()).get("transition", "")) == "auto"
-            ),
-            completion_criterion=str(
-                get_chapter(_chapter_id()).get("completion_criterion", "") or ""
-            ),
         )
 
         narrative_for_opening = st.session_state.story_state.get("narrative", {})
@@ -938,10 +932,9 @@ if user_text:
             narrative["chapter_opening_pending"] = False
 
         active_chapter = get_chapter(_chapter_id())
-        if (
-            str(active_chapter.get("transition", "")) == "auto"
-            and bool(scene.get("microchapter_complete", False))
-        ):
+        if str(active_chapter.get("transition", "")) == "auto_one_turn":
+            # Botão oculto determinístico: um micropasso = uma resposta de Mary.
+            # O próximo prompt só será aplicado antes da próxima entrada do usuário.
             narrative["pending_auto_chapter"] = str(
                 active_chapter.get("auto_next", "") or ""
             ).strip()
