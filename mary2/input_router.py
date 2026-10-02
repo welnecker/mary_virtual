@@ -29,6 +29,9 @@ REGRAS
 - Entradas como '"Janio se aproxima e a olha nos olhos": Mary... vem cá' são MISTAS: a parte narrada é scene_direction e a fala depois dos dois-pontos é dialogue.
 - Texto entre aspas que descreve ação física de Janio continua sendo direção de cena, não fala.
 - Preserve pedidos físicos na fala com sujeito e objeto corretos; não parafraseie "senta no meu colo" como "vamos nos aproximar".
+- Preserve onomatopeias exatamente como foram escritas. Exemplos: SMACK, CHUP, AH, AHH, HUMM, UAU e equivalentes.
+- Onomatopeias podem representar beijo, sucção, gemido, impacto, surpresa ou sensação. Não as apague e não as transforme automaticamente em fala literal.
+- Quando uma onomatopeia estiver misturada a uma fala, mantenha o texto original no dialogue; o Diretor interpretará o sinal físico/sonoro pelo contexto.
 - O nome/identidade do papel ativo vem no payload; não presuma que seja Ricardo.
 - Se houver apenas direção de cena, dialogue deve ser string vazia.
 - Se houver apenas fala, scene_direction deve ser string vazia.
