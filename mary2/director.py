@@ -222,7 +222,14 @@ def direct_scene(
             or "indefinida"
         ),
         "mary_immediate_goal": str(data.get("mary_immediate_goal", "") or "").strip(),
-        "mary_action": str(data.get("mary_action", "") or "").strip(),
+        "mary_action": str(
+            data.get(
+                "mary_action",
+                current_scene.get("mary_action", ""),
+            )
+            or current_scene.get("mary_action", "")
+            or ""
+        ).strip(),
         "open_hook": bool(data.get("open_hook", False)),
         "hook_resolution": str(data.get("hook_resolution", "") or "").strip(),
         "temporary_character": (
