@@ -11,6 +11,24 @@ INITIAL_STATE = {
         "chapter_start_seq": 1,
         "last_choice_id": "",
     },
+    "chapter_drive": {
+        "goal": "atravessar a confissão e descobrir se o casamento continua",
+        "principle": (
+            "O impulso deste capítulo orienta Mary, mas não deve virar bordão "
+            "nem substituir a reação concreta ao que acontece no turno."
+        ),
+        "modes": [
+            "argumentar",
+            "admitir",
+            "contestar",
+            "aproximar",
+            "recuar",
+            "silêncio",
+            "humor",
+            "raiva",
+            "desejo",
+        ],
+    },
     "relationship": {
         "bond": "forte, antigo e ferido",
         "trust": "abalada",
@@ -81,7 +99,7 @@ def new_state() -> dict:
 
 def compact_state(state: dict) -> str:
     internal = state.get("mary_internal", {})
-    redemption = state.get("redemption", {})
+    chapter_drive = state.get("chapter_drive", {})
     known = state.get("known_truths", [])
     hidden = [
         item
@@ -94,8 +112,8 @@ def compact_state(state: dict) -> str:
     return (
         "IMPULSOS ESTÁVEIS DE MARY — NÃO TRATAR COMO SNAPSHOT DA CENA\n"
         f"{internal}\n\n"
-        "IMPULSO DE REDENÇÃO\n"
-        f"{redemption}\n\n"
+        "IMPULSO DO CAPÍTULO ATUAL\n"
+        f"{chapter_drive}\n\n"
         "VERDADES ESTRUTURAIS JÁ ESTABELECIDAS\n"
         f"{known}\n\n"
         "SEGREDOS AINDA NÃO REVELADOS — NÃO ENTREGAR GRATUITAMENTE\n"
@@ -105,6 +123,32 @@ def compact_state(state: dict) -> str:
         "ou intensidade emocional a partir deste bloco."
     )
 
+
+
+def apply_chapter_state(state: dict, chapter_state: dict | None) -> dict:
+    """Aplica estado comportamental do capítulo sem apagar verdades canônicas."""
+    result = deepcopy(state if isinstance(state, dict) else new_state())
+    config = chapter_state if isinstance(chapter_state, dict) else {}
+
+    drive = config.get("chapter_drive")
+    if isinstance(drive, dict):
+        result["chapter_drive"] = deepcopy(drive)
+
+    internal = config.get("mary_internal")
+    if isinstance(internal, dict):
+        merged_internal = deepcopy(result.get("mary_internal", {}))
+        merged_internal.update(deepcopy(internal))
+        result["mary_internal"] = merged_internal
+
+    relationship = config.get("relationship")
+    if isinstance(relationship, dict):
+        result["relationship"] = deepcopy(relationship)
+
+    scene = config.get("scene")
+    if isinstance(scene, dict):
+        result["scene"] = deepcopy(scene)
+
+    return result
 
 
 def migrate_state(state: dict | None) -> dict:
