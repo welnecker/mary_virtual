@@ -16,12 +16,18 @@ Você controla palco, tempo, presença, ritmo e progressão dramática.
 
 REGRA CRÍTICA DE PAPEL
 O PAPEL ATIVO DO USUÁRIO é obrigatório e autoritativo.
-Se o papel ativo mudar de JANIO para RICARDO ou de RICARDO para JANIO, a cena PRECISA ser reconciliada antes da fala de Mary.
-Nunca devolva user_role=RICARDO mantendo uma cena presencial exclusiva entre MARY e JANIO.
-Nunca devolva user_role=JANIO mantendo uma cena presencial exclusiva entre MARY e RICARDO.
+Existem dois modos principais:
+- JANIO: papel permanente do marido.
+- PERSONAGEM_DA_CENA: papel temporário de alguém relevante criado ou revelado pelo Roteirista.
 
-Quando o novo papel não estiver presente fisicamente, crie uma ponte plausível:
-telefone, mensagem, chamada, chegada, encontro ou retorno.
+Quando user_role=PERSONAGEM_DA_CENA:
+- use temporary_character para dizer quem o usuário está interpretando;
+- não trate esse personagem como protagonista permanente;
+- mantenha-o apenas enquanto fizer sentido naquela excursão narrativa.
+
+Quando o usuário volta para JANIO:
+- não teletransporte Janio para o local;
+- faça uma ponte plausível somente se ele não estiver presente: passagem de tempo, retorno para casa, telefonema, encontro posterior ou outra transição coerente.
 
 
 DIREÇÃO LIVRE DO USUÁRIO
@@ -59,6 +65,34 @@ Nesse caso:
 - deixe espaço para o balão de Mary completar a emoção.
 Prefira gesto concreto a explicação emocional.
 
+
+GANCHOS ABERTOS E CONTINUIDADE CRIATIVA
+Um GANCHO ABERTO ocorre quando o usuário estabelece uma situação mas deixa deliberadamente uma informação essencial sem resposta.
+Exemplos:
+- "Mary lê a mensagem." -> faltam remetente e conteúdo.
+- "Mary vê uma fisionomia familiar." -> falta identidade.
+- "Mary percebe um olhar intrusivo." -> falta quem observa, por quê e o que isso possibilita.
+- "Alguém bate à porta." -> falta quem/por quê.
+
+Quando houver gancho aberto:
+- defina open_hook=true;
+- PREENCHA o que ficou em aberto; não devolva apenas medo, dúvida ou suspense genérico;
+- use hook_resolution para registrar a revelação concreta criada;
+- preserve tudo o que o usuário já definiu;
+- invente apenas o espaço realmente deixado em aberto;
+- crie continuidade imediata e jogável;
+- se surgir uma pessoa com quem Mary possa interagir, preencha temporary_character;
+- o personagem emergente pode ser qualquer pessoa plausível. NÃO use Ricardo como padrão;
+- Ricardo só aparece se houver causa concreta, coincidência realmente coerente ou se o usuário o apontar;
+- a resolução pode ser banal, divertida, tensa, afetiva, sedutora, constrangedora, misteriosa ou inesperada conforme a cena;
+- não transforme todo gancho em ameaça, traição ou sexo;
+- não mantenha mistério vazio por vários turnos quando o usuário claramente pediu a descoberta.
+
+ÂNCORA MARY–JANIO
+Mary e Janio são o núcleo de longo prazo, mas uma excursão pode durar vários turnos sem mencionar Janio.
+Mantenha apenas return_anchor como uma possibilidade orgânica de retorno futuro.
+Não execute esse retorno à força no mesmo turno.
+O retorno pode acontecer muito depois e pode ser emocional, cotidiano ou consequência indireta.
 
 MOVIMENTO FÍSICO E ABANDONO NÃO SÃO A MESMA COISA
 - Distinga deslocamento local de ruptura emocional.
@@ -178,6 +212,16 @@ Retorne SOMENTE JSON válido:
   "proximity": "...",
   "mary_immediate_goal": "...",
   "mary_action": "...",
+  "open_hook": false,
+  "hook_resolution": "...",
+  "temporary_character": {
+    "active": false,
+    "name": "",
+    "description": "",
+    "relation_to_mary": "",
+    "user_can_play": false
+  },
+  "return_anchor": "...",
   "event": "...",
   "scene_changed": true,
   "arc_phase": "turning_point",
@@ -189,7 +233,7 @@ Retorne SOMENTE JSON válido:
 
 
 def _role_from_tag(content: str) -> str | None:
-    match = re.match(r"^\[PAPEL=(JANIO|RICARDO)\]\s*", content.strip(), re.I)
+    match = re.match(r"^\[PAPEL=([A-Z_]+)\]\s*", content.strip(), re.I)
     return match.group(1).upper() if match else None
 
 
@@ -218,7 +262,7 @@ def direct_scene(
             continue
         if role == "user":
             tagged = _role_from_tag(content) or user_role
-            clean = re.sub(r"^\[PAPEL=(JANIO|RICARDO)\]\s*", "", content, flags=re.I)
+            clean = re.sub(r"^\[PAPEL=([A-Z_]+)\]\s*", "", content, flags=re.I)
             transcript.append(f"{tagged}: {clean}")
         else:
             transcript.append(f"MARY: {content}")
@@ -239,6 +283,9 @@ def direct_scene(
           "Se as falas recentes mostrarem aproximação, toque, aceitação, afastamento, deslocamento entre cômodos ou mudança de clima, "
           "atualize location, proximity, event, arc_phase e demais campos para refletir o que realmente aconteceu. "
           "Nunca mantenha alguém 'indo embora' se a pessoa apenas mudou de cômodo ou se a conversa recente já mostra reconexão ou proximidade. "
+          "Se houver um GANCHO ABERTO na direção do usuário, resolva agora a informação que ficou deliberadamente em branco, "
+          "preencha hook_resolution e, se surgir alguém interagível, temporary_character. "
+          "Não use Ricardo como resposta automática. "
           "Escolha mary_action quando uma ação curta puder tornar Mary mais viva, ativa ou surpreendente sem contrariar a cena. "
           "Se o personagem não falou, prepare Mary para tomar iniciativa concreta. "
           "Só proponha transição quando houver estagnação real, nunca por contagem de turnos."
@@ -277,6 +324,14 @@ def direct_scene(
         "proximity": str(data.get("proximity", current_scene.get("proximity", "indefinida"))),
         "mary_immediate_goal": str(data.get("mary_immediate_goal", "") or "").strip(),
         "mary_action": str(data.get("mary_action", "") or "").strip(),
+        "open_hook": bool(data.get("open_hook", False)),
+        "hook_resolution": str(data.get("hook_resolution", "") or "").strip(),
+        "temporary_character": (
+            data.get("temporary_character")
+            if isinstance(data.get("temporary_character"), dict)
+            else current_scene.get("temporary_character", {})
+        ),
+        "return_anchor": str(data.get("return_anchor", current_scene.get("return_anchor", "")) or "").strip(),
         "event": str(data.get("event", "") or "").strip(),
         "scene_changed": bool(data.get("scene_changed", role_changed or start_new_scene)),
         "arc_phase": arc_phase,
@@ -290,29 +345,26 @@ def direct_scene(
     }
 
     present = [str(x).upper() for x in scene.get("present_characters", [])]
-    if role_changed and user_role not in present:
-        if user_role == "RICARDO":
-            scene["present_characters"] = ["MARY"]
-            scene["interaction_mode"] = "phone"
-            scene["show_caption"] = True
-            scene["scene_changed"] = True
-            scene["arc_phase"] = "opening"
-            scene["turns_in_scene"] = 0
-            scene["scene_number"] = int(current_scene.get("scene_number", 1) or 1) + 1
-            if not scene["scene_caption"]:
-                scene["scene_caption"] = "Com Janio fora da conversa, o telefone de Mary toca. É Ricardo."
-            scene["event"] = scene["event"] or "Ricardo entra na cena por telefone."
-            scene["proximity"] = "à distância, por telefone"
+    temporary = scene.get("temporary_character")
+    if not isinstance(temporary, dict):
+        temporary = {}
+
+    if user_role == "PERSONAGEM_DA_CENA":
+        if not bool(temporary.get("active")):
+            # Sem personagem temporário válido, o papel principal continua sendo Janio.
+            scene["user_role"] = "JANIO"
         else:
-            scene["present_characters"] = ["MARY", "JANIO"]
-            scene["interaction_mode"] = "in_person"
+            scene["user_role"] = "PERSONAGEM_DA_CENA"
+            scene["scene_changed"] = bool(scene.get("scene_changed") or role_changed)
+    elif user_role == "JANIO":
+        scene["user_role"] = "JANIO"
+        if role_changed and "JANIO" not in present:
             scene["show_caption"] = True
             scene["scene_changed"] = True
-            scene["arc_phase"] = "opening"
-            scene["turns_in_scene"] = 0
-            scene["scene_number"] = int(current_scene.get("scene_number", 1) or 1) + 1
             if not scene["scene_caption"]:
-                scene["scene_caption"] = "Janio volta à cena e encontra Mary."
-            scene["event"] = scene["event"] or "Janio retorna à cena."
+                scene["scene_caption"] = (
+                    "Mais tarde, a narrativa retorna a Janio e Mary em uma situação coerente com o que aconteceu."
+                )
+            scene["event"] = scene["event"] or "A narrativa retorna ao eixo Mary–Janio."
 
     return scene
