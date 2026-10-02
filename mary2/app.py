@@ -163,7 +163,18 @@ def reconstruct_legacy_snapshot(
 
     for row in rows:
         role = str(row.get("user_role", "JANIO") or "JANIO").upper()
-        if role not in {"JANIO", "RICARDO"}:
+        if role == "RICARDO":
+            # Compatibilidade com runs antigas: Ricardo passa a ser tratado
+            # como personagem circunstancial, não como papel principal.
+            role = "PERSONAGEM_DA_CENA"
+            scene_state["temporary_character"] = {
+                "active": True,
+                "name": "Ricardo",
+                "description": "personagem ligado ao passado da crise",
+                "relation_to_mary": "conhecido do passado",
+                "user_can_play": True,
+            }
+        elif role not in {"JANIO", "PERSONAGEM_DA_CENA"}:
             role = "JANIO"
 
         direction = str(row.get("scene_direction", "") or "").strip()
@@ -581,6 +592,8 @@ for record in st.session_state.turn_records:
         st.caption("🎬 " + record["direction"])
     if record.get("caption"):
         st.info(record["caption"])
+    if record.get("hook_resolution"):
+        st.info(record["hook_resolution"])
     if record.get("mary_action"):
         st.markdown(f"*{record['mary_action']}*")
     if record.get("user_text"):
@@ -704,6 +717,7 @@ if user_text:
             "caption": caption,
             "direction": scene_direction,
             "mary_action": str(scene.get("mary_action", "") or "").strip(),
+            "hook_resolution": str(scene.get("hook_resolution", "") or "").strip(),
             "user_role": user_role,
             "user_text": dialogue_text,
             "mary_text": answer,
