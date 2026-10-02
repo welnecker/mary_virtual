@@ -55,6 +55,17 @@ INITIAL_SCENE = {
     "user_role": "JANIO",
     "proximity": "mesmo ambiente, sem contato",
     "mary_immediate_goal": "fazer Janio permanecer na conversa",
+    "mary_action": "",
+    "open_hook": False,
+    "hook_resolution": "",
+    "temporary_character": {
+        "active": False,
+        "name": "",
+        "description": "",
+        "relation_to_mary": "",
+        "user_can_play": False,
+    },
+    "return_anchor": "Mary e Janio continuam sendo o eixo principal da história.",
     "event": "",
     "scene_changed": False,
     "show_caption": False,
@@ -270,7 +281,7 @@ if persistence and not st.session_state.persistence_loaded:
 
 
 st.title("Mary Core 2")
-st.caption("Novela interativa: Mary, Janio e Ricardo.")
+st.caption("Novela interativa aberta: Mary e Janio no centro, o mundo ao redor em movimento.")
 
 if st.session_state.rollback_notice:
     st.success(st.session_state.rollback_notice)
@@ -282,18 +293,55 @@ if st.session_state.rollback_notice:
 with st.sidebar:
     st.subheader("Você interpreta")
 
-    role_options = ["JANIO", "RICARDO"]
+    temporary_character = st.session_state.scene_state.get(
+        "temporary_character",
+        {},
+    )
+    if not isinstance(temporary_character, dict):
+        temporary_character = {}
+
+    role_options = ["JANIO"]
+    temporary_available = bool(
+        temporary_character.get("active")
+        and temporary_character.get("user_can_play")
+        and str(temporary_character.get("name", "") or "").strip()
+    )
+    if temporary_available:
+        role_options.append("PERSONAGEM_DA_CENA")
+
     current_role = st.session_state.active_user_role
     if current_role not in role_options:
         current_role = "JANIO"
+
+    def _role_label(value: str) -> str:
+        if value == "JANIO":
+            return "Janio"
+        name = str(temporary_character.get("name", "") or "").strip()
+        return name or "Personagem da cena"
 
     user_role = st.radio(
         "Papel ativo",
         role_options,
         index=role_options.index(current_role),
         horizontal=True,
+        format_func=_role_label,
     )
     st.session_state.active_user_role = user_role
+
+    if temporary_available:
+        description = str(
+            temporary_character.get("description", "") or ""
+        ).strip()
+        relation = str(
+            temporary_character.get("relation_to_mary", "") or ""
+        ).strip()
+        details = " · ".join(
+            item for item in [description, relation] if item
+        )
+        if details:
+            st.caption(
+                f"Personagem da cena: {_role_label('PERSONAGEM_DA_CENA')} — {details}"
+            )
 
     st.subheader("Modelo")
     configured_default = str(
@@ -533,8 +581,15 @@ for record in st.session_state.turn_records:
         st.caption("🎬 " + record["direction"])
     if record.get("caption"):
         st.info(record["caption"])
+    if record.get("mary_action"):
+        st.markdown(f"*{record['mary_action']}*")
     if record.get("user_text"):
-        with st.chat_message(record["user_role"].lower()):
+        with st.chat_message("user"):
+            record_role = str(record.get("user_role", "JANIO") or "JANIO")
+            if record_role == "PERSONAGEM_DA_CENA":
+                st.caption("Personagem da cena")
+            else:
+                st.caption("Janio")
             st.markdown(record["user_text"])
     with st.chat_message("assistant"):
         st.markdown(record["mary_text"])
@@ -549,11 +604,14 @@ if not st.session_state.turn_records:
         st.markdown("Janio... olha pra mim. Só... não vai embora ainda.")
 
 
-placeholder = (
-    "Fale ou dirija a cena como Janio..."
-    if user_role == "JANIO"
-    else "Fale ou dirija a cena como Ricardo..."
-)
+if user_role == "JANIO":
+    placeholder = "Fale ou dirija a cena como Janio..."
+else:
+    temporary_name = str(
+        st.session_state.scene_state.get("temporary_character", {}).get("name", "")
+        or "personagem da cena"
+    ).strip()
+    placeholder = f"Fale ou dirija a cena como {temporary_name}..."
 user_text = st.chat_input(placeholder)
 
 
@@ -645,6 +703,7 @@ if user_text:
             "seq": 0,
             "caption": caption,
             "direction": scene_direction,
+            "mary_action": str(scene.get("mary_action", "") or "").strip(),
             "user_role": user_role,
             "user_text": dialogue_text,
             "mary_text": answer,
