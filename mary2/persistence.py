@@ -106,9 +106,25 @@ def _ensure_worksheet(book, title: str, headers: list[str]):
     if not existing:
         ws.append_row(headers, value_input_option="RAW")
     elif existing != headers:
-        # Migração segura: novas versões podem apenas acrescentar colunas ao final.
-        # Isso preserva planilhas já existentes sem exigir recriação manual.
-        if len(existing) < len(headers) and existing == headers[: len(existing)]:
+        # Migração de nomenclatura da arquitetura antiga para o ledger estrutural.
+        normalized_existing = [
+            (
+                "story_ledger"
+                if item == "canonical_memory"
+                else "story_ledger_before"
+                if item == "canonical_memory_before"
+                else item
+            )
+            for item in existing
+        ]
+
+        if (
+            normalized_existing == headers
+            or (
+                len(normalized_existing) < len(headers)
+                and normalized_existing == headers[: len(normalized_existing)]
+            )
+        ):
             ws.update(
                 range_name=f"A1:{gspread.utils.rowcol_to_a1(1, len(headers))}",
                 values=[headers],
