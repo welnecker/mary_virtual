@@ -7,6 +7,7 @@ CHAPTERS = {
     "confissao_inicial": {
         "title": "A Confissão",
         "allowed_roles": ["JANIO"],
+        "phase_context": "phase",
         "facts_prompt": """
 FATOS FIXOS DO CAPÍTULO
 
