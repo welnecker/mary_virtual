@@ -94,6 +94,23 @@ Mantenha apenas return_anchor como uma possibilidade orgânica de retorno futuro
 Não execute esse retorno à força no mesmo turno.
 O retorno pode acontecer muito depois e pode ser emocional, cotidiano ou consequência indireta.
 
+RECIPROCIDADE FÍSICA E DIREÇÃO DA AÇÃO
+Quando o personagem ativo faz um convite físico claro e consensual a Mary, trate isso como mudança concreta da cena.
+Exemplos: pedir beijo, abraço, colo, proximidade, que Mary se aproxime, se sente no colo dele, retire uma peça de roupa, deite ao lado dele ou corresponda a uma aproximação.
+
+REGRAS:
+- identifique QUEM deve fazer a ação;
+- nunca inverta sujeito e objeto;
+- se Janio pede "senta no meu colo", a possível ação de Mary é sentar no colo DE JANIO — nunca mandar Janio sentar no colo dela;
+- se Janio pede "me beija", a possível ação de Mary é beijar Janio — não pedir que ele a beije como substituição automática;
+- Mary continua autônoma: ela pode aceitar, hesitar, brincar, negociar ou recusar;
+- quando o contexto recente mostra desejo recíproco e ausência de recusa, não trate o convite como se ainda estivessem "sem contato";
+- se Mary aceita, atualize proximity, event, mary_action e arc_phase para refletir a aproximação real;
+- um pedido físico aceito é progressão de cena, mesmo que localização e horário não mudem;
+- não mantenha proximity antigo por inércia quando a interação recente já o contradiz.
+
+Quando houver vários pedidos físicos coerentes no mesmo turno, mary_action pode conter uma sequência curta de até 2 frases, desde que represente Mary realizando apenas ações dela.
+
 MOVIMENTO FÍSICO E ABANDONO NÃO SÃO A MESMA COISA
 - Distinga deslocamento local de ruptura emocional.
 - "Vou pro quarto", "vou tomar banho", "vou deitar", "vou pra cozinha", "vou sentar ali" ou equivalente NÃO significa "vou embora" nem "vou te deixar".
@@ -123,7 +140,8 @@ mary_action pode conter:
 - pequena decisão física coerente com a cena.
 
 REGRAS:
-- no máximo 1 ou 2 frases curtas;
+- normalmente 1 ou 2 frases curtas;
+- quando Mary aceita um convite físico explícito com duas ou mais ações encadeadas, pode usar até 2 frases para representar a sequência sem perder clareza;
 - não escreva fala de Mary em mary_action;
 - não escreva fala, ação, sensação ou pensamento pelo personagem do usuário;
 - não force contato recusado;
@@ -280,8 +298,9 @@ def direct_scene(
         + "\n\nINTERAÇÕES RECENTES:\n" + ("\n".join(transcript) or "(nenhuma)")
         + "\n\nAtualize a direção. A direção explícita do usuário tem prioridade. "
           "As INTERAÇÕES RECENTES têm prioridade sobre campos antigos da CENA ATUAL quando houver conflito. "
-          "Se as falas recentes mostrarem aproximação, toque, aceitação, afastamento, deslocamento entre cômodos ou mudança de clima, "
-          "atualize location, proximity, event, arc_phase e demais campos para refletir o que realmente aconteceu. "
+          "Se as falas recentes mostrarem aproximação, toque, convite físico, aceitação, afastamento, deslocamento entre cômodos ou mudança de clima, "
+          "atualize location, proximity, event, mary_action, arc_phase e demais campos para refletir o que realmente aconteceu. "
+          "Respeite rigorosamente a direção da ação: quem pediu o quê e quem deve executar. "
           "Nunca mantenha alguém 'indo embora' se a pessoa apenas mudou de cômodo ou se a conversa recente já mostra reconexão ou proximidade. "
           "Se houver um GANCHO ABERTO na direção do usuário, resolva agora a informação que ficou deliberadamente em branco, "
           "preencha hook_resolution e, se surgir alguém interagível, temporary_character. "
