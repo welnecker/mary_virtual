@@ -19,7 +19,7 @@ RUN_HEADERS = [
     "updated_at",
     "last_seq",
     "active_user_role",
-    "canonical_memory",
+    "story_ledger",
     "scene_json",
     "story_state_json",
 ]
@@ -34,7 +34,7 @@ INTERACTION_HEADERS = [
     "user_text",
     "mary_text",
     "active_user_role_before",
-    "canonical_memory_before",
+    "story_ledger_before",
     "scene_json_before",
     "story_state_json_before",
     "mary_action",
@@ -148,7 +148,7 @@ def create_run(
     service_account_info: dict,
     player_id: str,
     active_user_role: str,
-    canonical_memory: str,
+    story_ledger: str,
     scene_state: dict,
     story_state: dict,
     spreadsheet_id: str = "",
@@ -190,7 +190,7 @@ def create_run(
             now,
             0,
             active_user_role,
-            canonical_memory,
+            story_ledger,
             json.dumps(scene_state, ensure_ascii=False),
             json.dumps(story_state, ensure_ascii=False),
         ],
@@ -224,7 +224,7 @@ def save_turn(
     run_id: str,
     player_id: str,
     active_user_role: str,
-    canonical_memory: str,
+    story_ledger: str,
     scene_state: dict,
     story_state: dict,
     turn_record: dict,
@@ -267,7 +267,7 @@ def save_turn(
             turn_record.get("user_text", ""),
             turn_record.get("mary_text", ""),
             before.get("active_user_role", active_user_role),
-            before.get("canonical_memory", ""),
+            before.get("story_ledger", ""),
             json.dumps(before.get("scene_state", {}), ensure_ascii=False),
             json.dumps(before.get("story_state", {}), ensure_ascii=False),
             turn_record.get("mary_action", ""),
@@ -284,7 +284,7 @@ def save_turn(
             now,
             seq,
             active_user_role,
-            canonical_memory,
+            story_ledger,
             json.dumps(scene_state, ensure_ascii=False),
             json.dumps(story_state, ensure_ascii=False),
         ]],
@@ -298,7 +298,7 @@ def update_run_snapshot(
     service_account_info: dict,
     run_id: str,
     active_user_role: str,
-    canonical_memory: str,
+    story_ledger: str,
     scene_state: dict,
     story_state: dict,
     spreadsheet_id: str = "",
@@ -332,7 +332,7 @@ def update_run_snapshot(
             _now(),
             last_seq,
             active_user_role,
-            canonical_memory,
+            story_ledger,
             json.dumps(scene_state, ensure_ascii=False),
             json.dumps(story_state, ensure_ascii=False),
         ]],
@@ -415,7 +415,7 @@ def load_latest_run(
     return {
         "run_id": run_id,
         "active_user_role": str(run.get("active_user_role", "JANIO") or "JANIO"),
-        "canonical_memory": str(run.get("canonical_memory", "") or ""),
+        "story_ledger": str(run.get("story_ledger", "") or ""),
         "scene_state": scene_state,
         "story_state": story_state,
         "turn_records": turn_records,
@@ -537,11 +537,11 @@ def delete_interactions_from_seq(
             f"Interação #{from_seq} não encontrada na run atual."
         )
 
-    canonical_before = str(
-        selected.get("canonical_memory_before", "") or ""
+    ledger_before = str(
+        selected.get("story_ledger_before", "") or ""
     ).strip()
 
-    if canonical_before:
+    if ledger_before:
         scene_before = _parse_json_object(
             selected.get("scene_json_before"),
             field_name="cena",
@@ -559,8 +559,8 @@ def delete_interactions_from_seq(
             if isinstance(fallback_snapshot, dict)
             else {}
         )
-        canonical_before = str(
-            reconstructed.get("canonical_memory", "") or ""
+        ledger_before = str(
+            reconstructed.get("story_ledger", "") or ""
         ).strip()
         scene_before = reconstructed.get("scene_state")
         story_before = reconstructed.get("story_state")
@@ -569,7 +569,7 @@ def delete_interactions_from_seq(
         ).strip().upper()
 
         if (
-            not canonical_before
+            not ledger_before
             or not isinstance(scene_before, dict)
             or not isinstance(story_before, dict)
         ):
@@ -598,7 +598,7 @@ def delete_interactions_from_seq(
             now,
             last_seq,
             active_role_before,
-            canonical_before,
+            ledger_before,
             json.dumps(scene_before, ensure_ascii=False),
             json.dumps(story_before, ensure_ascii=False),
         ]],
@@ -609,7 +609,7 @@ def delete_interactions_from_seq(
         "deleted_count": len(rows_to_delete),
         "last_seq": last_seq,
         "active_user_role": active_role_before,
-        "canonical_memory": canonical_before,
+        "story_ledger": ledger_before,
         "scene_state": scene_before,
         "story_state": story_before,
     }
