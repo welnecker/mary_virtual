@@ -89,13 +89,19 @@ def activate_chapter(
     choice_id: str,
     persistence: dict | None,
 ) -> None:
-    chapter = get_chapter(next_chapter_id)
-    last_seq = int(st.session_state.get("run_last_seq", 0) or 0)
+    previous_chapter_id = _chapter_id()
+    choice = find_choice(previous_chapter_id, choice_id)
+    if not choice:
+        raise ValueError(f"Escolha inválida para o capítulo {previous_chapter_id}: {choice_id}")
 
-    st.session_state.story_state = apply_chapter_state(
-        st.session_state.story_state,
-        chapter.get("state_overrides", {}),
+    # A escolha consolida somente fatos estruturais e status.
+    st.session_state.story_state = apply_choice_to_story(
+        story_state=st.session_state.story_state,
+        chapter_id=previous_chapter_id,
+        choice_id=choice_id,
     )
+
+    last_seq = int(st.session_state.get("run_last_seq", 0) or 0)
     narrative = st.session_state.story_state.setdefault("narrative", {})
     narrative["chapter_id"] = next_chapter_id
     narrative["chapter_turns"] = 0
@@ -103,28 +109,19 @@ def activate_chapter(
     narrative["chapter_start_seq"] = last_seq + 1
     narrative["last_choice_id"] = choice_id
 
-    scene = deepcopy(INITIAL_SCENE)
-    scene.update(deepcopy(chapter.get("initial_scene", {}) or {}))
-    st.session_state.scene_state = scene
+    chapter = get_chapter(next_chapter_id)
+    st.session_state.scene_state = deepcopy(
+        chapter.get("initial_scene", {}) or {}
+    )
 
-    next_role = str(scene.get("user_role", "JANIO") or "JANIO").upper()
+    next_role = str(
+        st.session_state.scene_state.get("user_role", "JANIO") or "JANIO"
+    ).upper()
     if next_role not in {"JANIO", "PERSONAGEM_DA_CENA"}:
         next_role = "JANIO"
     st.session_state.active_user_role = next_role
 
-    decision_fact = {
-        "romper": "Janio e Mary decidiram romper o casamento após a confissão.",
-        "reconciliar": "Janio e Mary decidiram tentar permanecer juntos após a confissão.",
-    }.get(choice_id, "")
-
-    st.session_state.canonical_memory = rebase_memory_for_chapter(
-        current_memory=st.session_state.canonical_memory,
-        chapter_id=next_chapter_id,
-        decision_fact=decision_fact,
-    )
-
-    # O histórico permanece na planilha, mas o novo capítulo começa com
-    # contexto recente limpo para o LLM e tela limpa para o usuário.
+    # Fronteira forte: nenhum turno do capítulo encerrado entra no novo prompt.
     st.session_state.messages = []
     st.session_state.turn_records = []
 
@@ -136,7 +133,7 @@ def activate_chapter(
             owner_email=persistence["owner_email"],
             run_id=st.session_state.run_id,
             active_user_role=st.session_state.active_user_role,
-            canonical_memory=st.session_state.canonical_memory,
+            canonical_memory=story_ledger_text(st.session_state.story_state),
             scene_state=st.session_state.scene_state,
             story_state=st.session_state.story_state,
         )
@@ -280,7 +277,6 @@ def reconstruct_legacy_snapshot(
 for key, default in {
     "messages": [],
     "story_state": new_state(),
-    "canonical_memory": INITIAL_CANONICAL_MEMORY,
     "scene_state": dict(INITIAL_SCENE),
     "turn_records": [],
     "run_id": "",
@@ -320,9 +316,6 @@ if persistence and not st.session_state.persistence_loaded:
         if saved:
             st.session_state.run_id = saved["run_id"]
             st.session_state.active_user_role = saved["active_user_role"]
-            st.session_state.canonical_memory = (
-                saved["canonical_memory"] or INITIAL_CANONICAL_MEMORY
-            )
             st.session_state.scene_state = saved["scene_state"] or dict(INITIAL_SCENE)
             st.session_state.story_state = migrate_state(saved["story_state"])
             st.session_state.run_last_seq = int(saved.get("last_seq", 0) or 0)
@@ -350,7 +343,7 @@ if persistence and not st.session_state.persistence_loaded:
                 owner_email=persistence["owner_email"],
                 player_id=persistence["player_id"],
                 active_user_role=st.session_state.active_user_role,
-                canonical_memory=st.session_state.canonical_memory,
+                canonical_memory=story_ledger_text(st.session_state.story_state),
                 scene_state=st.session_state.scene_state,
                 story_state=st.session_state.story_state,
                 archive_previous=False,
@@ -471,7 +464,7 @@ with st.sidebar:
                     owner_email=persistence["owner_email"],
                     player_id=persistence["player_id"],
                     active_user_role="JANIO",
-                    canonical_memory=INITIAL_CANONICAL_MEMORY,
+                    canonical_memory=story_ledger_text(new_state()),
                     scene_state=dict(INITIAL_SCENE),
                     story_state=new_state(),
                     archive_previous=True,
@@ -802,7 +795,7 @@ if user_text:
             model=director_model,
             fallback_model=fallback,
             story_bible=STORY_BIBLE,
-            canonical_memory=st.session_state.canonical_memory,
+            canonical_memory=story_ledger_text(st.session_state.story_state),
             current_scene=st.session_state.scene_state,
             user_role=user_role,
             recent_messages=st.session_state.messages,
@@ -815,7 +808,7 @@ if user_text:
         system_prompt = build_system_prompt(
             story_bible=STORY_BIBLE,
             state_text=compact_state(st.session_state.story_state),
-            canonical_memory=st.session_state.canonical_memory,
+            canonical_memory=story_ledger_text(st.session_state.story_state),
             scene_text=scene_text,
             user_role=user_role,
             chapter_text=chapter_prompt(_chapter_id()),
@@ -936,7 +929,7 @@ if user_text:
                         owner_email=persistence["owner_email"],
                         player_id=persistence["player_id"],
                         active_user_role=user_role,
-                        canonical_memory=st.session_state.canonical_memory,
+                        canonical_memory=story_ledger_text(st.session_state.story_state),
                         scene_state=st.session_state.scene_state,
                         story_state=st.session_state.story_state,
                         archive_previous=False,
@@ -950,7 +943,7 @@ if user_text:
                     run_id=st.session_state.run_id,
                     player_id=persistence["player_id"],
                     active_user_role=user_role,
-                    canonical_memory=st.session_state.canonical_memory,
+                    canonical_memory=story_ledger_text(st.session_state.story_state),
                     scene_state=st.session_state.scene_state,
                     story_state=st.session_state.story_state,
                     turn_record=turn_record,
