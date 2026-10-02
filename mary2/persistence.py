@@ -68,6 +68,8 @@ DIRECTOR_AUDIT_HEADERS = [
     "sexual_intensity_after",
     "microstep_complete",
     "scene_after_json",
+    "main_model",
+    "mary_text",
 ]
 
 
@@ -359,6 +361,8 @@ def save_director_audit(
     user_text: str,
     scene_direction: str,
     audit: dict,
+    main_model: str = "",
+    mary_text: str = "",
     spreadsheet_id: str = "",
     spreadsheet_title: str = "MARY_CORE_PERSISTENCE",
     owner_email: str = "",
@@ -405,6 +409,8 @@ def save_director_audit(
             str(after.get("sexual_intensity", "") or "") if isinstance(after, dict) else "",
             bool(after.get("microstep_complete", False)) if isinstance(after, dict) else False,
             _audit_cell(after),
+            main_model,
+            _audit_cell(mary_text),
         ],
         value_input_option="RAW",
     )
