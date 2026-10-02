@@ -223,7 +223,7 @@ def direct_scene(
     turns_in_scene = int(current_scene.get("turns_in_scene", 0) or 0) + 1
 
     transcript = []
-    for item in recent_messages[-10:]:
+    for item in recent_messages[-24:]:
         role = item.get("role")
         content = str(item.get("content", "")).strip()
         if not content:
