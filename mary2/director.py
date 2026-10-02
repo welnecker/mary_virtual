@@ -68,6 +68,38 @@ MOVIMENTO FÍSICO E ABANDONO NÃO SÃO A MESMA COISA
 - Não mantenha "mesmo ambiente, sem contato" se as falas recentes indicarem aproximação, colo, abraço, cama, outro cômodo ou outro arranjo físico.
 - O estado da cena deve acompanhar o que acabou de acontecer, mesmo quando a mudança veio dentro de uma fala e não em DIREÇÃO DE CENA separada.
 
+ROTEIRISTA DE AÇÃO DE MARY
+Além de manter o estado da cena, você pode escolher UMA ação curta e concreta de Mary para este turno.
+Use o campo mary_action.
+
+FINALIDADE:
+- dar iniciativa e presença física a Mary;
+- quebrar respostas estáticas ou repetitivas;
+- permitir pequenas surpresas coerentes;
+- transformar emoção em comportamento observável.
+
+mary_action pode conter:
+- gesto;
+- deslocamento;
+- mudança de postura;
+- interação com objeto;
+- olhar;
+- aproximação ou recuo;
+- silêncio expressivo;
+- pequena decisão física coerente com a cena.
+
+REGRAS:
+- no máximo 1 ou 2 frases curtas;
+- não escreva fala de Mary em mary_action;
+- não escreva fala, ação, sensação ou pensamento pelo personagem do usuário;
+- não force contato recusado;
+- não invente grande revelação apenas para surpreender;
+- não repita a mesma ação dos turnos recentes;
+- prefira ação concreta a explicação psicológica;
+- pode deixar mary_action vazio quando uma ação nova atrapalharia o momento;
+- quando a cena estiver parada ou Mary estiver repetindo a mesma função emocional, prefira uma ação nova e coerente;
+- a ação escolhida já aconteceu antes da fala de Mary daquele turno.
+
 OBJETIVO IMEDIATO DE MARY
 - mary_immediate_goal nunca deve virar bordão.
 - Não use como objetivo padrão "impedir Janio de ir embora", "fazer Janio ficar", "pedir outra chance" ou "não ser deixada" se não houver ameaça real de partida.
@@ -145,6 +177,7 @@ Retorne SOMENTE JSON válido:
   "user_role": "JANIO",
   "proximity": "...",
   "mary_immediate_goal": "...",
+  "mary_action": "...",
   "event": "...",
   "scene_changed": true,
   "arc_phase": "turning_point",
@@ -206,6 +239,7 @@ def direct_scene(
           "Se as falas recentes mostrarem aproximação, toque, aceitação, afastamento, deslocamento entre cômodos ou mudança de clima, "
           "atualize location, proximity, event, arc_phase e demais campos para refletir o que realmente aconteceu. "
           "Nunca mantenha alguém 'indo embora' se a pessoa apenas mudou de cômodo ou se a conversa recente já mostra reconexão ou proximidade. "
+          "Escolha mary_action quando uma ação curta puder tornar Mary mais viva, ativa ou surpreendente sem contrariar a cena. "
           "Se o personagem não falou, prepare Mary para tomar iniciativa concreta. "
           "Só proponha transição quando houver estagnação real, nunca por contagem de turnos."
     )
@@ -242,6 +276,7 @@ def direct_scene(
         "user_role": user_role,
         "proximity": str(data.get("proximity", current_scene.get("proximity", "indefinida"))),
         "mary_immediate_goal": str(data.get("mary_immediate_goal", "") or "").strip(),
+        "mary_action": str(data.get("mary_action", "") or "").strip(),
         "event": str(data.get("event", "") or "").strip(),
         "scene_changed": bool(data.get("scene_changed", role_changed or start_new_scene)),
         "arc_phase": arc_phase,
