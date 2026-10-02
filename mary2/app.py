@@ -24,6 +24,7 @@ from persistence import (
     ensure_schema,
     load_latest_run,
     load_run_interactions,
+    save_director_audit,
     save_turn,
     update_run_snapshot,
 )
@@ -34,7 +35,7 @@ from story_bible import PHYSICAL_CANON
 
 st.set_page_config(page_title="Mary Core 2", page_icon="🖤", layout="centered")
 
-BUILD_ID = "2026-10-02-semantic-dialogue-v5"
+BUILD_ID = "2026-10-02-director-audit-v6"
 
 DEFAULT_MODELS = [
     "google/gemini-2.5-flash-lite",
@@ -851,6 +852,7 @@ def generate_model_chapter_opening(
         user_spoke=False,
         chapter_text=chapter_prompt(_chapter_id()),
     )
+    director_audit = scene.pop("_director_audit", {})
 
     opening_caption = str(chapter.get("opening_caption", "") or "").strip()
     if opening_caption:
@@ -971,6 +973,19 @@ def generate_model_chapter_opening(
         )
         turn_record["seq"] = saved_seq
         st.session_state.run_last_seq = saved_seq
+        save_director_audit(
+            service_account_info=persistence["service_account_info"],
+            spreadsheet_id=info["spreadsheet_id"],
+            spreadsheet_title=persistence["spreadsheet_title"],
+            owner_email=persistence["owner_email"],
+            run_id=st.session_state.run_id,
+            seq=saved_seq,
+            chapter_id=_chapter_id(),
+            user_role=user_role,
+            user_text="",
+            scene_direction="",
+            audit=director_audit,
+        )
 
 
 try:
@@ -1130,6 +1145,7 @@ if user_text:
                 get_chapter(_chapter_id()).get("advance_when", "") or ""
             ),
         )
+        director_audit = scene.pop("_director_audit", {})
 
         narrative_for_opening = st.session_state.story_state.get("narrative", {})
         if narrative_for_opening.get("chapter_opening_pending"):
@@ -1285,6 +1301,19 @@ if user_text:
                 )
                 turn_record["seq"] = saved_seq
                 st.session_state.run_last_seq = saved_seq
+                save_director_audit(
+                    service_account_info=persistence["service_account_info"],
+                    spreadsheet_id=info["spreadsheet_id"],
+                    spreadsheet_title=persistence["spreadsheet_title"],
+                    owner_email=persistence["owner_email"],
+                    run_id=st.session_state.run_id,
+                    seq=saved_seq,
+                    chapter_id=_chapter_id(),
+                    user_role=user_role,
+                    user_text=dialogue_text,
+                    scene_direction=scene_direction,
+                    audit=director_audit,
+                )
                 st.session_state.persistence_error = ""
             except Exception as exc:
                 # A história continua funcionando mesmo se o Google falhar.
