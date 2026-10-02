@@ -38,6 +38,7 @@ INTERACTION_HEADERS = [
     "scene_json_before",
     "story_state_json_before",
     "mary_action",
+    "hook_resolution",
 ]
 
 
@@ -258,6 +259,7 @@ def save_turn(
             json.dumps(before.get("scene_state", {}), ensure_ascii=False),
             json.dumps(before.get("story_state", {}), ensure_ascii=False),
             turn_record.get("mary_action", ""),
+            turn_record.get("hook_resolution", ""),
         ],
         value_input_option="RAW",
     )
@@ -326,6 +328,7 @@ def load_latest_run(
             "user_text": str(item.get("user_text", "") or ""),
             "mary_text": str(item.get("mary_text", "") or ""),
             "mary_action": str(item.get("mary_action", "") or ""),
+            "hook_resolution": str(item.get("hook_resolution", "") or ""),
         }
         turn_records.append(record)
 
