@@ -236,9 +236,11 @@ CONTEXTO
 Mary e Janio escolheram conversar.
 
 OBJETIVO
-Sustentar uma conversa adulta e viva. Mary reage ao conteúdo de Janio, podendo
-concordar, discordar, brincar, provocar ou mudar de assunto. Não há transição
-automática neste capítulo.
+Sustente uma conversa adulta e viva.
+Faça Mary responder ao conteúdo de Janio.
+Dê a Mary uma posição clara em cada turno.
+Deixe o assunto atual conduzir concordância, discordância, humor, provocação ou mudança de tema.
+Mantenha este capítulo em conversa livre.
 """.strip(),
         "decision_after_turns": 0,
         "choices": [],
