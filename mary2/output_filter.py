@@ -3,27 +3,30 @@ from __future__ import annotations
 import re
 
 
-_INTENT_RE = re.compile(
-    r"\[INTEN(?:C|Ç)(?:A|Ã)O\]\s*(.*?)(?=\n\s*\[FALA\]|$)",
+_THOUGHT_RE = re.compile(
+    r"\[(?:PENSAMENTO|INTEN(?:C|Ç)(?:A|Ã)O)\]\s*(.*?)(?=\n\s*\[FALA\]|$)",
     flags=re.I | re.S,
 )
-_SPEECH_RE = re.compile(r"\[FALA\]\s*(.*)$", flags=re.I | re.S)
+_SPEECH_RE = re.compile(
+    r"\[FALA\]\s*(.*?)(?=\n\s*\[(?:PENSAMENTO|INTEN(?:C|Ç)(?:A|Ã)O)\]|$)",
+    flags=re.I | re.S,
+)
 
 
 def parse_mary_response(text: str) -> tuple[str, str]:
-    """Separa intenção interna curta da fala audível de Mary."""
+    """Separa pensamento privado curto da fala audível de Mary."""
     value = str(text or "").strip()
     if not value:
         return "", ""
 
-    intent_match = _INTENT_RE.search(value)
+    thought_match = _THOUGHT_RE.search(value)
     speech_match = _SPEECH_RE.search(value)
 
-    intent = intent_match.group(1).strip() if intent_match else ""
+    intent = thought_match.group(1).strip() if thought_match else ""
     speech = speech_match.group(1).strip() if speech_match else value
 
     # Nunca deixa tags de protocolo vazarem para a interface.
-    speech = re.sub(r"^\s*\[(?:INTEN(?:C|Ç)(?:A|Ã)O|FALA)\]\s*", "", speech, flags=re.I)
+    speech = re.sub(r"^\s*\[(?:PENSAMENTO|INTEN(?:C|Ç)(?:A|Ã)O|FALA)\]\s*", "", speech, flags=re.I)
     intent = re.sub(r"\s+", " ", intent).strip()
 
     # Intenção é um balão curto: uma frase, sem parágrafo.
