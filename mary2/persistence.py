@@ -513,7 +513,7 @@ def delete_interactions_from_seq(
                 "do estado anterior não foi fornecida."
             )
 
-    if active_role_before not in {"JANIO", "RICARDO"}:
+    if active_role_before not in {"JANIO", "PERSONAGEM_DA_CENA"}:
         active_role_before = "JANIO"
 
     # Só apaga depois de validar todos os snapshots necessários.
