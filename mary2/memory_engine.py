@@ -17,8 +17,9 @@ REGRAS
 - Preserve fatos anteriores, salvo quando houver correção explícita posterior.
 - Não invente acontecimentos.
 - Não transforme suspeita em fato.
-- Mantenha autoria correta: JANIO é Janio; RICARDO é Ricardo; MARY é Mary.
-- Nunca atribua a Janio algo dito por Ricardo, nem o contrário.
+- Mantenha autoria correta: JANIO é Janio; PERSONAGEM_DA_CENA é o personagem temporário definido pela cena; MARY é Mary.
+- Nunca atribua a Janio algo dito por um personagem temporário, nem o contrário.
+- Ricardo só deve permanecer na memória quando um fato realmente relevante sobre ele ocorrer; não o trate como eixo permanente.
 - Confissão de Mary sobre o que ela própria fez pode ser registrada como admissão de Mary.
 - Quando algo ainda estiver ambíguo, registre como pendência, não como verdade.
 - Guarde especialmente: identidade de terceiros, traições e detalhes já revelados,
@@ -55,7 +56,7 @@ PENDÊNCIAS E VERDADES INCOMPLETAS
 
 def _parse_user_role(content: str) -> tuple[str, str]:
     text = str(content or "").strip()
-    match = re.match(r"^\[PAPEL=(JANIO|RICARDO)\]\s*(.*)$", text, re.I | re.S)
+    match = re.match(r"^\[PAPEL=([A-Z_]+)\]\s*(.*)$", text, re.I | re.S)
     if match:
         return match.group(1).upper(), match.group(2).strip()
     return "JANIO", text
