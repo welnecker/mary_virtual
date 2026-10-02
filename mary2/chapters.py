@@ -6,6 +6,7 @@ from copy import deepcopy
 CHAPTERS = {
     "confissao_inicial": {
         "title": "A Confissão",
+        "allowed_roles": ["JANIO"],
         "prompt": """
 CONTEXTO DESTE CAPÍTULO
 Mary é casada com Janio.
@@ -96,6 +97,7 @@ Não o introduza novamente sem motivo vindo da conversa.
 
     "pos_rompimento": {
         "title": "O dia seguinte",
+        "allowed_roles": ["PERSONAGEM_DA_CENA"],
         "prompt": """
 CONTEXTO DESTE CAPÍTULO
 Mary e Janio se separaram na noite anterior.
@@ -166,6 +168,7 @@ a conversa deste capítulo traga Janio ou o passado de volta explicitamente.
 
     "pos_reconciliacao": {
         "title": "A manhã da reconciliação",
+        "allowed_roles": ["JANIO"],
         "prompt": """
 CONTEXTO DESTE CAPÍTULO
 Mary e Janio decidiram tentar permanecer juntos.
