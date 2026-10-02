@@ -7,40 +7,18 @@ CHAPTERS = {
     "confissao_inicial": {
         "title": "A Confissão",
         "allowed_roles": ["JANIO"],
-        "prompt": """
-CONTEXTO
+        "facts_prompt": """
+FATOS FIXOS DO CAPÍTULO
+
 Mary é casada com Janio.
-Mary acabou de confessar que se envolveu com Ricardo.
+Mary acabou de confessar que traiu Janio com Ricardo.
 Mary ama Janio.
-Mary acredita que Ricardo soube envolvê-la e aproveitar suas fragilidades.
-
-MARY NESTA DISCUSSÃO
-Mary quer diminuir a própria culpa.
-Mary coloca parte da responsabilidade em Ricardo e nas circunstâncias.
-Mary se faz de vítima quando isso ajuda sua versão.
-Mary admite somente aquilo que Janio já sabe ou consegue arrancar dela.
-Mary segura detalhes que a prejudiquem.
-Mary muda a forma de contar conforme percebe a reação de Janio.
-Mary usa choro, raiva, medo, carinho e indignação quando essas reações surgirem na discussão.
-Mary tenta fazer Janio enxergar o acontecimento pelo lado dela.
-
-FALA
-Faça Mary reagir primeiro e explicar depois.
-Use frases faladas, quebradas e emocionais.
-Faça Mary responder como alguém discutindo dentro de casa.
-Faça Mary interromper, insistir, voltar atrás, se contradizer e se defender quando a emoção provocar isso.
-Use português brasileiro cotidiano.
-Faça a emoção bagunçar a organização da fala.
-
-OBJETIVO
-Mary quer impedir que Janio a enxergue apenas como culpada.
-Mary quer manter alguma chance de continuar com ele.
-
-RICARDO
 Ricardo é o homem com quem Mary se envolveu.
-Use somente fatos estabelecidos sobre ele.
-Faça Mary interpretar Ricardo usando somente o que já está estabelecido sobre ele.
+Mary acredita que Ricardo soube explorar fragilidades dela.
 
+VERDADE DESTE CAPÍTULO
+Trate como fatos somente o que estiver neste bloco, no STORY LEDGER, no STATUS ATUAL, na CENA ATUAL ou nos fatos liberados pelo microprompt atual.
+Mantenha desconhecidos os detalhes sobre Ricardo que ainda não foram estabelecidos.
 """.strip(),
         "dramatic_phases": [
             {
@@ -55,6 +33,8 @@ FASE: DEFESA
 Mary absorve o choque inicial.
 Mary responde ao que Janio acabou de dizer.
 Mary tenta proteger a própria imagem e diminuir o impacto da confissão.
+Mary tenta preservar alguma chance de continuar com Janio.
+Mary usa hesitação, medo, culpa e justificativa conforme a fala atual provocar.
 Mary sustenta a conversa sem abrir ainda as cobranças acumuladas do casamento.
 """.strip(),
             },
@@ -707,7 +687,18 @@ def chapter_phase(chapter_id: str, turn_number: int) -> dict:
 
 def chapter_prompt(chapter_id: str, turn_number: int | None = None) -> str:
     chapter = get_chapter(chapter_id)
-    base = str(chapter.get("prompt", "") or "").strip()
+
+    # Capítulos tradicionais continuam usando um único prompt.
+    regular_prompt = str(chapter.get("prompt", "") or "").strip()
+
+    # Capítulos com microprompts usam somente fatos fixos + fase atual.
+    facts_prompt = str(chapter.get("facts_prompt", "") or "").strip()
+    has_phases = bool(chapter.get("dramatic_phases", []) or [])
+
+    if not has_phases:
+        return regular_prompt
+
+    base = facts_prompt or regular_prompt
     if turn_number is None:
         return base
 
@@ -719,7 +710,7 @@ def chapter_prompt(chapter_id: str, turn_number: int | None = None) -> str:
     phase_id = str(phase.get("id", "") or "").strip()
     phase_goal = str(phase.get("goal", "") or "").strip()
     phase_header = (
-        f"\n\nCONTADOR DRAMÁTICO\n"
+        f"\n\nMICROPROMPT ATUAL\n"
         f"turno_atual={int(turn_number)}\n"
         f"fase_atual={phase_id}\n"
         f"objetivo_da_fase={phase_goal}\n"
