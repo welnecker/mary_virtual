@@ -34,7 +34,7 @@ from story_bible import PHYSICAL_CANON
 
 st.set_page_config(page_title="Mary Core 2", page_icon="🖤", layout="centered")
 
-BUILD_ID = "2026-10-02-organic-microsteps-v2"
+BUILD_ID = "2026-10-02-organic-microsteps-v3"
 
 DEFAULT_MODELS = [
     "google/gemini-2.5-flash-lite",
@@ -105,6 +105,35 @@ def _handoff_text(state: dict) -> str:
     return "\n".join(parts) or "(nenhum)"
 
 
+def _scene_for_chapter_transition(chapter: dict, previous_scene: dict) -> dict:
+    initial = deepcopy(chapter.get("initial_scene", {}) or {})
+    if not bool(chapter.get("inherit_scene", False)):
+        return initial
+
+    previous = deepcopy(previous_scene or {})
+    scene = previous
+
+    # Micropassos herdam a identidade e o espaço reais da cena.
+    inherited_keys = {
+        "location",
+        "time",
+        "present_characters",
+        "interaction_mode",
+        "user_role",
+        "temporary_character",
+        "return_anchor",
+    }
+
+    for key, value in initial.items():
+        if key not in inherited_keys:
+            scene[key] = deepcopy(value)
+
+    scene["scene_number"] = int(previous.get("scene_number", 1) or 1) + 1
+    scene["turns_in_scene"] = 0
+    scene["start_new_scene"] = True
+    return scene
+
+
 def _chapter_id() -> str:
     narrative = st.session_state.story_state.get("narrative", {})
     return str(narrative.get("chapter_id", "confissao_inicial") or "confissao_inicial")
@@ -149,8 +178,9 @@ def activate_chapter(
     narrative["handoff"] = handoff
 
     chapter = get_chapter(next_chapter_id)
-    st.session_state.scene_state = deepcopy(
-        chapter.get("initial_scene", {}) or {}
+    st.session_state.scene_state = _scene_for_chapter_transition(
+        chapter,
+        st.session_state.scene_state,
     )
 
     next_role = str(
@@ -203,8 +233,9 @@ def apply_pending_auto_transition(persistence: dict | None) -> bool:
     narrative["pending_auto_chapter"] = ""
     narrative["handoff"] = handoff
 
-    st.session_state.scene_state = deepcopy(
-        chapter.get("initial_scene", {}) or {}
+    st.session_state.scene_state = _scene_for_chapter_transition(
+        chapter,
+        st.session_state.scene_state,
     )
 
     next_role = str(
