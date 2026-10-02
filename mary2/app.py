@@ -405,9 +405,19 @@ if persistence and not st.session_state.persistence_loaded:
                 for record in saved["turn_records"]
                 if int(record.get("seq", 0) or 0) >= chapter_start_seq
             ]
-            st.session_state.messages = _messages_from_records(
-                st.session_state.turn_records
+            prompt_start_seq = int(
+                st.session_state.story_state.get("narrative", {}).get(
+                    "prompt_start_seq",
+                    chapter_start_seq,
+                )
+                or chapter_start_seq
             )
+            prompt_records = [
+                record
+                for record in saved["turn_records"]
+                if int(record.get("seq", 0) or 0) >= prompt_start_seq
+            ]
+            st.session_state.messages = _messages_from_records(prompt_records)
         else:
             st.session_state.run_id = create_run(
                 service_account_info=persistence["service_account_info"],
@@ -724,8 +734,20 @@ with st.sidebar:
                             for record in saved["turn_records"]
                             if int(record.get("seq", 0) or 0) >= chapter_start_seq
                         ]
+                        prompt_start_seq = int(
+                            st.session_state.story_state.get("narrative", {}).get(
+                                "prompt_start_seq",
+                                chapter_start_seq,
+                            )
+                            or chapter_start_seq
+                        )
+                        prompt_records = [
+                            record
+                            for record in saved["turn_records"]
+                            if int(record.get("seq", 0) or 0) >= prompt_start_seq
+                        ]
                         st.session_state.messages = _messages_from_records(
-                            st.session_state.turn_records
+                            prompt_records
                         )
                         st.session_state.persistence_error = ""
                         st.session_state.rollback_notice = (
