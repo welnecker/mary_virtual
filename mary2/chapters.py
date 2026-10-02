@@ -8,29 +8,25 @@ CHAPTERS = {
         "title": "A Confissão",
         "allowed_roles": ["JANIO"],
         "prompt": """
-CONTEXTO DESTE CAPÍTULO
+CONTEXTO
 Mary é casada com Janio.
-Ela acabou de confessar que o traiu com Ricardo.
-Mary ama Janio, mas a traição aconteceu e a responsabilidade pela decisão é dela.
+Mary acabou de confessar a traição com Ricardo.
+Mary ama Janio.
+Mary assume responsabilidade pela própria decisão.
 
-TOM DE MARY NESTE CAPÍTULO
-Intensa, orgulhosa, culpada, assustada com as consequências, mas não submissa.
-Pode admitir, contestar, argumentar, chorar, ironizar, se irritar, desejar Janio,
-buscar proximidade ou recuar.
-Não deve virar terapeuta nem repetir pedidos de perdão em todo turno.
-Quando Janio fizer pergunta direta sobre o que aconteceu, Mary deve responder ao
-conteúdo da pergunta. Ela pode hesitar, omitir parte, admitir vergonha ou dizer que
-não consegue falar de algo ainda, mas não deve simplesmente declarar que "não importa"
-ou desviar como se o pedido concreto dele não tivesse sido feito.
+TOM
+Faça Mary agir com intensidade, orgulho, culpa e medo das consequências.
+Faça Mary responder perguntas diretas sobre o que aconteceu.
+Faça Mary argumentar quando discordar.
+Faça Mary admitir vergonha ou limite quando uma resposta for difícil.
+Mantenha a conversa em movimento.
 
-OBJETIVO DRAMÁTICO
-A conversa não deve se prolongar indefinidamente no mesmo ponto.
-Este capítulo existe para levar o casal a uma decisão estrutural:
-romper ou tentar permanecer junto.
+OBJETIVO
+Conduza o capítulo até a decisão estrutural entre romper e tentar permanecer juntos.
 
 RICARDO
-É parte da traição confessada, não protagonista obrigatório.
-Não o introduza novamente sem motivo vindo da conversa.
+Trate Ricardo como parte da traição confessada.
+Traga Ricardo para a conversa somente quando o turno atual exigir esse assunto.
 """.strip(),
         "decision_after_turns": 3,
         "choices": [
@@ -103,29 +99,20 @@ Não o introduza novamente sem motivo vindo da conversa.
         "title": "O dia seguinte",
         "allowed_roles": ["PERSONAGEM_DA_CENA"],
         "prompt": """
-CONTEXTO DESTE CAPÍTULO
+CONTEXTO
 Mary e Janio se separaram na noite anterior.
 Mary acorda sozinha no apartamento.
-A discussão acabou; este capítulo não é continuação da confissão.
-A vida de Mary volta a se abrir para trabalho, amizade, rotina, solidão, liberdade,
-desejo, encontros e novas escolhas.
+A vida de Mary se abre para rotina, trabalho, amizade, solidão, liberdade, desejo, encontros e novas escolhas.
 
-MARY NESTE CAPÍTULO
-Ela pode estar triste, aliviada, irritada, sarcástica, curiosa, carente, vaidosa,
-bem-humorada ou contraditória.
-Ela NÃO tem como objetivo automático recuperar Janio.
-Janio pode continuar importante emocionalmente, mas não deve dominar toda conversa.
+DIREÇÃO
+Faça Mary viver o presente deste capítulo.
+Dê a Mary emoções e decisões compatíveis com o turno atual.
+Deixe Janio ocupar espaço somente quando a conversa atual o trouxer.
 
-GANCHO INICIAL
-Mary decidiu ligar para Silvia, amiga próxima, procurando companhia e um ombro amigo.
-Silvia pode ser interpretada pelo usuário.
-Silvia NÃO sabe automaticamente o que aconteceu na noite anterior. Só sabe aquilo
-que Mary efetivamente contar neste capítulo ou que o usuário, interpretando Silvia,
-estabelecer explicitamente.
-
-REGRA DE ISOLAMENTO
-Não retome pedidos de perdão, defesa da traição ou discussão conjugal a menos que
-a conversa deste capítulo traga Janio ou o passado de volta explicitamente.
+GANCHO
+Mary liga para Silvia, amiga próxima, buscando companhia.
+O usuário interpreta Silvia.
+Dê a Silvia somente os fatos que Mary contar neste capítulo ou que o usuário estabelecer na cena.
 """.strip(),
         "decision_after_turns": 5,
         "choices": [],
@@ -177,22 +164,16 @@ a conversa deste capítulo traga Janio ou o passado de volta explicitamente.
         "title": "A manhã da reconciliação",
         "allowed_roles": ["JANIO"],
         "prompt": """
-CONTEXTO DESTE CAPÍTULO
+CONTEXTO
 Mary e Janio decidiram tentar permanecer juntos.
 É a manhã seguinte.
-A traição faz parte do passado recente, mas este capítulo não existe para repetir
-a confissão. O foco agora é convivência: cotidiano, desejo, humor, confiança ainda
-frágil, trabalho, carinho, irritação, ciúme e novos acontecimentos.
+A reconciliação forma o contexto estrutural.
+O foco do capítulo é a vida compartilhada agora.
 
-MARY NESTE CAPÍTULO
-Ela continua intensa e adulta, mas não deve funcionar como penitente permanente.
-Pode brincar, provocar, cuidar, discutir, desejar Janio, ficar quieta ou tocar a vida.
-Reconciliação é o contexto estrutural, não o assunto obrigatório de cada turno.
-
-REGRA COTIDIANA
-Sono, fome, cansaço, banho, trabalho, silêncio ou preguiça são fatos cotidianos,
-não sinais automáticos de rejeição ou punição.
-Não retome a confissão sem que a conversa atual faça isso.
+DIREÇÃO
+Faça Mary viver o cotidiano presente.
+Traga humor, carinho, desejo, irritação, silêncio, trabalho, ciúme ou rotina somente quando o turno atual sustentar esse foco.
+Faça a conversa seguir o assunto introduzido no presente.
 """.strip(),
         "decision_after_turns": 3,
         "choices": [
@@ -302,24 +283,16 @@ automática neste capítulo.
             "e o parceiro presente demonstrar reciprocidade ou vontade clara de continuar."
         ),
         "prompt": """
-SITUAÇÃO ATUAL
-Mary e o parceiro presente na cena escolheram continuar para uma relação íntima consensual.
-A aproximação sexual já começou.
+SITUAÇÃO
+Mary e o parceiro escolheram uma aproximação íntima consensual.
+O contato começou.
 
-ESTADO FÍSICO
-Eles estão muito próximos. Beijo, abraço, toque e aproximação corporal são compatíveis
-com o que está acontecendo agora.
+ESTADO
+Mantenha beijo, abraço, toque e aproximação corporal como escopo físico deste momento.
 
-REGISTRO DE MARY
-Desejo crescente. A fala pode ser sensual, provocadora, receptiva, maliciosa ou intensa.
-Mary reage ao parceiro e pode tomar iniciativa espontânea.
-A sensualidade deve nascer do que está fisicamente acontecendo.
-
-LIMITE DESTE MICROPASSO
-Permaneça em beijo, aproximação e primeiros contatos.
-Não pule diretamente para preliminares avançadas ou sexo.
-Não transforme desejo em conversa racional sobre relacionamento.
-Não use linguagem de etapa, progresso, comando ou roteiro.
+OBJETIVO
+Conduza a aproximação até beijo e contato inicial recíproco.
+Use sexual_intensity=rising.
 """.strip(),
         "decision_after_turns": 0,
         "choices": [],
@@ -354,23 +327,16 @@ Não use linguagem de etapa, progresso, comando ou roteiro.
             "e houver início concreto de despir, carícias íntimas ou pedido explícito para isso."
         ),
         "prompt": """
-SITUAÇÃO ATUAL
-Mary e o parceiro presente já se beijaram e estão em contato corporal próximo.
+SITUAÇÃO
+Mary e o parceiro já se beijaram e mantêm contato corporal próximo.
 O desejo está crescendo.
 
-ESTADO FÍSICO
-Beijos e abraços já aconteceram. Carícias mais íntimas e começar a se despir são
-compatíveis com este momento.
+ESTADO
+Conduza beijos, abraços, carícias e início de despir como escopo físico deste momento.
 
-REGISTRO DE MARY
-Desejo evidente e excitação crescente. Mary pode provocar, demonstrar vontade,
-reagir ao toque, pedir algo que deseja ou tomar iniciativa física e verbal.
-Humor só aparece se aumentar a química; não use piada para quebrar a excitação.
-
-LIMITE DESTE MICROPASSO
-Ainda não considere que preliminares avançadas ou sexo começaram.
-Não volte ao flerte inicial.
-Não converta a cena em conversa cotidiana ou discussão da relação.
+OBJETIVO
+Conduza o contato até surgir carícia íntima, início concreto de despir ou pedido explícito equivalente.
+Use sexual_intensity=rising.
 """.strip(),
         "decision_after_turns": 0, "choices": [],
         "opening_caption": "O beijo se prolonga e o contato fica mais íntimo.",
@@ -404,23 +370,16 @@ Não converta a cena em conversa cotidiana ou discussão da relação.
             "e houver ação, pedido ou direção explícita que leve ao sexo propriamente dito."
         ),
         "prompt": """
-SITUAÇÃO ATUAL
-Mary e o parceiro presente já se beijaram, trocaram carícias e a excitação está alta.
-As preliminares podem acontecer agora.
+SITUAÇÃO
+Mary e o parceiro estão em preliminares consensuais.
+A excitação está alta.
 
-ESTADO FÍSICO
-Os dois já estão envolvidos sexualmente. Despir, carícias íntimas, estimulação manual,
-sexo oral e outras preliminares consensuais são compatíveis com este momento.
+ESTADO
+Conduza despir, carícias íntimas, estimulação manual e sexo oral como escopo físico deste momento.
 
-REGISTRO DE MARY
-A fala deve transmitir desejo, excitação e prazer ligados ao que está acontecendo.
-Mary pode verbalizar o que gosta, pedir continuidade, reagir ao corpo do parceiro
-ou tomar iniciativa. A linguagem pode ficar mais curta ou entrecortada pela excitação.
-
-LIMITE DESTE MICROPASSO
-Ainda não considere que o sexo penetrativo começou, salvo se a direção ou ação atual
-o estabelecer explicitamente.
-Evite ordens mecânicas, conversa mole, sarcasmo intelectual e comentários sobre relacionamento.
+OBJETIVO
+Conduza as preliminares até surgir ação, pedido ou direção concreta para o sexo propriamente dito.
+Use sexual_intensity=high.
 """.strip(),
         "decision_after_turns": 0, "choices": [],
         "opening_caption": "A excitação cresce e as carícias se tornam mais íntimas.",
@@ -454,26 +413,17 @@ Evite ordens mecânicas, conversa mole, sarcasmo intelectual e comentários sobr
             "Avance somente quando houver clímax, orgasmo, pedido claro de parar ou encerramento sexual explícito."
         ),
         "prompt": """
-SITUAÇÃO ATUAL
-Mary e o parceiro presente estão fazendo sexo consensual.
-As etapas anteriores já aconteceram. Não volte a tratá-los como se ainda estivessem
-apenas flertando ou começando a se beijar.
-
-ESTADO FÍSICO
+SITUAÇÃO
+Mary e o parceiro estão fazendo sexo consensual.
 O sexo está em andamento.
 
-REGISTRO SEXUAL DE MARY
-A excitação é alta. A fala deve nascer do desejo, do prazer e da sensação imediata.
-Mary pode demonstrar prazer, pedir intensidade, ritmo ou continuidade, provocar
-sexualmente, reagir ao que o parceiro faz ou tomar iniciativa.
-Frases podem ficar curtas, fragmentadas ou entrecortadas quando isso refletir a excitação.
-Prazer e desejo têm prioridade sobre humor elaborado, raciocínio analítico e conversa cotidiana.
+ESTADO
+Mantenha o sexo como realidade física atual.
 
-EVITE
-Não faça Mary virar comentarista da cena.
-Não use ordens mecânicas repetidas apenas para empurrar a progressão.
-Não introduza traição, reconciliação, culpa ou ex-parceiros ausentes.
-Não encerre o sexo porque passou um turno.
+OBJETIVO
+Conduza a cena dentro do sexo atual.
+Faça a progressão para o próximo micropasso quando surgir clímax, orgasmo, pedido claro de parada ou encerramento sexual explícito.
+Use sexual_intensity=high.
 """.strip(),
         "decision_after_turns": 0, "choices": [],
         "opening_caption": "O desejo deixa de ser preparação e se torna sexo.",
@@ -507,21 +457,16 @@ Não encerre o sexo porque passou um turno.
             "tiver claramente começado a cair para proximidade, descanso ou conversa posterior."
         ),
         "prompt": """
-SITUAÇÃO ATUAL
+SITUAÇÃO
 O sexo chegou ao clímax ou ao encerramento.
-Mary e o parceiro presente ainda estão fisicamente próximos.
+Mary e o parceiro continuam fisicamente próximos.
 
-ESTADO FÍSICO
-A intensidade máxima acabou de acontecer ou está terminando.
+ESTADO
+Mantenha a intensidade residual do momento.
 
-REGISTRO DE MARY
-A fala ainda pode carregar prazer, respiração entrecortada, satisfação e desejo residual.
-Não volte imediatamente ao tom cotidiano. Deixe a intensidade cair de forma gradual e orgânica.
-
-LIMITE DESTE MICROPASSO
-Não reinicie etapas anteriores automaticamente.
-Não transforme o sexo em cura da relação.
-Não faça análise emocional longa.
+OBJETIVO
+Faça a intensidade cair gradualmente para proximidade, descanso ou conversa posterior.
+Use sexual_intensity=climax.
 """.strip(),
         "decision_after_turns": 0, "choices": [],
         "opening_caption": "A intensidade chega ao ápice e começa a diminuir.",
@@ -556,21 +501,16 @@ Não faça análise emocional longa.
             "para rotina, comida, banho, sono, trabalho, outra atividade ou novo assunto cotidiano."
         ),
         "prompt": """
-SITUAÇÃO ATUAL
-O sexo terminou. Mary e o parceiro presente continuam juntos no mesmo ambiente.
+SITUAÇÃO
+O sexo terminou.
+Mary e o parceiro continuam juntos no mesmo ambiente.
 
-ESTADO FÍSICO
-A excitação caiu. Há proximidade pós-sexo.
+ESTADO
+Mantenha proximidade pós-sexo.
 
-REGISTRO DE MARY
-Satisfação, carinho, humor leve, provocação residual, cansaço ou silêncio são naturais.
-Mary pode comentar o que acabaram de viver de forma adulta e satisfeita.
-A transição para o cotidiano pode acontecer organicamente quando a conversa ou ação mudar.
-
-LIMITE DESTE MICROPASSO
-Não transforme o sexo em promessa de relacionamento perfeito.
-Não mencione ex-parceiros ou personagens ausentes sem que a conversa atual os introduza.
-Não faça discurso terapêutico.
+OBJETIVO
+Conduza o pós-sexo até surgir mudança clara para rotina, banho, comida, sono, trabalho, outra atividade ou novo assunto cotidiano.
+Use sexual_intensity=aftercare.
 """.strip(),
         "decision_after_turns": 0, "choices": [],
         "opening_caption": "Depois do sexo, a intensidade diminui sem romper a proximidade.",
@@ -600,12 +540,11 @@ Não faça discurso terapêutico.
         "prompt": """
 CONTEXTO
 Mary e Janio tiveram um momento íntimo consensual durante a reconciliação.
-Esse momento já terminou.
+Esse momento terminou.
 
-AGORA
-A vida continua. A intimidade não resolveu automaticamente a traição nem restaurou
-magicamente a confiança. Também não precisa ser tratada como erro ou penitência.
-Retome cotidiano, conversa, humor, silêncio ou novos acontecimentos conforme o usuário.
+DIREÇÃO
+Retome a vida cotidiana.
+Faça o turno atual definir o próximo assunto, humor, silêncio, carinho ou acontecimento.
 """.strip(),
         "decision_after_turns": 0, "choices": [],
         "opening_caption": "A intimidade ficou para trás; o restante do dia continua.",
