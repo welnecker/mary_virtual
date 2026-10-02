@@ -294,246 +294,297 @@ automática neste capítulo.
     "intimidade_aproximacao": {
         "title": "Intimidade — aproximação",
         "allowed_roles": ["JANIO"],
-        "transition": "auto_one_turn",
+        "transition": "auto_condition",
         "auto_next": "intimidade_contato",
+        "advance_when": (
+            "Avance somente quando beijo e contato físico inicial já tiverem acontecido "
+            "e o parceiro presente demonstrar reciprocidade ou vontade clara de continuar."
+        ),
         "prompt": """
-FATO JÁ DECIDIDO
-Mary e Janio escolheram seguir para uma intimidade consensual. Não reavalie essa escolha.
+SITUAÇÃO ATUAL
+Mary e o parceiro presente na cena escolheram continuar para uma relação íntima consensual.
+A aproximação sexual já começou.
 
-O QUE ACONTECE NESTE TURNO
-Eles começam a se beijar e a se aproximar fisicamente.
-Mary participa ativamente e responde ao que Janio disser ou fizer.
+ESTADO FÍSICO
+Eles estão muito próximos. Beijo, abraço, toque e aproximação corporal são compatíveis
+com o que está acontecendo agora.
 
-NÃO FAÇA
-Não volte a discutir se devem continuar.
-Não transforme este turno em conversa sobre culpa ou reconciliação.
-Não use frases vagas sobre "o momento", "o depois", "ir devagar" ou "sentir".
-Não avance ainda para a próxima etapa.
+REGISTRO DE MARY
+Desejo crescente. A fala pode ser sensual, provocadora, receptiva, maliciosa ou intensa.
+Mary reage ao parceiro e pode tomar iniciativa espontânea.
+A sensualidade deve nascer do que está fisicamente acontecendo.
 
-RESULTADO ESPERADO
-Ao final desta resposta, beijo e aproximação física já aconteceram.
+LIMITE DESTE MICROPASSO
+Permaneça em beijo, aproximação e primeiros contatos.
+Não pule diretamente para preliminares avançadas ou sexo.
+Não transforme desejo em conversa racional sobre relacionamento.
+Não use linguagem de etapa, progresso, comando ou roteiro.
 """.strip(),
         "decision_after_turns": 0,
         "choices": [],
-        "opening_caption": "A conversa muda de tom e os dois se aproximam.",
+        "opening_caption": "A conversa muda de tom e a distância entre os dois desaparece.",
         "opening_mary": "",
         "initial_scene": {
             "location": "casa do casal", "time": "manhã",
             "present_characters": ["MARY", "JANIO"], "interaction_mode": "in_person",
             "user_role": "JANIO", "proximity": "muito próximos",
-            "mary_immediate_goal": "viver a aproximação sem pular etapas",
-            "mary_action": "Mary se aproxima de Janio e o beija.", "open_hook": False, "hook_resolution": "",
+            "sexual_intensity": "rising",
+            "mary_immediate_goal": "viver a aproximação com desejo e espontaneidade",
+            "mary_action": "Mary se aproxima do parceiro e o beija.", "open_hook": False, "hook_resolution": "",
             "temporary_character": {"active": False, "name": "", "description": "", "relation_to_mary": "", "user_can_play": False},
-            "return_anchor": "", "event": "Mary se aproxima de Janio e o beija.",
+            "return_anchor": "", "event": "Mary inicia o beijo e a aproximação física.",
             "scene_changed": True, "show_caption": True,
-            "scene_caption": "A conversa muda de tom e os dois se aproximam.",
+            "scene_caption": "A conversa muda de tom e a distância entre os dois desaparece.",
             "arc_phase": "opening", "resolution_type": "none", "resolution_summary": "",
             "start_new_scene": True, "turns_in_scene": 0, "scene_number": 3,
             "mary_should_initiate": False, "user_scene_direction": "",
+            "microstep_complete": False,
         },
     },
 
     "intimidade_contato": {
-        "title": "Intimidade — contato",
+        "title": "Intimidade — carícias",
         "allowed_roles": ["JANIO"],
-        "transition": "auto_one_turn",
+        "transition": "auto_condition",
         "auto_next": "intimidade_preparacao",
+        "advance_when": (
+            "Avance somente quando o contato corporal já tiver se intensificado de forma clara "
+            "e houver início concreto de despir, carícias íntimas ou pedido explícito para isso."
+        ),
         "prompt": """
-FATO JÁ DECIDIDO
-Mary e Janio já se beijaram e estão fisicamente próximos.
+SITUAÇÃO ATUAL
+Mary e o parceiro presente já se beijaram e estão em contato corporal próximo.
+O desejo está crescendo.
 
-O QUE ACONTECE NESTE TURNO
-O contato físico avança de forma consensual. Mary corresponde de modo ativo,
-podendo provocar, brincar, orientar, reagir ou tomar iniciativa.
+ESTADO FÍSICO
+Beijos e abraços já aconteceram. Carícias mais íntimas e começar a se despir são
+compatíveis com este momento.
 
-NÃO FAÇA
-Não recomece o beijo como se nada tivesse acontecido.
-Não volte à discussão sobre a traição.
-Não descreva a situação de forma abstrata.
-Não conclua a sequência ainda.
+REGISTRO DE MARY
+Desejo evidente e excitação crescente. Mary pode provocar, demonstrar vontade,
+reagir ao toque, pedir algo que deseja ou tomar iniciativa física e verbal.
+Humor só aparece se aumentar a química; não use piada para quebrar a excitação.
 
-RESULTADO ESPERADO
-Ao final desta resposta, o contato físico já avançou para a próxima etapa.
+LIMITE DESTE MICROPASSO
+Ainda não considere que preliminares avançadas ou sexo começaram.
+Não volte ao flerte inicial.
+Não converta a cena em conversa cotidiana ou discussão da relação.
 """.strip(),
         "decision_after_turns": 0, "choices": [],
-        "opening_caption": "A aproximação evolui para um contato mais íntimo.",
+        "opening_caption": "O beijo se prolonga e o contato fica mais íntimo.",
         "opening_mary": "",
         "initial_scene": {
             "location": "casa do casal", "time": "manhã",
             "present_characters": ["MARY", "JANIO"], "interaction_mode": "in_person",
-            "user_role": "JANIO", "proximity": "em contato íntimo consensual",
-            "mary_immediate_goal": "corresponder ao contato e desenvolver a intimidade",
-            "mary_action": "Mary mantém o beijo, envolve Janio com os braços e aproxima o corpo do dele.", "open_hook": False, "hook_resolution": "",
+            "user_role": "JANIO", "proximity": "beijando e em contato corporal",
+            "sexual_intensity": "rising",
+            "mary_immediate_goal": "aprofundar o contato conforme a interação",
+            "mary_action": "", "open_hook": False, "hook_resolution": "",
             "temporary_character": {"active": False, "name": "", "description": "", "relation_to_mary": "", "user_can_play": False},
-            "return_anchor": "", "event": "Mary intensifica o contato físico com Janio.",
+            "return_anchor": "", "event": "O beijo e o contato corporal já estão estabelecidos.",
             "scene_changed": True, "show_caption": True,
-            "scene_caption": "A aproximação evolui para um contato mais íntimo.",
+            "scene_caption": "O beijo se prolonga e o contato fica mais íntimo.",
             "arc_phase": "pressure", "resolution_type": "none", "resolution_summary": "",
             "start_new_scene": True, "turns_in_scene": 0, "scene_number": 4,
             "mary_should_initiate": False, "user_scene_direction": "",
+            "microstep_complete": False,
         },
     },
 
     "intimidade_preparacao": {
-        "title": "Intimidade — preparação",
+        "title": "Intimidade — preliminares",
         "allowed_roles": ["JANIO"],
-        "transition": "auto_one_turn",
+        "transition": "auto_condition",
         "auto_next": "intimidade_central",
+        "advance_when": (
+            "Avance somente quando as preliminares já estiverem concretamente em andamento "
+            "e houver ação, pedido ou direção explícita que leve ao sexo propriamente dito."
+        ),
         "prompt": """
-FATO JÁ DECIDIDO
-Beijo e contato físico já aconteceram.
+SITUAÇÃO ATUAL
+Mary e o parceiro presente já se beijaram, trocaram carícias e a excitação está alta.
+As preliminares podem acontecer agora.
 
-O QUE ACONTECE NESTE TURNO
-A intimidade avança para a preparação imediatamente anterior ao momento central.
-Mary continua participante ativa e responde especificamente às ações e falas de Janio.
+ESTADO FÍSICO
+Os dois já estão envolvidos sexualmente. Despir, carícias íntimas, estimulação manual,
+sexo oral e outras preliminares consensuais são compatíveis com este momento.
 
-NÃO FAÇA
-Não recomece etapas anteriores.
-Não faça Mary discursar sobre a relação.
-Não use linguagem abstrata para adiar a ação.
-Não conclua a sequência neste turno.
+REGISTRO DE MARY
+A fala deve transmitir desejo, excitação e prazer ligados ao que está acontecendo.
+Mary pode verbalizar o que gosta, pedir continuidade, reagir ao corpo do parceiro
+ou tomar iniciativa. A linguagem pode ficar mais curta ou entrecortada pela excitação.
 
-RESULTADO ESPERADO
-Ao final desta resposta, a preparação já aconteceu e a próxima etapa pode começar.
+LIMITE DESTE MICROPASSO
+Ainda não considere que o sexo penetrativo começou, salvo se a direção ou ação atual
+o estabelecer explicitamente.
+Evite ordens mecânicas, conversa mole, sarcasmo intelectual e comentários sobre relacionamento.
 """.strip(),
         "decision_after_turns": 0, "choices": [],
-        "opening_caption": "A intimidade avança mais um passo.",
+        "opening_caption": "A excitação cresce e as carícias se tornam mais íntimas.",
         "opening_mary": "",
         "initial_scene": {
             "location": "casa do casal", "time": "manhã",
             "present_characters": ["MARY", "JANIO"], "interaction_mode": "in_person",
-            "user_role": "JANIO", "proximity": "intimidade consensual avançando",
-            "mary_immediate_goal": "viver a preparação com reciprocidade",
-            "mary_action": "Mary desliza as mãos pelo corpo de Janio e o puxa para mais perto.", "open_hook": False, "hook_resolution": "",
+            "user_role": "JANIO", "proximity": "em preliminares consensuais",
+            "sexual_intensity": "high",
+            "mary_immediate_goal": "viver as preliminares com desejo e reação ao parceiro",
+            "mary_action": "", "open_hook": False, "hook_resolution": "",
             "temporary_character": {"active": False, "name": "", "description": "", "relation_to_mary": "", "user_can_play": False},
-            "return_anchor": "", "event": "Mary conduz a aproximação para uma intimidade maior.",
+            "return_anchor": "", "event": "As preliminares estão em andamento.",
             "scene_changed": True, "show_caption": True,
-            "scene_caption": "A intimidade avança mais um passo.",
+            "scene_caption": "A excitação cresce e as carícias se tornam mais íntimas.",
             "arc_phase": "pressure", "resolution_type": "none", "resolution_summary": "",
             "start_new_scene": True, "turns_in_scene": 0, "scene_number": 5,
             "mary_should_initiate": False, "user_scene_direction": "",
+            "microstep_complete": False,
         },
     },
 
     "intimidade_central": {
-        "title": "Intimidade — momento central",
+        "title": "Intimidade — sexo",
         "allowed_roles": ["JANIO"],
-        "transition": "auto_one_turn",
+        "transition": "auto_condition",
         "auto_next": "intimidade_conclusao",
+        "advance_when": (
+            "Permaneça neste micropasso enquanto o sexo estiver em andamento. "
+            "Avance somente quando houver clímax, orgasmo, pedido claro de parar ou encerramento sexual explícito."
+        ),
         "prompt": """
-FATO JÁ DECIDIDO
-A aproximação e a preparação já aconteceram.
+SITUAÇÃO ATUAL
+Mary e o parceiro presente estão fazendo sexo consensual.
+As etapas anteriores já aconteceram. Não volte a tratá-los como se ainda estivessem
+apenas flertando ou começando a se beijar.
 
-O QUE ACONTECE NESTE TURNO
-A intimidade chega ao seu momento central. Mary participa ativamente e reage ao
-que Janio disser ou fizer, sem abandonar sua voz, humor ou personalidade.
+ESTADO FÍSICO
+O sexo está em andamento.
 
-NÃO FAÇA
-Não volte às etapas anteriores.
-Não transforme este turno em conversa sobre perdão, culpa ou cura do relacionamento.
-Não substitua a ação por frases vagas.
+REGISTRO SEXUAL DE MARY
+A excitação é alta. A fala deve nascer do desejo, do prazer e da sensação imediata.
+Mary pode demonstrar prazer, pedir intensidade, ritmo ou continuidade, provocar
+sexualmente, reagir ao que o parceiro faz ou tomar iniciativa.
+Frases podem ficar curtas, fragmentadas ou entrecortadas quando isso refletir a excitação.
+Prazer e desejo têm prioridade sobre humor elaborado, raciocínio analítico e conversa cotidiana.
 
-RESULTADO ESPERADO
-Ao final desta resposta, o momento central ocorreu e a sequência pode seguir para o desfecho.
+EVITE
+Não faça Mary virar comentarista da cena.
+Não use ordens mecânicas repetidas apenas para empurrar a progressão.
+Não introduza traição, reconciliação, culpa ou ex-parceiros ausentes.
+Não encerre o sexo porque passou um turno.
 """.strip(),
         "decision_after_turns": 0, "choices": [],
-        "opening_caption": "A intimidade chega ao seu momento central.",
+        "opening_caption": "O desejo deixa de ser preparação e se torna sexo.",
         "opening_mary": "",
         "initial_scene": {
             "location": "casa do casal", "time": "manhã",
             "present_characters": ["MARY", "JANIO"], "interaction_mode": "in_person",
-            "user_role": "JANIO", "proximity": "intimidade consensual em andamento",
-            "mary_immediate_goal": "viver o momento com reciprocidade",
-            "mary_action": "Mary corresponde ativamente à intimidade com Janio.", "open_hook": False, "hook_resolution": "",
+            "user_role": "JANIO", "proximity": "sexo consensual em andamento",
+            "sexual_intensity": "high",
+            "mary_immediate_goal": "viver o sexo com desejo, prazer e intensidade",
+            "mary_action": "", "open_hook": False, "hook_resolution": "",
             "temporary_character": {"active": False, "name": "", "description": "", "relation_to_mary": "", "user_can_play": False},
-            "return_anchor": "", "event": "Mary e Janio vivem o momento central da intimidade.",
+            "return_anchor": "", "event": "O sexo está em andamento.",
             "scene_changed": True, "show_caption": True,
-            "scene_caption": "A intimidade chega ao seu momento central.",
+            "scene_caption": "O desejo deixa de ser preparação e se torna sexo.",
             "arc_phase": "turning_point", "resolution_type": "none", "resolution_summary": "",
             "start_new_scene": True, "turns_in_scene": 0, "scene_number": 6,
             "mary_should_initiate": False, "user_scene_direction": "",
+            "microstep_complete": False,
         },
     },
 
     "intimidade_conclusao": {
-        "title": "Intimidade — conclusão",
+        "title": "Intimidade — clímax e conclusão",
         "allowed_roles": ["JANIO"],
-        "transition": "auto_one_turn",
+        "transition": "auto_condition",
         "auto_next": "intimidade_aftercare",
+        "advance_when": (
+            "Avance quando o clímax ou encerramento sexual já tiver acontecido e a intensidade "
+            "tiver claramente começado a cair para proximidade, descanso ou conversa posterior."
+        ),
         "prompt": """
-FATO JÁ DECIDIDO
-O momento central já aconteceu.
+SITUAÇÃO ATUAL
+O sexo chegou ao clímax ou ao encerramento.
+Mary e o parceiro presente ainda estão fisicamente próximos.
 
-O QUE ACONTECE NESTE TURNO
-A intensidade física termina. Mary reage imediatamente ao fim desse momento com
-uma fala coerente com o que acabou de acontecer.
+ESTADO FÍSICO
+A intensidade máxima acabou de acontecer ou está terminando.
 
-NÃO FAÇA
-Não recomece etapas anteriores.
-Não faça uma análise longa do relacionamento.
-Não trate a intimidade como solução automática para a traição.
+REGISTRO DE MARY
+A fala ainda pode carregar prazer, respiração entrecortada, satisfação e desejo residual.
+Não volte imediatamente ao tom cotidiano. Deixe a intensidade cair de forma gradual e orgânica.
 
-RESULTADO ESPERADO
-Ao final desta resposta, o momento central terminou e começa o pós-intimidade.
+LIMITE DESTE MICROPASSO
+Não reinicie etapas anteriores automaticamente.
+Não transforme o sexo em cura da relação.
+Não faça análise emocional longa.
 """.strip(),
         "decision_after_turns": 0, "choices": [],
-        "opening_caption": "A intensidade termina e o ritmo desacelera.",
+        "opening_caption": "A intensidade chega ao ápice e começa a diminuir.",
         "opening_mary": "",
         "initial_scene": {
             "location": "casa do casal", "time": "manhã",
             "present_characters": ["MARY", "JANIO"], "interaction_mode": "in_person",
-            "user_role": "JANIO", "proximity": "muito próximos após a intimidade",
-            "mary_immediate_goal": "atravessar a reação imediata ao fim da intensidade",
-            "mary_action": "Mary permanece colada a Janio enquanto a intensidade diminui.", "open_hook": False, "hook_resolution": "",
+            "user_role": "JANIO", "proximity": "muito próximos após o clímax",
+            "sexual_intensity": "climax",
+            "mary_immediate_goal": "atravessar o fim da intensidade sem quebrar o estado sexual",
+            "mary_action": "", "open_hook": False, "hook_resolution": "",
             "temporary_character": {"active": False, "name": "", "description": "", "relation_to_mary": "", "user_can_play": False},
-            "return_anchor": "", "event": "A intensidade termina e os dois permanecem próximos.",
+            "return_anchor": "", "event": "O clímax ou encerramento sexual acabou de acontecer.",
             "scene_changed": True, "show_caption": True,
-            "scene_caption": "A intensidade termina e o ritmo desacelera.",
+            "scene_caption": "A intensidade chega ao ápice e começa a diminuir.",
             "arc_phase": "resolution", "resolution_type": "intimacy_conclusion",
-            "resolution_summary": "O momento íntimo chegou ao fim.",
+            "resolution_summary": "O sexo chegou ao clímax ou ao encerramento.",
             "start_new_scene": True, "turns_in_scene": 0, "scene_number": 7,
             "mary_should_initiate": False, "user_scene_direction": "",
+            "microstep_complete": False,
         },
     },
 
     "intimidade_aftercare": {
         "title": "Intimidade — depois",
         "allowed_roles": ["JANIO"],
-        "transition": "auto_one_turn",
+        "transition": "auto_condition",
         "auto_next": "pos_intimidade",
+        "advance_when": (
+            "Avance quando o pós-sexo imediato já estiver estabelecido e surgir mudança clara "
+            "para rotina, comida, banho, sono, trabalho, outra atividade ou novo assunto cotidiano."
+        ),
         "prompt": """
-FATO JÁ DECIDIDO
-A intimidade terminou e Mary e Janio continuam juntos no mesmo ambiente.
+SITUAÇÃO ATUAL
+O sexo terminou. Mary e o parceiro presente continuam juntos no mesmo ambiente.
 
-O QUE ACONTECE NESTE TURNO
-Mostre o momento imediatamente posterior: proximidade, cuidado, humor, silêncio,
-carinho ou conversa curta, conforme o que Janio disser.
+ESTADO FÍSICO
+A excitação caiu. Há proximidade pós-sexo.
 
-NÃO FAÇA
-Não transforme isso em promessa de reconciliação perfeita.
+REGISTRO DE MARY
+Satisfação, carinho, humor leve, provocação residual, cansaço ou silêncio são naturais.
+Mary pode comentar o que acabaram de viver de forma adulta e satisfeita.
+A transição para o cotidiano pode acontecer organicamente quando a conversa ou ação mudar.
+
+LIMITE DESTE MICROPASSO
+Não transforme o sexo em promessa de relacionamento perfeito.
+Não mencione ex-parceiros ou personagens ausentes sem que a conversa atual os introduza.
 Não faça discurso terapêutico.
-Não volte a narrar etapas anteriores.
-
-RESULTADO ESPERADO
-Ao final desta resposta, o pós-intimidade imediato terminou e a vida cotidiana pode continuar.
 """.strip(),
         "decision_after_turns": 0, "choices": [],
-        "opening_caption": "Depois, o ritmo muda e sobra a proximidade.",
+        "opening_caption": "Depois do sexo, a intensidade diminui sem romper a proximidade.",
         "opening_mary": "",
         "initial_scene": {
             "location": "casa do casal", "time": "manhã",
             "present_characters": ["MARY", "JANIO"], "interaction_mode": "in_person",
-            "user_role": "JANIO", "proximity": "juntos após a intimidade",
-            "mary_immediate_goal": "viver o momento posterior sem transformar a intimidade em solução mágica",
-            "mary_action": "Mary se aconchega junto de Janio após a intimidade.", "open_hook": False, "hook_resolution": "",
+            "user_role": "JANIO", "proximity": "juntos após o sexo",
+            "sexual_intensity": "aftercare",
+            "mary_immediate_goal": "viver o pós-sexo e deixar o cotidiano retornar naturalmente",
+            "mary_action": "", "open_hook": False, "hook_resolution": "",
             "temporary_character": {"active": False, "name": "", "description": "", "relation_to_mary": "", "user_can_play": False},
-            "return_anchor": "", "event": "Mary e Janio permanecem juntos depois da intimidade.",
+            "return_anchor": "", "event": "Mary e o parceiro permanecem juntos depois do sexo.",
             "scene_changed": True, "show_caption": True,
-            "scene_caption": "Depois, o ritmo muda e sobra a proximidade.",
+            "scene_caption": "Depois do sexo, a intensidade diminui sem romper a proximidade.",
             "arc_phase": "resolution", "resolution_type": "aftercare",
-            "resolution_summary": "O casal atravessa o momento posterior.",
+            "resolution_summary": "O pós-sexo imediato começou.",
             "start_new_scene": True, "turns_in_scene": 0, "scene_number": 8,
             "mary_should_initiate": False, "user_scene_direction": "",
+            "microstep_complete": False,
         },
     },
 
