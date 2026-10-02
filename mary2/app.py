@@ -710,6 +710,186 @@ with st.sidebar:
         st.json(st.session_state.story_state.get("narrative", {}))
 
 
+def generate_model_chapter_opening(
+    *,
+    model: str,
+    temperature: float,
+    persistence: dict | None,
+) -> None:
+    """Gera a primeira fala real de Mary após uma transição manual de capítulo."""
+    narrative = st.session_state.story_state.setdefault("narrative", {})
+    chapter = get_chapter(_chapter_id())
+
+    if not narrative.get("chapter_opening_pending"):
+        return
+    if not bool(chapter.get("model_opening", False)):
+        return
+    if st.session_state.turn_records:
+        return
+
+    api_key = str(st.secrets["OPENROUTER_API_KEY"]).strip()
+    fallback = str(st.secrets.get("MARY_FALLBACK_MODEL", "")).strip() or None
+    director_model = str(st.secrets.get("MARY_DIRECTOR_MODEL", model)).strip() or model
+
+    user_role = str(st.session_state.active_user_role or "JANIO").upper()
+    pre_turn_snapshot = {
+        "active_user_role": user_role,
+        "story_ledger": story_ledger_text(st.session_state.story_state),
+        "scene_state": deepcopy(st.session_state.scene_state),
+        "story_state": deepcopy(st.session_state.story_state),
+    }
+
+    scene = direct_scene(
+        api_key=api_key,
+        model=director_model,
+        fallback_model=fallback,
+        physical_canon=PHYSICAL_CANON,
+        story_ledger=story_ledger_text(st.session_state.story_state),
+        current_status=current_status_text(st.session_state.story_state),
+        current_scene=st.session_state.scene_state,
+        user_role=user_role,
+        recent_messages=[],
+        scene_direction="",
+        user_spoke=False,
+        chapter_text=chapter_prompt(_chapter_id()),
+    )
+
+    opening_caption = str(chapter.get("opening_caption", "") or "").strip()
+    if opening_caption:
+        scene["show_caption"] = True
+        scene["scene_caption"] = opening_caption
+
+    system_prompt = build_system_prompt(
+        physical_canon=PHYSICAL_CANON,
+        story_ledger=story_ledger_text(st.session_state.story_state),
+        current_status=current_status_text(st.session_state.story_state),
+        chapter_text=chapter_prompt(_chapter_id()),
+        scene_text=json.dumps(scene, ensure_ascii=False),
+        user_role=user_role,
+    )
+
+    opening_instruction = {
+        "role": "system",
+        "content": (
+            "INÍCIO AUTOMÁTICO DO CAPÍTULO: esta é a primeira fala real de Mary "
+            "neste capítulo. Inicie a cena conforme CAPÍTULO ATUAL e CENA ATUAL. "
+            "Não espere uma fala do usuário. Responda somente com o que Mary diria."
+        ),
+    }
+
+    raw_answer = chat(
+        api_key=api_key,
+        model=model,
+        fallback_model=fallback,
+        messages=[
+            {"role": "system", "content": system_prompt},
+            opening_instruction,
+        ],
+        temperature=temperature,
+    )
+    narration_leak = looks_like_action_narration(raw_answer)
+    answer = sanitize_mary_output(raw_answer)
+
+    if not answer or narration_leak:
+        raw_answer = chat(
+            api_key=api_key,
+            model=model,
+            fallback_model=fallback,
+            messages=[
+                {"role": "system", "content": system_prompt},
+                opening_instruction,
+                {
+                    "role": "system",
+                    "content": (
+                        "CORREÇÃO DE FORMATO: responda somente com palavras que Mary "
+                        "diria em voz alta. Sem rubricas, narração ou ações."
+                    ),
+                },
+            ],
+            temperature=max(0.2, min(float(temperature), 0.8)),
+        )
+        narration_leak = looks_like_action_narration(raw_answer)
+        answer = sanitize_mary_output(raw_answer)
+
+    if not answer or narration_leak:
+        raise OpenRouterError(
+            "O modelo não produziu uma abertura verbal limpa para o novo capítulo."
+        )
+
+    st.session_state.scene_state = scene
+    st.session_state.messages = [{"role": "assistant", "content": answer}]
+    narrative["chapter_opening_pending"] = False
+
+    caption = scene.get("scene_caption", "") if scene.get("show_caption") else ""
+    turn_record = {
+        "seq": 0,
+        "caption": caption,
+        "direction": "",
+        "mary_action": str(scene.get("mary_action", "") or "").strip(),
+        "hook_resolution": str(scene.get("hook_resolution", "") or "").strip(),
+        "user_role": user_role,
+        "user_text": "",
+        "mary_text": answer,
+    }
+    st.session_state.turn_records = [turn_record]
+
+    if persistence:
+        info = ensure_schema(
+            service_account_info=persistence["service_account_info"],
+            spreadsheet_id=persistence["spreadsheet_id"],
+            spreadsheet_title=persistence["spreadsheet_title"],
+            owner_email=persistence["owner_email"],
+        )
+        st.session_state.spreadsheet_url = info["spreadsheet_url"]
+
+        if not st.session_state.run_id:
+            st.session_state.run_id = create_run(
+                service_account_info=persistence["service_account_info"],
+                spreadsheet_id=info["spreadsheet_id"],
+                spreadsheet_title=persistence["spreadsheet_title"],
+                owner_email=persistence["owner_email"],
+                player_id=persistence["player_id"],
+                active_user_role=user_role,
+                story_ledger=story_ledger_text(st.session_state.story_state),
+                scene_state=st.session_state.scene_state,
+                story_state=st.session_state.story_state,
+                archive_previous=False,
+            )
+
+        saved_seq = save_turn(
+            service_account_info=persistence["service_account_info"],
+            spreadsheet_id=info["spreadsheet_id"],
+            spreadsheet_title=persistence["spreadsheet_title"],
+            owner_email=persistence["owner_email"],
+            run_id=st.session_state.run_id,
+            player_id=persistence["player_id"],
+            active_user_role=user_role,
+            story_ledger=story_ledger_text(st.session_state.story_state),
+            scene_state=st.session_state.scene_state,
+            story_state=st.session_state.story_state,
+            turn_record=turn_record,
+            pre_turn_snapshot=pre_turn_snapshot,
+        )
+        turn_record["seq"] = saved_seq
+        st.session_state.run_last_seq = saved_seq
+
+
+try:
+    generate_model_chapter_opening(
+        model=model,
+        temperature=temperature,
+        persistence=persistence,
+    )
+except KeyError:
+    st.error("OPENROUTER_API_KEY não encontrada em st.secrets.")
+except OpenRouterError as exc:
+    st.error(f"Erro OpenRouter ao abrir capítulo: {exc}")
+except PersistenceError as exc:
+    st.error(f"Erro de persistência ao abrir capítulo: {exc}")
+except Exception as exc:
+    st.error(f"Erro inesperado ao abrir capítulo: {exc}")
+
+
 for record in st.session_state.turn_records:
     if record.get("direction"):
         st.caption("🎬 " + record["direction"])
