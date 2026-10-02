@@ -26,6 +26,9 @@ REGRAS
 - Frases como "No dia seguinte...", "Mary acorda...", "Janio sai para o trabalho",
   "horas depois", "no quarto", "ela vê o celular tocar" são direção de cena.
 - Frases em primeira pessoa dirigidas a Mary normalmente são fala.
+- Entradas como '"Janio se aproxima e a olha nos olhos": Mary... vem cá' são MISTAS: a parte narrada é scene_direction e a fala depois dos dois-pontos é dialogue.
+- Texto entre aspas que descreve ação física de Janio continua sendo direção de cena, não fala.
+- Preserve pedidos físicos na fala com sujeito e objeto corretos; não parafraseie "senta no meu colo" como "vamos nos aproximar".
 - O nome/identidade do papel ativo vem no payload; não presuma que seja Ricardo.
 - Se houver apenas direção de cena, dialogue deve ser string vazia.
 - Se houver apenas fala, scene_direction deve ser string vazia.
