@@ -37,7 +37,7 @@ from story_bible import PHYSICAL_CANON
 
 st.set_page_config(page_title="Mary Core 2", page_icon="🖤", layout="centered")
 
-BUILD_ID = "2026-10-02-dramatic-counter-v18"
+BUILD_ID = "2026-10-02-visceral-phases-v19"
 
 DEFAULT_MODELS = [
     "google/gemini-2.5-flash-lite",
@@ -1175,10 +1175,27 @@ if user_text:
         current_turn_number = _chapter_turns() + 1
         current_phase = chapter_phase(_chapter_id(), current_turn_number)
         current_phase_id = str(current_phase.get("id", "") or "").strip()
+        current_phase_goal = str(current_phase.get("goal", "") or "").strip()
+        previous_phase_id = str(
+            st.session_state.scene_state.get("chapter_phase", "") or ""
+        ).strip()
+        phase_changed = bool(current_phase_id) and current_phase_id != previous_phase_id
 
         scene_for_director = deepcopy(st.session_state.scene_state)
         scene_for_director["chapter_turn_current"] = current_turn_number
         scene_for_director["chapter_phase"] = current_phase_id
+        scene_for_director["chapter_phase_goal"] = current_phase_goal
+
+        if current_phase_id:
+            # Em capítulos com contador, a fase é estado determinístico do runtime.
+            scene_for_director["arc_phase"] = current_phase_id
+
+        if phase_changed:
+            # Remove resíduos transitórios da fase anterior.
+            scene_for_director["mary_immediate_goal"] = ""
+            scene_for_director["mary_action"] = ""
+            scene_for_director["event"] = ""
+            scene_for_director["return_anchor"] = ""
 
         current_chapter_prompt = chapter_prompt(
             _chapter_id(),
@@ -1208,6 +1225,10 @@ if user_text:
         director_audit = scene.pop("_director_audit", {})
         scene["chapter_turn_current"] = current_turn_number
         scene["chapter_phase"] = current_phase_id
+        scene["chapter_phase_goal"] = current_phase_goal
+        if current_phase_id:
+            # O Diretor não decide a fase dramática de capítulos contados.
+            scene["arc_phase"] = current_phase_id
 
         narrative_for_opening = st.session_state.story_state.get("narrative", {})
         if narrative_for_opening.get("chapter_opening_pending"):
