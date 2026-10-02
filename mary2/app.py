@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import re
 from copy import deepcopy
 
 import streamlit as st
@@ -35,7 +36,7 @@ from story_bible import PHYSICAL_CANON
 
 st.set_page_config(page_title="Mary Core 2", page_icon="🖤", layout="centered")
 
-BUILD_ID = "2026-10-02-confession-reactive-v12"
+BUILD_ID = "2026-10-02-dialogue-breathing-v13"
 
 DEFAULT_MODELS = [
     "google/gemini-2.5-flash-lite",
@@ -46,6 +47,40 @@ DEFAULT_MODELS = [
 INITIAL_SCENE = deepcopy(
     get_chapter("confissao_inicial").get("initial_scene", {})
 )
+
+
+def _mary_display_text(text: str) -> str:
+    """Cria respiro visual sem alterar a fala persistida nem o contexto da LLM."""
+    value = str(text or "").strip()
+    if not value:
+        return ""
+
+    sentences = [
+        part.strip()
+        for part in re.split(r"(?<=[.!?…])\s+", value)
+        if part.strip()
+    ]
+    if len(sentences) <= 2 and len(value) <= 180:
+        return value
+
+    paragraphs: list[str] = []
+    current: list[str] = []
+    current_len = 0
+
+    for sentence in sentences:
+        projected = current_len + (1 if current else 0) + len(sentence)
+        if current and (len(current) >= 2 or projected > 180):
+            paragraphs.append(" ".join(current))
+            current = [sentence]
+            current_len = len(sentence)
+        else:
+            current.append(sentence)
+            current_len = projected
+
+    if current:
+        paragraphs.append(" ".join(current))
+
+    return "\n\n".join(paragraphs)
 
 
 def reset_local_story() -> None:
@@ -906,8 +941,9 @@ def generate_model_chapter_opening(
                         "CORREÇÃO DE FORMATO: use exatamente [INTENCAO] e [FALA]. "
                         "[INTENCAO] deve ser uma frase curta em primeira pessoa, sem narração. "
                         "[FALA] deve conter somente palavras que Mary diria em voz alta, "
-                        "também em primeira pessoa. A fala deve ser maior que a intenção. "
-                        "Sem rubricas, literatura ou ações narradas."
+                        "também em primeira pessoa. Gestos, aparência, postura e movimentos "
+                        "pertencem ao Diretor. Use sensação corporal somente quando Mary "
+                        "realmente a verbalizaria numa conversa."
                     ),
                 },
             ],
@@ -1032,7 +1068,7 @@ for record in st.session_state.turn_records:
     with st.chat_message("assistant"):
         if record.get("mary_intent"):
             st.caption("💭 " + str(record["mary_intent"]))
-        st.markdown(record["mary_text"])
+        st.markdown(_mary_display_text(record["mary_text"]))
 
 
 if not st.session_state.turn_records:
