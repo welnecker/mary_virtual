@@ -563,13 +563,19 @@ def apply_pending_auto_transition(persistence: dict | None) -> bool:
         else {}
     )
 
+    branch_id = str(narrative.get("branch_id", "main") or "main")
+    instance_id = new_chapter_instance_id(next_chapter_id)
+
     narrative["chapter_id"] = next_chapter_id
     narrative["chapter_turns"] = 0
     narrative["chapter_opening_pending"] = True
-    # A sequência continua visível; só o contexto enviado à LLM recomeça aqui.
     narrative["prompt_start_seq"] = last_seq + 1
     narrative["pending_auto_chapter"] = ""
     narrative["handoff"] = handoff
+    narrative["chapter_instance_id"] = instance_id
+    narrative["chapter_entry_checkpoint_id"] = ""
+    narrative.pop("phase_start_message_index", None)
+    narrative.pop("active_phase_id", None)
 
     st.session_state.scene_state = _scene_for_chapter_transition(
         chapter,
@@ -583,10 +589,29 @@ def apply_pending_auto_transition(persistence: dict | None) -> bool:
         next_role = "JANIO"
     st.session_state.active_user_role = next_role
 
-    # Fronteira real de prompt: limpa contexto da LLM, preserva histórico visual.
+    # Fronteira de prompt: preserva o histórico visual, mas inicia contexto novo.
     st.session_state.messages = []
 
     if persistence and st.session_state.run_id:
+        entry_id = save_checkpoint(
+            service_account_info=persistence["service_account_info"],
+            spreadsheet_id=persistence["spreadsheet_id"],
+            spreadsheet_title=persistence["spreadsheet_title"],
+            owner_email=persistence["owner_email"],
+            run_id=st.session_state.run_id,
+            checkpoint_type="chapter_entry",
+            source_seq=last_seq,
+            source_chapter_id=next_chapter_id,
+            source_chapter_instance_id=instance_id,
+            source_branch_id=branch_id,
+            choice_point_id=next_chapter_id,
+            active_user_role=st.session_state.active_user_role,
+            story_ledger=story_ledger_text(st.session_state.story_state),
+            scene_state=st.session_state.scene_state,
+            story_state=st.session_state.story_state,
+        )
+        narrative["chapter_entry_checkpoint_id"] = entry_id
+
         update_run_snapshot(
             service_account_info=persistence["service_account_info"],
             spreadsheet_id=persistence["spreadsheet_id"],
