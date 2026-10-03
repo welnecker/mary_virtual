@@ -97,6 +97,8 @@ def reset_local_story() -> None:
     st.session_state.turn_records = []
     st.session_state.active_user_role = "JANIO"
     st.session_state.run_last_seq = 0
+    st.session_state.route_checkpoints = []
+    st.session_state.route_checkpoints_loaded_for_run = ""
 
 
 def _messages_from_records(records: list[dict]) -> list[dict[str, str]]:
@@ -227,6 +229,7 @@ def activate_chapter(
             scene_state=previous_scene,
             story_state=previous_state,
         )
+        st.session_state.route_checkpoints_loaded_for_run = ""
 
     st.session_state.story_state = apply_choice_to_story(
         story_state=previous_state,
