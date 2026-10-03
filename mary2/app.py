@@ -43,7 +43,7 @@ from story_bible import PHYSICAL_CANON
 
 st.set_page_config(page_title="Mary Core 2", page_icon="🖤", layout="centered")
 
-BUILD_ID = "2026-10-03-branching-checkpoints-v30"
+BUILD_ID = "2026-10-03-action-below-user-v31"
 
 DEFAULT_MODELS = [
     "google/gemini-2.5-flash-lite",
@@ -1540,8 +1540,6 @@ for record in st.session_state.turn_records:
         st.info(record["caption"])
     if record.get("hook_resolution"):
         st.info(record["hook_resolution"])
-    if record.get("mary_action"):
-        st.markdown(f"*{record['mary_action']}*")
     if record.get("user_text"):
         with st.chat_message("user"):
             record_role = str(record.get("user_role", "JANIO") or "JANIO")
@@ -1550,6 +1548,8 @@ for record in st.session_state.turn_records:
             else:
                 st.caption("Janio")
             st.markdown(record["user_text"])
+    if record.get("mary_action"):
+        st.markdown(f"*{record['mary_action']}*")
     with st.chat_message("assistant"):
         if record.get("mary_intent"):
             st.caption("💭 " + str(record["mary_intent"]))
