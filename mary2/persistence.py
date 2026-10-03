@@ -11,6 +11,8 @@ from google.oauth2.service_account import Credentials
 RUNS_SHEET = "STORY_RUNS"
 INTERACTIONS_SHEET = "INTERACTIONS"
 DIRECTOR_AUDIT_SHEET = "DIRECTOR_AUDIT"
+CHECKPOINTS_SHEET = "STORY_CHECKPOINTS"
+BRANCHES_SHEET = "STORY_BRANCHES"
 
 RUN_HEADERS = [
     "run_id",
@@ -41,6 +43,10 @@ INTERACTION_HEADERS = [
     "mary_action",
     "hook_resolution",
     "mary_intent",
+    "branch_id",
+    "chapter_instance_id",
+    "chapter_id",
+    "chapter_turn",
 ]
 
 
@@ -72,6 +78,35 @@ DIRECTOR_AUDIT_HEADERS = [
     "main_model",
     "mary_text",
 ]
+
+CHECKPOINT_HEADERS = [
+    "checkpoint_id",
+    "run_id",
+    "checkpoint_type",
+    "source_seq",
+    "source_chapter_id",
+    "source_chapter_instance_id",
+    "source_branch_id",
+    "choice_point_id",
+    "active_user_role",
+    "story_ledger",
+    "scene_json",
+    "story_state_json",
+    "created_at",
+]
+
+BRANCH_HEADERS = [
+    "branch_id",
+    "run_id",
+    "parent_branch_id",
+    "parent_checkpoint_id",
+    "choice_id",
+    "choice_label",
+    "chapter_id",
+    "chapter_instance_id",
+    "created_at",
+]
+
 
 
 class PersistenceError(RuntimeError):
