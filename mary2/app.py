@@ -1466,6 +1466,9 @@ def generate_model_chapter_opening(
             audit=director_audit,
             main_model=model,
             mary_text=answer,
+            branch_id=str(narrative.get("branch_id", "main") or "main"),
+            chapter_instance_id=str(narrative.get("chapter_instance_id", "") or ""),
+            chapter_turn=0,
         )
 
 
@@ -1879,6 +1882,9 @@ if user_text:
                     audit=director_audit,
                     main_model=model,
                     mary_text=answer,
+                    branch_id=str(narrative.get("branch_id", "main") or "main"),
+                    chapter_instance_id=str(narrative.get("chapter_instance_id", "") or ""),
+                    chapter_turn=int(narrative.get("chapter_turns", 0) or 0),
                 )
                 st.session_state.persistence_error = ""
             except Exception as exc:
