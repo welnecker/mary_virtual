@@ -756,6 +756,8 @@ for key, default in {
     "rollback_notice": "",
     "rollback_retry_text": "",
     "run_last_seq": 0,
+    "route_checkpoints": [],
+    "route_checkpoints_loaded_for_run": "",
 }.items():
     if key not in st.session_state:
         st.session_state[key] = default
@@ -1005,17 +1007,47 @@ with st.sidebar:
                 except Exception as exc:
                     st.error(f"Não foi possível reiniciar o capítulo: {exc}")
 
-            try:
-                decision_checkpoints = load_checkpoints(
-                    service_account_info=persistence["service_account_info"],
-                    spreadsheet_id=persistence["spreadsheet_id"],
-                    spreadsheet_title=persistence["spreadsheet_title"],
-                    owner_email=persistence["owner_email"],
-                    run_id=st.session_state.run_id,
-                    checkpoint_type="decision",
-                )
-            except Exception:
-                decision_checkpoints = []
+            if (
+                st.session_state.route_checkpoints_loaded_for_run
+                != st.session_state.run_id
+            ):
+                try:
+                    st.session_state.route_checkpoints = load_checkpoints(
+                        service_account_info=persistence["service_account_info"],
+                        spreadsheet_id=persistence["spreadsheet_id"],
+                        spreadsheet_title=persistence["spreadsheet_title"],
+                        owner_email=persistence["owner_email"],
+                        run_id=st.session_state.run_id,
+                        checkpoint_type="decision",
+                    )
+                    st.session_state.route_checkpoints_loaded_for_run = (
+                        st.session_state.run_id
+                    )
+                except Exception:
+                    st.session_state.route_checkpoints = []
+
+            decision_checkpoints = st.session_state.route_checkpoints
+
+            if st.button(
+                "Atualizar decisões salvas",
+                use_container_width=True,
+                key="refresh_route_checkpoints",
+            ):
+                try:
+                    st.session_state.route_checkpoints = load_checkpoints(
+                        service_account_info=persistence["service_account_info"],
+                        spreadsheet_id=persistence["spreadsheet_id"],
+                        spreadsheet_title=persistence["spreadsheet_title"],
+                        owner_email=persistence["owner_email"],
+                        run_id=st.session_state.run_id,
+                        checkpoint_type="decision",
+                    )
+                    st.session_state.route_checkpoints_loaded_for_run = (
+                        st.session_state.run_id
+                    )
+                    decision_checkpoints = st.session_state.route_checkpoints
+                except Exception as exc:
+                    st.error(f"Não foi possível carregar decisões: {exc}")
 
             if decision_checkpoints:
                 st.markdown("**Explorar outra rota**")
