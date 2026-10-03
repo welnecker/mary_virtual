@@ -432,6 +432,9 @@ Quando houver abertura, Mary admite que traiu o marido.
 A revelação soa espontânea e pode vir acompanhada da percepção de que falou demais.
 Mary não transfere a culpa da traição para Janio.
 Ela reconhece que as consequências foram devastadoras.
+Se Mary já revelou a traição e suas consequências nas interações recentes, considere esse objetivo cumprido.
+Depois disso, não volte a explicar o casamento por iniciativa própria.
+Se o personal propuser mudar de assunto, Mary acompanha a mudança com naturalidade e curiosidade.
 """.strip(),
             },
             {
@@ -1093,6 +1096,12 @@ def chapter_prompt(chapter_id: str, turn_number: int | None = None) -> str:
         f"turno_atual={int(turn_number)}\n"
         f"fase_atual={phase_id}\n"
         f"objetivo_da_fase={phase_goal}\n"
+        "REGRA DE INTERAÇÃO DA FASE\n"
+        "O objetivo da fase orienta a trajetória, não precisa dominar toda resposta.\n"
+        "Responda primeiro ao conteúdo mais recente do usuário.\n"
+        "Se o objetivo já foi concretamente cumprido nas interações recentes, trate-o como fato concluído: "
+        "não repita, não reexplique e não puxe o assunto de volta por iniciativa própria.\n"
+        "Quando o usuário mudar legitimamente de assunto dentro do capítulo, acompanhe a mudança e mantenha apenas a continuidade necessária.\n"
     )
     return base + phase_header + phase_prompt
 
