@@ -229,6 +229,180 @@ def ensure_schema(
     }
 
 
+
+def new_branch_id(choice_id: str = "branch") -> str:
+    stem = str(choice_id or "branch").strip().lower().replace(" ", "_")
+    return f"{stem}_{uuid4().hex[:10]}"
+
+
+def new_chapter_instance_id(chapter_id: str) -> str:
+    stem = str(chapter_id or "chapter").strip().lower().replace(" ", "_")
+    return f"{stem}_{uuid4().hex[:10]}"
+
+
+def new_checkpoint_id(checkpoint_type: str = "checkpoint") -> str:
+    stem = str(checkpoint_type or "checkpoint").strip().lower().replace(" ", "_")
+    return f"{stem}_{uuid4().hex[:10]}"
+
+
+def save_checkpoint(
+    *,
+    service_account_info: dict,
+    run_id: str,
+    checkpoint_type: str,
+    source_seq: int,
+    source_chapter_id: str,
+    source_chapter_instance_id: str,
+    source_branch_id: str,
+    choice_point_id: str,
+    active_user_role: str,
+    story_ledger: str,
+    scene_state: dict,
+    story_state: dict,
+    spreadsheet_id: str = "",
+    spreadsheet_title: str = "MARY_CORE_PERSISTENCE",
+    owner_email: str = "",
+    checkpoint_id: str = "",
+) -> str:
+    book = open_or_create_book(
+        service_account_info=service_account_info,
+        spreadsheet_id=spreadsheet_id,
+        spreadsheet_title=spreadsheet_title,
+        owner_email=owner_email,
+    )
+    ws = _ensure_worksheet(book, CHECKPOINTS_SHEET, CHECKPOINT_HEADERS)
+
+    existing = ws.get_all_records()
+    for item in existing:
+        if (
+            str(item.get("run_id", "")) == run_id
+            and str(item.get("checkpoint_type", "")) == str(checkpoint_type)
+            and str(item.get("source_chapter_instance_id", "")) == str(source_chapter_instance_id)
+            and str(item.get("choice_point_id", "")) == str(choice_point_id)
+        ):
+            return str(item.get("checkpoint_id", "") or "")
+
+    checkpoint_id = str(checkpoint_id or new_checkpoint_id(checkpoint_type))
+    ws.append_row(
+        [
+            checkpoint_id,
+            run_id,
+            checkpoint_type,
+            int(source_seq or 0),
+            source_chapter_id,
+            source_chapter_instance_id,
+            source_branch_id,
+            choice_point_id,
+            active_user_role,
+            story_ledger,
+            json.dumps(scene_state, ensure_ascii=False),
+            json.dumps(story_state, ensure_ascii=False),
+            _now(),
+        ],
+        value_input_option="RAW",
+    )
+    return checkpoint_id
+
+
+def save_branch(
+    *,
+    service_account_info: dict,
+    run_id: str,
+    branch_id: str,
+    parent_branch_id: str,
+    parent_checkpoint_id: str,
+    choice_id: str,
+    choice_label: str,
+    chapter_id: str,
+    chapter_instance_id: str,
+    spreadsheet_id: str = "",
+    spreadsheet_title: str = "MARY_CORE_PERSISTENCE",
+    owner_email: str = "",
+) -> None:
+    book = open_or_create_book(
+        service_account_info=service_account_info,
+        spreadsheet_id=spreadsheet_id,
+        spreadsheet_title=spreadsheet_title,
+        owner_email=owner_email,
+    )
+    ws = _ensure_worksheet(book, BRANCHES_SHEET, BRANCH_HEADERS)
+    ws.append_row(
+        [
+            branch_id,
+            run_id,
+            parent_branch_id,
+            parent_checkpoint_id,
+            choice_id,
+            choice_label,
+            chapter_id,
+            chapter_instance_id,
+            _now(),
+        ],
+        value_input_option="RAW",
+    )
+
+
+def load_checkpoints(
+    *,
+    service_account_info: dict,
+    run_id: str,
+    checkpoint_type: str = "",
+    spreadsheet_id: str = "",
+    spreadsheet_title: str = "MARY_CORE_PERSISTENCE",
+    owner_email: str = "",
+) -> list[dict]:
+    book = open_or_create_book(
+        service_account_info=service_account_info,
+        spreadsheet_id=spreadsheet_id,
+        spreadsheet_title=spreadsheet_title,
+        owner_email=owner_email,
+    )
+    ws = _ensure_worksheet(book, CHECKPOINTS_SHEET, CHECKPOINT_HEADERS)
+    rows = [
+        dict(item)
+        for item in ws.get_all_records()
+        if str(item.get("run_id", "")) == run_id
+    ]
+    if checkpoint_type:
+        rows = [
+            item for item in rows
+            if str(item.get("checkpoint_type", "")) == checkpoint_type
+        ]
+    rows.sort(key=lambda item: int(item.get("source_seq", 0) or 0))
+    return rows
+
+
+def load_checkpoint(
+    *,
+    service_account_info: dict,
+    checkpoint_id: str,
+    spreadsheet_id: str = "",
+    spreadsheet_title: str = "MARY_CORE_PERSISTENCE",
+    owner_email: str = "",
+) -> dict:
+    book = open_or_create_book(
+        service_account_info=service_account_info,
+        spreadsheet_id=spreadsheet_id,
+        spreadsheet_title=spreadsheet_title,
+        owner_email=owner_email,
+    )
+    ws = _ensure_worksheet(book, CHECKPOINTS_SHEET, CHECKPOINT_HEADERS)
+    for item in ws.get_all_records():
+        if str(item.get("checkpoint_id", "")) != checkpoint_id:
+            continue
+        try:
+            scene_state = json.loads(str(item.get("scene_json", "") or "{}"))
+            story_state = json.loads(str(item.get("story_state_json", "") or "{}"))
+        except Exception as exc:
+            raise PersistenceError("Checkpoint possui JSON inválido.") from exc
+        return {
+            **dict(item),
+            "scene_state": scene_state,
+            "story_state": story_state,
+        }
+    raise PersistenceError(f"Checkpoint não encontrado: {checkpoint_id}")
+
+
 def create_run(
     *,
     service_account_info: dict,
