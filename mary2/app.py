@@ -43,7 +43,7 @@ from story_bible import PHYSICAL_CANON
 
 st.set_page_config(page_title="Mary Core 2", page_icon="🖤", layout="centered")
 
-BUILD_ID = "2026-10-03-branching-checkpoints-v29"
+BUILD_ID = "2026-10-03-branching-checkpoints-v30"
 
 DEFAULT_MODELS = [
     "google/gemini-2.5-flash-lite",
@@ -978,15 +978,14 @@ with st.sidebar:
             st.markdown(f"[Abrir planilha da história]({st.session_state.spreadsheet_url})")
         if st.session_state.run_id:
             st.caption(f"Run: {st.session_state.run_id}")
+        if st.session_state.audit_error:
+            st.caption("A história está salva; apenas a auditoria técnica encontrou um erro.")
+            with st.expander("Detalhe da auditoria"):
+                st.code(st.session_state.audit_error)
     elif st.session_state.persistence_error:
         st.warning("Persistência indisponível nesta sessão.")
         with st.expander("Detalhe técnico"):
             st.code(st.session_state.persistence_error)
-    elif st.session_state.audit_error:
-        st.success("História persistente ativa")
-        st.caption("A história está salva; apenas a auditoria técnica encontrou um erro.")
-        with st.expander("Detalhe da auditoria"):
-            st.code(st.session_state.audit_error)
     else:
         st.caption("Persistência Google Sheets ainda não configurada.")
 
