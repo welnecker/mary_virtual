@@ -755,6 +755,7 @@ for key, default in {
     "active_user_role": "JANIO",
     "persistence_loaded": False,
     "persistence_error": "",
+    "audit_error": "",
     "spreadsheet_url": "",
     "rollback_notice": "",
     "rollback_retry_text": "",
@@ -981,6 +982,11 @@ with st.sidebar:
         st.warning("Persistência indisponível nesta sessão.")
         with st.expander("Detalhe técnico"):
             st.code(st.session_state.persistence_error)
+    elif st.session_state.audit_error:
+        st.success("História persistente ativa")
+        st.caption("A história está salva; apenas a auditoria técnica encontrou um erro.")
+        with st.expander("Detalhe da auditoria"):
+            st.code(st.session_state.audit_error)
     else:
         st.caption("Persistência Google Sheets ainda não configurada.")
 
@@ -1487,24 +1493,29 @@ def generate_model_chapter_opening(
         )
         turn_record["seq"] = saved_seq
         st.session_state.run_last_seq = saved_seq
-        save_director_audit(
-            service_account_info=persistence["service_account_info"],
-            spreadsheet_id=info["spreadsheet_id"],
-            spreadsheet_title=persistence["spreadsheet_title"],
-            owner_email=persistence["owner_email"],
-            run_id=st.session_state.run_id,
-            seq=saved_seq,
-            chapter_id=_chapter_id(),
-            user_role=user_role,
-            user_text="",
-            scene_direction="",
-            audit=director_audit,
-            main_model=model,
-            mary_text=answer,
-            branch_id=str(narrative.get("branch_id", "main") or "main"),
-            chapter_instance_id=str(narrative.get("chapter_instance_id", "") or ""),
-            chapter_turn=0,
-        )
+        try:
+            save_director_audit(
+                service_account_info=persistence["service_account_info"],
+                spreadsheet_id=info["spreadsheet_id"],
+                spreadsheet_title=persistence["spreadsheet_title"],
+                owner_email=persistence["owner_email"],
+                run_id=st.session_state.run_id,
+                seq=saved_seq,
+                chapter_id=_chapter_id(),
+                user_role=user_role,
+                user_text="",
+                scene_direction="",
+                audit=director_audit,
+                main_model=model,
+                mary_text=answer,
+                branch_id=str(narrative.get("branch_id", "main") or "main"),
+                chapter_instance_id=str(narrative.get("chapter_instance_id", "") or ""),
+                chapter_turn=0,
+            )
+            st.session_state.audit_error = ""
+        except Exception as audit_exc:
+            # Auditoria é observabilidade; nunca deve derrubar a persistência principal.
+            st.session_state.audit_error = str(audit_exc)
 
 
 try:
@@ -1903,24 +1914,29 @@ if user_text:
                 )
                 turn_record["seq"] = saved_seq
                 st.session_state.run_last_seq = saved_seq
-                save_director_audit(
-                    service_account_info=persistence["service_account_info"],
-                    spreadsheet_id=info["spreadsheet_id"],
-                    spreadsheet_title=persistence["spreadsheet_title"],
-                    owner_email=persistence["owner_email"],
-                    run_id=st.session_state.run_id,
-                    seq=saved_seq,
-                    chapter_id=_chapter_id(),
-                    user_role=user_role,
-                    user_text=dialogue_text,
-                    scene_direction=scene_direction,
-                    audit=director_audit,
-                    main_model=model,
-                    mary_text=answer,
-                    branch_id=str(narrative.get("branch_id", "main") or "main"),
-                    chapter_instance_id=str(narrative.get("chapter_instance_id", "") or ""),
-                    chapter_turn=int(narrative.get("chapter_turns", 0) or 0),
-                )
+                try:
+                    save_director_audit(
+                        service_account_info=persistence["service_account_info"],
+                        spreadsheet_id=info["spreadsheet_id"],
+                        spreadsheet_title=persistence["spreadsheet_title"],
+                        owner_email=persistence["owner_email"],
+                        run_id=st.session_state.run_id,
+                        seq=saved_seq,
+                        chapter_id=_chapter_id(),
+                        user_role=user_role,
+                        user_text=dialogue_text,
+                        scene_direction=scene_direction,
+                        audit=director_audit,
+                        main_model=model,
+                        mary_text=answer,
+                        branch_id=str(narrative.get("branch_id", "main") or "main"),
+                        chapter_instance_id=str(narrative.get("chapter_instance_id", "") or ""),
+                        chapter_turn=int(narrative.get("chapter_turns", 0) or 0),
+                    )
+                    st.session_state.audit_error = ""
+                except Exception as audit_exc:
+                    # O turno já foi salvo. Falha de auditoria não torna a história indisponível.
+                    st.session_state.audit_error = str(audit_exc)
                 st.session_state.persistence_error = ""
             except Exception as exc:
                 # A história continua funcionando mesmo se o Google falhar.
