@@ -37,7 +37,7 @@ from story_bible import PHYSICAL_CANON
 
 st.set_page_config(page_title="Mary Core 2", page_icon="🖤", layout="centered")
 
-BUILD_ID = "2026-10-02-branching-chapter-arcs-v24"
+BUILD_ID = "2026-10-02-branching-chapter-arcs-v25"
 
 DEFAULT_MODELS = [
     "google/gemini-2.5-flash-lite",
@@ -874,6 +874,19 @@ def generate_model_chapter_opening(
         "story_state": deepcopy(st.session_state.story_state),
     }
 
+    opening_phase = chapter_phase(_chapter_id(), 1)
+    opening_phase_id = str(opening_phase.get("id", "") or "").strip()
+    opening_phase_goal = str(opening_phase.get("goal", "") or "").strip()
+    opening_chapter_prompt = chapter_prompt(_chapter_id(), turn_number=1)
+
+    opening_scene = deepcopy(st.session_state.scene_state)
+    opening_scene["chapter_turn_current"] = 1
+    opening_scene["chapter_phase"] = opening_phase_id
+    opening_scene["chapter_phase_goal"] = opening_phase_goal
+    if opening_phase_id:
+        opening_scene["arc_phase"] = opening_phase_id
+        opening_scene["mary_immediate_goal"] = ""
+
     scene = direct_scene(
         api_key=api_key,
         model=director_model,
@@ -881,12 +894,12 @@ def generate_model_chapter_opening(
         physical_canon=PHYSICAL_CANON,
         story_ledger=story_ledger_text(st.session_state.story_state),
         current_status=current_status_text(st.session_state.story_state),
-        current_scene=st.session_state.scene_state,
+        current_scene=opening_scene,
         user_role=user_role,
         recent_messages=[],
         scene_direction="",
         user_spoke=False,
-        chapter_text=chapter_prompt(_chapter_id()),
+        chapter_text=opening_chapter_prompt,
     )
     director_audit = scene.pop("_director_audit", {})
 
@@ -899,7 +912,7 @@ def generate_model_chapter_opening(
         physical_canon=PHYSICAL_CANON,
         story_ledger=story_ledger_text(st.session_state.story_state),
         current_status=current_status_text(st.session_state.story_state),
-        chapter_text=chapter_prompt(_chapter_id()),
+        chapter_text=opening_chapter_prompt,
         scene_text=json.dumps(scene, ensure_ascii=False),
         user_role=user_role,
         handoff_text=_handoff_text(st.session_state.story_state),
