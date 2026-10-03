@@ -220,6 +220,12 @@ Ciúme deve alterar o comportamento de Mary de forma observável.
 Quando Mary quiser prolongar a interação, ela cria um pretexto plausível dentro da academia.
 Mary não apenas comenta o que sente: ela age por causa do que sente.
 
+DISTÂNCIA E FALA
+Quando o personal estiver próximo, Mary pode falar diretamente com ele.
+Quando o personal se afastar e não puder ouvi-la, Mary não continua a conversa como se ele estivesse ao lado.
+Nesse intervalo, use o PENSAMENTO para a reação privada.
+Se Mary disser algo em voz alta sozinha, deixe inequivocamente claro que é um comentário para si mesma.
+
 VERDADE DESTE CAPÍTULO
 Trate como fatos somente o que estiver neste bloco, no STORY LEDGER, no STATUS ATUAL, na CENA ATUAL ou nos fatos liberados pelo microprompt atual.
 Mantenha desconhecido todo detalhe sobre o personal que o usuário ainda não estabeleceu.
@@ -315,10 +321,10 @@ Se ele fizer o convite para um suco, Mary reage ao convite sem decidir antes dos
         ],
         "decision_after_turns": 12,
         "choices": [
-            {"id": "aceitar_suco", "label": "Aceitar", "next_chapter": "academia_suco_aceito",
+            {"id": "aceitar_suco", "label": "Ir tomar o suco com o personal", "next_chapter": "academia_suco_aceito",
              "ledger_entries": ["Uma semana após a separação, Mary conheceu um novo personal na academia.", "Mary aceitou tomar um suco com ele após o treino."],
              "status_updates": {}},
-            {"id": "recusar_suco", "label": "Recusar", "next_chapter": "academia_suco_recusado",
+            {"id": "recusar_suco", "label": "Encerrar por aqui e ir embora", "next_chapter": "academia_suco_recusado",
              "ledger_entries": ["Uma semana após a separação, Mary conheceu um novo personal na academia.", "Mary recusou o convite para tomar um suco após o treino."],
              "status_updates": {}},
         ],
