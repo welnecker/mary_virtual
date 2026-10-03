@@ -14,6 +14,11 @@ INITIAL_STATE = {
         "last_choice_id": "",
         "pending_auto_chapter": "",
         "handoff": {},
+        "branch_id": "main",
+        "parent_branch_id": "",
+        "parent_checkpoint_id": "",
+        "chapter_instance_id": "confissao_inicial_001",
+        "chapter_entry_checkpoint_id": "",
     },
     "story_ledger": [],
     "current_status": {
@@ -72,6 +77,16 @@ def migrate_state(state: dict | None) -> dict:
                 deepcopy(narrative.get("handoff"))
                 if isinstance(narrative.get("handoff"), dict)
                 else {}
+            ),
+            "branch_id": str(narrative.get("branch_id", "main") or "main"),
+            "parent_branch_id": str(narrative.get("parent_branch_id", "") or ""),
+            "parent_checkpoint_id": str(narrative.get("parent_checkpoint_id", "") or ""),
+            "chapter_instance_id": str(
+                narrative.get("chapter_instance_id", "")
+                or f"{str(narrative.get('chapter_id', 'confissao_inicial') or 'confissao_inicial')}_legacy"
+            ),
+            "chapter_entry_checkpoint_id": str(
+                narrative.get("chapter_entry_checkpoint_id", "") or ""
             ),
         })
 
