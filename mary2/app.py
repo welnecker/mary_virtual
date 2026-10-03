@@ -43,7 +43,7 @@ from story_bible import PHYSICAL_CANON
 
 st.set_page_config(page_title="Mary Core 2", page_icon="🖤", layout="centered")
 
-BUILD_ID = "2026-10-03-presence-and-actions-v34"
+BUILD_ID = "2026-10-03-organic-choice-convergence-v35"
 
 DEFAULT_MODELS = [
     "google/gemini-2.5-flash-lite",
@@ -257,6 +257,7 @@ def activate_chapter(
     narrative["parent_checkpoint_id"] = decision_checkpoint_id
     narrative["chapter_instance_id"] = chapter_instance_id
     narrative["chapter_entry_checkpoint_id"] = ""
+    narrative["choice_ready"] = False
     narrative.pop("phase_start_message_index", None)
     narrative.pop("active_phase_id", None)
 
@@ -394,6 +395,7 @@ def restart_current_chapter(persistence: dict | None) -> None:
     narrative["branch_id"] = branch_id
     narrative["chapter_instance_id"] = new_instance_id
     narrative["chapter_entry_checkpoint_id"] = ""
+    narrative["choice_ready"] = False
     narrative["pending_auto_chapter"] = ""
     narrative["handoff"] = {}
     narrative.pop("phase_start_message_index", None)
@@ -492,6 +494,7 @@ def activate_choice_from_checkpoint(
     narrative["parent_checkpoint_id"] = checkpoint_id
     narrative["chapter_instance_id"] = instance_id
     narrative["chapter_entry_checkpoint_id"] = ""
+    narrative["choice_ready"] = False
     narrative.pop("phase_start_message_index", None)
     narrative.pop("active_phase_id", None)
 
@@ -579,6 +582,7 @@ def apply_pending_auto_transition(persistence: dict | None) -> bool:
     narrative["handoff"] = handoff
     narrative["chapter_instance_id"] = instance_id
     narrative["chapter_entry_checkpoint_id"] = ""
+    narrative["choice_ready"] = False
     narrative.pop("phase_start_message_index", None)
     narrative.pop("active_phase_id", None)
 
@@ -1580,7 +1584,10 @@ if not st.session_state.turn_records:
 
 chapter_id = _chapter_id()
 chapter_turns = _chapter_turns()
-if chapter_ready_for_choice(chapter_id, chapter_turns):
+choice_ready = bool(
+    st.session_state.story_state.get("narrative", {}).get("choice_ready", False)
+)
+if chapter_ready_for_choice(chapter_id, chapter_turns, choice_ready):
     available_choices = chapter_choices(chapter_id)
     st.divider()
     st.subheader("Decisão")
@@ -1722,10 +1729,17 @@ if user_text:
             user_spoke=user_spoke,
             chapter_text=current_chapter_prompt,
             conditional_transition=(
-                str(get_chapter(_chapter_id()).get("transition", "")) == "auto_condition"
+                str(chapter_config.get("transition", "")) == "auto_condition"
+                or (
+                    bool(str(chapter_config.get("choice_ready_when", "") or "").strip())
+                    and current_turn_number
+                    >= int(chapter_config.get("decision_after_turns", 0) or 0)
+                )
             ),
-            advance_when=str(
-                get_chapter(_chapter_id()).get("advance_when", "") or ""
+            advance_when=(
+                str(chapter_config.get("advance_when", "") or "")
+                if str(chapter_config.get("transition", "")) == "auto_condition"
+                else str(chapter_config.get("choice_ready_when", "") or "")
             ),
         )
         director_audit = scene.pop("_director_audit", {})
@@ -1868,6 +1882,17 @@ if user_text:
             narrative["chapter_opening_pending"] = False
 
         active_chapter = get_chapter(_chapter_id())
+
+        if (
+            str(active_chapter.get("choice_ready_when", "") or "").strip()
+            and int(narrative.get("chapter_turns", 0) or 0)
+            >= int(active_chapter.get("decision_after_turns", 0) or 0)
+            and bool(scene.get("microstep_complete", False))
+        ):
+            # A prontidão fica latched: uma vez surgido o gancho concreto,
+            # ele não desaparece se o usuário continuar digitando antes de escolher.
+            narrative["choice_ready"] = True
+
         if (
             str(active_chapter.get("transition", "")) == "auto_condition"
             and bool(scene.get("microstep_complete", False))
