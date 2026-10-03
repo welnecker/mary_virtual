@@ -77,6 +77,9 @@ DIRECTOR_AUDIT_HEADERS = [
     "scene_after_json",
     "main_model",
     "mary_text",
+    "branch_id",
+    "chapter_instance_id",
+    "chapter_turn",
 ]
 
 CHECKPOINT_HEADERS = [
@@ -580,6 +583,9 @@ def save_director_audit(
     audit: dict,
     main_model: str = "",
     mary_text: str = "",
+    branch_id: str = "",
+    chapter_instance_id: str = "",
+    chapter_turn: int = 0,
     spreadsheet_id: str = "",
     spreadsheet_title: str = "MARY_CORE_PERSISTENCE",
     owner_email: str = "",
@@ -628,6 +634,9 @@ def save_director_audit(
             _audit_cell(after),
             main_model,
             _audit_cell(mary_text),
+            branch_id,
+            chapter_instance_id,
+            int(chapter_turn or 0),
         ],
         value_input_option="RAW",
     )
