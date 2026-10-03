@@ -1288,6 +1288,10 @@ def generate_model_chapter_opening(
         "user_role": user_role,
         "user_text": "",
         "mary_text": answer,
+        "branch_id": str(narrative.get("branch_id", "main") or "main"),
+        "chapter_instance_id": str(narrative.get("chapter_instance_id", "") or ""),
+        "chapter_id": _chapter_id(),
+        "chapter_turn": 0,
     }
     st.session_state.turn_records = [turn_record]
 
@@ -1693,6 +1697,10 @@ if user_text:
             "user_role": user_role,
             "user_text": dialogue_text,
             "mary_text": answer,
+            "branch_id": str(narrative.get("branch_id", "main") or "main"),
+            "chapter_instance_id": str(narrative.get("chapter_instance_id", "") or ""),
+            "chapter_id": _chapter_id(),
+            "chapter_turn": int(narrative.get("chapter_turns", 0) or 0),
         }
         st.session_state.turn_records.append(turn_record)
 
