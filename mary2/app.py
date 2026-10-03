@@ -37,7 +37,7 @@ from story_bible import PHYSICAL_CANON
 
 st.set_page_config(page_title="Mary Core 2", page_icon="🖤", layout="centered")
 
-BUILD_ID = "2026-10-02-bold-filter-atomic-v22"
+BUILD_ID = "2026-10-02-branching-chapter-arcs-v24"
 
 DEFAULT_MODELS = [
     "google/gemini-2.5-flash-lite",
@@ -1251,6 +1251,16 @@ if user_text:
             # psicológica. O Diretor permanece responsável pela cena física.
             scene["arc_phase"] = current_phase_id
             scene["mary_immediate_goal"] = ""
+
+        # Eventos de entrada pertencem ao mundo, não a Mary nem ao personagem do usuário.
+        # São exibidos uma única vez, quando uma nova fase começa.
+        if phase_changed:
+            phase_entry_caption = str(
+                current_phase.get("entry_caption", "") or ""
+            ).strip()
+            if phase_entry_caption:
+                scene["show_caption"] = True
+                scene["scene_caption"] = phase_entry_caption
 
         narrative_for_opening = st.session_state.story_state.get("narrative", {})
         if narrative_for_opening.get("chapter_opening_pending"):
