@@ -197,7 +197,7 @@ Use no máximo dois destaques fortes por resposta.
     "pos_rompimento": {
         "title": "Uma semana depois — Academia",
         "allowed_roles": ["PERSONAGEM_DA_CENA"],
-        "phase_context": "phase",
+        "phase_context": "chapter",
         "facts_prompt": """
 FATOS FIXOS DO CAPÍTULO
 
