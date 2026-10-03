@@ -47,7 +47,8 @@ def sanitize_mary_output(text: str) -> str:
     value = re.sub(r"\([^()]*\)", "", value, flags=re.S)
     # O Diretor é o único responsável por rubricas/ações. Remove ações
     # narradas pelo modelo de diálogo entre asteriscos para evitar duplicidade.
-    value = re.sub(r"\*[^*]+\*", "", value, flags=re.S)
+    # Remove somente rubricas entre asteriscos simples. Preserve **negrito**.
+    value = re.sub(r"(?<!\*)\*(?!\*)(.+?)(?<!\*)\*(?!\*)", "", value, flags=re.S)
     value = re.sub(r"\n{3,}", "\n\n", value)
 
     lines = [line.rstrip() for line in value.splitlines()]
@@ -87,8 +88,8 @@ def looks_like_action_narration(text: str) -> bool:
     if not value:
         return False
 
-    # Ações entre asteriscos são sempre rubrica.
-    if re.search(r"\*[^*]+\*", value, flags=re.S):
+    # Ações entre asteriscos simples são rubrica. **negrito** é fala válida.
+    if re.search(r"(?<!\*)\*(?!\*)(.+?)(?<!\*)\*(?!\*)", value, flags=re.S):
         return True
 
     for raw_line in value.splitlines():
