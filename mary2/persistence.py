@@ -728,6 +728,10 @@ def load_latest_run(
             "mary_text": str(item.get("mary_text", "") or ""),
             "mary_action": str(item.get("mary_action", "") or ""),
             "hook_resolution": str(item.get("hook_resolution", "") or ""),
+            "branch_id": str(item.get("branch_id", "") or ""),
+            "chapter_instance_id": str(item.get("chapter_instance_id", "") or ""),
+            "chapter_id": str(item.get("chapter_id", "") or ""),
+            "chapter_turn": int(item.get("chapter_turn", 0) or 0),
         }
         turn_records.append(record)
 
