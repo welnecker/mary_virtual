@@ -63,7 +63,13 @@ Quando nenhuma ação nova acontecer, retorne mary_action vazio.
 
 Descreva apenas o que uma câmera poderia registrar: movimento, postura, direção do olhar,
 aproximação, afastamento, contato ou imobilidade deliberada.
-Use frases curtas e concretas.
+Use UMA frase curta e concreta.
+Não explique a ação e não acrescente interpretação depois dela.
+Não use "como se", "parece", "genuinamente", "forçado", "superioridade", "desdém",
+"frustração" ou outros rótulos psicológicos para explicar o gesto.
+Se a direção do usuário já descreveu uma ação de Mary, trate essa ação como fato:
+registre somente uma reação física NOVA que venha depois dela; se não houver, retorne vazio.
+Não repita posição, sorriso, olhar ou movimento que já apareceu no turno anterior sem mudança real.
 Deixe emoção, intenção, interpretação psicológica e significado para a LLM principal.
 
 Em cenas de maior intensidade física, produza no máximo UMA ação nova e concreta de Mary
