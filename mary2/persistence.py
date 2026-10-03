@@ -220,6 +220,8 @@ def ensure_schema(
     _ensure_worksheet(book, RUNS_SHEET, RUN_HEADERS)
     _ensure_worksheet(book, INTERACTIONS_SHEET, INTERACTION_HEADERS)
     _ensure_worksheet(book, DIRECTOR_AUDIT_SHEET, DIRECTOR_AUDIT_HEADERS)
+    _ensure_worksheet(book, CHECKPOINTS_SHEET, CHECKPOINT_HEADERS)
+    _ensure_worksheet(book, BRANCHES_SHEET, BRANCH_HEADERS)
     return {
         "spreadsheet_id": book.id,
         "spreadsheet_title": book.title,
@@ -357,6 +359,10 @@ def save_turn(
             turn_record.get("mary_action", ""),
             turn_record.get("hook_resolution", ""),
             turn_record.get("mary_intent", ""),
+            turn_record.get("branch_id", ""),
+            turn_record.get("chapter_instance_id", ""),
+            turn_record.get("chapter_id", ""),
+            int(turn_record.get("chapter_turn", 0) or 0),
         ],
         value_input_option="RAW",
     )
