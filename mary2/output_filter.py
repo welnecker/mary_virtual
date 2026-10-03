@@ -88,19 +88,16 @@ def looks_like_action_narration(text: str) -> bool:
     if not value:
         return False
 
-    cleaned = re.sub(
-        r"(?<!\\*)\\*(?!\\*)(.+?)(?<!\\*)\\*(?!\\*)",
-        "",
-        value,
-        flags=re.S,
-    ).strip()
+    # Não remova markdown de ênfase aqui. A fala pode conter **negrito**.
+    # Rubricas entre asteriscos simples já são removidas por sanitize_mary_output.
+    cleaned = sanitize_mary_output(value).strip()
     if not cleaned:
         return True
 
     meaningful_lines = [
-        raw_line.strip(" —-\\t")
+        raw_line.strip(" —-\t")
         for raw_line in cleaned.splitlines()
-        if raw_line.strip(" —-\\t")
+        if raw_line.strip(" —-\t")
     ]
     if not meaningful_lines:
         return True
@@ -111,4 +108,3 @@ def looks_like_action_narration(text: str) -> bool:
             action_lines += 1
 
     return action_lines == len(meaningful_lines)
-
