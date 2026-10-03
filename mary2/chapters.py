@@ -268,6 +268,15 @@ Faça a FALA abrir caminho para continuidade.
                 "start_turn": 7, "end_turn": 9,
                 "goal": "fazer o ciúme alterar o comportamento de Mary e disputar atenção de modo sutil",
                 "entry_caption": "Enquanto Mary continua a série, uma garota do outro lado da academia ergue a mão e chama o personal.",
+                "entry_caption_skip_if_recent": [
+                    "garota",
+                    "moça",
+                    "mulher",
+                    "outra aluna",
+                    "me chamando",
+                    "chama o personal",
+                    "atende outra",
+                ],
                 "prompt": """
 FASE: INTERFERÊNCIA
 
