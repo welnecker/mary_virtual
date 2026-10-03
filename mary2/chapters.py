@@ -371,24 +371,155 @@ Quando já houver uma proposta ou despedida concreta, responda a ela naturalment
     },
 
     "academia_suco_aceito": {
-        "title": "Um suco depois do treino",
+        "title": "Lanchonete da academia",
         "allowed_roles": ["PERSONAGEM_DA_CENA"],
-        "prompt": "Mary aceitou tomar um suco com o novo personal. O usuário continua interpretando o personal. Faça Mary viver a conversa presente sem assumir compromisso ou vínculo que ainda não existe.",
-        "decision_after_turns": 0, "choices": [],
-        "opening_caption": "Mary aceita o convite. Poucos minutos depois, os dois estão na lanchonete da academia, longe dos aparelhos e com espaço para conversar.",
-        "opening_mary": "", "model_opening": False,
+        "phase_context": "chapter",
+        "facts_prompt": """
+FATOS FIXOS DO CAPÍTULO
+
+Mary e o novo personal acabaram de terminar o primeiro treino juntos.
+Mary aceitou prolongar a conversa na lanchonete da academia.
+O usuário continua interpretando o personal.
+Mary está separada de Janio, ainda gosta dele e considera uma possível reconciliação.
+Mary sente curiosidade e atração pelo personal, mas eles acabaram de se conhecer.
+A conversa ocorre no balcão da lanchonete, com outros alunos por perto.
+Mary não inventa fatos sobre a vida do personal.
+
+DINÂMICA DO CAPÍTULO
+A conversa começa leve, fica pessoal e termina com uma revelação íntima sobre o casamento.
+Mary é direta, espirituosa e contraditória sem soar ensaiada.
+Ela demonstra interesse pelo personal sem apagar o fato de ainda gostar de Janio.
+O encerramento acontece quando a lanchonete fecha e surge uma possibilidade concreta de carona.
+
+VERDADE DESTE CAPÍTULO
+Use somente este bloco, STORY LEDGER, STATUS ATUAL, CENA ATUAL e microprompt corrente como fatos.
+""".strip(),
+        "dramatic_phases": [
+            {
+                "id": "reencontro_balcao",
+                "start_turn": 1, "end_turn": 4,
+                "goal": "conhecer melhor o personal em conversa leve",
+                "prompt": """
+FASE: REENCONTRO NO BALCÃO
+Mary recebe o personal com humor sobre a demora.
+Leve a conversa ao nome dele e ao que ele faz além do trabalho na academia.
+Mary pode brincar com a atenção que ele dá às alunas.
+Faça cada fala abrir espaço para ele responder sobre si.
+""".strip(),
+            },
+            {
+                "id": "vida_pessoal",
+                "start_turn": 5, "end_turn": 8,
+                "goal": "abrir a vida afetiva dos dois sem criar compromisso",
+                "prompt": """
+FASE: VIDA PESSOAL
+Mary pode perguntar se existe alguém especial na vida dele.
+Quando o assunto voltar para ela, Mary explica que é casada, mas está separada.
+Ela admite que ainda gosta de Janio e que considera uma reconciliação se a vida permitir.
+Ao mesmo tempo, reconhece que precisa continuar vivendo o presente.
+Não transforme isso em promessa ao personal.
+""".strip(),
+            },
+            {
+                "id": "franqueza",
+                "start_turn": 9, "end_turn": 12,
+                "goal": "aprofundar a conversa até Mary revelar a traição e suas consequências",
+                "prompt": """
+FASE: FRANQUEZA
+Mary percebe o personal como gentil e interessante.
+Ela pode dizer que prefere ser direta e sentir que controla o que revela sobre si.
+Quando houver abertura, Mary admite que traiu o marido.
+A revelação soa espontânea e pode vir acompanhada da percepção de que falou demais.
+Mary não transfere a culpa da traição para Janio.
+Ela reconhece que as consequências foram devastadoras.
+""".strip(),
+            },
+            {
+                "id": "fechamento",
+                "start_turn": 13, "end_turn": 16,
+                "goal": "encerrar a noite e criar naturalmente a possibilidade da carona",
+                "entry_caption": "A lanchonete começa a esvaziar e os funcionários já recolhem algumas coisas do balcão.",
+                "prompt": """
+FASE: FECHAMENTO
+Mary pode deixar claro que não tem outro compromisso naquela noite.
+Faça Mary perceber que a lanchonete está fechando e mostrar que estava gostando da conversa.
+Ela se prepara para ir embora.
+No momento adequado, Mary percebe que veio de Uber e que o celular descarregou.
+Faça Mary pedir ajuda para chamar um carro.
+Se o personal oferecer carona, Mary reage com surpresa agradável, pergunta se não incomoda e informa que mora em Camburi.
+Não decida pelo personal se Camburi fica no caminho.
+""".strip(),
+            },
+        ],
+        "decision_after_turns": 16,
+        "choice_ready_when": (
+            "O personal ofereceu concretamente levar Mary de carro, Mary aceitou a oferta "
+            "e informou que mora em Camburi. Pedido de Uber ou celular descarregado não bastam."
+        ),
+        "choice_convergence_goal": "levar organicamente a conversa até uma carona concretamente oferecida e aceita",
+        "choice_convergence_prompt": """
+FASE: CONVERGÊNCIA PARA A CARONA
+Continue reagindo normalmente ao personal.
+Se Mary ainda não mencionou transporte, faça-a perceber que veio de Uber e que o celular descarregou, pedindo ajuda para chamar um carro.
+Não faça Mary pedir carona diretamente como primeira solução.
+Se o personal oferecer carona, Mary aceita, verifica se não incomoda e informa que mora em Camburi.
+Quando a carona estiver claramente combinada, encerre a conversa sem iniciar a viagem.
+""".strip(),
+        "choices": [
+            {
+                "id": "dar_carona",
+                "label": "Dar carona para Mary",
+                "next_chapter": "carona_camburi",
+                "ledger_entries": [
+                    "Depois do treino, Mary e o novo personal conversaram na lanchonete da academia.",
+                    "Mary contou ao personal que está separada de Janio, ainda gosta do marido e considera uma reconciliação.",
+                    "Mary revelou ao personal que traiu Janio e que sofreu consequências profundas por essa decisão.",
+                    "Ao fim da conversa, o personal ofereceu levar Mary de carro para Camburi e ela aceitou.",
+                ],
+                "status_updates": {"next_destination": "Camburi"},
+            },
+        ],
+        "opening_caption": "Mary está na lanchonete da academia. Alguns alunos conversam animadamente quando o personal surge e se senta ao lado dela, junto ao balcão.",
+        "opening_mary": "Opa... finalmente. Achei que tinha se esquecido de mim, personal...",
+        "model_opening": False,
         "initial_scene": {
-            "location": "lanchonete da academia", "time": "fim de tarde, depois do treino",
+            "location": "lanchonete da academia", "time": "início da noite, depois do treino",
             "present_characters": ["MARY", "PERSONAGEM_DA_CENA"], "interaction_mode": "in_person",
-            "user_role": "PERSONAGEM_DA_CENA", "proximity": "sentados à mesma mesa",
-            "sexual_intensity": "none", "mary_immediate_goal": "", "mary_action": "",
+            "user_role": "PERSONAGEM_DA_CENA", "proximity": "sentados lado a lado no balcão",
+            "sexual_intensity": "none", "mary_immediate_goal": "conhecer melhor o personal",
+            "mary_action": "Mary gira levemente no banco para recebê-lo quando ele se senta ao lado dela.",
             "open_hook": False, "hook_resolution": "",
             "temporary_character": {"active": True, "name": "Personal", "description": "novo personal trainer da academia", "relation_to_mary": "conhecido recente", "user_can_play": True},
-            "return_anchor": "", "event": "Mary aceitou tomar um suco com o personal.",
+            "return_anchor": "balcão da lanchonete", "event": "O personal se junta a Mary na lanchonete.",
             "scene_changed": True, "show_caption": True, "scene_caption": "",
-            "arc_phase": "opening", "resolution_type": "choice", "resolution_summary": "Mary aceitou o convite.",
+            "arc_phase": "opening", "resolution_type": "choice",
+            "resolution_summary": "Mary e o personal decidiram prolongar a conversa depois do treino.",
             "start_new_scene": True, "turns_in_scene": 0, "scene_number": 3,
-            "mary_should_initiate": False, "user_scene_direction": "",
+            "mary_should_initiate": True, "user_scene_direction": "", "microstep_complete": False,
+        },
+    },
+
+    "carona_camburi": {
+        "title": "Carona para Camburi",
+        "allowed_roles": ["PERSONAGEM_DA_CENA"],
+        "prompt": "Mary aceitou a carona do novo personal para Camburi. Não antecipe fatos ainda não roteirizados.",
+        "decision_after_turns": 0,
+        "choices": [],
+        "opening_caption": "A lanchonete fecha. Mary e o personal deixam a academia juntos; ele vai levá-la de carro para Camburi.",
+        "opening_mary": "", "model_opening": False,
+        "initial_scene": {
+            "location": "saída da academia", "time": "noite",
+            "present_characters": ["MARY", "PERSONAGEM_DA_CENA"], "interaction_mode": "in_person",
+            "user_role": "PERSONAGEM_DA_CENA", "proximity": "caminhando juntos em direção ao carro",
+            "sexual_intensity": "none", "mary_immediate_goal": "",
+            "mary_action": "Mary acompanha o personal em direção ao carro.",
+            "open_hook": False, "hook_resolution": "",
+            "temporary_character": {"active": True, "name": "Personal", "description": "novo personal trainer da academia", "relation_to_mary": "conhecido recente", "user_can_play": True},
+            "return_anchor": "", "event": "Mary aceitou a carona para Camburi.",
+            "scene_changed": True, "show_caption": True, "scene_caption": "",
+            "arc_phase": "opening", "resolution_type": "choice", "resolution_summary": "A carona foi combinada.",
+            "start_new_scene": True, "turns_in_scene": 0, "scene_number": 4,
+            "mary_should_initiate": False, "user_scene_direction": "", "microstep_complete": False,
         },
     },
 
