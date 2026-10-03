@@ -319,6 +319,235 @@ def activate_chapter(
     st.rerun()
 
 
+
+def restart_current_chapter(persistence: dict | None) -> None:
+    """Cria nova instância do capítulo atual sem apagar interações anteriores."""
+    if not persistence or not st.session_state.run_id:
+        raise PersistenceError("Persistência necessária para reiniciar o capítulo sem apagar histórico.")
+
+    narrative_now = st.session_state.story_state.setdefault("narrative", {})
+    chapter_id = _chapter_id()
+    branch_id = str(narrative_now.get("branch_id", "main") or "main")
+    entry_checkpoint_id = str(
+        narrative_now.get("chapter_entry_checkpoint_id", "") or ""
+    ).strip()
+
+    entry_story = None
+    entry_scene = None
+    entry_role = st.session_state.active_user_role
+
+    if entry_checkpoint_id:
+        checkpoint = load_checkpoint(
+            service_account_info=persistence["service_account_info"],
+            spreadsheet_id=persistence["spreadsheet_id"],
+            spreadsheet_title=persistence["spreadsheet_title"],
+            owner_email=persistence["owner_email"],
+            checkpoint_id=entry_checkpoint_id,
+        )
+        entry_story = deepcopy(checkpoint["story_state"])
+        entry_scene = deepcopy(checkpoint["scene_state"])
+        entry_role = str(checkpoint.get("active_user_role", entry_role) or entry_role).upper()
+    else:
+        # Compatibilidade com capítulos criados antes da arquitetura de checkpoints.
+        start_seq = int(narrative_now.get("chapter_start_seq", 1) or 1)
+        rows = load_run_interactions(
+            service_account_info=persistence["service_account_info"],
+            spreadsheet_id=persistence["spreadsheet_id"],
+            spreadsheet_title=persistence["spreadsheet_title"],
+            owner_email=persistence["owner_email"],
+            run_id=st.session_state.run_id,
+        )
+        first_row = next(
+            (row for row in rows if int(row.get("seq", 0) or 0) == start_seq),
+            None,
+        )
+        if first_row:
+            try:
+                entry_story = json.loads(str(first_row.get("story_state_json_before", "") or "{}"))
+                entry_scene = json.loads(str(first_row.get("scene_json_before", "") or "{}"))
+            except Exception:
+                entry_story = None
+                entry_scene = None
+            entry_role = str(
+                first_row.get("active_user_role_before", entry_role) or entry_role
+            ).upper()
+
+    if not isinstance(entry_story, dict) or not isinstance(entry_scene, dict):
+        raise PersistenceError(
+            "Não foi possível localizar o estado de entrada deste capítulo."
+        )
+
+    last_seq = int(st.session_state.get("run_last_seq", 0) or 0)
+    new_instance_id = new_chapter_instance_id(chapter_id)
+    restored = migrate_state(entry_story)
+    narrative = restored.setdefault("narrative", {})
+    narrative["chapter_id"] = chapter_id
+    narrative["chapter_turns"] = 0
+    narrative["chapter_opening_pending"] = True
+    narrative["chapter_start_seq"] = last_seq + 1
+    narrative["prompt_start_seq"] = last_seq + 1
+    narrative["branch_id"] = branch_id
+    narrative["chapter_instance_id"] = new_instance_id
+    narrative["chapter_entry_checkpoint_id"] = ""
+    narrative["pending_auto_chapter"] = ""
+    narrative["handoff"] = {}
+    narrative.pop("phase_start_message_index", None)
+    narrative.pop("active_phase_id", None)
+
+    st.session_state.story_state = restored
+    st.session_state.scene_state = deepcopy(entry_scene)
+    st.session_state.active_user_role = (
+        entry_role if entry_role in {"JANIO", "PERSONAGEM_DA_CENA"} else "JANIO"
+    )
+    st.session_state.messages = []
+    st.session_state.turn_records = []
+
+    new_entry_checkpoint_id = save_checkpoint(
+        service_account_info=persistence["service_account_info"],
+        spreadsheet_id=persistence["spreadsheet_id"],
+        spreadsheet_title=persistence["spreadsheet_title"],
+        owner_email=persistence["owner_email"],
+        run_id=st.session_state.run_id,
+        checkpoint_type="chapter_entry",
+        source_seq=last_seq,
+        source_chapter_id=chapter_id,
+        source_chapter_instance_id=new_instance_id,
+        source_branch_id=branch_id,
+        choice_point_id=chapter_id,
+        active_user_role=st.session_state.active_user_role,
+        story_ledger=story_ledger_text(st.session_state.story_state),
+        scene_state=st.session_state.scene_state,
+        story_state=st.session_state.story_state,
+    )
+    narrative["chapter_entry_checkpoint_id"] = new_entry_checkpoint_id
+
+    update_run_snapshot(
+        service_account_info=persistence["service_account_info"],
+        spreadsheet_id=persistence["spreadsheet_id"],
+        spreadsheet_title=persistence["spreadsheet_title"],
+        owner_email=persistence["owner_email"],
+        run_id=st.session_state.run_id,
+        active_user_role=st.session_state.active_user_role,
+        story_ledger=story_ledger_text(st.session_state.story_state),
+        scene_state=st.session_state.scene_state,
+        story_state=st.session_state.story_state,
+    )
+    st.rerun()
+
+
+def activate_choice_from_checkpoint(
+    *,
+    checkpoint_id: str,
+    choice_id: str,
+    persistence: dict,
+) -> None:
+    """Abre outra rota a partir de uma decisão antiga sem apagar a rota existente."""
+    checkpoint = load_checkpoint(
+        service_account_info=persistence["service_account_info"],
+        spreadsheet_id=persistence["spreadsheet_id"],
+        spreadsheet_title=persistence["spreadsheet_title"],
+        owner_email=persistence["owner_email"],
+        checkpoint_id=checkpoint_id,
+    )
+    source_chapter_id = str(checkpoint.get("source_chapter_id", "") or "")
+    choice = find_choice(source_chapter_id, choice_id)
+    if not choice:
+        raise ValueError("Escolha não existe no checkpoint selecionado.")
+
+    base_state = migrate_state(checkpoint["story_state"])
+    base_scene = deepcopy(checkpoint["scene_state"])
+    base_narrative = base_state.setdefault("narrative", {})
+    parent_branch_id = str(
+        checkpoint.get("source_branch_id", "")
+        or base_narrative.get("branch_id", "main")
+        or "main"
+    )
+    last_seq = int(st.session_state.get("run_last_seq", 0) or 0)
+
+    next_chapter_id = str(choice.get("next_chapter", "") or "")
+    branch_id = new_branch_id(choice_id)
+    instance_id = new_chapter_instance_id(next_chapter_id)
+
+    next_state = apply_choice_to_story(
+        story_state=base_state,
+        chapter_id=source_chapter_id,
+        choice_id=choice_id,
+    )
+    narrative = next_state.setdefault("narrative", {})
+    narrative["chapter_id"] = next_chapter_id
+    narrative["chapter_turns"] = 0
+    narrative["chapter_opening_pending"] = True
+    narrative["chapter_start_seq"] = last_seq + 1
+    narrative["prompt_start_seq"] = last_seq + 1
+    narrative["last_choice_id"] = choice_id
+    narrative["pending_auto_chapter"] = ""
+    narrative["handoff"] = {}
+    narrative["parent_branch_id"] = parent_branch_id
+    narrative["branch_id"] = branch_id
+    narrative["parent_checkpoint_id"] = checkpoint_id
+    narrative["chapter_instance_id"] = instance_id
+    narrative["chapter_entry_checkpoint_id"] = ""
+    narrative.pop("phase_start_message_index", None)
+    narrative.pop("active_phase_id", None)
+
+    chapter = get_chapter(next_chapter_id)
+    next_scene = _scene_for_chapter_transition(chapter, base_scene)
+    next_role = str(next_scene.get("user_role", "JANIO") or "JANIO").upper()
+    if next_role not in {"JANIO", "PERSONAGEM_DA_CENA"}:
+        next_role = "JANIO"
+
+    st.session_state.story_state = next_state
+    st.session_state.scene_state = next_scene
+    st.session_state.active_user_role = next_role
+    st.session_state.messages = []
+    st.session_state.turn_records = []
+
+    save_branch(
+        service_account_info=persistence["service_account_info"],
+        spreadsheet_id=persistence["spreadsheet_id"],
+        spreadsheet_title=persistence["spreadsheet_title"],
+        owner_email=persistence["owner_email"],
+        run_id=st.session_state.run_id,
+        branch_id=branch_id,
+        parent_branch_id=parent_branch_id,
+        parent_checkpoint_id=checkpoint_id,
+        choice_id=choice_id,
+        choice_label=str(choice.get("label", choice_id) or choice_id),
+        chapter_id=next_chapter_id,
+        chapter_instance_id=instance_id,
+    )
+    entry_id = save_checkpoint(
+        service_account_info=persistence["service_account_info"],
+        spreadsheet_id=persistence["spreadsheet_id"],
+        spreadsheet_title=persistence["spreadsheet_title"],
+        owner_email=persistence["owner_email"],
+        run_id=st.session_state.run_id,
+        checkpoint_type="chapter_entry",
+        source_seq=last_seq,
+        source_chapter_id=next_chapter_id,
+        source_chapter_instance_id=instance_id,
+        source_branch_id=branch_id,
+        choice_point_id=next_chapter_id,
+        active_user_role=next_role,
+        story_ledger=story_ledger_text(next_state),
+        scene_state=next_scene,
+        story_state=next_state,
+    )
+    narrative["chapter_entry_checkpoint_id"] = entry_id
+
+    update_run_snapshot(
+        service_account_info=persistence["service_account_info"],
+        spreadsheet_id=persistence["spreadsheet_id"],
+        spreadsheet_title=persistence["spreadsheet_title"],
+        owner_email=persistence["owner_email"],
+        run_id=st.session_state.run_id,
+        active_user_role=next_role,
+        story_ledger=story_ledger_text(next_state),
+        scene_state=next_scene,
+        story_state=next_state,
+    )
+    st.rerun()
+
 def apply_pending_auto_transition(persistence: dict | None) -> bool:
     """Aplica o próximo microcapítulo sem botão visível."""
     narrative = st.session_state.story_state.setdefault("narrative", {})
