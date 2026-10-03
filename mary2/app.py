@@ -43,7 +43,7 @@ from story_bible import PHYSICAL_CANON
 
 st.set_page_config(page_title="Mary Core 2", page_icon="🖤", layout="centered")
 
-BUILD_ID = "2026-10-03-role-boundary-v32"
+BUILD_ID = "2026-10-03-clean-caption-v33"
 
 DEFAULT_MODELS = [
     "google/gemini-2.5-flash-lite",
@@ -1744,7 +1744,32 @@ if user_text:
             phase_entry_caption = str(
                 current_phase.get("entry_caption", "") or ""
             ).strip()
-            if phase_entry_caption:
+            skip_terms = [
+                str(item or "").strip().lower()
+                for item in current_phase.get("entry_caption_skip_if_recent", [])
+                if str(item or "").strip()
+            ]
+            recent_world_text = " ".join(
+                [
+                    str(st.session_state.scene_state.get("event", "") or ""),
+                    str(st.session_state.scene_state.get("scene_caption", "") or ""),
+                    str(scene_direction or ""),
+                    str(dialogue_text or ""),
+                    *[
+                        str(record.get("user_text", "") or "")
+                        + " "
+                        + str(record.get("direction", "") or "")
+                        + " "
+                        + str(record.get("caption", "") or "")
+                        for record in st.session_state.turn_records[-2:]
+                    ],
+                ]
+            ).lower()
+            caption_already_established = bool(
+                skip_terms
+                and any(term in recent_world_text for term in skip_terms)
+            )
+            if phase_entry_caption and not caption_already_established:
                 scene["show_caption"] = True
                 scene["scene_caption"] = phase_entry_caption
 
