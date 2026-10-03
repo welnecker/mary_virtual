@@ -37,7 +37,7 @@ from story_bible import PHYSICAL_CANON
 
 st.set_page_config(page_title="Mary Core 2", page_icon="🖤", layout="centered")
 
-BUILD_ID = "2026-10-02-speech-first-phase-context-v21"
+BUILD_ID = "2026-10-02-bold-filter-atomic-v22"
 
 DEFAULT_MODELS = [
     "google/gemini-2.5-flash-lite",
@@ -1324,6 +1324,12 @@ if user_text:
             st.session_state.scene_state = deepcopy(
                 pre_turn_snapshot["scene_state"]
             )
+            st.session_state.story_state = deepcopy(
+                pre_turn_snapshot["story_state"]
+            )
+            st.session_state.active_user_role = pre_turn_snapshot[
+                "active_user_role"
+            ]
             st.session_state.messages = messages_before_turn
             raise
 
