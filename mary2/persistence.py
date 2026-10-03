@@ -1,6 +1,11 @@
 from __future__ import annotations
 
 import json
+import logging
+from copy import deepcopy
+from functools import lru_cache, wraps
+from threading import RLock
+from time import monotonic
 from datetime import datetime, timezone
 from uuid import uuid4
 
@@ -116,6 +121,53 @@ class PersistenceError(RuntimeError):
     pass
 
 
+# Resource caches are scoped to credentials and spreadsheet. Validated schemas
+# and run positions remain valid because these sheets are append-only.
+_CACHE_LOCK = RLock()
+_LOG = logging.getLogger(__name__)
+_CHECKPOINT_TTL = 30.0
+
+
+def _serialized_cache(func):
+    @wraps(func)
+    def wrapped(*args, **kwargs):
+        with _CACHE_LOCK:
+            return func(*args, **kwargs)
+    return wrapped
+
+
+@lru_cache(maxsize=16)
+def _open_book(credentials_json: str, spreadsheet_id: str):
+    return _client(json.loads(credentials_json)).open_by_key(spreadsheet_id)
+
+
+def _checkpoint_records(ws, *, force: bool = False) -> list[dict]:
+    """Refresh the immutable ledger; a 429 may use the last successful copy."""
+    cached = getattr(ws, "_mary_checkpoint_records", None)
+    if not force and cached is not None and monotonic() - ws._mary_checkpoint_loaded_at < _CHECKPOINT_TTL:
+        return deepcopy(cached)
+    try:
+        rows = ws.get_all_records()
+    except gspread.exceptions.APIError as exc:
+        if getattr(exc, "code", None) != 429 or cached is None:
+            raise
+        _LOG.warning("MARY_SHEETS_AUDIT sheet=%s cache=STALE quota_429=1", CHECKPOINTS_SHEET)
+        # Avoid hammering Sheets again during the same quota window.
+        ws._mary_checkpoint_loaded_at = monotonic()
+        return deepcopy(cached)
+    ws._mary_checkpoint_records = deepcopy(rows)
+    ws._mary_checkpoint_loaded_at = monotonic()
+    return rows
+
+
+@_serialized_cache
+def _remember_run_rows(ws, records: list[dict]) -> None:
+    ws._mary_run_rows = {
+        str(item.get("run_id", "")): index
+        for index, item in enumerate(records, start=2)
+    }
+
+
 def _now() -> str:
     return datetime.now(timezone.utc).isoformat()
 
@@ -139,8 +191,6 @@ def open_or_create_book(
     spreadsheet_title: str = "MARY_CORE_PERSISTENCE",
     owner_email: str = "",
 ):
-    client = _client(service_account_info)
-
     if not spreadsheet_id.strip():
         service_email = str(service_account_info.get("client_email", "") or "").strip()
         hint = (
@@ -153,10 +203,21 @@ def open_or_create_book(
             + hint
         )
 
-    return client.open_by_key(spreadsheet_id.strip())
+    with _CACHE_LOCK:
+        return _open_book(json.dumps(service_account_info, sort_keys=True), spreadsheet_id.strip())
 
 
 def _ensure_worksheet(book, title: str, headers: list[str]):
+    with _CACHE_LOCK:
+        cache = getattr(book, "_mary_worksheets", {})
+        key = (title, tuple(headers))
+        if key not in cache:
+            cache[key] = _validate_worksheet(book, title, headers)
+            book._mary_worksheets = cache
+        return cache[key]
+
+
+def _validate_worksheet(book, title: str, headers: list[str]):
     try:
         ws = book.worksheet(title)
     except gspread.WorksheetNotFound:
@@ -248,6 +309,7 @@ def new_checkpoint_id(checkpoint_type: str = "checkpoint") -> str:
     return f"{stem}_{uuid4().hex[:10]}"
 
 
+@_serialized_cache
 def save_checkpoint(
     *,
     service_account_info: dict,
@@ -275,7 +337,7 @@ def save_checkpoint(
     )
     ws = _ensure_worksheet(book, CHECKPOINTS_SHEET, CHECKPOINT_HEADERS)
 
-    existing = ws.get_all_records()
+    existing = _checkpoint_records(ws)
     for item in existing:
         if (
             str(item.get("run_id", "")) == run_id
@@ -286,24 +348,26 @@ def save_checkpoint(
             return str(item.get("checkpoint_id", "") or "")
 
     checkpoint_id = str(checkpoint_id or new_checkpoint_id(checkpoint_type))
-    ws.append_row(
-        [
-            checkpoint_id,
-            run_id,
-            checkpoint_type,
-            int(source_seq or 0),
-            source_chapter_id,
-            source_chapter_instance_id,
-            source_branch_id,
-            choice_point_id,
-            active_user_role,
-            story_ledger,
-            json.dumps(scene_state, ensure_ascii=False),
-            json.dumps(story_state, ensure_ascii=False),
-            _now(),
-        ],
-        value_input_option="RAW",
-    )
+    values = [
+        checkpoint_id,
+        run_id,
+        checkpoint_type,
+        int(source_seq or 0),
+        source_chapter_id,
+        source_chapter_instance_id,
+        source_branch_id,
+        choice_point_id,
+        active_user_role,
+        story_ledger,
+        json.dumps(scene_state, ensure_ascii=False),
+        json.dumps(story_state, ensure_ascii=False),
+        _now(),
+    ]
+    ws.append_row(values, value_input_option="RAW")
+    # Publish to the cache only after the write is confirmed.
+    existing.append(dict(zip(CHECKPOINT_HEADERS, values)))
+    ws._mary_checkpoint_records = deepcopy(existing)
+    ws._mary_checkpoint_loaded_at = monotonic()
     return checkpoint_id
 
 
@@ -345,6 +409,7 @@ def save_branch(
     )
 
 
+@_serialized_cache
 def load_checkpoints(
     *,
     service_account_info: dict,
@@ -363,7 +428,7 @@ def load_checkpoints(
     ws = _ensure_worksheet(book, CHECKPOINTS_SHEET, CHECKPOINT_HEADERS)
     rows = [
         dict(item)
-        for item in ws.get_all_records()
+        for item in _checkpoint_records(ws)
         if str(item.get("run_id", "")) == run_id
     ]
     if checkpoint_type:
@@ -375,6 +440,7 @@ def load_checkpoints(
     return rows
 
 
+@_serialized_cache
 def load_checkpoint(
     *,
     service_account_info: dict,
@@ -390,7 +456,14 @@ def load_checkpoint(
         owner_email=owner_email,
     )
     ws = _ensure_worksheet(book, CHECKPOINTS_SHEET, CHECKPOINT_HEADERS)
-    for item in ws.get_all_records():
+    # A known checkpoint is immutable and need not be refreshed to restore it.
+    cached = getattr(ws, "_mary_checkpoint_records", None) or []
+    rows = (
+        cached
+        if any(str(item.get("checkpoint_id", "")) == checkpoint_id for item in cached)
+        else _checkpoint_records(ws, force=True)
+    )
+    for item in rows:
         if str(item.get("checkpoint_id", "")) != checkpoint_id:
             continue
         try:
@@ -462,6 +535,7 @@ def create_run(
 
     # Guarda adicional para reruns sequenciais: mantém somente a run recém-criada ativa.
     refreshed = ws.get_all_records()
+    _remember_run_rows(ws, refreshed)
     for index, item in enumerate(refreshed, start=2):
         if (
             str(item.get("player_id", "")) == player_id
@@ -473,12 +547,18 @@ def create_run(
     return run_id
 
 
+@_serialized_cache
 def _find_run_row(ws, run_id: str) -> int | None:
+    rows = getattr(ws, "_mary_run_rows", {})
+    if run_id in rows:
+        return rows[run_id]
     try:
         cell = ws.find(run_id, in_column=1)
-        return int(cell.row)
-    except Exception:
+    except gspread.exceptions.CellNotFound:
         return None
+    rows[run_id] = int(cell.row)
+    ws._mary_run_rows = rows
+    return int(cell.row)
 
 
 def save_turn(
@@ -669,22 +749,19 @@ def update_run_snapshot(
     if row is None:
         raise PersistenceError(f"run_id não encontrado: {run_id}")
 
-    row_values = runs_ws.row_values(row)
-    created_at = row_values[3] if len(row_values) > 3 else _now()
-    last_seq = row_values[5] if len(row_values) > 5 else "0"
-
-    runs_ws.update(
-        range_name=f"C{row}:J{row}",
-        values=[[
-            "active",
-            created_at,
-            _now(),
-            last_seq,
-            active_user_role,
-            story_ledger,
-            json.dumps(scene_state, ensure_ascii=False),
-            json.dumps(story_state, ensure_ascii=False),
-        ]],
+    # Preserve created_at and last_seq on the server instead of reading and
+    # writing them back. One batch write commits the new snapshot atomically.
+    runs_ws.batch_update(
+        [
+            {"range": f"C{row}", "values": [["active"]]},
+            {"range": f"E{row}", "values": [[_now()]]},
+            {"range": f"G{row}:J{row}", "values": [[
+                active_user_role,
+                story_ledger,
+                json.dumps(scene_state, ensure_ascii=False),
+                json.dumps(story_state, ensure_ascii=False),
+            ]]},
+        ],
         value_input_option="RAW",
     )
 
@@ -708,6 +785,7 @@ def load_latest_run(
     interactions_ws = _ensure_worksheet(book, INTERACTIONS_SHEET, INTERACTION_HEADERS)
 
     runs = runs_ws.get_all_records()
+    _remember_run_rows(runs_ws, runs)
     candidates = [
         r for r in runs
         if str(r.get("player_id", "")) == player_id

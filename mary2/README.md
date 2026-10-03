@@ -121,3 +121,22 @@ No estacionamento do trabalho, já no fim da tarde, Janio entra no carro.
 ```
 
 O sistema separa direção de cena e diálogo antes de gerar a reação da Mary.
+
+### Reinício de capítulo e cota de leitura
+
+O reinício restaura o checkpoint de entrada e grava uma nova instância do capítulo,
+sem apagar as interações anteriores. A conexão, os cabeçalhos validados e os
+checkpoints carregados são reutilizados no processo, separados por credenciais e
+planilha. A lista de checkpoints tem atualização de 30 segundos e conserva a
+última leitura válida quando o Sheets retorna 429; checkpoints conhecidos são
+imutáveis e podem ser restaurados diretamente da cópia carregada.
+
+STORY_RUNS e STORY_CHECKPOINTS devem permanecer como registros de acréscimo:
+não ordenar nem remover fisicamente suas linhas durante a execução do app.
+Após manutenção estrutural manual, reinicie o processo para renovar os índices.
+O cache não substitui o armazenamento: após um reinício do servidor, a primeira
+leitura depende do Sheets. Falhas de leitura sem cópia válida e falhas de escrita
+continuam sendo informadas. A conversa local só é substituída após a confirmação
+da gravação do novo snapshot; created_at e last_seq não são regravados no restart.
+
+Validação: `python -m pytest -q tests/test_mary2_restart_persistence.py`.

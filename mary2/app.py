@@ -43,7 +43,7 @@ from story_bible import PHYSICAL_CANON
 
 st.set_page_config(page_title="Mary Core 2", page_icon="🖤", layout="centered")
 
-BUILD_ID = "2026-10-03-phase-goal-responsiveness-v37"
+BUILD_ID = "2026-10-03-chapter-restart-quota-v38"
 
 DEFAULT_MODELS = [
     "google/gemini-2.5-flash-lite",
@@ -401,13 +401,8 @@ def restart_current_chapter(persistence: dict | None) -> None:
     narrative.pop("phase_start_message_index", None)
     narrative.pop("active_phase_id", None)
 
-    st.session_state.story_state = restored
-    st.session_state.scene_state = deepcopy(entry_scene)
-    st.session_state.active_user_role = (
-        entry_role if entry_role in {"JANIO", "PERSONAGEM_DA_CENA"} else "JANIO"
-    )
-    st.session_state.messages = []
-    st.session_state.turn_records = []
+    restored_scene = deepcopy(entry_scene)
+    restored_role = entry_role if entry_role in {"JANIO", "PERSONAGEM_DA_CENA"} else "JANIO"
 
     new_entry_checkpoint_id = save_checkpoint(
         service_account_info=persistence["service_account_info"],
@@ -421,10 +416,10 @@ def restart_current_chapter(persistence: dict | None) -> None:
         source_chapter_instance_id=new_instance_id,
         source_branch_id=branch_id,
         choice_point_id=chapter_id,
-        active_user_role=st.session_state.active_user_role,
-        story_ledger=story_ledger_text(st.session_state.story_state),
-        scene_state=st.session_state.scene_state,
-        story_state=st.session_state.story_state,
+        active_user_role=restored_role,
+        story_ledger=story_ledger_text(restored),
+        scene_state=restored_scene,
+        story_state=restored,
     )
     narrative["chapter_entry_checkpoint_id"] = new_entry_checkpoint_id
 
@@ -434,11 +429,17 @@ def restart_current_chapter(persistence: dict | None) -> None:
         spreadsheet_title=persistence["spreadsheet_title"],
         owner_email=persistence["owner_email"],
         run_id=st.session_state.run_id,
-        active_user_role=st.session_state.active_user_role,
-        story_ledger=story_ledger_text(st.session_state.story_state),
-        scene_state=st.session_state.scene_state,
-        story_state=st.session_state.story_state,
+        active_user_role=restored_role,
+        story_ledger=story_ledger_text(restored),
+        scene_state=restored_scene,
+        story_state=restored,
     )
+    # A failed write leaves the current conversation available for retry.
+    st.session_state.story_state = restored
+    st.session_state.scene_state = restored_scene
+    st.session_state.active_user_role = restored_role
+    st.session_state.messages = []
+    st.session_state.turn_records = []
     st.rerun()
 
 
