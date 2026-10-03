@@ -56,10 +56,11 @@ AÇÃO DE MARY
 Leia primeiro a fala ou direção atual do usuário.
 Compare-a com mary_action, event e proximity da CENA ATUAL.
 
-mary_action descreve somente a reação física nova e observável de Mary neste turno.
-Atualize a ação quando o estímulo atual produzir uma reação física diferente.
-Mantenha continuidade somente quando a ação anterior ainda estiver fisicamente em curso.
-Quando nenhuma ação nova acontecer, retorne mary_action vazio.
+mary_action descreve o comportamento físico observável de Mary neste turno.
+Retorne mary_action em TODA interação para que o jogador saiba o que Mary está fazendo.
+Quando houver reação nova, descreva-a.
+Quando não houver movimento novo, descreva de forma curta a continuidade física relevante
+sem copiar literalmente a ação anterior.
 
 Descreva apenas o que uma câmera poderia registrar: movimento, postura, direção do olhar,
 aproximação, afastamento, contato ou imobilidade deliberada.
@@ -67,10 +68,15 @@ Use UMA frase curta e concreta.
 Não explique a ação e não acrescente interpretação depois dela.
 Não use "como se", "parece", "genuinamente", "forçado", "superioridade", "desdém",
 "frustração" ou outros rótulos psicológicos para explicar o gesto.
-Se a direção do usuário já descreveu uma ação de Mary, trate essa ação como fato:
-registre somente uma reação física NOVA que venha depois dela; se não houver, retorne vazio.
-Não repita posição, sorriso, olhar ou movimento que já apareceu no turno anterior sem mudança real.
+Se a direção do usuário já descreveu uma ação de Mary, trate essa ação como fato e mostre
+somente a reação física de Mary a partir desse fato.
+Varie a formulação quando a postura permanecer semelhante.
 Deixe emoção, intenção, interpretação psicológica e significado para a LLM principal.
+
+DISTÂNCIA
+Quando o personagem ativo disser que vai se afastar, atender outra pessoa, sair ou voltar depois,
+atualize proximity e event para refletir a distância real.
+Quando ele retornar, restaure a proximidade coerente com a nova posição.
 
 Em cenas de maior intensidade física, produza no máximo UMA ação nova e concreta de Mary
 por turno, coerente com o estado atual, variando a iniciativa conforme a interação.
@@ -366,8 +372,26 @@ def direct_scene(
     if not isinstance(temporary, dict):
         temporary = {}
 
+    current_temporary = current_scene.get("temporary_character", {})
+    if not isinstance(current_temporary, dict):
+        current_temporary = {}
+
+    # PERSONAGEM_DA_CENA pertence ao personagem jogável já ativo.
+    # NPCs incidentais (ex.: outra aluna) podem entrar em present_characters,
+    # mas não substituem a identidade que o usuário está interpretando.
+    if (
+        user_role == "PERSONAGEM_DA_CENA"
+        and bool(current_temporary.get("active"))
+        and bool(current_temporary.get("user_can_play"))
+        and (
+            not bool(temporary.get("active"))
+            or not bool(temporary.get("user_can_play"))
+        )
+    ):
+        scene["temporary_character"] = current_temporary
+        temporary = current_temporary
+
     if user_role == "PERSONAGEM_DA_CENA" and not bool(temporary.get("active")):
-        # Se o papel temporário deixou de existir, o runtime volta ao papel padrão.
         scene["user_role"] = "JANIO"
 
     # Metadados privados de auditoria. O app remove este bloco antes de enviar
