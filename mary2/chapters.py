@@ -195,67 +195,149 @@ Use no máximo dois destaques fortes por resposta.
     },
 
     "pos_rompimento": {
-        "title": "O dia seguinte",
+        "title": "Uma semana depois — Academia",
         "allowed_roles": ["PERSONAGEM_DA_CENA"],
-        "prompt": """
-CONTEXTO
-Mary e Janio se separaram na noite anterior.
-Mary acorda sozinha no apartamento.
-A vida de Mary se abre para rotina, trabalho, amizade, solidão, liberdade, desejo, encontros e novas escolhas.
+        "phase_context": "phase",
+        "facts_prompt": """
+FATOS FIXOS DO CAPÍTULO
 
-DIREÇÃO
-Faça Mary viver o presente deste capítulo.
-Dê a Mary emoções e decisões compatíveis com o turno atual.
-Deixe Janio ocupar espaço somente quando a conversa atual o trouxer.
+Uma semana se passou desde a separação.
+Mary e Janio estão separados.
+Mary está retomando a própria rotina.
+Mary está na academia usando legging justa, camiseta leve, tênis e cabelos presos em rabo de cavalo.
+O usuário interpreta o novo personal trainer.
+Mary ainda não possui intimidade nem vínculo com ele.
+O personal age livremente; Mary não determina falas, decisões ou ações dele.
 
-GANCHO
-Mary liga para Silvia, amiga próxima, buscando companhia.
-O usuário interpreta Silvia.
-Dê a Silvia somente os fatos que Mary contar neste capítulo ou que o usuário estabelecer na cena.
+VERDADE DESTE CAPÍTULO
+Trate como fatos somente o que estiver neste bloco, no STORY LEDGER, no STATUS ATUAL, na CENA ATUAL ou nos fatos liberados pelo microprompt atual.
+Mantenha desconhecido todo detalhe sobre o personal que o usuário ainda não estabeleceu.
 """.strip(),
-        "decision_after_turns": 5,
-        "choices": [],
-        "opening_caption": (
-            "Na manhã seguinte, Mary acorda sozinha no apartamento. "
-            "A discussão ficou para trás; o dia, não."
-        ),
-        "opening_mary": (
-            "Coragem, Mary... hoje vai ser duro. "
-            "Vou ligar pra Silvia. Preciso de um ombro amigo agora."
-        ),
-        "initial_scene": {
-            "location": "apartamento de Mary",
-            "time": "manhã do dia seguinte à separação",
-            "present_characters": ["MARY"],
-            "interaction_mode": "phone",
-            "user_role": "PERSONAGEM_DA_CENA",
-            "proximity": "Mary está sozinha e liga para Silvia",
-            "mary_immediate_goal": "conversar com Silvia e atravessar a manhã",
-            "mary_action": "Mary pega o celular e liga para Silvia.",
-            "open_hook": False,
-            "hook_resolution": "",
-            "temporary_character": {
-                "active": True,
-                "name": "Silvia",
-                "description": "amiga próxima de Mary",
-                "relation_to_mary": "amiga de confiança",
-                "user_can_play": True,
+        "dramatic_phases": [
+            {
+                "id": "primeiro_contato",
+                "start_turn": 1, "end_turn": 3,
+                "goal": "transformar ajuda profissional em curiosidade e atração leve",
+                "prompt": """
+FASE: PRIMEIRO CONTATO
+Mary está com dificuldade para ajustar a barra de agachamento.
+Reaja ao comportamento real do personal.
+Quando a proximidade permitir, Mary percebe voz, cheiro, postura e presença.
+Mostre a atração primeiro no PENSAMENTO.
+Mantenha a FALA natural e discreta.
+""".strip(),
             },
-            "return_anchor": "",
-            "event": "Mary liga para Silvia.",
-            "scene_changed": True,
-            "show_caption": True,
-            "scene_caption": (
-                "Na manhã seguinte, Mary acorda sozinha no apartamento e liga para Silvia."
-            ),
-            "arc_phase": "opening",
-            "resolution_type": "time_jump",
-            "resolution_summary": "Começa a vida de Mary depois da separação.",
-            "start_new_scene": True,
-            "turns_in_scene": 0,
-            "scene_number": 2,
-            "mary_should_initiate": True,
-            "user_scene_direction": "",
+            {
+                "id": "flerte_sutil",
+                "start_turn": 4, "end_turn": 6,
+                "goal": "deixar a atração aparecer em pequenos testes de atenção",
+                "prompt": """
+FASE: FLERTE SUTIL
+Mary continua o treino e conversa dentro do ambiente da academia.
+Quando houver espaço, ela testa a atenção do personal com humor, olhar ou provocação leve.
+Mantenha o flerte ambíguo.
+Faça o PENSAMENTO ser mais ousado que a FALA.
+""".strip(),
+            },
+            {
+                "id": "interferencia",
+                "start_turn": 7, "end_turn": 9,
+                "goal": "introduzir disputa de atenção e ciúme inesperado",
+                "entry_caption": "Enquanto Mary continua a série, uma garota do outro lado da academia ergue a mão e chama o personal.",
+                "prompt": """
+FASE: INTERFERÊNCIA
+A garota chamou o personal. Isso é um gancho, não uma ordem.
+Ele pode atender, ignorar, responder de longe ou continuar com Mary.
+Mary reage à escolha real dele.
+Se ele sair, permita ciúme leve ou competição.
+Se ele permanecer, permita que Mary se sinta lisonjeada.
+Faça o PENSAMENTO admitir possessividade que a FALA ainda disfarça.
+""".strip(),
+            },
+            {
+                "id": "fim_do_treino",
+                "start_turn": 10, "end_turn": 12,
+                "goal": "encerrar o treino com conexão suficiente para um possível convite",
+                "entry_caption": "O treino se aproxima do fim. A lanchonete da academia está movimentada logo ao lado da saída.",
+                "prompt": """
+FASE: FIM DO TREINO
+Mary desacelera e deixa espaço para conversa mais pessoal.
+Não invente decisão nem fala do personal.
+Se ele a convidar para um suco, Mary demonstra surpresa e interesse.
+Se ele não convidar, mantenha a interação natural.
+""".strip(),
+            },
+        ],
+        "decision_after_turns": 12,
+        "choices": [
+            {"id": "aceitar_suco", "label": "Aceitar", "next_chapter": "academia_suco_aceito",
+             "ledger_entries": ["Uma semana após a separação, Mary conheceu um novo personal na academia.", "Mary aceitou tomar um suco com ele após o treino."],
+             "status_updates": {}},
+            {"id": "recusar_suco", "label": "Recusar", "next_chapter": "academia_suco_recusado",
+             "ledger_entries": ["Uma semana após a separação, Mary conheceu um novo personal na academia.", "Mary recusou o convite para tomar um suco após o treino."],
+             "status_updates": {}},
+        ],
+        "opening_caption": "Mary está na academia, usando uma legging justa, camiseta leve, tênis e os cabelos presos em um rabo de cavalo. Tenta ajustar a barra para uma série de agachamentos, mas está tendo dificuldade com a posição e o peso. O novo personal trainer percebe e se aproxima para ajudá-la.",
+        "opening_mary": "",
+        "model_opening": False,
+        "initial_scene": {
+            "location": "academia", "time": "fim de tarde, uma semana após a separação",
+            "present_characters": ["MARY", "PERSONAGEM_DA_CENA"], "interaction_mode": "in_person",
+            "user_role": "PERSONAGEM_DA_CENA", "proximity": "próximos à barra de agachamento",
+            "sexual_intensity": "none", "mary_immediate_goal": "",
+            "mary_action": "Mary tenta ajustar a anilha na barra de agachamento.",
+            "open_hook": True, "hook_resolution": "",
+            "temporary_character": {"active": True, "name": "Personal", "description": "novo personal trainer da academia", "relation_to_mary": "acabaram de se conhecer", "user_can_play": True},
+            "return_anchor": "", "event": "O novo personal percebe a dificuldade de Mary e se aproxima.",
+            "scene_changed": True, "show_caption": True, "scene_caption": "",
+            "arc_phase": "opening", "resolution_type": "time_jump",
+            "resolution_summary": "Uma semana se passou desde a separação.",
+            "start_new_scene": True, "turns_in_scene": 0, "scene_number": 2,
+            "mary_should_initiate": False, "user_scene_direction": "", "microstep_complete": False,
+        },
+    },
+
+    "academia_suco_aceito": {
+        "title": "Um suco depois do treino",
+        "allowed_roles": ["PERSONAGEM_DA_CENA"],
+        "prompt": "Mary aceitou tomar um suco com o novo personal. O usuário continua interpretando o personal. Faça Mary viver a conversa presente sem assumir compromisso ou vínculo que ainda não existe.",
+        "decision_after_turns": 0, "choices": [],
+        "opening_caption": "Mary aceita o convite. Poucos minutos depois, os dois estão na lanchonete da academia, longe dos aparelhos e com espaço para conversar.",
+        "opening_mary": "", "model_opening": False,
+        "initial_scene": {
+            "location": "lanchonete da academia", "time": "fim de tarde, depois do treino",
+            "present_characters": ["MARY", "PERSONAGEM_DA_CENA"], "interaction_mode": "in_person",
+            "user_role": "PERSONAGEM_DA_CENA", "proximity": "sentados à mesma mesa",
+            "sexual_intensity": "none", "mary_immediate_goal": "", "mary_action": "",
+            "open_hook": False, "hook_resolution": "",
+            "temporary_character": {"active": True, "name": "Personal", "description": "novo personal trainer da academia", "relation_to_mary": "conhecido recente", "user_can_play": True},
+            "return_anchor": "", "event": "Mary aceitou tomar um suco com o personal.",
+            "scene_changed": True, "show_caption": True, "scene_caption": "",
+            "arc_phase": "opening", "resolution_type": "choice", "resolution_summary": "Mary aceitou o convite.",
+            "start_new_scene": True, "turns_in_scene": 0, "scene_number": 3,
+            "mary_should_initiate": False, "user_scene_direction": "",
+        },
+    },
+
+    "academia_suco_recusado": {
+        "title": "Depois do treino",
+        "allowed_roles": ["PERSONAGEM_DA_CENA"],
+        "prompt": "Mary recusou o convite para um suco. A curiosidade pode permanecer, mas ela decidiu não prolongar o encontro agora.",
+        "decision_after_turns": 0, "choices": [],
+        "opening_caption": "Mary recusa o convite e começa a organizar suas coisas para sair da academia.",
+        "opening_mary": "", "model_opening": False,
+        "initial_scene": {
+            "location": "academia", "time": "fim de tarde, depois do treino",
+            "present_characters": ["MARY", "PERSONAGEM_DA_CENA"], "interaction_mode": "in_person",
+            "user_role": "PERSONAGEM_DA_CENA", "proximity": "próximos à saída",
+            "sexual_intensity": "none", "mary_immediate_goal": "", "mary_action": "Mary começa a guardar seus pertences.",
+            "open_hook": False, "hook_resolution": "",
+            "temporary_character": {"active": True, "name": "Personal", "description": "novo personal trainer da academia", "relation_to_mary": "conhecido recente", "user_can_play": True},
+            "return_anchor": "", "event": "Mary recusou o convite.",
+            "scene_changed": True, "show_caption": True, "scene_caption": "",
+            "arc_phase": "opening", "resolution_type": "choice", "resolution_summary": "Mary recusou o convite.",
+            "start_new_scene": True, "turns_in_scene": 0, "scene_number": 3,
+            "mary_should_initiate": False, "user_scene_direction": "",
         },
     },
 
