@@ -342,70 +342,143 @@ Se ele não convidar, mantenha a interação natural.
     },
 
     "pos_reconciliacao": {
-        "title": "A manhã da reconciliação",
+        "title": "A manhã seguinte — Ricardo",
         "allowed_roles": ["JANIO"],
-        "prompt": """
-CONTEXTO
-Mary e Janio decidiram tentar permanecer juntos.
-É a manhã seguinte.
-A reconciliação forma o contexto estrutural.
-O foco do capítulo é a vida compartilhada agora.
+        "phase_context": "phase",
+        "facts_prompt": """
+FATOS FIXOS DO CAPÍTULO
 
-DIREÇÃO
-Faça Mary viver o cotidiano presente.
-Traga humor, carinho, desejo, irritação, silêncio, trabalho, ciúme ou rotina somente quando o turno atual sustentar esse foco.
-Faça a conversa seguir o assunto introduzido no presente.
+Mary e Janio decidiram tentar permanecer juntos.
+É a manhã seguinte à discussão.
+Janio dorme ao lado de Mary, exausto.
+Ricardo tenta contato com Mary pelo telefone.
+Mary quer encerrar definitivamente novas investidas de Ricardo.
+
+VERDADE DESTE CAPÍTULO
+Trate como fatos somente o que estiver neste bloco, no STORY LEDGER, no STATUS ATUAL, na CENA ATUAL ou nos fatos liberados pelo microprompt atual.
+Não invente conteúdo anterior da ligação nem novas informações sobre Ricardo.
+Mantenha fala, ação e decisão de Janio sob autoria do usuário.
 """.strip(),
-        "decision_after_turns": 3,
+        "dramatic_phases": [
+            {
+                "id": "amanhecer",
+                "start_turn": 1, "end_turn": 3,
+                "goal": "mostrar alívio íntimo antes da interferência de Ricardo",
+                "prompt": """
+FASE: AMANHECER
+Mary percebe que Janio continua ao lado dela.
+Mary sente alívio, carinho e fragilidade sem tratar o casamento como totalmente resolvido.
+Se Janio estiver dormindo ou sonolento, Mary respeita esse estado.
+Faça o PENSAMENTO revelar o valor que Mary dá à permanência dele.
+""".strip(),
+            },
+            {
+                "id": "ricardo_liga",
+                "start_turn": 4, "end_turn": 6,
+                "goal": "encerrar de forma clara a nova investida de Ricardo",
+                "entry_caption": "O telefone de Mary vibra sobre a cabeceira. Na tela aparece um nome conhecido: Ricardo.",
+                "prompt": """
+FASE: RICARDO LIGA
+Ricardo tenta contato pelo telefone.
+Mary trata isso como algo a encerrar, não como oportunidade romântica.
+Mary se afasta para preservar a manhã enquanto Janio dorme.
+Não invente falas, ameaças ou revelações vindas de Ricardo.
+Se Janio acordar ou interferir, responda ao que ele realmente fizer.
+""".strip(),
+            },
+            {
+                "id": "retorno",
+                "start_turn": 7, "end_turn": 9,
+                "goal": "voltar para Janio carregando a escolha de contar ou não",
+                "entry_caption": "Depois de encerrar o contato, Mary volta para o quarto. Janio continua na cama.",
+                "prompt": """
+FASE: RETORNO
+Mary sente alívio por ter encerrado a investida de Ricardo.
+Mary percebe que agora existe uma informação nova que pode contar ou guardar.
+Faça o PENSAMENTO carregar essa tensão.
+Mary busca proximidade com Janio quando a interação permitir.
+Não faça Mary confessar a ligação automaticamente.
+""".strip(),
+            },
+            {
+                "id": "escolha",
+                "start_turn": 10, "end_turn": 12,
+                "goal": "levar a manhã à bifurcação entre intimidade e transparência",
+                "prompt": """
+FASE: ESCOLHA
+Mary permanece próxima de Janio.
+Sustente duas possibilidades: desejo de intimidade e impulso de contar sobre a ligação.
+Não escolha por Janio.
+Não faça Mary confessar a ligação antes da decisão do usuário.
+Deixe a tensão pronta para os botões finais.
+""".strip(),
+            },
+        ],
+        "decision_after_turns": 12,
         "choices": [
             {
-                "id": "sexo",
-                "label": "Sexo",
-                "next_chapter": "intimidade_aproximacao",
+                "id": "sexo", "label": "Sexo", "next_chapter": "intimidade_aproximacao",
                 "carry_handoff": True,
-                "ledger_entries": [],
+                "ledger_entries": ["Na manhã seguinte à reconciliação, Ricardo tentou contato e Mary decidiu encerrar novas investidas dele."],
                 "status_updates": {},
             },
             {
-                "id": "conversar",
-                "label": "Conversar",
-                "next_chapter": "conversa_reconciliacao",
+                "id": "confessar_ligacao", "label": "Confessar a ligação", "next_chapter": "reconciliacao_confessar_ligacao",
                 "carry_handoff": True,
-                "ledger_entries": [],
+                "ledger_entries": ["Na manhã seguinte à reconciliação, Ricardo tentou contato e Mary decidiu encerrar novas investidas dele.", "Mary decidiu contar a Janio que Ricardo tentou contato naquela manhã."],
                 "status_updates": {},
             },
         ],
-        "opening_caption": (
-            "Na manhã seguinte, a casa está silenciosa. "
-            "Eles decidiram tentar ficar juntos; agora precisam simplesmente viver o dia."
-        ),
+        "opening_caption": "O dia amanhece. Mary acorda primeiro e sorri ao perceber Janio ainda ao seu lado, dormindo pesado de cansaço. O telefone vibra sobre a cabeceira.",
         "model_opening": True,
         "opening_mary": "",
         "initial_scene": {
-            "location": "casa do casal",
-            "time": "manhã seguinte à decisão de permanecer juntos",
-            "present_characters": ["MARY", "JANIO"],
-            "interaction_mode": "in_person",
-            "user_role": "JANIO",
-            "proximity": "mesma casa, começando o dia",
-            "mary_immediate_goal": "começar o dia com Janio sem reabrir automaticamente a confissão",
-            "mary_action": "Mary encontra Janio no começo da manhã.",
-            "open_hook": False,
-            "hook_resolution": "",
+            "location": "quarto do casal", "time": "manhã seguinte à reconciliação",
+            "present_characters": ["MARY", "JANIO"], "interaction_mode": "in_person",
+            "user_role": "JANIO", "proximity": "deitados na mesma cama",
+            "sexual_intensity": "none", "mary_immediate_goal": "",
+            "mary_action": "Mary acorda antes de Janio e percebe o telefone vibrando na cabeceira.",
+            "open_hook": True, "hook_resolution": "",
             "temporary_character": {"active": False, "name": "", "description": "", "relation_to_mary": "", "user_can_play": False},
-            "return_anchor": "",
-            "event": "Primeira manhã depois da decisão de permanecer juntos.",
-            "scene_changed": True,
-            "show_caption": True,
-            "scene_caption": "Na manhã seguinte, Mary e Janio começam o primeiro dia depois da decisão.",
-            "arc_phase": "opening",
-            "resolution_type": "partial_reconciliation",
+            "return_anchor": "", "event": "A manhã começa com Janio dormindo e o telefone de Mary vibrando.",
+            "scene_changed": True, "show_caption": True, "scene_caption": "",
+            "arc_phase": "opening", "resolution_type": "partial_reconciliation",
             "resolution_summary": "O casal decidiu tentar permanecer junto.",
-            "start_new_scene": True,
-            "turns_in_scene": 0,
-            "scene_number": 2,
-            "mary_should_initiate": True,
-            "user_scene_direction": "",
+            "start_new_scene": True, "turns_in_scene": 0, "scene_number": 2,
+            "mary_should_initiate": True, "user_scene_direction": "", "microstep_complete": False,
+        },
+    },
+
+    "reconciliacao_confessar_ligacao": {
+        "title": "A ligação",
+        "allowed_roles": ["JANIO"],
+        "prompt": """
+CONTEXTO
+Mary decidiu contar a Janio que Ricardo tentou contato naquela manhã.
+Mary já decidiu encerrar novas investidas de Ricardo.
+
+DIREÇÃO
+Mary conta o que aconteceu de forma direta.
+Não invente conteúdo da ligação além do que estiver estabelecido.
+Faça Mary responder às perguntas e reações reais de Janio.
+Mantenha a reconciliação frágil e aberta às consequências desta conversa.
+""".strip(),
+        "decision_after_turns": 0, "choices": [],
+        "opening_caption": "Mary decide não guardar aquilo. Ainda perto de Janio, ela se prepara para contar que Ricardo tentou contato naquela manhã.",
+        "opening_mary": "", "model_opening": True,
+        "initial_scene": {
+            "location": "quarto do casal", "time": "manhã",
+            "present_characters": ["MARY", "JANIO"], "interaction_mode": "in_person",
+            "user_role": "JANIO", "proximity": "juntos na cama",
+            "sexual_intensity": "none", "mary_immediate_goal": "contar a Janio sobre a tentativa de contato de Ricardo",
+            "mary_action": "Mary se volta para Janio antes de falar.",
+            "open_hook": False, "hook_resolution": "",
+            "temporary_character": {"active": False, "name": "", "description": "", "relation_to_mary": "", "user_can_play": False},
+            "return_anchor": "", "event": "Mary decidiu contar a Janio sobre a ligação.",
+            "scene_changed": True, "show_caption": True, "scene_caption": "",
+            "arc_phase": "opening", "resolution_type": "choice", "resolution_summary": "Mary escolheu transparência.",
+            "start_new_scene": True, "turns_in_scene": 0, "scene_number": 3,
+            "mary_should_initiate": True, "user_scene_direction": "",
         },
     },
 
