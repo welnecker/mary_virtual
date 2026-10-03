@@ -43,7 +43,7 @@ from story_bible import PHYSICAL_CANON
 
 st.set_page_config(page_title="Mary Core 2", page_icon="🖤", layout="centered")
 
-BUILD_ID = "2026-10-03-action-below-user-v31"
+BUILD_ID = "2026-10-03-role-boundary-v32"
 
 DEFAULT_MODELS = [
     "google/gemini-2.5-flash-lite",
@@ -257,6 +257,8 @@ def activate_chapter(
     narrative["parent_checkpoint_id"] = decision_checkpoint_id
     narrative["chapter_instance_id"] = chapter_instance_id
     narrative["chapter_entry_checkpoint_id"] = ""
+    narrative.pop("phase_start_message_index", None)
+    narrative.pop("active_phase_id", None)
 
     chapter = get_chapter(next_chapter_id)
     st.session_state.scene_state = _scene_for_chapter_transition(
