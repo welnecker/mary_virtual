@@ -83,21 +83,32 @@ _ACTION_LINE_PATTERNS = [
 
 
 def looks_like_action_narration(text: str) -> bool:
-    """Detecta rubrica/narração escapando para o balão de Mary."""
+    """Retorna True somente quando a saída é essencialmente rubrica, não fala."""
     value = str(text or "").strip()
     if not value:
         return False
 
-    # Ações entre asteriscos simples são rubrica. **negrito** é fala válida.
-    if re.search(r"(?<!\*)\*(?!\*)(.+?)(?<!\*)\*(?!\*)", value, flags=re.S):
+    cleaned = re.sub(
+        r"(?<!\\*)\\*(?!\\*)(.+?)(?<!\\*)\\*(?!\\*)",
+        "",
+        value,
+        flags=re.S,
+    ).strip()
+    if not cleaned:
         return True
 
-    for raw_line in value.splitlines():
-        line = raw_line.strip(" —-\t")
-        if not line:
-            continue
-        for pattern in _ACTION_LINE_PATTERNS:
-            if re.search(pattern, line, flags=re.I):
-                return True
+    meaningful_lines = [
+        raw_line.strip(" —-\\t")
+        for raw_line in cleaned.splitlines()
+        if raw_line.strip(" —-\\t")
+    ]
+    if not meaningful_lines:
+        return True
 
-    return False
+    action_lines = 0
+    for line in meaningful_lines:
+        if any(re.search(pattern, line, flags=re.I) for pattern in _ACTION_LINE_PATTERNS):
+            action_lines += 1
+
+    return action_lines == len(meaningful_lines)
+
