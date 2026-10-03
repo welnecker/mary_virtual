@@ -320,6 +320,28 @@ Se ele fizer o convite para um suco, Mary reage ao convite sem decidir antes dos
             },
         ],
         "decision_after_turns": 12,
+        "choice_ready_when": (
+            "Existe um gancho concreto e compreendido para encerrar esta cena: "
+            "Mary e o personal combinaram, aceitaram ou responderam a uma proposta de "
+            "continuar a interação depois do treino (por exemplo esperar, ir à lanchonete "
+            "ou tomar algo), OU chegaram a uma despedida concreta. "
+            "O simples fim do treino, a existência da lanchonete ou uma intenção privada "
+            "de Mary não bastam."
+        ),
+        "choice_convergence_goal": "levar organicamente a cena a uma proposta ou despedida concreta",
+        "choice_convergence_prompt": """
+FASE: CONVERGÊNCIA PARA DECISÃO
+
+O número-alvo de interações já foi atingido, mas a cena só termina quando houver um gancho concreto.
+
+CONDUTA
+Continue reagindo normalmente ao personal.
+Conduza Mary gradualmente para uma situação em que a escolha final faça sentido.
+Se ainda não existir proposta concreta, faça Mary criar uma oportunidade natural: terminar o exercício, comentar que vai pegar algo, perguntar se ele ainda ficará por ali, dizer que vai à lanchonete ou convidá-lo de maneira compatível com o vínculo atual.
+Não repita a mesma tentativa em todas as falas.
+Não transforme a convergência em pressa, sedução agressiva ou decisão pelo personal.
+Quando já houver uma proposta ou despedida concreta, responda a ela naturalmente e deixe a decisão estrutural para os botões.
+""".strip(),
         "choices": [
             {"id": "aceitar_suco", "label": "Ir tomar o suco com o personal", "next_chapter": "academia_suco_aceito",
              "ledger_entries": ["Uma semana após a separação, Mary conheceu um novo personal na academia.", "Mary aceitou tomar um suco com ele após o treino."],
@@ -889,6 +911,25 @@ def chapter_phase(chapter_id: str, turn_number: int) -> dict:
         end = int(phase.get("end_turn", start) or start)
         if start <= turn <= end:
             return deepcopy(phase)
+
+    # Depois do número-alvo, capítulos com decisão condicionada entram
+    # numa fase aberta de convergência. Ela dura quantos turnos forem
+    # necessários até surgir um gancho concreto para a escolha.
+    minimum = int(chapter.get("decision_after_turns", 0) or 0)
+    convergence_prompt = str(
+        chapter.get("choice_convergence_prompt", "") or ""
+    ).strip()
+    if convergence_prompt and minimum > 0 and turn > minimum:
+        return {
+            "id": "convergencia_decisao",
+            "start_turn": minimum + 1,
+            "end_turn": 999999,
+            "goal": str(
+                chapter.get("choice_convergence_goal", "")
+                or "convergir organicamente para a decisão"
+            ).strip(),
+            "prompt": convergence_prompt,
+        }
     return {}
 
 
@@ -929,11 +970,24 @@ def chapter_choices(chapter_id: str) -> list[dict]:
     return list(get_chapter(chapter_id).get("choices", []) or [])
 
 
-def chapter_ready_for_choice(chapter_id: str, chapter_turns: int) -> bool:
+def chapter_ready_for_choice(
+    chapter_id: str,
+    chapter_turns: int,
+    choice_ready: bool = False,
+) -> bool:
     chapter = get_chapter(chapter_id)
     choices = chapter.get("choices", []) or []
     minimum = int(chapter.get("decision_after_turns", 0) or 0)
-    return bool(choices) and int(chapter_turns or 0) >= minimum
+    if not choices or int(chapter_turns or 0) < minimum:
+        return False
+
+    # Sem condição explícita, mantém o comportamento histórico.
+    if not str(chapter.get("choice_ready_when", "") or "").strip():
+        return True
+
+    # Com convergência, o número de turnos é só o mínimo. Os botões
+    # aparecem quando o runtime reconhece o gancho narrativo.
+    return bool(choice_ready)
 
 
 def find_choice(chapter_id: str, choice_id: str) -> dict:
