@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from typing import Any
 
+import re
 import gspread
 
 
@@ -114,8 +115,9 @@ def build_line_prompt(row: dict, *, line_order: int) -> str:
         "Tudo nesta resposta deve orbitar esta única linha. Linhas futuras não estão disponíveis.",
         "FALA-GUIA é direção dramática, não texto literal, salvo quando tipo=EXATA.",
         "Em INTERPRETADA, varie palavras e ritmo sem diluir, inverter ou enfraquecer o núcleo semântico.",
-        "Quando a pré-condição estiver satisfeita, a ação verbal principal da FALA-GUIA DEVE acontecer nesta resposta.",
-        "Não substitua a linha por conversa lateral, preparação, insinuação mais fraca ou assunto vizinho.",
+        "Quando a pré-condição estiver satisfeita E a resposta imediata ao usuário não exigir resolver primeiro uma reação humana importante, a ação verbal principal da FALA-GUIA DEVE acontecer nesta resposta.",
+        "Se a fala mais recente do usuário exigir primeiro desculpa, esclarecimento, reação emocional ou resolução de um mal-entendido, responda a isso naturalmente e mantenha esta linha PENDENTE; não force a fala-guia no mesmo turno.",
+        "Não substitua a linha por conversa lateral, preparação, insinuação mais fraca ou assunto vizinho quando decidir executá-la.",
         "NÚCLEO SEMÂNTICO OBRIGATÓRIO é vinculante: não transforme certeza em dúvida, conhecimento em boato, iniciativa em hesitação ou convite em mera sugestão.",
         "Responda primeiro ao que o usuário acabou de dizer, mas concretize também a intenção desta linha sem ignorar a interação real.",
     ]
@@ -152,8 +154,27 @@ def build_line_prompt(row: dict, *, line_order: int) -> str:
         "Não use fatos, falas, locais, convites, decisões ou desfechos de linhas posteriores.",
         "Perguntas, hipóteses e convites do usuário não viram fatos sem confirmação.",
         "Não decida falas, ações ou escolhas do personagem controlado pelo usuário.",
+        "",
+        "PROTOCOLO INTERNO DE PROGRESSÃO — OBRIGATÓRIO",
+        "Depois de [FALA] e [PENSAMENTO], escreva exatamente uma terceira linha:",
+        "[ROTEIRO_STATUS] DONE",
+        "se e somente se esta resposta realmente executou o núcleo da linha atual;",
+        "ou [ROTEIRO_STATUS] PENDING se você precisou apenas reagir ao usuário e deixou a linha para depois.",
+        "Nunca marque DONE apenas porque respondeu ao usuário. DONE significa que a iniciativa principal desta linha apareceu de fato.",
     ])
     return "\n".join(parts)
+
+
+def parse_script_status(text: str) -> str:
+    """Return done/pending/missing from the Redator's private progression marker."""
+    match = re.search(
+        r"\[ROTEIRO_STATUS\]\s*(DONE|PENDING)\b",
+        str(text or ""),
+        flags=re.I,
+    )
+    if not match:
+        return "missing"
+    return match.group(1).strip().lower()
 
 
 def build_hold_prompt(row: dict, *, line_order: int) -> str:
