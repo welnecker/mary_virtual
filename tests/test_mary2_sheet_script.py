@@ -12,9 +12,9 @@ def test_carona_uses_sheet_line_runtime_only():
     assert "balada eletrônica" not in prompt
 
 
-def test_carona_opening_consumes_first_authored_line():
-    assert line_for_interaction(chapter_turn=1, opening_consumes_line_one=True) == 2
-    assert line_for_interaction(chapter_turn=12, opening_consumes_line_one=True) == 13
+def test_carona_waits_for_user_before_first_authored_line():
+    assert line_for_interaction(chapter_turn=1, opening_consumes_line_one=False) == 1
+    assert line_for_interaction(chapter_turn=13, opening_consumes_line_one=False) == 13
 
 
 def test_only_selected_line_is_exposed_to_prompt():
