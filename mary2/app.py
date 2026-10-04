@@ -38,7 +38,7 @@ from persistence import (
     update_run_snapshot,
 )
 from prompts import build_system_prompt
-from sheet_script import build_hold_prompt, build_line_prompt, line_for_interaction, load_sheet_script, max_script_order, parse_script_status, script_line
+from sheet_script import build_beat_validator_prompt, build_hold_prompt, build_line_prompt, build_memory_prompt, line_for_interaction, load_script_memory, load_sheet_script, max_script_order, parse_beat_validation, script_line
 from state import current_status_text, migrate_state, new_state, story_ledger_text
 from story_bible import PHYSICAL_CANON
 
@@ -703,20 +703,30 @@ def persistence_config() -> dict | None:
     }
 
 
+def _status_text_for_chapter(chapter_config: dict) -> str:
+    """Hide legacy raw dialogue sources from sheet-driven chapters."""
+    status = deepcopy(
+        st.session_state.story_state.get("current_status", {})
+        if isinstance(st.session_state.story_state, dict)
+        else {}
+    )
+    if _sheet_runtime_mode(chapter_config):
+        status.pop("personal_conversation_reference", None)
+    if not isinstance(status, dict) or not status:
+        return "(sem status estrutural definido)"
+    return json.dumps(status, ensure_ascii=False, indent=2)
+
+
 def _sheet_line_chapter_prompt(
     *,
     chapter_config: dict,
     chapter_turn: int,
     base_prompt: str,
     persistence: dict | None,
-) -> tuple[str, int]:
-    """Build Carona prompt from exactly one authored sheet row.
-
-    The active sheet line is stored in narrative state. It is no longer derived
-    blindly from chapter_turn, because some lines have structural gates.
-    """
-    if str(chapter_config.get("script_mode", "") or "") != "sheet_line_runtime":
-        return base_prompt, 0
+) -> tuple[str, int, dict]:
+    """Build the active authored beat plus concise authored entry memory."""
+    if not _sheet_runtime_mode(chapter_config):
+        return base_prompt, 0, {}
 
     configured_id = str(chapter_config.get("script_spreadsheet_id", "") or "").strip()
     try:
@@ -726,6 +736,10 @@ def _sheet_line_chapter_prompt(
     spreadsheet_id = secret_id or configured_id
     worksheet_name = str(
         chapter_config.get("script_worksheet", "ROTEIRO_REDATOR") or "ROTEIRO_REDATOR"
+    ).strip()
+    memory_worksheet = str(
+        chapter_config.get("script_memory_worksheet", "ROTEIRO_MEMORIA")
+        or "ROTEIRO_MEMORIA"
     ).strip()
     script_name = str(chapter_config.get("script_name", "") or "").strip()
     opening_consumes = bool(
@@ -742,11 +756,11 @@ def _sheet_line_chapter_prompt(
 
     if not persistence or not persistence.get("service_account_info") or not spreadsheet_id:
         fallback = build_line_prompt({}, line_order=line_order)
-        return (base_prompt + "\n\n" + fallback).strip(), line_order
+        return (base_prompt + "\n\n" + fallback).strip(), line_order, {}
 
-    cache_key = f"{spreadsheet_id}:{worksheet_name}:{script_name}"
     cache = st.session_state.setdefault("sheet_script_cache", {})
-    rows = cache.get(cache_key)
+    rows_key = f"rows:{spreadsheet_id}:{worksheet_name}:{script_name}"
+    rows = cache.get(rows_key)
     if rows is None:
         rows = load_sheet_script(
             service_account_info=persistence["service_account_info"],
@@ -754,7 +768,18 @@ def _sheet_line_chapter_prompt(
             worksheet_name=worksheet_name,
             script_name=script_name,
         )
-        cache[cache_key] = rows
+        cache[rows_key] = rows
+
+    memory_key = f"memory:{spreadsheet_id}:{memory_worksheet}:{script_name}"
+    memories = cache.get(memory_key)
+    if memories is None:
+        memories = load_script_memory(
+            service_account_info=persistence["service_account_info"],
+            spreadsheet_id=spreadsheet_id,
+            worksheet_name=memory_worksheet,
+            script_name=script_name,
+        )
+        cache[memory_key] = memories
 
     narrative["script_max_order"] = max_script_order(rows)
     row = script_line(rows, line_order)
@@ -762,7 +787,42 @@ def _sheet_line_chapter_prompt(
         line_prompt = build_hold_prompt(row, line_order=line_order)
     else:
         line_prompt = build_line_prompt(row, line_order=line_order)
-    return (base_prompt + "\n\n" + line_prompt).strip(), line_order
+
+    memory_prompt = build_memory_prompt(memories)
+    pieces = [base_prompt, memory_prompt, line_prompt]
+    return "\n\n".join(piece for piece in pieces if str(piece or "").strip()).strip(), line_order, row
+
+
+def _validate_sheet_beat(
+    *,
+    api_key: str,
+    model: str,
+    fallback_model: str | None,
+    row: dict,
+    user_text: str,
+    mary_text: str,
+    recent_dialogue: list[dict],
+) -> bool:
+    if not row:
+        return False
+    prompt = build_beat_validator_prompt(
+        row=row,
+        user_text=user_text,
+        mary_text=mary_text,
+        recent_dialogue=recent_dialogue,
+    )
+    try:
+        raw = chat(
+            api_key=api_key,
+            model=model,
+            fallback_model=fallback_model,
+            messages=[{"role": "system", "content": prompt}],
+            temperature=0.0,
+        )
+    except Exception:
+        return False
+    return parse_beat_validation(raw)
+
 
 
 def _sheet_vehicle_stopped(scene: dict) -> bool:
