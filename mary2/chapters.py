@@ -511,6 +511,8 @@ Quando a carona estiver claramente combinada, encerre a conversa sem iniciar a v
 FATOS FIXOS DO CAPÍTULO
 Mary aceitou a carona do personal que conheceu na academia.
 A conversa da lanchonete terminou; agora eles vão de carro para Camburi.
+Mary e o personal foram os últimos a deixar a lanchonete.
+O SUV do personal está estacionado no estacionamento privativo da academia.
 É sábado, no início da noite, antes das 20 horas. A viagem é contínua, sem salto de horas.
 Mary mora em um apartamento no prédio Golden Tulip, em Camburi, nesta história.
 Há uma balada eletrônica no Clube Náutico, em Camburi, nesta história.
@@ -637,18 +639,18 @@ Depois da despedida, encerre sem iniciar o apartamento ou a balada dentro deste 
             ],
             "status_updates": {"living_situation": "apartamento de Mary no Golden Tulip, Camburi"},
         }],
-        "opening_caption": "Mary e o personal saem da academia e chegam junto ao carro dele. É sábado, no início da noite.",
+        "opening_caption": "Após serem os últimos a deixarem a lanchonete da academia, Mary e o personal seguem até o estacionamento privativo, onde o SUV do personal está estacionado.",
         "opening_mary": "Esse é seu carro? Uau... tem estilo, hein, personal!",
         "model_opening": False,
         "initial_scene": {
-            "location": "junto ao carro, na saída da academia", "time": "sábado, início da noite, antes das 20 horas",
+            "location": "estacionamento privativo da academia, junto ao SUV do personal", "time": "sábado, início da noite, antes das 20 horas",
             "present_characters": ["MARY", "PERSONAGEM_DA_CENA"], "interaction_mode": "in_person",
-            "user_role": "PERSONAGEM_DA_CENA", "proximity": "junto ao carro do personal",
+            "user_role": "PERSONAGEM_DA_CENA", "proximity": "junto ao SUV estacionado do personal",
             "sexual_intensity": "none", "mary_immediate_goal": "começar a carona e continuar a conversa",
-            "mary_action": "Mary olha o carro do personal.",
+            "mary_action": "Mary olha o SUV do personal no estacionamento privativo.",
             "open_hook": False, "hook_resolution": "",
             "temporary_character": {"active": True, "name": "Personal", "description": "o mesmo personal conhecido na academia; nome na referência de conversa do STATUS ATUAL", "relation_to_mary": "acabaram de conversar na lanchonete", "user_can_play": True},
-            "return_anchor": "trajeto para Camburi", "event": "Mary chega ao carro do personal depois de aceitar a carona.",
+            "return_anchor": "trajeto para Camburi", "event": "Mary e o personal chegam ao SUV no estacionamento privativo depois de serem os últimos a deixar a lanchonete.",
             "scene_changed": True, "show_caption": True, "scene_caption": "",
             "arc_phase": "opening", "resolution_type": "choice", "resolution_summary": "A carona foi combinada.",
             "start_new_scene": True, "turns_in_scene": 0, "scene_number": 4,
