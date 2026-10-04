@@ -38,13 +38,14 @@ from persistence import (
     update_run_snapshot,
 )
 from prompts import build_system_prompt
+from sheet_script import build_line_prompt, line_for_interaction, load_sheet_script, script_line
 from state import current_status_text, migrate_state, new_state, story_ledger_text
 from story_bible import PHYSICAL_CANON
 
 
 st.set_page_config(page_title="Mary Core 2", page_icon="🖤", layout="centered")
 
-BUILD_ID = "2026-10-04-carona-organic-v43"
+BUILD_ID = "2026-10-04-carona-sheet-line-v44"
 
 DEFAULT_MODELS = [
     "google/gemini-2.5-flash-lite",
@@ -100,6 +101,7 @@ def reset_local_story() -> None:
     st.session_state.run_last_seq = 0
     st.session_state.route_checkpoints = []
     st.session_state.route_checkpoints_loaded_for_run = ""
+    st.session_state.sheet_script_cache = {}
 
 
 def _messages_from_records(records: list[dict]) -> list[dict[str, str]]:
@@ -701,6 +703,60 @@ def persistence_config() -> dict | None:
     }
 
 
+def _sheet_line_chapter_prompt(
+    *,
+    chapter_config: dict,
+    chapter_turn: int,
+    base_prompt: str,
+    persistence: dict | None,
+) -> tuple[str, int]:
+    """Build Carona prompt from exactly one authored sheet row.
+
+    The worksheet is loaded once per Streamlit session. Rows after the selected
+    one stay out of the LLM prompt, preventing narrative look-ahead.
+    """
+    if str(chapter_config.get("script_mode", "") or "") != "sheet_line_runtime":
+        return base_prompt, 0
+
+    configured_id = str(chapter_config.get("script_spreadsheet_id", "") or "").strip()
+    try:
+        secret_id = str(st.secrets.get("MARY_SCRIPT_SHEETS_ID", "") or "").strip()
+    except Exception:
+        secret_id = ""
+    spreadsheet_id = secret_id or configured_id
+    worksheet_name = str(
+        chapter_config.get("script_worksheet", "ROTEIRO_REDATOR") or "ROTEIRO_REDATOR"
+    ).strip()
+    script_name = str(chapter_config.get("script_name", "") or "").strip()
+    opening_consumes = bool(
+        chapter_config.get("script_opening_consumes_line_one", False)
+    )
+    line_order = line_for_interaction(
+        chapter_turn=chapter_turn,
+        opening_consumes_line_one=opening_consumes,
+    )
+
+    if not persistence or not persistence.get("service_account_info") or not spreadsheet_id:
+        fallback = build_line_prompt({}, line_order=line_order)
+        return (base_prompt + "\n\n" + fallback).strip(), line_order
+
+    cache_key = f"{spreadsheet_id}:{worksheet_name}:{script_name}"
+    cache = st.session_state.setdefault("sheet_script_cache", {})
+    rows = cache.get(cache_key)
+    if rows is None:
+        rows = load_sheet_script(
+            service_account_info=persistence["service_account_info"],
+            spreadsheet_id=spreadsheet_id,
+            worksheet_name=worksheet_name,
+            script_name=script_name,
+        )
+        cache[cache_key] = rows
+
+    row = script_line(rows, line_order)
+    line_prompt = build_line_prompt(row, line_order=line_order)
+    return (base_prompt + "\n\n" + line_prompt).strip(), line_order
+
+
 def reconstruct_legacy_snapshot(
     *,
     persistence: dict,
@@ -792,6 +848,7 @@ for key, default in {
     "run_last_seq": 0,
     "route_checkpoints": [],
     "route_checkpoints_loaded_for_run": "",
+    "sheet_script_cache": {},
 }.items():
     if key not in st.session_state:
         st.session_state[key] = default
@@ -1738,6 +1795,14 @@ if user_text:
             _chapter_id(),
             turn_number=current_turn_number,
         )
+        current_chapter_prompt, script_line_order = _sheet_line_chapter_prompt(
+            chapter_config=chapter_config,
+            chapter_turn=current_turn_number,
+            base_prompt=current_chapter_prompt,
+            persistence=persistence,
+        )
+        if script_line_order:
+            scene_for_director["script_line_order"] = script_line_order
 
         scene = direct_scene(
             api_key=api_key,
@@ -1770,6 +1835,8 @@ if user_text:
         scene["chapter_turn_current"] = current_turn_number
         scene["chapter_phase"] = current_phase_id
         scene["chapter_phase_goal"] = current_phase_goal
+        if script_line_order:
+            scene["script_line_order"] = script_line_order
         if current_phase_id:
             # Em capítulos com microprompt, o runtime já define a direção
             # psicológica. O Diretor permanece responsável pela cena física.
