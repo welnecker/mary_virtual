@@ -1,4 +1,4 @@
-from sheet_script import build_line_prompt, line_for_interaction, script_line
+from mary2.sheet_script import build_line_prompt, line_for_interaction, script_line
 from chapters import get_chapter
 
 
