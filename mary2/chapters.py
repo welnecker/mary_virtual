@@ -472,6 +472,7 @@ Quando a carona estiver claramente combinada, encerre a conversa sem iniciar a v
             {
                 "id": "dar_carona",
                 "carry_character_identity": True,
+                "generate_recent_memory": True,
                 "label": "Dar carona para Mary",
                 "next_chapter": "carona_camburi",
                 "ledger_entries": [
