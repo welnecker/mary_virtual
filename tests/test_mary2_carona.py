@@ -44,6 +44,7 @@ def test_carona_uses_sheet_line_pilot_and_keeps_physical_boundaries():
     chapter = get_chapter('carona_camburi')
     assert chapter['script_mode'] == 'sheet_line_runtime'
     assert chapter['script_name'] == 'Carona'
+    assert chapter['script_memory_worksheet'] == 'ROTEIRO_MEMORIA'
     assert chapter.get('dramatic_phases', []) == []
 
     assert not chapter_ready_for_choice('carona_camburi', 11, True)
@@ -89,3 +90,13 @@ def test_checkpoint_replay_carries_only_original_instance():
         env['activate_choice_from_checkpoint'](checkpoint_id='cp1', choice_id='dar_carona', persistence=dict(
             service_account_info={}, spreadsheet_id='sheet', spreadsheet_title='sheet', owner_email=''))
     assert captured[0]['current_status']['personal_conversation_reference']['sources'][0]['user_statements'] == ['Me chamo Guilherme.']
+
+
+def test_carona_transition_does_not_request_raw_dialogue_memory():
+    source = get_chapter('academia_suco_aceito')
+    choice = find_choice('academia_suco_aceito', 'dar_carona')
+    assert choice.get('carry_user_statements') is not True
+    assert choice.get('carry_character_identity') is True
+
+    carona_choice = find_choice('carona_camburi', 'mary_em_seu_apartamento')
+    assert carona_choice.get('carry_user_statements') is not True
