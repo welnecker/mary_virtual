@@ -40,14 +40,29 @@ def test_replayed_introduction_replaces_other_route():
     assert 'André' in str(original)
 
 
-def test_phases_and_exit_need_actual_farewell():
-    assert [chapter_phase('carona_camburi', turn)['id'] for turn in [1, 5, 9, 13, 17]] == [
-        'carro_e_rota', 'sabado_e_convite', 'transito_e_chegada', 'combinacao_e_despedida', 'convergencia_decisao']
+def test_carona_uses_one_sequential_phase_and_exit_still_needs_farewell():
+    assert [chapter_phase('carona_camburi', turn)['id'] for turn in [1, 5, 9, 13, 17, 50]] == [
+        'carona_sequencial'] * 6
     assert not chapter_ready_for_choice('carona_camburi', 15, True)
     assert not chapter_ready_for_choice('carona_camburi', 16, False)
     assert chapter_ready_for_choice('carona_camburi', 16, True)
-    assert 'beijinho' not in chapter_prompt('carona_camburi', 1)
-    assert 'beijinho' in chapter_prompt('carona_camburi', 13)
+
+    prompt = chapter_prompt('carona_camburi', 1)
+    late_prompt = chapter_prompt('carona_camburi', 40)
+    for text in [
+        'PRIMEIRA iniciativa ainda pendente',
+        'É muito fora da sua rota pra Camburi?',
+        'O personal NÃO sobe',
+        'CADA UM se prepara separadamente',
+        'não faça um segundo convite',
+        'Mary apenas indica SUA residência',
+        'tchauzinho',
+    ]:
+        assert text in prompt
+        assert text in late_prompt
+
+    assert 'É muito fora da minha rota pra Camburi?' not in prompt
+    assert 'ele NÃO chamou Mary\nde domesticada' not in prompt
     assert find_choice('carona_camburi', 'mary_em_seu_apartamento')['next_chapter'] == 'mary_apartamento_camburi'
     apartment = get_chapter('mary_apartamento_camburi')
     assert apartment['initial_scene']['present_characters'] == ['MARY']
