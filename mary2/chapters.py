@@ -511,7 +511,7 @@ Quando a carona estiver claramente combinada, encerre a conversa sem iniciar a v
         "script_spreadsheet_id": "1P0le9TEoOH9QIx36PPQHDM1JcgRdjTl14GnGO3F0cCk",
         "script_worksheet": "ROTEIRO_REDATOR",
         "script_name": "Carona",
-        "script_opening_consumes_line_one": True,
+        "script_opening_consumes_line_one": False,
         "prompt": """
 CONTEXTO FÍSICO ESTÁVEL DA CARONA
 
@@ -560,7 +560,7 @@ Não antecipe conteúdo de linhas futuras.
             "status_updates": {"living_situation": "apartamento de Mary no Golden Tulip, Camburi"},
         }],
         "opening_caption": "Após serem os últimos a deixar a lanchonete da academia, Mary e o personal seguem até o estacionamento privativo, onde o SUV dele está estacionado.",
-        "opening_mary": "Esse é seu carro? Uau... tem estilo, hein, personal!",
+        "opening_mary": "",
         "model_opening": False,
         "initial_scene": {
             "location": "estacionamento privativo da academia, junto ao SUV do personal",
