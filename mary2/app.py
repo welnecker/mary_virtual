@@ -6,6 +6,7 @@ from copy import deepcopy
 
 import streamlit as st
 
+from chapter_continuity import carry_user_statements
 from chapters import (
     apply_choice_to_story,
     chapter_choices,
@@ -43,7 +44,7 @@ from story_bible import PHYSICAL_CANON
 
 st.set_page_config(page_title="Mary Core 2", page_icon="🖤", layout="centered")
 
-BUILD_ID = "2026-10-03-chapter-restart-quota-v38"
+BUILD_ID = "2026-10-03-carona-camburi-v39"
 
 DEFAULT_MODELS = [
     "google/gemini-2.5-flash-lite",
@@ -203,6 +204,10 @@ def activate_chapter(
     last_seq = int(st.session_state.get("run_last_seq", 0) or 0)
     previous_state = deepcopy(st.session_state.story_state)
     previous_scene = deepcopy(st.session_state.scene_state)
+    if choice.get("carry_user_statements"):
+        previous_state = carry_user_statements(
+            previous_state, previous_chapter_id, st.session_state.turn_records
+        )
     previous_narrative = previous_state.setdefault("narrative", {})
     previous_branch_id = str(previous_narrative.get("branch_id", "main") or "main")
     previous_instance_id = str(
@@ -464,6 +469,24 @@ def activate_choice_from_checkpoint(
 
     base_state = migrate_state(checkpoint["story_state"])
     base_scene = deepcopy(checkpoint["scene_state"])
+    if choice.get("carry_user_statements") and not base_state.get("current_status", {}).get("personal_conversation_reference"):
+        # Old decision checkpoints predate source-based continuity. Read only
+        # this run, then select the exact original chapter instance for replay.
+        source_rows = load_run_interactions(
+            service_account_info=persistence["service_account_info"],
+            spreadsheet_id=persistence["spreadsheet_id"],
+            spreadsheet_title=persistence["spreadsheet_title"],
+            owner_email=persistence["owner_email"],
+            run_id=str(checkpoint.get("run_id", st.session_state.run_id)),
+        )
+        source_instance = str(checkpoint.get("source_chapter_instance_id", ""))
+        source_seq = int(checkpoint.get("source_seq", 0) or 0)
+        base_state = carry_user_statements(
+            base_state, source_chapter_id,
+            [row for row in source_rows
+             if str(row.get("chapter_instance_id", "")) == source_instance
+             and int(row.get("seq", 0) or 0) <= source_seq],
+        )
     base_narrative = base_state.setdefault("narrative", {})
     parent_branch_id = str(
         checkpoint.get("source_branch_id", "")
