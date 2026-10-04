@@ -38,14 +38,14 @@ from persistence import (
     update_run_snapshot,
 )
 from prompts import build_system_prompt
-from sheet_script import build_hold_prompt, build_line_prompt, line_for_interaction, load_sheet_script, max_script_order, script_line
+from sheet_script import build_hold_prompt, build_line_prompt, line_for_interaction, load_sheet_script, max_script_order, parse_script_status, script_line
 from state import current_status_text, migrate_state, new_state, story_ledger_text
 from story_bible import PHYSICAL_CANON
 
 
 st.set_page_config(page_title="Mary Core 2", page_icon="🖤", layout="centered")
 
-BUILD_ID = "2026-10-04-carona-sheet-line-v45"
+BUILD_ID = "2026-10-04-carona-sheet-line-v46"
 
 DEFAULT_MODELS = [
     "google/gemini-2.5-flash-lite",
@@ -1982,8 +1982,11 @@ if user_text:
             mary_intent, mary_speech_raw = parse_mary_response(raw_answer)
             narration_leak = looks_like_action_narration(mary_speech_raw)
             answer = sanitize_mary_output(mary_speech_raw)
+            script_status = (
+                parse_script_status(raw_answer) if sheet_mode else "done"
+            )
 
-            if not answer or narration_leak:
+            if not answer or narration_leak or (sheet_mode and script_status == "missing"):
                 retry_messages = [
                     *llm_messages,
                     {
@@ -1994,7 +1997,14 @@ if user_text:
                             "[PENSAMENTO] é uma frase curta em primeira pessoa escrita somente "
                             "depois da fala; não planeje nem explique a fala. Não escreva narração externa, "
                             "rubricas, metáforas literárias ou ações como descrição. "
-                            "As ações físicas pertencem exclusivamente ao Diretor."
+                            "As ações físicas pertencem exclusivamente ao Diretor. "
+                            + (
+                                "Como este capítulo usa roteiro por linha, termine também com "
+                                "[ROTEIRO_STATUS] DONE se a fala atual realmente cumpriu o núcleo da linha, "
+                                "ou [ROTEIRO_STATUS] PENDING se você apenas reagiu ao usuário e deixou a linha pendente."
+                                if sheet_mode
+                                else ""
+                            )
                         ),
                     },
                 ]
@@ -2008,6 +2018,9 @@ if user_text:
                 mary_intent, mary_speech_raw = parse_mary_response(raw_answer)
                 narration_leak = looks_like_action_narration(mary_speech_raw)
                 answer = sanitize_mary_output(mary_speech_raw)
+                script_status = (
+                    parse_script_status(raw_answer) if sheet_mode else "done"
+                )
 
             if not answer or narration_leak:
                 raise OpenRouterError(
@@ -2045,8 +2058,13 @@ if user_text:
         if _sheet_runtime_mode(active_chapter):
             max_order = int(narrative.get("script_max_order", 0) or 0)
             active_order = int(narrative.get("script_line_order", script_line_order) or script_line_order or 0)
+            narrative["script_last_status"] = script_status
 
-            if active_order == 10:
+            if script_status != "done":
+                # A conversa pode desviar legitimamente. A linha atual permanece
+                # ativa até o Redator declarar que realmente executou seu núcleo.
+                narrative["script_line_order"] = active_order
+            elif active_order == 10:
                 # Line 10 announces the destination. Do not expose line 11 until
                 # the driver actually establishes that the SUV has stopped.
                 if _sheet_vehicle_stopped(scene):
