@@ -130,7 +130,7 @@ def build_line_prompt(row: dict, *, line_order: int) -> str:
         ("ATMOSFERA", "atmosphere"),
         ("FATO LIBERADO NESTA LINHA", "released_fact"),
         ("PRÉ-CONDIÇÃO EDITORIAL", "precondition"),
-        ("VESTIMENTA ATUAL", "wardrobe"),
+        ("VESTIMENTA ATUAL DE MARY", "wardrobe"),
         ("AÇÃO FÍSICA / ENCENAÇÃO", "physical_action"),
         ("LIMITES DO REDATOR", "writer_limits"),
         ("RESULTADO ESPERADO", "expected_result"),
@@ -139,6 +139,12 @@ def build_line_prompt(row: dict, *, line_order: int) -> str:
         value = _clean(row.get(key))
         if value:
             parts.extend(["", title, value])
+            if key == "wardrobe":
+                parts.extend([
+                    "Esta informação descreve exclusivamente MARY.",
+                    "Nunca atribua estas roupas, cabelo, calçados, acessórios ou aparência ao personagem controlado pelo usuário.",
+                    "Não use a vestimenta de Mary para descrever, inferir ou brincar sobre a roupa do outro personagem.",
+                ])
 
     parts.extend([
         "",
