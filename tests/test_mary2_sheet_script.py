@@ -63,3 +63,16 @@ def test_script_status_marker_controls_progression_contract():
     assert parse_script_status("[FALA] oi\n[PENSAMENTO] ok\n[ROTEIRO_STATUS] DONE") == "done"
     assert parse_script_status("[FALA] oi\n[PENSAMENTO] ok\n[ROTEIRO_STATUS] PENDING") == "pending"
     assert parse_script_status("[FALA] oi\n[PENSAMENTO] ok") == "missing"
+
+
+def test_wardrobe_is_bound_to_mary_only():
+    row = {
+        "order": 1,
+        "type": "INTERPRETADA",
+        "speech_guide": "elogio ao carro",
+        "wardrobe": "Legging de ginástica, cabelos em rabo de cavalo, tênis.",
+    }
+    prompt = build_line_prompt(row, line_order=1)
+    assert "VESTIMENTA ATUAL DE MARY" in prompt
+    assert "descreve exclusivamente MARY" in prompt
+    assert "Nunca atribua estas roupas" in prompt
