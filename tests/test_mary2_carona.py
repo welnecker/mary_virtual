@@ -47,9 +47,8 @@ def test_carona_uses_sheet_line_pilot_and_keeps_physical_boundaries():
     assert chapter['script_memory_worksheet'] == 'ROTEIRO_MEMORIA'
     assert chapter.get('dramatic_phases', []) == []
 
-    assert not chapter_ready_for_choice('carona_camburi', 11, True)
-    assert not chapter_ready_for_choice('carona_camburi', 12, False)
-    assert chapter_ready_for_choice('carona_camburi', 12, True)
+    assert not chapter_ready_for_choice('carona_camburi', 0, False)
+    assert chapter_ready_for_choice('carona_camburi', 0, True)
 
     prompt = chapter_prompt('carona_camburi', 1)
     assert 'O personal controla direção, rota, velocidade, manobras, parada e estacionamento' in prompt
