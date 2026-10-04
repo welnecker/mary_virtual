@@ -45,7 +45,7 @@ from story_bible import PHYSICAL_CANON
 
 st.set_page_config(page_title="Mary Core 2", page_icon="🖤", layout="centered")
 
-BUILD_ID = "2026-10-04-carona-sheet-line-v46"
+BUILD_ID = "2026-10-04-carona-beat-runtime-v47"
 
 DEFAULT_MODELS = [
     "google/gemini-2.5-flash-lite",
@@ -1899,12 +1899,47 @@ if user_text:
             _chapter_id(),
             turn_number=current_turn_number,
         )
-        current_chapter_prompt, script_line_order = _sheet_line_chapter_prompt(
+        sheet_mode = _sheet_runtime_mode(chapter_config)
+        current_chapter_prompt, script_line_order, script_row = _sheet_line_chapter_prompt(
             chapter_config=chapter_config,
             chapter_turn=current_turn_number,
             base_prompt=current_chapter_prompt,
             persistence=persistence,
         )
+
+        # Antes de Mary responder, o controlador verifica se a fala atual do usuário
+        # já concluiu o beat pendente (por exemplo, respondeu a uma pergunta anterior).
+        if sheet_mode and user_spoke and script_row:
+            for _ in range(3):
+                if script_line_order == 10 or bool(
+                    narrative_state.get("script_waiting_for_gate", False)
+                ):
+                    break
+                completed_by_user = _validate_sheet_beat(
+                    api_key=api_key,
+                    model=input_model,
+                    fallback_model=fallback,
+                    row=script_row,
+                    user_text=dialogue_text,
+                    mary_text="",
+                    recent_dialogue=phase_messages[-12:],
+                )
+                if not completed_by_user:
+                    break
+                max_order = int(narrative_state.get("script_max_order", 0) or 0)
+                if script_line_order <= 0 or script_line_order >= max_order:
+                    break
+                narrative_state["script_line_order"] = script_line_order + 1
+                current_chapter_prompt, script_line_order, script_row = _sheet_line_chapter_prompt(
+                    chapter_config=chapter_config,
+                    chapter_turn=current_turn_number,
+                    base_prompt=chapter_prompt(
+                        _chapter_id(),
+                        turn_number=current_turn_number,
+                    ),
+                    persistence=persistence,
+                )
+
         if script_line_order:
             scene_for_director["script_line_order"] = script_line_order
 
@@ -1914,7 +1949,7 @@ if user_text:
             fallback_model=fallback,
             physical_canon=PHYSICAL_CANON,
             story_ledger=story_ledger_text(st.session_state.story_state),
-            current_status=current_status_text(st.session_state.story_state),
+            current_status=_status_text_for_chapter(chapter_config),
             current_scene=scene_for_director,
             user_role=user_role,
             recent_messages=phase_messages,
@@ -1943,6 +1978,13 @@ if user_text:
         if script_line_order:
             scene["script_line_order"] = script_line_order
 
+        previous_action = str(
+            pre_turn_snapshot["scene_state"].get("mary_action", "") or ""
+        ).strip()
+        current_action = str(scene.get("mary_action", "") or "").strip()
+        if current_action and previous_action and current_action.casefold() == previous_action.casefold():
+            scene["mary_action"] = ""
+
         sheet_mode = _sheet_runtime_mode(chapter_config)
         sheet_advanced_before_redactor = False
         if sheet_mode and script_line_order == 10:
@@ -1953,7 +1995,7 @@ if user_text:
                     narrative_state["script_waiting_for_gate"] = False
                     script_line_order = 11
                     scene["script_line_order"] = 11
-                    current_chapter_prompt, _ = _sheet_line_chapter_prompt(
+                    current_chapter_prompt, _, script_row = _sheet_line_chapter_prompt(
                         chapter_config=chapter_config,
                         chapter_turn=current_turn_number,
                         base_prompt=chapter_prompt(_chapter_id(), turn_number=current_turn_number),
@@ -2019,7 +2061,7 @@ if user_text:
         system_prompt = build_system_prompt(
             physical_canon=PHYSICAL_CANON,
             story_ledger=story_ledger_text(st.session_state.story_state),
-            current_status=current_status_text(st.session_state.story_state),
+            current_status=_status_text_for_chapter(chapter_config),
             chapter_text=current_chapter_prompt,
             scene_text=scene_text,
             user_role=user_role,
@@ -2042,11 +2084,8 @@ if user_text:
             mary_intent, mary_speech_raw = parse_mary_response(raw_answer)
             narration_leak = looks_like_action_narration(mary_speech_raw)
             answer = sanitize_mary_output(mary_speech_raw)
-            script_status = (
-                parse_script_status(raw_answer) if sheet_mode else "done"
-            )
 
-            if not answer or narration_leak or (sheet_mode and script_status == "missing"):
+            if not answer or narration_leak:
                 retry_messages = [
                     *llm_messages,
                     {
@@ -2057,14 +2096,7 @@ if user_text:
                             "[PENSAMENTO] é uma frase curta em primeira pessoa escrita somente "
                             "depois da fala; não planeje nem explique a fala. Não escreva narração externa, "
                             "rubricas, metáforas literárias ou ações como descrição. "
-                            "As ações físicas pertencem exclusivamente ao Diretor. "
-                            + (
-                                "Como este capítulo usa roteiro por linha, termine também com "
-                                "[ROTEIRO_STATUS] DONE se a fala atual realmente cumpriu o núcleo da linha, "
-                                "ou [ROTEIRO_STATUS] PENDING se você apenas reagiu ao usuário e deixou a linha pendente."
-                                if sheet_mode
-                                else ""
-                            )
+                            "As ações físicas pertencem exclusivamente ao Diretor."
                         ),
                     },
                 ]
@@ -2078,9 +2110,6 @@ if user_text:
                 mary_intent, mary_speech_raw = parse_mary_response(raw_answer)
                 narration_leak = looks_like_action_narration(mary_speech_raw)
                 answer = sanitize_mary_output(mary_speech_raw)
-                script_status = (
-                    parse_script_status(raw_answer) if sheet_mode else "done"
-                )
 
             if not answer or narration_leak:
                 raise OpenRouterError(
@@ -2117,16 +2146,30 @@ if user_text:
 
         if _sheet_runtime_mode(active_chapter):
             max_order = int(narrative.get("script_max_order", 0) or 0)
-            active_order = int(narrative.get("script_line_order", script_line_order) or script_line_order or 0)
-            narrative["script_last_status"] = script_status
+            active_order = int(
+                narrative.get("script_line_order", script_line_order)
+                or script_line_order
+                or 0
+            )
 
-            if script_status != "done":
-                # A conversa pode desviar legitimamente. A linha atual permanece
-                # ativa até o Redator declarar que realmente executou seu núcleo.
+            beat_completed = False
+            if script_row and not bool(narrative.get("script_waiting_for_gate", False)):
+                beat_completed = _validate_sheet_beat(
+                    api_key=api_key,
+                    model=input_model,
+                    fallback_model=fallback,
+                    row=script_row,
+                    user_text=dialogue_text,
+                    mary_text=answer,
+                    recent_dialogue=phase_messages[-12:],
+                )
+            narrative["script_last_validation"] = bool(beat_completed)
+
+            if bool(narrative.get("script_waiting_for_gate", False)):
+                narrative["script_line_order"] = active_order
+            elif not beat_completed:
                 narrative["script_line_order"] = active_order
             elif active_order == 10:
-                # Line 10 announces the destination. Do not expose line 11 until
-                # the driver actually establishes that the SUV has stopped.
                 if _sheet_vehicle_stopped(scene):
                     narrative["script_line_order"] = 11
                     narrative["script_waiting_for_gate"] = False
@@ -2141,7 +2184,7 @@ if user_text:
                 narrative["script_waiting_for_gate"] = False
                 if _sheet_vehicle_stopped(scene):
                     narrative["choice_ready"] = True
-            # In sheet mode Director microstep_complete never unlocks the button.
+            # No modo por beat, o Diretor não controla progressão nem libera botão.
         elif (
             str(active_chapter.get("choice_ready_when", "") or "").strip()
             and int(narrative.get("chapter_turns", 0) or 0)
