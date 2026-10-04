@@ -1881,6 +1881,11 @@ if user_text:
 
         current_turn_number = _chapter_turns() + 1
         chapter_config = get_chapter(_chapter_id())
+        if _sheet_runtime_mode(chapter_config):
+            st.session_state.story_state.setdefault("current_status", {}).pop(
+                "personal_conversation_reference",
+                None,
+            )
         current_phase = chapter_phase(_chapter_id(), current_turn_number)
         current_phase_id = str(current_phase.get("id", "") or "").strip()
         current_phase_goal = str(current_phase.get("goal", "") or "").strip()
