@@ -44,7 +44,7 @@ from story_bible import PHYSICAL_CANON
 
 st.set_page_config(page_title="Mary Core 2", page_icon="🖤", layout="centered")
 
-BUILD_ID = "2026-10-03-carona-rebuilt-v41"
+BUILD_ID = "2026-10-04-carona-sequential-v42"
 
 DEFAULT_MODELS = [
     "google/gemini-2.5-flash-lite",
