@@ -520,8 +520,17 @@ Eles foram os últimos a deixar a lanchonete da academia.
 O SUV pertence ao personal e começa estacionado no estacionamento privativo da academia.
 O personal dirige; Mary é passageira.
 É sábado, início da noite, antes das 20 horas.
-O destino da carona é Camburi.
 O celular de Mary continua sem bateria.
+
+OBJETIVO MACRO DO CAPÍTULO
+Esta carona tem um objetivo físico simples e permanente: o personal está levando Mary
+ATÉ A CASA DELA, em Camburi.
+A conversa, o flerte e qualquer combinação para depois acontecem DURANTE esse trajeto;
+eles não substituem nem encerram o objetivo da carona.
+Enquanto o SUV não tiver chegado à residência de Mary e parado, a carona continua em andamento.
+Não revele o nome do prédio antes de a linha atual do roteiro liberar essa informação.
+O objetivo macro permanece válido em todas as linhas, mesmo quando mary_immediate_goal
+mudar para uma pergunta, provocação, convite ou outra iniciativa local.
 
 CONTINUIDADE
 O usuário interpreta o MESMO personal da academia e da lanchonete.
@@ -580,8 +589,8 @@ Não antecipe conteúdo de linhas futuras.
                 "relation_to_mary": "conhecido recente com quem acabou de conversar na lanchonete",
                 "user_can_play": True,
             },
-            "return_anchor": "trajeto para Camburi",
-            "event": "Mary e o personal chegam ao SUV depois de deixar a lanchonete.",
+            "return_anchor": "chegar à residência de Mary em Camburi",
+            "event": "Mary e o personal chegam ao SUV para iniciar a carona até a residência de Mary em Camburi.",
             "scene_changed": True, "show_caption": True, "scene_caption": "",
             "arc_phase": "opening", "resolution_type": "choice",
             "resolution_summary": "A carona para Camburi foi combinada.",
