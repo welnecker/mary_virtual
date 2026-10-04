@@ -38,14 +38,14 @@ from persistence import (
     update_run_snapshot,
 )
 from prompts import build_system_prompt
-from sheet_script import build_line_prompt, line_for_interaction, load_sheet_script, script_line
+from sheet_script import build_hold_prompt, build_line_prompt, line_for_interaction, load_sheet_script, max_script_order, script_line
 from state import current_status_text, migrate_state, new_state, story_ledger_text
 from story_bible import PHYSICAL_CANON
 
 
 st.set_page_config(page_title="Mary Core 2", page_icon="🖤", layout="centered")
 
-BUILD_ID = "2026-10-04-carona-sheet-line-v44"
+BUILD_ID = "2026-10-04-carona-sheet-line-v45"
 
 DEFAULT_MODELS = [
     "google/gemini-2.5-flash-lite",
@@ -712,8 +712,8 @@ def _sheet_line_chapter_prompt(
 ) -> tuple[str, int]:
     """Build Carona prompt from exactly one authored sheet row.
 
-    The worksheet is loaded once per Streamlit session. Rows after the selected
-    one stay out of the LLM prompt, preventing narrative look-ahead.
+    The active sheet line is stored in narrative state. It is no longer derived
+    blindly from chapter_turn, because some lines have structural gates.
     """
     if str(chapter_config.get("script_mode", "") or "") != "sheet_line_runtime":
         return base_prompt, 0
@@ -731,10 +731,14 @@ def _sheet_line_chapter_prompt(
     opening_consumes = bool(
         chapter_config.get("script_opening_consumes_line_one", False)
     )
-    line_order = line_for_interaction(
-        chapter_turn=chapter_turn,
+
+    narrative = st.session_state.story_state.setdefault("narrative", {})
+    default_order = line_for_interaction(
+        chapter_turn=1,
         opening_consumes_line_one=opening_consumes,
     )
+    line_order = int(narrative.get("script_line_order", default_order) or default_order)
+    narrative["script_line_order"] = line_order
 
     if not persistence or not persistence.get("service_account_info") or not spreadsheet_id:
         fallback = build_line_prompt({}, line_order=line_order)
@@ -752,9 +756,49 @@ def _sheet_line_chapter_prompt(
         )
         cache[cache_key] = rows
 
+    narrative["script_max_order"] = max_script_order(rows)
     row = script_line(rows, line_order)
-    line_prompt = build_line_prompt(row, line_order=line_order)
+    if bool(narrative.get("script_waiting_for_gate", False)):
+        line_prompt = build_hold_prompt(row, line_order=line_order)
+    else:
+        line_prompt = build_line_prompt(row, line_order=line_order)
     return (base_prompt + "\n\n" + line_prompt).strip(), line_order
+
+
+def _sheet_vehicle_stopped(scene: dict) -> bool:
+    text = " ".join(
+        str(scene.get(key, "") or "")
+        for key in ("location", "proximity", "event", "scene_caption")
+    ).lower()
+    moving_markers = (
+        "em movimento",
+        "a caminho",
+        "dirigindo",
+        "trajeto",
+        "trânsito",
+        "transito",
+    )
+    stopped_markers = (
+        "parado",
+        "parada",
+        "estacionado",
+        "estacionou",
+        "em frente",
+        "próximo ao golden",
+        "proximo ao golden",
+        "junto ao golden",
+        "golden tulip",
+    )
+    if any(marker in text for marker in moving_markers) and not any(
+        marker in text for marker in ("parado", "estacionado", "estacionou")
+    ):
+        return False
+    return any(marker in text for marker in stopped_markers)
+
+
+def _sheet_runtime_mode(chapter_config: dict) -> bool:
+    return str(chapter_config.get("script_mode", "") or "") == "sheet_line_runtime"
+
 
 
 def reconstruct_legacy_snapshot(
@@ -1820,7 +1864,8 @@ if user_text:
             conditional_transition=(
                 str(chapter_config.get("transition", "")) == "auto_condition"
                 or (
-                    bool(str(chapter_config.get("choice_ready_when", "") or "").strip())
+                    not _sheet_runtime_mode(chapter_config)
+                    and bool(str(chapter_config.get("choice_ready_when", "") or "").strip())
                     and current_turn_number
                     >= int(chapter_config.get("decision_after_turns", 0) or 0)
                 )
@@ -1837,6 +1882,29 @@ if user_text:
         scene["chapter_phase_goal"] = current_phase_goal
         if script_line_order:
             scene["script_line_order"] = script_line_order
+
+        sheet_mode = _sheet_runtime_mode(chapter_config)
+        sheet_advanced_before_redactor = False
+        if sheet_mode and script_line_order == 10:
+            narrative_state = st.session_state.story_state.setdefault("narrative", {})
+            if bool(narrative_state.get("script_waiting_for_gate", False)):
+                if _sheet_vehicle_stopped(scene):
+                    narrative_state["script_line_order"] = 11
+                    narrative_state["script_waiting_for_gate"] = False
+                    script_line_order = 11
+                    scene["script_line_order"] = 11
+                    current_chapter_prompt, _ = _sheet_line_chapter_prompt(
+                        chapter_config=chapter_config,
+                        chapter_turn=current_turn_number,
+                        base_prompt=chapter_prompt(_chapter_id(), turn_number=current_turn_number),
+                        persistence=persistence,
+                    )
+                    sheet_advanced_before_redactor = True
+            elif _sheet_vehicle_stopped(scene):
+                # If the user has already stopped as line 10 becomes active,
+                # line 10 may be consumed normally this turn.
+                pass
+
         if current_phase_id:
             # Em capítulos com microprompt, o runtime já define a direção
             # psicológica. O Diretor permanece responsável pela cena física.
@@ -1974,7 +2042,29 @@ if user_text:
 
         active_chapter = get_chapter(_chapter_id())
 
-        if (
+        if _sheet_runtime_mode(active_chapter):
+            max_order = int(narrative.get("script_max_order", 0) or 0)
+            active_order = int(narrative.get("script_line_order", script_line_order) or script_line_order or 0)
+
+            if active_order == 10:
+                # Line 10 announces the destination. Do not expose line 11 until
+                # the driver actually establishes that the SUV has stopped.
+                if _sheet_vehicle_stopped(scene):
+                    narrative["script_line_order"] = 11
+                    narrative["script_waiting_for_gate"] = False
+                else:
+                    narrative["script_line_order"] = 10
+                    narrative["script_waiting_for_gate"] = True
+            elif active_order > 0 and active_order < max_order:
+                narrative["script_line_order"] = active_order + 1
+                narrative["script_waiting_for_gate"] = False
+            elif active_order == max_order and max_order > 0:
+                narrative["script_line_order"] = max_order + 1
+                narrative["script_waiting_for_gate"] = False
+                if _sheet_vehicle_stopped(scene):
+                    narrative["choice_ready"] = True
+            # In sheet mode Director microstep_complete never unlocks the button.
+        elif (
             str(active_chapter.get("choice_ready_when", "") or "").strip()
             and int(narrative.get("chapter_turns", 0) or 0)
             >= int(active_chapter.get("decision_after_turns", 0) or 0)
