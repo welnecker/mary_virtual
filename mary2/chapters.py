@@ -550,7 +550,7 @@ ROTEIRO
 A direção dramática desta interação vem exclusivamente da LINHA ATUAL DA PLANILHA.
 Não antecipe conteúdo de linhas futuras.
 """.strip(),
-        "decision_after_turns": 12,
+        "decision_after_turns": 0,
         "choice_ready_when": (
             "A carona terminou de fato: o SUV chegou e parou perto do destino de Mary, "
             "as combinações que surgiram durante a conversa foram respondidas ou ficaram "
