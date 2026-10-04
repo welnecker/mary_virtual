@@ -114,7 +114,10 @@ def build_line_prompt(row: dict, *, line_order: int) -> str:
         "Tudo nesta resposta deve orbitar esta única linha. Linhas futuras não estão disponíveis.",
         "FALA-GUIA é direção dramática, não texto literal, salvo quando tipo=EXATA.",
         "Em INTERPRETADA, varie palavras e ritmo sem diluir, inverter ou enfraquecer o núcleo semântico.",
-        "Responda primeiro ao que o usuário acabou de dizer; preserve a intenção desta linha sem ignorar a interação real.",
+        "Quando a pré-condição estiver satisfeita, a ação verbal principal da FALA-GUIA DEVE acontecer nesta resposta.",
+        "Não substitua a linha por conversa lateral, preparação, insinuação mais fraca ou assunto vizinho.",
+        "NÚCLEO SEMÂNTICO OBRIGATÓRIO é vinculante: não transforme certeza em dúvida, conhecimento em boato, iniciativa em hesitação ou convite em mera sugestão.",
+        "Responda primeiro ao que o usuário acabou de dizer, mas concretize também a intenção desta linha sem ignorar a interação real.",
     ]
 
     fields = [
@@ -143,6 +146,29 @@ def build_line_prompt(row: dict, *, line_order: int) -> str:
         "Não decida falas, ações ou escolhas do personagem controlado pelo usuário.",
     ])
     return "\n".join(parts)
+
+
+def build_hold_prompt(row: dict, *, line_order: int) -> str:
+    """Keep the current authored step pending without repeating its speech."""
+    parts = [
+        "ROTEIRO POR LINHA — AGUARDANDO CONDIÇÃO ESTRUTURAL",
+        f"linha_pendente={int(line_order)}",
+        "A fala-guia desta linha já foi apresentada.",
+        "NÃO avance para a próxima linha e NÃO repita mecanicamente a fala-guia.",
+        "Responda naturalmente ao usuário mantendo somente o contexto presente.",
+        "Não introduza nenhum fato, convite, contato, despedida ou desfecho de linhas futuras.",
+    ]
+    precondition = _clean(row.get("precondition"))
+    expected = _clean(row.get("expected_result"))
+    if precondition:
+        parts.extend(["", "CONDIÇÃO AINDA RELEVANTE", precondition])
+    if expected:
+        parts.extend(["", "RESULTADO QUE AINDA PRECISA SER SATISFEITO", expected])
+    return "\n".join(parts)
+
+
+def max_script_order(rows: list[dict]) -> int:
+    return max([int(row.get("order", 0) or 0) for row in rows] or [0])
 
 
 def line_for_interaction(*, chapter_turn: int, opening_consumes_line_one: bool = True) -> int:
