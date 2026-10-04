@@ -44,3 +44,16 @@ def test_interpreted_line_preserves_semantic_core():
     assert "FALA-GUIA é direção dramática, não texto literal" in prompt
     assert "Mary CONHECE o Clube Náutico" in prompt
     assert "Não transformar conhecimento em dúvida" in prompt
+
+
+def test_sheet_line_prompt_blocks_invented_logistics():
+    row = {
+        "order": 7,
+        "type": "INTERPRETADA",
+        "speech_guide": "Bom, acho que você já percebeu um convite pro clube, né?",
+        "semantic_core": "Mary deixa explícito que está convidando.",
+    }
+    prompt = build_line_prompt(row, line_order=7)
+    assert "Você NÃO pode criar nova logística" in prompt
+    assert "Você NÃO pode inverter autoria física" in prompt
+    assert "Você NÃO pode acrescentar uma segunda pergunta estrutural" in prompt
