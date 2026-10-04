@@ -471,7 +471,7 @@ Quando a carona estiver claramente combinada, encerre a conversa sem iniciar a v
         "choices": [
             {
                 "id": "dar_carona",
-                "carry_user_statements": True,
+                "carry_character_identity": True,
                 "label": "Dar carona para Mary",
                 "next_chapter": "carona_camburi",
                 "ledger_entries": [
@@ -510,6 +510,7 @@ Quando a carona estiver claramente combinada, encerre a conversa sem iniciar a v
         "script_mode": "sheet_line_runtime",
         "script_spreadsheet_id": "1P0le9TEoOH9QIx36PPQHDM1JcgRdjTl14GnGO3F0cCk",
         "script_worksheet": "ROTEIRO_REDATOR",
+        "script_memory_worksheet": "ROTEIRO_MEMORIA",
         "script_name": "Carona",
         "script_opening_consumes_line_one": False,
         "prompt": """
@@ -559,7 +560,6 @@ Não antecipe conteúdo de linhas futuras.
             "id": "mary_em_seu_apartamento",
             "label": "Mary em seu apartamento",
             "next_chapter": "mary_apartamento_camburi",
-            "carry_user_statements": True,
             "carry_handoff": True,
             "ledger_entries": [
                 "Depois da lanchonete, o personal levou Mary de carro até seu prédio, Golden Tulip, em Camburi.",
