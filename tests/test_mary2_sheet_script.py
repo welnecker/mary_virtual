@@ -1,4 +1,4 @@
-from mary2.sheet_script import build_line_prompt, line_for_interaction, parse_script_status, script_line
+from mary2.sheet_script import build_line_prompt, build_memory_prompt, line_for_interaction, parse_beat_validation, script_line
 from chapters import get_chapter
 
 
@@ -59,10 +59,9 @@ def test_sheet_line_prompt_blocks_invented_logistics():
     assert "Você NÃO pode acrescentar uma segunda pergunta estrutural" in prompt
 
 
-def test_script_status_marker_controls_progression_contract():
-    assert parse_script_status("[FALA] oi\n[PENSAMENTO] ok\n[ROTEIRO_STATUS] DONE") == "done"
-    assert parse_script_status("[FALA] oi\n[PENSAMENTO] ok\n[ROTEIRO_STATUS] PENDING") == "pending"
-    assert parse_script_status("[FALA] oi\n[PENSAMENTO] ok") == "missing"
+def test_beat_validator_parses_boolean_json():
+    assert parse_beat_validation('{"completed": true, "reason": "núcleo cumprido"}') is True
+    assert parse_beat_validation('{"completed": false, "reason": "aguarda resposta"}') is False
 
 
 def test_wardrobe_is_bound_to_mary_only():
@@ -76,3 +75,20 @@ def test_wardrobe_is_bound_to_mary_only():
     assert "VESTIMENTA ATUAL DE MARY" in prompt
     assert "descreve exclusivamente MARY" in prompt
     assert "Nunca atribua estas roupas" in prompt
+
+
+def test_authored_memory_is_concise_and_separate_from_dialogue():
+    prompt = build_memory_prompt([
+        {
+            "category": "FATOS CONSOLIDADOS",
+            "memory": "Mary conheceu o personal na academia.",
+        },
+        {
+            "category": "PERCEPÇÕES DE MARY",
+            "memory": "Mary está secretamente atraída por ele.",
+        },
+    ])
+    assert "MEMÓRIA DE ENTRADA" in prompt
+    assert "Mary conheceu o personal na academia." in prompt
+    assert "Mary está secretamente atraída por ele." in prompt
+    assert "user_statements" not in prompt
