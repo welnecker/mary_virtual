@@ -40,35 +40,26 @@ def test_replayed_introduction_replaces_other_route():
     assert 'André' in str(original)
 
 
-def test_carona_matches_organic_chapter_pattern_and_keeps_physical_boundaries():
-    assert [chapter_phase('carona_camburi', turn)['id'] for turn in [1, 5, 9, 13]] == [
-        'inicio_da_carona', 'conversa_no_trajeto', 'convite_para_sair', 'chegada_e_despedida'
-    ]
-    assert not chapter_ready_for_choice('carona_camburi', 15, True)
-    assert not chapter_ready_for_choice('carona_camburi', 16, False)
-    assert chapter_ready_for_choice('carona_camburi', 16, True)
+def test_carona_uses_sheet_line_pilot_and_keeps_physical_boundaries():
+    chapter = get_chapter('carona_camburi')
+    assert chapter['script_mode'] == 'sheet_line_runtime'
+    assert chapter['script_name'] == 'Carona'
+    assert chapter.get('dramatic_phases', []) == []
 
-    first = chapter_prompt('carona_camburi', 1)
-    conversation = chapter_prompt('carona_camburi', 5)
-    invite = chapter_prompt('carona_camburi', 9)
-    arrival = chapter_prompt('carona_camburi', 13)
+    assert not chapter_ready_for_choice('carona_camburi', 11, True)
+    assert not chapter_ready_for_choice('carona_camburi', 12, False)
+    assert chapter_ready_for_choice('carona_camburi', 12, True)
 
-    assert 'não uma lista de falas obrigatórias' in first
-    assert 'uma iniciativa principal por resposta' in first
-    assert 'O personal controla direção, rota, velocidade, manobras, parada e estacionamento' in first
-    assert 'apartamento é o destino de Mary' in first
-    assert 'Aprofunde organicamente' in conversation
-    assert 'Ainda não force nenhum convite' in conversation
-    assert 'pode mencionar a balada eletrônica do Clube Náutico' in invite
-    assert 'Se ele aceitar, preserve a decisão' in invite
-    assert 'Somente depois de a parada estar realmente estabelecida' in arrival
-    assert 'não leve o personal ao apartamento' in arrival
+    prompt = chapter_prompt('carona_camburi', 1)
+    assert 'O personal controla direção, rota, velocidade, manobras, parada e estacionamento' in prompt
+    assert 'A direção dramática desta interação vem exclusivamente da LINHA ATUAL DA PLANILHA' in prompt
+    assert 'Clube Náutico' not in prompt
+    assert 'balada eletrônica' not in prompt
 
     assert find_choice('carona_camburi', 'mary_em_seu_apartamento')['next_chapter'] == 'mary_apartamento_camburi'
     apartment = get_chapter('mary_apartamento_camburi')
     assert apartment['initial_scene']['present_characters'] == ['MARY']
     assert apartment['model_opening'] is False
-
 
 def test_checkpoint_replay_carries_only_original_instance():
     # Reuse the actual app function in isolation, with its external dependencies
