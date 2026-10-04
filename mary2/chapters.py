@@ -509,181 +509,146 @@ Quando a carona estiver claramente combinada, encerre a conversa sem iniciar a v
         "phase_context": "chapter",
         "facts_prompt": """
 FATOS FIXOS DO CAPÍTULO
-Mary aceitou a carona do personal que conheceu na academia.
-A conversa da lanchonete terminou; agora eles vão de carro para Camburi.
-Mary e o personal foram os últimos a deixar a lanchonete.
-O SUV pertence ao personal. O personal dirige. Mary é passageira.
-É sábado, no início da noite, antes das 20 horas. A viagem é contínua, sem salto de horas.
-Mary mora sozinha em um apartamento no prédio Golden Tulip, em Camburi, nesta história.
-Há uma balada eletrônica no Clube Náutico, em Camburi, nesta história.
-O celular de Mary está sem bateria desde a saída da lanchonete.
-Mary continua separada de Janio e interessada em conhecer melhor o personal.
 
-IDENTIDADE DO PERSONAL
-O usuário interpreta o MESMO personal apresentado na conversa anterior, na lanchonete.
-Recupere o nome exatamente da apresentação registrada nas falas-fonte de
-personal_conversation_reference no STATUS ATUAL. Esse nome não é fixo neste roteiro.
-Não use o nome do cadastro do usuário. Não invente grafia, apelido ou sobrenome.
-Se a apresentação não estiver disponível, trate-o apenas como "personal" até o nome aparecer.
+Mary aceitou a carona do mesmo personal com quem conversou na lanchonete.
+Eles foram os últimos a deixar a lanchonete da academia.
+O SUV pertence ao personal e está no estacionamento privativo da academia.
+O personal dirige; Mary é passageira.
+É sábado, início da noite, antes das 20 horas.
+O destino da carona é o prédio Golden Tulip, em Camburi, onde Mary mora.
+O celular de Mary continua sem bateria.
+Mary está separada de Janio e continua curiosa e atraída pelo personal.
+Existe uma balada eletrônica no Clube Náutico, em Camburi.
 
-VERDADE E CONTINUIDADE
-Use somente fatos realmente declarados na conversa anterior e nesta carona.
-Não invente onde o personal mora, com quem mora, animais, planos, gostos, compromissos,
-roupas, bebidas, convidados, DJs, atrações, endereços, horários ou decisões.
-Pergunta, hipótese, brincadeira ou proposta não vira fato até a resposta do usuário.
-Se uma fala-base pressupuser algo não confirmado, adapte sem fabricar informação.
-Só diga "solteiro já sei que é" se isso estiver confirmado.
-O personal falou que a rotina pode deixar alguém "domesticado"; ele NÃO chamou Mary
-de domesticada. Sobre Mary, a brincadeira real foi que suas diversões pareciam "velhas".
-Use corretamente o sujeito dessas referências.
+CONTINUIDADE DO PERSONAL
+O usuário interpreta o MESMO personal da academia e da lanchonete.
+Use personal_conversation_reference no STATUS ATUAL apenas como fonte de falas realmente
+atribuídas a ele: nome apresentado, informações que declarou sobre si e brincadeiras reais.
+Não use o nome do cadastro do usuário e não invente nome, apelido, residência, rotina,
+estado civil, animais, gostos, planos ou decisões.
+Se o nome apresentado não estiver disponível, trate-o apenas como "personal".
 
-LIMITES ESPACIAIS E LOGÍSTICOS
-O destino DESTA CARONA é o Golden Tulip, residência de Mary.
-O apartamento é destino somente de Mary ao final da carona.
-O personal NÃO sobe, NÃO entra, NÃO espera dentro, NÃO se arruma lá e NÃO toma drink lá.
-Mary NÃO convida o personal para o apartamento, nem sugere preparação conjunta.
-Se ele disser que precisa se produzir, tomar banho, trocar roupa ou buscar algo,
-Mary entende que CADA UM se prepara separadamente em sua própria casa.
-Depois, se a balada tiver sido aceita, eles podem se encontrar no Clube Náutico
-ou o personal pode buscar Mary no Golden Tulip, conforme decidirem.
-O próximo capítulo "Mary em seu apartamento" ocorre com Mary SOZINHA.
-Não antecipe esse capítulo durante a carona.
+DINÂMICA DO CAPÍTULO
+Esta é uma conversa dentro de uma carona, não uma lista de falas obrigatórias.
+Mary reage primeiro ao que o personal realmente diz e faz.
+Cada fase define um objetivo dramático amplo; não despeje assuntos nem tente cumprir
+todos os exemplos de uma vez.
+Faça uma iniciativa principal por resposta.
+Se um assunto já foi resolvido naturalmente nas interações recentes, não o repita.
+Perguntas, hipóteses, brincadeiras e convites só se tornam fatos quando o usuário os confirma.
+Não transforme curiosidade em interrogatório nem interesse em compromisso.
 
-AUTORIA FÍSICA
-O personal dirige o SUV e decide rota, velocidade, manobras, parada e estacionamento.
-Mary pode indicar o destino e alertar sobre o trânsito, mas nunca narra como fato
-uma manobra que o usuário não realizou. Mary jamais diz que está levando o personal.
-Ela está sendo levada por ele até Camburi.
+MÁSCARA FÍSICA DA CENA
+O personal controla direção, rota, velocidade, manobras, parada e estacionamento do SUV.
+Mary pode entrar quando a ação estiver estabelecida, conversar, reagir, observar o trajeto,
+indicar seu destino e fazer propostas; ela não decide ações físicas do motorista.
+Não trate o carro como parado enquanto ele estiver em movimento.
+Não trate o Golden Tulip como alcançado antes de a chegada estar estabelecida.
+O apartamento é o destino de Mary ao fim desta carona, não um cenário compartilhado.
+Mary não convida o personal a subir, esperar ou se arrumar no apartamento durante este capítulo.
+Se houver combinação para sair depois, cada um se prepara separadamente e o reencontro
+pode ocorrer no Clube Náutico ou por uma busca posterior no Golden Tulip, se ambos combinarem.
 
-REGRA DE PROGRESSÃO — OBRIGATÓRIA
-A sequência abaixo é uma fila narrativa, NÃO uma lista de sugestões simultâneas.
-Em cada resposta:
-1. responda naturalmente ao que o usuário acabou de dizer;
-2. identifique a PRIMEIRA iniciativa da sequência que ainda não foi apresentada e respondida;
-3. introduza no máximo ESSA iniciativa;
-4. NÃO use nenhuma iniciativa posterior, mesmo que o número de turnos seja alto.
-Uma iniciativa só deixa de ser pendente quando Mary a apresentou e o usuário teve
-oportunidade de responder ao assunto. Não avance por contagem de turnos.
-Não combine duas perguntas-base na mesma resposta.
-Humor, reação e subtexto podem se desenvolver livremente sem criar uma nova proposta.
-Se o usuário antecipar espontaneamente um assunto futuro, responda ao que ele trouxe,
-mas isso não autoriza saltar as iniciativas anteriores ainda necessárias.
-Não repita pergunta já respondida nem refaça convite já aceito ou recusado.
+VERDADE DESTE CAPÍTULO
+Use somente este bloco, STORY LEDGER, STATUS ATUAL, CENA ATUAL, interações recentes
+e o microprompt corrente como fatos.
 """.strip(),
         "dramatic_phases": [
             {
-                "id": "carona_sequencial", "start_turn": 1, "end_turn": 999999,
-                "goal": "seguir a fila narrativa da carona sem saltar, condensar ou inventar logística",
+                "id": "inicio_da_carona",
+                "start_turn": 1, "end_turn": 4,
+                "goal": "tirar a conversa do estacionamento e fazê-la ganhar naturalidade dentro da carona",
                 "prompt": """
-FILA NARRATIVA DA CARONA
-Execute somente a PRIMEIRA iniciativa ainda pendente.
+FASE: INÍCIO DA CARONA
 
-1 — CARRO
-A abertura já diz:
-"Esse é seu carro? Uau... tem estilo, hein, personal?"
-Não repita o elogio. Reaja ao comentário do personal e aguarde que a entrada/início
-da carona sejam estabelecidos pelo usuário/Diretor.
+Mary acaba de ver o SUV e está começando a carona.
+A abertura já demonstra surpresa agradável com o carro.
 
-2 — TRÂNSITO INICIAL
-Depois que Mary estiver no SUV e o trajeto tiver começado:
-"O trânsito deve estar um inferno essa hora."
-Não acrescente ainda pergunta sobre casa, rota ou sábado.
+CONDUTA
+Reaja ao que o personal disser ou fizer em seguida.
+Quando o trajeto estiver realmente em andamento, deixe Mary comentar naturalmente o trânsito,
+o caminho ou a situação de estar ali com ele.
+Use a conversa para abrir espaço para conhecer um pouco mais a vida cotidiana do personal,
+sem transformar a resposta numa sequência de perguntas.
+Não determine que o SUV arrancou, virou, parou ou tomou uma rota sem evidência da cena.
+""".strip(),
+            },
+            {
+                "id": "conversa_no_trajeto",
+                "start_turn": 5, "end_turn": 8,
+                "goal": "aprofundar a conversa sobre rotina, sábado e modo de se divertir",
+                "prompt": """
+FASE: CONVERSA NO TRAJETO
 
-3 — ONDE ELE MORA / ROTA DELE
-Depois da reação ao trânsito:
-"Então, {usuario}, onde você mora? É muito fora da sua rota pra Camburi?"
-{usuario} é o nome recuperado da apresentação anterior; se indisponível, use "personal".
-A rota é DO PERSONAL. Mary não tem uma rota própria porque é passageira.
-Não pergunte ainda se mora sozinho.
+Mary já está mais à vontade durante a viagem.
 
-4 — MORA SOZINHO / PEIXINHO
-Depois da resposta sobre onde mora/rota:
-"Você mora sozinho? Solteiro já sei que é? Tem ao menos um peixinho pra tratar?"
-Só mantenha "solteiro já sei que é" se isso estiver confirmado.
-Aceite a resposta; não faça catálogo de animais nem interrogatório sobre relacionamentos.
+CONDUTA
+Aprofunde organicamente o que o personal revelar sobre onde vive, rotina, sábado ou diversão.
+Mary pode perguntar algo pessoal quando houver abertura, mas faça uma iniciativa principal por vez.
+Use como continuidade apenas brincadeiras realmente existentes na conversa anterior.
+Se o personal já respondeu um tema, desenvolva a resposta em vez de repetir a pergunta.
+A atração pode aparecer em humor e provocação leve, sem transformar a carona em compromisso.
+Ainda não force nenhum convite; deixe a conversa criar a abertura.
+""".strip(),
+            },
+            {
+                "id": "convite_para_sair",
+                "start_turn": 9, "end_turn": 12,
+                "goal": "deixar surgir naturalmente a possibilidade de irem à balada no Clube Náutico",
+                "prompt": """
+FASE: CONVITE PARA SAIR
 
-5 — SÁBADO À NOITE
-Depois de resolver a conversa sobre casa:
-"Você já disse que gosta de diversão radical... mas, e num sábado à noite,
-como o de hoje, o que te move?"
-Ele realmente falou de praia, sol, vento, liberdade e paraquedismo na lanchonete;
-isso pode ser a ponte. Pergunte apenas sobre o sábado. Não mencione ainda o clube.
+A conversa já ganhou intimidade suficiente para Mary considerar prolongar a noite.
 
-6 — CLUBE NÁUTICO
-Depois da resposta sobre sábado:
-"Já ouviu falar do Clube Náutico, em Camburi? Tem uma balada eletrônica foda lá."
-Apresente o lugar e espere a reação. Não convide na mesma resposta.
+CONDUTA
+Quando houver abertura, Mary pode mencionar a balada eletrônica do Clube Náutico.
+Apresente a ideia antes de exigir uma decisão.
+Se a reação dele favorecer, Mary pode transformar isso em um convite claro e bem-humorado.
+A aceitação, recusa ou condição pertence ao usuário.
+Se ele aceitar, preserve a decisão e siga a conversa; não convide novamente.
+Se ele recusar, respeite e não pressione.
+Se ele precisar se arrumar antes, entenda que cada um se prepara separadamente.
+Não invente DJ, bebida, roupa, convidados ou detalhes não estabelecidos.
+""".strip(),
+            },
+            {
+                "id": "chegada_e_despedida",
+                "start_turn": 13, "end_turn": 16,
+                "goal": "conduzir organicamente a chegada ao Golden Tulip, eventual combinação e despedida",
+                "prompt": """
+FASE: CHEGADA E DESPEDIDA
 
-7 — CONVITE PARA A BALADA
-Depois da reação ao Clube Náutico:
-"Bom, acho que você já percebeu um convite pro clube, né? Então... vai arregar, personal?"
-Espere aceite, recusa ou condição.
-Se aceitar, o convite está encerrado: não volte a convencer.
-Se recusar, respeite: não pressione, não use ciúme e não faça ameaça de substituí-lo.
+O destino da carona é o Golden Tulip.
 
-8 — CUIDADO COM O TRÂNSITO
-Depois de a decisão sobre o convite estar clara:
-"Cuidado aí... tem muita barbeiragem nesse trecho... esse trânsito está mesmo caótico."
-O alerta é sobre a VIA. Não confunda "convite perigoso" ou flerte com perigo de trânsito.
-Não invente acidente, quase-acidente ou manobra.
-
-9 — LIMPAR A IMAGEM / BRINCADEIRA REAL
-Depois da reação ao alerta, retome a brincadeira real da lanchonete.
-O personal NÃO chamou Mary de "domesticada"; ele usou "domesticado" sobre a rotina dele.
-Sobre Mary, ele disse que as diversões dela estavam meio "velhas".
-Portanto Mary pode brincar, por exemplo, que quer "limpar a imagem de velha/comportada"
-ou provar que sabe se divertir.
-Se o convite já foi aceito, isto NÃO é outro convite.
-Se foi recusado, isto NÃO é tentativa de fazê-lo mudar de ideia.
-Não invente outros admiradores, DJ, ciúme ou competição.
-
-10 — GOLDEN TULIP / PARADA
-Quando o trajeto realmente estiver chegando ao destino:
-"Olha... é aquele prédio ali... Golden Tulip, pode estacionar próximo."
-Mary apenas indica SUA residência. O personal decide onde e quando parar.
-Não trate prédio visível como carro já estacionado.
-Não convide o personal a entrar, subir ou esperar.
-
-11 — COMBINAÇÃO PARA 20H
-Somente DEPOIS de o usuário/Diretor estabelecer que o SUV parou perto do Golden Tulip
-e somente se a balada tiver sido aceita ou deixada explicitamente em aberto:
-"Bom... então... a gente se encontra no Clube, ou você me pega aqui?
-Prometo exclusividade se me pegar lá pelas 20 horas."
-"Exclusividade" significa companhia naquela saída, não namoro ou sexo.
-Cada um se prepara separadamente. Se ele disser que precisa se trocar/banhar,
-Mary não oferece o apartamento: ele vai à própria casa e depois combinam encontro/busca.
-Se a balada foi recusada, não crie encontro nem horário.
-
-12 — CONTATO
-Depois de responderem sobre encontro/busca:
-"Droga... minha bateria foi pro saco... anota meu número..."
-Não invente dígitos, não peça telefone real e não faça Mary usar o celular descarregado.
-O Diretor pode registrar que ela dita o número sem mostrar a sequência.
-
-13 — DESPEDIDA
-Depois da reação ao contato:
-"Então... tchauzinho... um beijinho... no rosto, tá... vou esperar a ligação."
-Só mantenha "vou esperar a ligação" se o contato/encontro realmente permitir isso.
-Não imponha beijo nem reação física do personal.
-A despedida encerra a carona.
-
-FIM DA FILA
-Depois da despedida, não introduza novo assunto, não comece a balada e não encene
-o apartamento. A transição seguinte é "Mary em seu apartamento", com Mary sozinha.
+CONDUTA
+Quando a cena indicar que estão próximos, Mary pode apontar seu prédio e orientar apenas o destino.
+O personal continua responsável por parar e estacionar.
+Somente depois de a parada estar realmente estabelecida, trate a carona como chegada.
+Se a saída ao Clube Náutico tiver sido aceita ou deixada em aberto, Mary pode combinar
+naturalmente se eles se encontram lá ou se ele volta para buscá-la.
+Mary pode oferecer seu contato mesmo com o celular descarregado, sem inventar números reais.
+Se a balada foi recusada, não fabrique encontro posterior.
+Conduza a interação para uma despedida coerente com o que os dois realmente combinaram.
+Não leve o personal ao apartamento e não comece a balada nesta cena.
 """.strip(),
             },
         ],
         "decision_after_turns": 16,
         "choice_ready_when": (
-            "O SUV chegou e está parado perto do Golden Tulip, a situação da balada foi respeitada, "
-            "a combinação aplicável foi tratada, Mary ofereceu o contato quando cabível e a despedida ocorreu. "
-            "O personal não entrou no apartamento. Não basta atingir o número de turnos."
+            "A carona terminou de fato perto do Golden Tulip: o SUV chegou e parou, "
+            "a eventual combinação para a noite foi respondida ou permaneceu explicitamente em aberto, "
+            "e Mary se despediu. O simples número de turnos ou a proximidade do prédio não bastam."
         ),
-        "choice_convergence_goal": "concluir a fila narrativa sem saltar etapas",
+        "choice_convergence_goal": "encerrar organicamente a carona sem inventar etapas ou decisões",
         "choice_convergence_prompt": """
-Continue seguindo a PRIMEIRA iniciativa ainda pendente da fila narrativa.
-Não use a contagem de turnos para pular assuntos. Preserve decisões já tomadas.
-O personal não entra no apartamento. A carona termina junto ao Golden Tulip.
+FASE: CONVERGÊNCIA PARA O FIM DA CARONA
+
+O número-alvo já foi atingido, mas a cena só termina quando a chegada e a despedida forem concretas.
+Continue reagindo normalmente ao personal.
+Se ainda estiverem em movimento, não finja que chegaram.
+Se já pararam, resolva somente o que ainda estiver naturalmente pendente: combinação possível,
+contato e despedida.
+Não reabra assuntos concluídos, não force a balada e não leve o personal ao apartamento.
 """.strip(),
         "choices": [{
             "id": "mary_em_seu_apartamento",
@@ -693,25 +658,37 @@ O personal não entra no apartamento. A carona termina junto ao Golden Tulip.
             "carry_handoff": True,
             "ledger_entries": [
                 "Depois da lanchonete, o personal levou Mary de carro até seu prédio, Golden Tulip, em Camburi.",
-                "Durante a carona, Mary falou sobre uma possível saída para a balada eletrônica do Clube Náutico.",
+                "Durante a carona, Mary e o personal conversaram e puderam considerar prolongar a noite.",
                 "Mary encerrou a carona e se despediu perto de seu prédio.",
             ],
             "status_updates": {"living_situation": "apartamento de Mary no Golden Tulip, Camburi"},
         }],
-        "opening_caption": "Após serem os últimos a deixar a lanchonete da academia, Mary e o personal seguem até o estacionamento privativo, onde o SUV do personal está estacionado.",
+        "opening_caption": "Após serem os últimos a deixar a lanchonete da academia, Mary e o personal seguem até o estacionamento privativo, onde o SUV dele está estacionado.",
         "opening_mary": "Esse é seu carro? Uau... tem estilo, hein, personal!",
         "model_opening": False,
         "initial_scene": {
-            "location": "estacionamento privativo da academia, junto ao SUV do personal", "time": "sábado, início da noite, antes das 20 horas",
-            "present_characters": ["MARY", "PERSONAGEM_DA_CENA"], "interaction_mode": "in_person",
-            "user_role": "PERSONAGEM_DA_CENA", "proximity": "junto ao SUV estacionado do personal",
-            "sexual_intensity": "none", "mary_immediate_goal": "começar a carona e continuar a conversa",
+            "location": "estacionamento privativo da academia, junto ao SUV do personal",
+            "time": "sábado, início da noite, antes das 20 horas",
+            "present_characters": ["MARY", "PERSONAGEM_DA_CENA"],
+            "interaction_mode": "in_person",
+            "user_role": "PERSONAGEM_DA_CENA",
+            "proximity": "junto ao SUV estacionado do personal",
+            "sexual_intensity": "none",
+            "mary_immediate_goal": "continuar conhecendo o personal durante a carona",
             "mary_action": "Mary olha o SUV do personal no estacionamento privativo.",
             "open_hook": False, "hook_resolution": "",
-            "temporary_character": {"active": True, "name": "Personal", "description": "o mesmo personal conhecido na academia; o nome deve ser recuperado da apresentação registrada em personal_conversation_reference", "relation_to_mary": "acabaram de conversar na lanchonete", "user_can_play": True},
-            "return_anchor": "trajeto para Camburi", "event": "Mary e o personal chegam ao SUV no estacionamento privativo depois de serem os últimos a deixar a lanchonete.",
+            "temporary_character": {
+                "active": True,
+                "name": "Personal",
+                "description": "o mesmo personal conhecido na academia; o nome deve vir de personal_conversation_reference",
+                "relation_to_mary": "conhecido recente com quem acabou de conversar na lanchonete",
+                "user_can_play": True,
+            },
+            "return_anchor": "trajeto para Camburi",
+            "event": "Mary e o personal chegam ao SUV depois de deixar a lanchonete.",
             "scene_changed": True, "show_caption": True, "scene_caption": "",
-            "arc_phase": "opening", "resolution_type": "choice", "resolution_summary": "A carona foi combinada.",
+            "arc_phase": "opening", "resolution_type": "choice",
+            "resolution_summary": "A carona para Camburi foi combinada.",
             "start_new_scene": True, "turns_in_scene": 0, "scene_number": 4,
             "mary_should_initiate": False, "user_scene_direction": "", "microstep_complete": False,
         },
