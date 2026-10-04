@@ -1,4 +1,4 @@
-from mary2.sheet_script import build_line_prompt, line_for_interaction, script_line
+from mary2.sheet_script import build_line_prompt, line_for_interaction, parse_script_status, script_line
 from chapters import get_chapter
 
 
@@ -57,3 +57,9 @@ def test_sheet_line_prompt_blocks_invented_logistics():
     assert "Você NÃO pode criar nova logística" in prompt
     assert "Você NÃO pode inverter autoria física" in prompt
     assert "Você NÃO pode acrescentar uma segunda pergunta estrutural" in prompt
+
+
+def test_script_status_marker_controls_progression_contract():
+    assert parse_script_status("[FALA] oi\n[PENSAMENTO] ok\n[ROTEIRO_STATUS] DONE") == "done"
+    assert parse_script_status("[FALA] oi\n[PENSAMENTO] ok\n[ROTEIRO_STATUS] PENDING") == "pending"
+    assert parse_script_status("[FALA] oi\n[PENSAMENTO] ok") == "missing"
