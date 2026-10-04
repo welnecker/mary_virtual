@@ -507,149 +507,45 @@ Quando a carona estiver claramente combinada, encerre a conversa sem iniciar a v
         "title": "Dar carona para Mary",
         "allowed_roles": ["PERSONAGEM_DA_CENA"],
         "phase_context": "chapter",
-        "facts_prompt": """
-FATOS FIXOS DO CAPÍTULO
+        "script_mode": "sheet_line_runtime",
+        "script_spreadsheet_id": "1VVAlaa6T5kPUczqWxW4dE6R7TjnP19Oc0SCxmV4E9OE",
+        "script_worksheet": "ROTEIRO_REDATOR",
+        "script_name": "Carona",
+        "script_opening_consumes_line_one": True,
+        "prompt": """
+CONTEXTO FÍSICO ESTÁVEL DA CARONA
 
 Mary aceitou a carona do mesmo personal com quem conversou na lanchonete.
 Eles foram os últimos a deixar a lanchonete da academia.
-O SUV pertence ao personal e está no estacionamento privativo da academia.
+O SUV pertence ao personal e começa estacionado no estacionamento privativo da academia.
 O personal dirige; Mary é passageira.
 É sábado, início da noite, antes das 20 horas.
-O destino da carona é o prédio Golden Tulip, em Camburi, onde Mary mora.
+O destino da carona é Camburi.
 O celular de Mary continua sem bateria.
-Mary está separada de Janio e continua curiosa e atraída pelo personal.
-Existe uma balada eletrônica no Clube Náutico, em Camburi.
 
-CONTINUIDADE DO PERSONAL
+CONTINUIDADE
 O usuário interpreta o MESMO personal da academia e da lanchonete.
-Use personal_conversation_reference no STATUS ATUAL apenas como fonte de falas realmente
-atribuídas a ele: nome apresentado, informações que declarou sobre si e brincadeiras reais.
-Não use o nome do cadastro do usuário e não invente nome, apelido, residência, rotina,
-estado civil, animais, gostos, planos ou decisões.
-Se o nome apresentado não estiver disponível, trate-o apenas como "personal".
+Use personal_conversation_reference no STATUS ATUAL somente como fonte de falas realmente
+atribuídas a ele. Não invente nome, residência, rotina, estado civil, animais, gostos,
+planos ou decisões.
 
-DINÂMICA DO CAPÍTULO
-Esta é uma conversa dentro de uma carona, não uma lista de falas obrigatórias.
-Mary reage primeiro ao que o personal realmente diz e faz.
-Cada fase define um objetivo dramático amplo; não despeje assuntos nem tente cumprir
-todos os exemplos de uma vez.
-Faça uma iniciativa principal por resposta.
-Se um assunto já foi resolvido naturalmente nas interações recentes, não o repita.
-Perguntas, hipóteses, brincadeiras e convites só se tornam fatos quando o usuário os confirma.
-Não transforme curiosidade em interrogatório nem interesse em compromisso.
-
-MÁSCARA FÍSICA DA CENA
+AUTORIA FÍSICA
 O personal controla direção, rota, velocidade, manobras, parada e estacionamento do SUV.
-Mary pode entrar quando a ação estiver estabelecida, conversar, reagir, observar o trajeto,
-indicar seu destino e fazer propostas; ela não decide ações físicas do motorista.
+Mary pode conversar, reagir, observar o trajeto, indicar um destino já liberado pela linha
+atual e fazer propostas previstas pela linha atual.
 Não trate o carro como parado enquanto ele estiver em movimento.
-Não trate o Golden Tulip como alcançado antes de a chegada estar estabelecida.
-O apartamento é o destino de Mary ao fim desta carona, não um cenário compartilhado.
-Mary não convida o personal a subir, esperar ou se arrumar no apartamento durante este capítulo.
-Se houver combinação para sair depois, cada um se prepara separadamente e o reencontro
-pode ocorrer no Clube Náutico ou por uma busca posterior no Golden Tulip, se ambos combinarem.
+Não trate um destino como alcançado antes de a chegada estar estabelecida.
 
-VERDADE DESTE CAPÍTULO
-Use somente este bloco, STORY LEDGER, STATUS ATUAL, CENA ATUAL, interações recentes
-e o microprompt corrente como fatos.
+ROTEIRO
+A direção dramática desta interação vem exclusivamente da LINHA ATUAL DA PLANILHA.
+Não antecipe conteúdo de linhas futuras.
 """.strip(),
-        "dramatic_phases": [
-            {
-                "id": "inicio_da_carona",
-                "start_turn": 1, "end_turn": 4,
-                "goal": "tirar a conversa do estacionamento e fazê-la ganhar naturalidade dentro da carona",
-                "prompt": """
-FASE: INÍCIO DA CARONA
-
-Mary acaba de ver o SUV e está começando a carona.
-A abertura já demonstra surpresa agradável com o carro.
-
-CONDUTA
-Reaja ao que o personal disser ou fizer em seguida.
-Quando o trajeto estiver realmente em andamento, deixe Mary comentar naturalmente o trânsito,
-o caminho ou a situação de estar ali com ele.
-Use a conversa para abrir espaço para conhecer um pouco mais a vida cotidiana do personal,
-sem transformar a resposta numa sequência de perguntas.
-Não determine que o SUV arrancou, virou, parou ou tomou uma rota sem evidência da cena.
-""".strip(),
-            },
-            {
-                "id": "conversa_no_trajeto",
-                "start_turn": 5, "end_turn": 8,
-                "goal": "aprofundar a conversa sobre rotina, sábado e modo de se divertir",
-                "prompt": """
-FASE: CONVERSA NO TRAJETO
-
-Mary já está mais à vontade durante a viagem.
-
-CONDUTA
-Aprofunde organicamente o que o personal revelar sobre onde vive, rotina, sábado ou diversão.
-Mary pode perguntar algo pessoal quando houver abertura, mas faça uma iniciativa principal por vez.
-Use como continuidade apenas brincadeiras realmente existentes na conversa anterior.
-Se o personal já respondeu um tema, desenvolva a resposta em vez de repetir a pergunta.
-A atração pode aparecer em humor e provocação leve, sem transformar a carona em compromisso.
-Ainda não force nenhum convite; deixe a conversa criar a abertura.
-""".strip(),
-            },
-            {
-                "id": "convite_para_sair",
-                "start_turn": 9, "end_turn": 12,
-                "goal": "deixar surgir naturalmente a possibilidade de irem à balada no Clube Náutico",
-                "prompt": """
-FASE: CONVITE PARA SAIR
-
-A conversa já ganhou intimidade suficiente para Mary considerar prolongar a noite.
-
-CONDUTA
-Quando houver abertura, Mary pode mencionar a balada eletrônica do Clube Náutico.
-Apresente a ideia antes de exigir uma decisão.
-Se a reação dele favorecer, Mary pode transformar isso em um convite claro e bem-humorado.
-A aceitação, recusa ou condição pertence ao usuário.
-Se ele aceitar, preserve a decisão e siga a conversa; não convide novamente.
-Se ele recusar, respeite e não pressione.
-Se ele precisar se arrumar antes, entenda que cada um se prepara separadamente.
-Não invente DJ, bebida, roupa, convidados ou detalhes não estabelecidos.
-""".strip(),
-            },
-            {
-                "id": "chegada_e_despedida",
-                "start_turn": 13, "end_turn": 16,
-                "goal": "conduzir organicamente a chegada ao Golden Tulip, eventual combinação e despedida",
-                "prompt": """
-FASE: CHEGADA E DESPEDIDA
-
-O destino da carona é o Golden Tulip.
-
-CONDUTA
-Quando a cena indicar que estão próximos, Mary pode apontar seu prédio e orientar apenas o destino.
-O personal continua responsável por parar e estacionar.
-Somente depois de a parada estar realmente estabelecida, trate a carona como chegada.
-Se a saída ao Clube Náutico tiver sido aceita ou deixada em aberto, Mary pode combinar
-naturalmente se eles se encontram lá ou se ele volta para buscá-la.
-Mary pode oferecer seu contato mesmo com o celular descarregado, sem inventar números reais.
-Se a balada foi recusada, não fabrique encontro posterior.
-Conduza a interação para uma despedida coerente com o que os dois realmente combinaram.
-Não leve o personal ao apartamento e não comece a balada nesta cena.
-""".strip(),
-            },
-        ],
-        "decision_after_turns": 16,
+        "decision_after_turns": 12,
         "choice_ready_when": (
-            "A carona terminou de fato perto do Golden Tulip: o SUV chegou e parou, "
-            "a eventual combinação para a noite foi respondida ou permaneceu explicitamente em aberto, "
-            "e Mary se despediu. O simples número de turnos ou a proximidade do prédio não bastam."
+            "A carona terminou de fato: o SUV chegou e parou perto do destino de Mary, "
+            "as combinações que surgiram durante a conversa foram respondidas ou ficaram "
+            "explicitamente em aberto, e Mary se despediu. O número de turnos, por si só, não basta."
         ),
-        "choice_convergence_goal": "encerrar organicamente a carona sem inventar etapas ou decisões",
-        "choice_convergence_prompt": """
-FASE: CONVERGÊNCIA PARA O FIM DA CARONA
-
-O número-alvo já foi atingido, mas a cena só termina quando a chegada e a despedida forem concretas.
-Continue reagindo normalmente ao personal.
-Se ainda estiverem em movimento, não finja que chegaram.
-Se já pararam, resolva somente o que ainda estiver naturalmente pendente: combinação possível,
-contato e despedida.
-Não reabra assuntos concluídos, não force a balada e não leve o personal ao apartamento.
-""".strip(),
         "choices": [{
             "id": "mary_em_seu_apartamento",
             "label": "Mary em seu apartamento",
@@ -674,7 +570,7 @@ Não reabra assuntos concluídos, não force a balada e não leve o personal ao 
             "user_role": "PERSONAGEM_DA_CENA",
             "proximity": "junto ao SUV estacionado do personal",
             "sexual_intensity": "none",
-            "mary_immediate_goal": "continuar conhecendo o personal durante a carona",
+            "mary_immediate_goal": "",
             "mary_action": "Mary olha o SUV do personal no estacionamento privativo.",
             "open_hook": False, "hook_resolution": "",
             "temporary_character": {
