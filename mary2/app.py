@@ -269,10 +269,22 @@ def activate_chapter(
     narrative.pop("active_phase_id", None)
 
     chapter = get_chapter(next_chapter_id)
+    if _sheet_runtime_mode(chapter):
+        st.session_state.story_state.setdefault("current_status", {}).pop(
+            "personal_conversation_reference",
+            None,
+        )
     st.session_state.scene_state = _scene_for_chapter_transition(
         chapter,
         previous_scene,
     )
+    if bool(choice.get("carry_character_identity", False)):
+        previous_character = previous_scene.get("temporary_character", {})
+        next_character = st.session_state.scene_state.get("temporary_character", {})
+        if isinstance(previous_character, dict) and isinstance(next_character, dict):
+            previous_name = str(previous_character.get("name", "") or "").strip()
+            if previous_name and previous_name.lower() != "personal":
+                next_character["name"] = previous_name
 
     next_role = str(
         st.session_state.scene_state.get("user_role", "JANIO") or "JANIO"
@@ -393,6 +405,11 @@ def restart_current_chapter(persistence: dict | None) -> None:
     last_seq = int(st.session_state.get("run_last_seq", 0) or 0)
     new_instance_id = new_chapter_instance_id(chapter_id)
     restored = migrate_state(entry_story)
+    if _sheet_runtime_mode(get_chapter(chapter_id)):
+        restored.setdefault("current_status", {}).pop(
+            "personal_conversation_reference",
+            None,
+        )
     narrative = restored.setdefault("narrative", {})
     narrative["chapter_id"] = chapter_id
     narrative["chapter_turns"] = 0
@@ -525,7 +542,19 @@ def activate_choice_from_checkpoint(
     narrative.pop("active_phase_id", None)
 
     chapter = get_chapter(next_chapter_id)
+    if _sheet_runtime_mode(chapter):
+        next_state.setdefault("current_status", {}).pop(
+            "personal_conversation_reference",
+            None,
+        )
     next_scene = _scene_for_chapter_transition(chapter, base_scene)
+    if bool(choice.get("carry_character_identity", False)):
+        previous_character = base_scene.get("temporary_character", {})
+        next_character = next_scene.get("temporary_character", {})
+        if isinstance(previous_character, dict) and isinstance(next_character, dict):
+            previous_name = str(previous_character.get("name", "") or "").strip()
+            if previous_name and previous_name.lower() != "personal":
+                next_character["name"] = previous_name
     next_role = str(next_scene.get("user_role", "JANIO") or "JANIO").upper()
     if next_role not in {"JANIO", "PERSONAGEM_DA_CENA"}:
         next_role = "JANIO"
