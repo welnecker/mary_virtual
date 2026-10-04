@@ -508,7 +508,7 @@ Quando a carona estiver claramente combinada, encerre a conversa sem iniciar a v
         "allowed_roles": ["PERSONAGEM_DA_CENA"],
         "phase_context": "chapter",
         "script_mode": "sheet_line_runtime",
-        "script_spreadsheet_id": "1VVAlaa6T5kPUczqWxW4dE6R7TjnP19Oc0SCxmV4E9OE",
+        "script_spreadsheet_id": "1P0le9TEoOH9QIx36PPQHDM1JcgRdjTl14GnGO3F0cCk",
         "script_worksheet": "ROTEIRO_REDATOR",
         "script_name": "Carona",
         "script_opening_consumes_line_one": True,
