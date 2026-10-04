@@ -562,9 +562,15 @@ def activate_choice_from_checkpoint(
 
     base_state = migrate_state(checkpoint["story_state"])
     base_scene = deepcopy(checkpoint["scene_state"])
-    if choice.get("carry_user_statements") and not base_state.get("current_status", {}).get("personal_conversation_reference"):
-        # Old decision checkpoints predate source-based continuity. Read only
-        # this run, then select the exact original chapter instance for replay.
+    source_records: list[dict] = []
+    if (
+        bool(choice.get("generate_recent_memory", False))
+        or (
+            choice.get("carry_user_statements")
+            and not base_state.get("current_status", {}).get("personal_conversation_reference")
+        )
+    ):
+        # Read only the original chapter instance up to the selected decision.
         source_rows = load_run_interactions(
             service_account_info=persistence["service_account_info"],
             spreadsheet_id=persistence["spreadsheet_id"],
@@ -574,11 +580,28 @@ def activate_choice_from_checkpoint(
         )
         source_instance = str(checkpoint.get("source_chapter_instance_id", ""))
         source_seq = int(checkpoint.get("source_seq", 0) or 0)
+        source_records = [
+            row for row in source_rows
+            if str(row.get("chapter_instance_id", "")) == source_instance
+            and int(row.get("seq", 0) or 0) <= source_seq
+        ]
+
+    if (
+        choice.get("carry_user_statements")
+        and not base_state.get("current_status", {}).get("personal_conversation_reference")
+    ):
         base_state = carry_user_statements(
-            base_state, source_chapter_id,
-            [row for row in source_rows
-             if str(row.get("chapter_instance_id", "")) == source_instance
-             and int(row.get("seq", 0) or 0) <= source_seq],
+            base_state,
+            source_chapter_id,
+            source_records,
+        )
+
+    recent_memory = {}
+    if bool(choice.get("generate_recent_memory", False)):
+        recent_memory = _generate_recent_memory_for_transition(
+            source_chapter_id=source_chapter_id,
+            records=source_records,
+            source_state=base_state,
         )
     base_narrative = base_state.setdefault("narrative", {})
     parent_branch_id = str(
@@ -612,6 +635,10 @@ def activate_choice_from_checkpoint(
     narrative["chapter_instance_id"] = instance_id
     narrative["chapter_entry_checkpoint_id"] = ""
     narrative["choice_ready"] = False
+    narrative["recent_memory"] = recent_memory
+    narrative["recent_memory_source_chapter"] = (
+        source_chapter_id if recent_memory else ""
+    )
     narrative.pop("phase_start_message_index", None)
     narrative.pop("active_phase_id", None)
 
