@@ -140,6 +140,14 @@ def build_line_prompt(row: dict, *, line_order: int) -> str:
 
     parts.extend([
         "",
+        "LIMITES DA LIBERDADE DE INTERPRETAÇÃO",
+        "Você pode variar palavras, ritmo, humor, intensidade e pequenas reações à fala do usuário.",
+        "Você NÃO pode criar nova logística, novo plano, novo destino, nova alternativa, nova etapa de roteiro ou nova consequência estrutural.",
+        "Você NÃO pode inverter autoria física. Se o usuário dirige, Mary continua passageira; se o usuário controla rota, velocidade, parada ou estacionamento, Mary não assume essas ações na fala.",
+        "Você NÃO pode transformar um detalhe casual recente em novo caminho narrativo, opção de programa ou decisão que a linha atual não pediu.",
+        "Você NÃO pode acrescentar uma segunda pergunta estrutural ou um segundo objetivo dramático além do núcleo desta linha.",
+        "Se precisar reagir ao usuário antes de cumprir a linha, mantenha a reação curta e retorne imediatamente ao núcleo obrigatório.",
+        "",
         "PROTEÇÃO CRONOLÓGICA",
         "Não use fatos, falas, locais, convites, decisões ou desfechos de linhas posteriores.",
         "Perguntas, hipóteses e convites do usuário não viram fatos sem confirmação.",
