@@ -17,6 +17,15 @@ from chapters import (
 )
 from director import direct_scene
 from input_router import parse_user_input
+from hybrid_script import (
+    build_carona_prompt,
+    carona_ready_for_choice,
+    ensure_carona_state,
+    load_sheet_script,
+    mark_carona_line_emitted,
+    register_user_reply,
+    select_carona_line,
+)
 from openrouter_client import OpenRouterError, chat
 from output_filter import looks_like_action_narration, parse_mary_response, sanitize_mary_output
 from persistence import (
@@ -44,7 +53,7 @@ from story_bible import PHYSICAL_CANON
 
 st.set_page_config(page_title="Mary Core 2", page_icon="🖤", layout="centered")
 
-BUILD_ID = "2026-10-05-main-model-audit-v39"
+BUILD_ID = "2026-10-05-carona-hybrid-v40"
 
 DEFAULT_MODELS = [
     "google/gemini-2.5-flash-lite",
@@ -638,6 +647,37 @@ def apply_pending_auto_transition(persistence: dict | None) -> bool:
     return True
 
 
+def _hybrid_script_rows(*, persistence: dict, chapter: dict) -> list[dict]:
+    """Carrega uma vez por sessão o roteiro autoral usado pelo runtime híbrido."""
+    if not persistence:
+        raise PersistenceError("A Carona híbrida requer a planilha de persistência configurada.")
+
+    worksheet = str(chapter.get("script_worksheet", "ROTEIRO_REDATOR") or "ROTEIRO_REDATOR").strip()
+    script_name = str(chapter.get("script_name", "Carona") or "Carona").strip()
+    cache_key = ":".join([
+        str(persistence.get("spreadsheet_id", "") or ""),
+        worksheet,
+        script_name,
+    ])
+    cache = st.session_state.setdefault("hybrid_script_cache", {})
+    rows = cache.get(cache_key)
+    if isinstance(rows, list) and rows:
+        return deepcopy(rows)
+
+    rows = load_sheet_script(
+        service_account_info=persistence["service_account_info"],
+        spreadsheet_id=persistence["spreadsheet_id"],
+        worksheet_name=worksheet,
+        script_name=script_name,
+    )
+    if not rows:
+        raise PersistenceError(
+            f"Nenhuma linha do roteiro {script_name!r} foi encontrada em {worksheet!r}."
+        )
+    cache[cache_key] = deepcopy(rows)
+    return rows
+
+
 def persistence_config() -> dict | None:
     service_account = None
 
@@ -770,6 +810,7 @@ for key, default in {
     "run_last_seq": 0,
     "route_checkpoints": [],
     "route_checkpoints_loaded_for_run": "",
+    "hybrid_script_cache": {},
 }.items():
     if key not in st.session_state:
         st.session_state[key] = default
@@ -1714,7 +1755,29 @@ if user_text:
 
         current_turn_number = _chapter_turns() + 1
         chapter_config = get_chapter(_chapter_id())
-        current_phase = chapter_phase(_chapter_id(), current_turn_number)
+        narrative_state = st.session_state.story_state.setdefault("narrative", {})
+        script_mode = str(chapter_config.get("script_mode", "") or "").strip().lower()
+        hybrid_rows: list[dict] = []
+        hybrid_state: dict | None = None
+        hybrid_selected_row: dict = {}
+        hybrid_convergence = ""
+
+        if script_mode == "hybrid_phase_sheet":
+            hybrid_rows = _hybrid_script_rows(
+                persistence=persistence,
+                chapter=chapter_config,
+            )
+            hybrid_state = ensure_carona_state(narrative_state)
+            if user_spoke:
+                register_user_reply(hybrid_state, dialogue_text)
+            current_phase, hybrid_selected_row, hybrid_convergence = select_carona_line(
+                hybrid_rows,
+                hybrid_state,
+                st.session_state.scene_state,
+            )
+        else:
+            current_phase = chapter_phase(_chapter_id(), current_turn_number)
+
         current_phase_id = str(current_phase.get("id", "") or "").strip()
         current_phase_goal = str(current_phase.get("goal", "") or "").strip()
         previous_phase_id = str(
@@ -1722,7 +1785,6 @@ if user_text:
         ).strip()
         phase_changed = bool(current_phase_id) and current_phase_id != previous_phase_id
 
-        narrative_state = st.session_state.story_state.setdefault("narrative", {})
         phase_context_mode = str(
             chapter_config.get("phase_context", "") or ""
         ).strip().lower()
@@ -1757,10 +1819,19 @@ if user_text:
             scene_for_director["event"] = ""
             scene_for_director["return_anchor"] = ""
 
-        current_chapter_prompt = chapter_prompt(
-            _chapter_id(),
-            turn_number=current_turn_number,
-        )
+        if script_mode == "hybrid_phase_sheet":
+            current_chapter_prompt = build_carona_prompt(
+                facts_prompt=str(chapter_config.get("facts_prompt", "") or ""),
+                phase=current_phase,
+                row=hybrid_selected_row,
+                state=hybrid_state or {},
+                convergence_text=hybrid_convergence,
+            )
+        else:
+            current_chapter_prompt = chapter_prompt(
+                _chapter_id(),
+                turn_number=current_turn_number,
+            )
 
         scene = direct_scene(
             api_key=api_key,
@@ -1776,20 +1847,47 @@ if user_text:
             user_spoke=user_spoke,
             chapter_text=current_chapter_prompt,
             conditional_transition=(
-                str(chapter_config.get("transition", "")) == "auto_condition"
-                or (
-                    bool(str(chapter_config.get("choice_ready_when", "") or "").strip())
-                    and current_turn_number
-                    >= int(chapter_config.get("decision_after_turns", 0) or 0)
+                False
+                if script_mode == "hybrid_phase_sheet"
+                else (
+                    str(chapter_config.get("transition", "")) == "auto_condition"
+                    or (
+                        bool(str(chapter_config.get("choice_ready_when", "") or "").strip())
+                        and current_turn_number
+                        >= int(chapter_config.get("decision_after_turns", 0) or 0)
+                    )
                 )
             ),
             advance_when=(
-                str(chapter_config.get("advance_when", "") or "")
-                if str(chapter_config.get("transition", "")) == "auto_condition"
-                else str(chapter_config.get("choice_ready_when", "") or "")
+                ""
+                if script_mode == "hybrid_phase_sheet"
+                else (
+                    str(chapter_config.get("advance_when", "") or "")
+                    if str(chapter_config.get("transition", "")) == "auto_condition"
+                    else str(chapter_config.get("choice_ready_when", "") or "")
+                )
             ),
         )
         director_audit = scene.pop("_director_audit", {})
+
+        # Na Carona híbrida, a cena física atualizada pelo Diretor pode liberar
+        # uma linha que ainda não estava disponível antes deste turno.
+        if script_mode == "hybrid_phase_sheet":
+            current_phase, hybrid_selected_row, hybrid_convergence = select_carona_line(
+                hybrid_rows,
+                hybrid_state or {},
+                scene,
+            )
+            current_phase_id = str(current_phase.get("id", "") or "").strip()
+            current_phase_goal = str(current_phase.get("goal", "") or "").strip()
+            current_chapter_prompt = build_carona_prompt(
+                facts_prompt=str(chapter_config.get("facts_prompt", "") or ""),
+                phase=current_phase,
+                row=hybrid_selected_row,
+                state=hybrid_state or {},
+                convergence_text=hybrid_convergence,
+            )
+
         scene["chapter_turn_current"] = current_turn_number
         scene["chapter_phase"] = current_phase_id
         scene["chapter_phase_goal"] = current_phase_goal
@@ -1954,8 +2052,16 @@ if user_text:
 
         active_chapter = get_chapter(_chapter_id())
 
+        if script_mode == "hybrid_phase_sheet" and hybrid_state is not None:
+            selected_order = int(hybrid_selected_row.get("order", 0) or 0)
+            if selected_order:
+                mark_carona_line_emitted(hybrid_state, selected_order)
+            if carona_ready_for_choice(hybrid_state):
+                narrative["choice_ready"] = True
+
         if (
-            str(active_chapter.get("choice_ready_when", "") or "").strip()
+            script_mode != "hybrid_phase_sheet"
+            and str(active_chapter.get("choice_ready_when", "") or "").strip()
             and int(narrative.get("chapter_turns", 0) or 0)
             >= int(active_chapter.get("decision_after_turns", 0) or 0)
             and bool(scene.get("microstep_complete", False))
