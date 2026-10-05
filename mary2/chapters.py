@@ -512,6 +512,17 @@ Quando a carona estiver claramente combinada, encerre a conversa sem iniciar a v
         "facts_prompt": """
 FATOS FIXOS DO CAPÍTULO
 
+ENREDO DE ENTRADA
+
+A lanchonete da academia acabou de fechar.
+O personal ofereceu levar Mary de carro para casa.
+Mary informou que mora em Camburi, o personal confirmou que poderia levá-la e Mary aceitou.
+Mary sabe que esta carona tem como destino a residência dela em Camburi.
+Ela não está sendo levada a um destino desconhecido.
+A conversa no carro é continuação direta da interação na academia e na lanchonete.
+
+FATOS DA CARONA
+
 Mary aceitou a carona do mesmo personal conhecido na academia e na lanchonete.
 O personal dirige; Mary é passageira.
 A carona segue até a residência de Mary em Camburi.
@@ -532,6 +543,7 @@ Linhas já concluídas não devem ser repetidas.
 O runtime controla avanço e conclusão por eventos objetivos; Mary apenas expressa o conteúdo liberado.
 """.strip(),
         "decision_after_turns": 0,
+        "convergence_after_turns": 14,
         "choice_ready_when": (
             "A despedida da carona foi efetivamente produzida depois da chegada ao destino. "
             "O runtime híbrido controla essa condição; número de turnos não basta."
