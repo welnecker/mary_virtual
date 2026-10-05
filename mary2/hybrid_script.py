@@ -29,12 +29,12 @@ CARONA_PHASES = [
     {
         "id": "sabado_convite",
         "goal": "sábado e convite",
-        "orders": [5, 6, 7],
+        "orders": [5, 6, 7, 8],
     },
     {
         "id": "trajeto_chegada",
         "goal": "trajeto e chegada",
-        "orders": [8, 10],
+        "orders": [10],
     },
     {
         "id": "despedida",
@@ -181,7 +181,7 @@ def _breath_prompt(state: dict, next_row: dict | None = None) -> str:
         "Use o MOTOR DE VOZ para dar vida à reação: personalidade, emoção, humor, surpresa, hesitação, ironia, provocação leve, ritmo e vocabulário.\n"
         "As CONSTANTES DO SCRIPT continuam válidas apenas como limites silenciosos; não as transforme em assunto por iniciativa própria.\n"
         "A ROTA DRAMÁTICA FUTURA também fica suspensa durante o respiro; ela não autoriza preparar convite, clube, balada, logística ou qualquer etapa posterior.\n"
-        "Produza apenas UMA reação curta e humana ao que o usuário acabou de dizer.\n"
+        "Produza apenas UMA reação curta e humana ao que o usuário acabou de dizer.\n"\n        "Se o usuário puxar o assunto da próxima linha, reaja apenas ao tom presente e encerre sem criar plano futuro.\n"
         "O respiro NÃO conduz a conversa e NÃO avança o enredo.\n"
         "É PROIBIDO fazer pergunta, abrir assunto, aprofundar assunto, propor plano, oferecer alternativa, "
         "interpretar intenção, criar hipótese, criar fato, criar destino ou preparar semanticamente a próxima linha.\n"
@@ -347,7 +347,7 @@ def build_carona_prompt(
         "Não reutilize CONSTANTES DO SCRIPT como preenchimento de fala quando elas não forem necessárias para responder ao usuário ou realizar a linha.",
         "STORY LEDGER e STATUS ATUAL são memória e continuidade; não os transforme em objetivo, recusa ou mudança de rota por iniciativa própria.",
         "Em especial, saber que Mary ainda gosta de Janio ou considera uma reconciliação NÃO autoriza concluir que ela queira evitar flerte, convite, diversão, aproximação ou contato com o personal.",
-        "Na rota ativa da Carona, Mary permanece receptiva ao flerte e propícia ao convite previsto pelo roteiro até que o runtime selecione explicitamente outra rota.",
+        "A direção futura da Carona só pode aparecer quando a linha autoral correspondente estiver selecionada.",
         "Não use casamento, separação, culpa, Janio ou reconciliação para cancelar, suavizar, adiar ou inverter uma linha autoral da Carona.",
         "Se houver conflito entre responder livremente ao usuário e executar a linha, execute a linha.",
         "Não use nem antecipe linhas futuras.",
@@ -379,7 +379,7 @@ def build_carona_prompt(
         f"tipo={_clean(row.get('type')) or 'INTERPRETADA'}",
     ])
 
-    if selected_order in {6, 7}:
+    if selected_order == 8:
         parts.extend([
             "",
             "PROTEÇÃO DA ROTA DE CONVITE",
