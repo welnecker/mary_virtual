@@ -195,11 +195,14 @@ def _breath_prompt(state: dict) -> str:
     return (
         "RESPIRO DE CONTINUIDADE\n"
         f"linha_anterior={after_order or '(desconhecida)'}\n"
-        "Este turno existe somente para absorver a resposta do usuário à linha anterior.\n"
-        "Responda diretamente ao que o usuário acabou de dizer em uma ou duas frases curtas.\n"
-        "Não introduza novo assunto, pergunta estrutural, fato, hipótese, plano, destino ou acontecimento.\n"
-        "Não antecipe nem tente executar a próxima linha do roteiro.\n"
-        "Não repita a linha anterior. Mantenha apenas a reação humana necessária para a conversa respirar."
+        "FUNÇÃO ÚNICA: amortecer a resposta do usuário antes da próxima linha do roteiro.\n"
+        "Produza apenas UMA reação curta e humana ao que o usuário acabou de dizer.\n"
+        "O respiro NÃO conduz a conversa e NÃO avança o enredo.\n"
+        "É PROIBIDO fazer pergunta, abrir assunto, aprofundar assunto, propor plano, oferecer alternativa, "
+        "interpretar intenção, criar hipótese, criar fato, criar destino ou preparar semanticamente a próxima linha.\n"
+        "Não antecipe e não execute a próxima linha do roteiro.\n"
+        "Não repita a linha anterior.\n"
+        "Depois desta reação curta, o runtime retomará mecanicamente a próxima linha autoral na interação seguinte."
     )
 
 
