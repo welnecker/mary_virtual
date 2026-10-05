@@ -471,7 +471,6 @@ Quando a carona estiver claramente combinada, encerre a conversa sem iniciar a v
         "choices": [
             {
                 "id": "dar_carona",
-                "carry_character_identity": True,
                 "label": "Dar carona para Mary",
                 "next_chapter": "carona_camburi",
                 "ledger_entries": [
@@ -504,125 +503,25 @@ Quando a carona estiver claramente combinada, encerre a conversa sem iniciar a v
     },
 
     "carona_camburi": {
-        "title": "Dar carona para Mary",
+        "title": "Carona para Camburi",
         "allowed_roles": ["PERSONAGEM_DA_CENA"],
-        "phase_context": "chapter",
-        "script_mode": "sheet_line_runtime",
-        "script_spreadsheet_id": "1P0le9TEoOH9QIx36PPQHDM1JcgRdjTl14GnGO3F0cCk",
-        "script_worksheet": "ROTEIRO_REDATOR",
-        "script_memory_worksheet": "ROTEIRO_MEMORIA",
-        "script_name": "Carona",
-        "script_opening_consumes_line_one": False,
-        "prompt": """
-CONTEXTO FÍSICO ESTÁVEL DA CARONA
-
-Mary aceitou a carona do mesmo personal com quem conversou na lanchonete.
-Eles foram os últimos a deixar a lanchonete da academia.
-O SUV pertence ao personal e começa estacionado no estacionamento privativo da academia.
-O personal dirige; Mary é passageira.
-É sábado, início da noite, antes das 20 horas.
-O celular de Mary continua sem bateria.
-
-OBJETIVO MACRO DO CAPÍTULO
-Esta carona tem um objetivo físico simples e permanente: o personal está levando Mary
-ATÉ A CASA DELA, em Camburi.
-A conversa, o flerte e qualquer combinação para depois acontecem DURANTE esse trajeto;
-eles não substituem nem encerram o objetivo da carona.
-Enquanto o SUV não tiver chegado à residência de Mary e parado, a carona continua em andamento.
-Não revele o nome do prédio antes de a linha atual do roteiro liberar essa informação.
-O objetivo macro permanece válido em todas as linhas, mesmo quando mary_immediate_goal
-mudar para uma pergunta, provocação, convite ou outra iniciativa local.
-
-CONTINUIDADE
-O usuário interpreta o MESMO personal da academia e da lanchonete.
-Use somente a MEMÓRIA DE ENTRADA autoral como continuidade consolidada do capítulo anterior.
-Não reconstrua falas antigas e não invente nome, residência, rotina, estado civil, animais,
-gostos, planos ou decisões que essa memória não sustente.
-
-AUTORIA FÍSICA
-O personal controla direção, rota, velocidade, manobras, parada e estacionamento do SUV.
-Mary pode conversar, reagir, observar o trajeto, indicar um destino já liberado pela linha
-atual e fazer propostas previstas pela linha atual.
-Não trate o carro como parado enquanto ele estiver em movimento.
-Não trate um destino como alcançado antes de a chegada estar estabelecida.
-
-ROTEIRO
-A direção dramática desta interação vem exclusivamente da LINHA ATUAL DA PLANILHA.
-Não antecipe conteúdo de linhas futuras.
-""".strip(),
+        "prompt": "Mary aceitou a carona do novo personal para Camburi. Não antecipe fatos ainda não roteirizados.",
         "decision_after_turns": 0,
-        "choice_ready_when": (
-            "A carona terminou de fato: o SUV chegou e parou perto do destino de Mary, "
-            "as combinações que surgiram durante a conversa foram respondidas ou ficaram "
-            "explicitamente em aberto, e Mary se despediu. O número de turnos, por si só, não basta."
-        ),
-        "choices": [{
-            "id": "mary_em_seu_apartamento",
-            "label": "Mary em seu apartamento",
-            "next_chapter": "mary_apartamento_camburi",
-            "carry_handoff": True,
-            "ledger_entries": [
-                "Depois da lanchonete, o personal levou Mary de carro até seu prédio, Golden Tulip, em Camburi.",
-                "Durante a carona, Mary e o personal conversaram e puderam considerar prolongar a noite.",
-                "Mary encerrou a carona e se despediu perto de seu prédio.",
-            ],
-            "status_updates": {"living_situation": "apartamento de Mary no Golden Tulip, Camburi"},
-        }],
-        "opening_caption": "Após serem os últimos a deixar a lanchonete da academia, Mary e o personal seguem até o estacionamento privativo, onde o SUV dele está estacionado.",
-        "opening_mary": "",
-        "model_opening": False,
-        "initial_scene": {
-            "location": "estacionamento privativo da academia, junto ao SUV do personal",
-            "time": "sábado, início da noite, antes das 20 horas",
-            "present_characters": ["MARY", "PERSONAGEM_DA_CENA"],
-            "interaction_mode": "in_person",
-            "user_role": "PERSONAGEM_DA_CENA",
-            "proximity": "junto ao SUV estacionado do personal",
-            "sexual_intensity": "none",
-            "mary_immediate_goal": "",
-            "mary_action": "Mary olha o SUV do personal no estacionamento privativo.",
-            "open_hook": False, "hook_resolution": "",
-            "temporary_character": {
-                "active": True,
-                "name": "Personal",
-                "description": "o mesmo personal conhecido na academia e na lanchonete",
-                "relation_to_mary": "conhecido recente com quem acabou de conversar na lanchonete",
-                "user_can_play": True,
-            },
-            "return_anchor": "chegar à residência de Mary em Camburi",
-            "event": "Mary e o personal chegam ao SUV para iniciar a carona até a residência de Mary em Camburi.",
-            "scene_changed": True, "show_caption": True, "scene_caption": "",
-            "arc_phase": "opening", "resolution_type": "choice",
-            "resolution_summary": "A carona para Camburi foi combinada.",
-            "start_new_scene": True, "turns_in_scene": 0, "scene_number": 4,
-            "mary_should_initiate": False, "user_scene_direction": "", "microstep_complete": False,
-        },
-    },
-
-    "mary_apartamento_camburi": {
-        "title": "Mary em seu apartamento",
-        "allowed_roles": ["PERSONAGEM_DA_CENA"],
-        "prompt": """
-Mary voltou ao seu apartamento no Golden Tulip, em Camburi, depois da carona.
-Este capítulo aguarda roteiro próprio. Não antecipe preparação, ligação, visita ou balada.
-O personal não está no apartamento. Não fale presencialmente com ele nem traga Janio à cena.
-Preserve apenas a continuidade recebida: a oferta de contato e os termos que o personal
-realmente confirmou. Convite não é aceitação, oferta de buscá-la não é busca realizada.
-""".strip(),
-        "decision_after_turns": 0, "choices": [],
-        "opening_caption": "Mary em seu apartamento, no Golden Tulip, em Camburi. A carona terminou.",
+        "choices": [],
+        "opening_caption": "A lanchonete fecha. Mary e o personal deixam a academia juntos; ele vai levá-la de carro para Camburi.",
         "opening_mary": "", "model_opening": False,
         "initial_scene": {
-            "location": "apartamento de Mary, Golden Tulip, Camburi", "time": "sábado, início da noite",
-            "present_characters": ["MARY"], "interaction_mode": "remote",
-            "user_role": "PERSONAGEM_DA_CENA", "proximity": "Mary está sozinha; o personal está fora do apartamento",
-            "sexual_intensity": "none", "mary_immediate_goal": "", "mary_action": "Mary entra em seu apartamento.",
+            "location": "saída da academia", "time": "noite",
+            "present_characters": ["MARY", "PERSONAGEM_DA_CENA"], "interaction_mode": "in_person",
+            "user_role": "PERSONAGEM_DA_CENA", "proximity": "caminhando juntos em direção ao carro",
+            "sexual_intensity": "none", "mary_immediate_goal": "",
+            "mary_action": "Mary acompanha o personal em direção ao carro.",
             "open_hook": False, "hook_resolution": "",
-            "temporary_character": {"active": True, "name": "Personal", "description": "o personal que deu a carona, ausente do apartamento", "relation_to_mary": "conhecido da academia", "user_can_play": True},
-            "return_anchor": "", "event": "A carona terminou e Mary voltou para casa.",
+            "temporary_character": {"active": True, "name": "Personal", "description": "novo personal trainer da academia", "relation_to_mary": "conhecido recente", "user_can_play": True},
+            "return_anchor": "", "event": "Mary aceitou a carona para Camburi.",
             "scene_changed": True, "show_caption": True, "scene_caption": "",
-            "arc_phase": "opening", "resolution_type": "choice", "resolution_summary": "Mary voltou ao apartamento.",
-            "start_new_scene": True, "turns_in_scene": 0, "scene_number": 5,
+            "arc_phase": "opening", "resolution_type": "choice", "resolution_summary": "A carona foi combinada.",
+            "start_new_scene": True, "turns_in_scene": 0, "scene_number": 4,
             "mary_should_initiate": False, "user_scene_direction": "", "microstep_complete": False,
         },
     },
