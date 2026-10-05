@@ -12,15 +12,12 @@ SCRIPT_HEADERS = {
     "tipo": "type",
     "fala-guia": "speech_guide",
     "estilo / atitude": "style",
-    "sentido interpretativo": "interpretive_meaning",
-    "núcleo semântico obrigatório": "semantic_core",
     "atmosfera": "atmosphere",
     "fato liberado nesta linha": "released_fact",
     "pré-condição": "precondition",
     "vestimenta atual": "wardrobe",
     "ação física / encenação": "physical_action",
     "limites do redator": "writer_limits",
-    "resultado esperado": "expected_result",
 }
 
 CARONA_PHASES = [
@@ -380,12 +377,26 @@ def closing_convergence_prompt(
     )
 
 
+def _resolve_placeholders(text: str, *, character_name: str) -> str:
+    value = _clean(text)
+    name = _clean(character_name)
+    if name.lower() in {"", "personal", "personagem", "personagem_da_cena"}:
+        name = ""
+    value = value.replace("{usuario}", name)
+    value = re.sub(r"\s+,", ",", value)
+    value = re.sub(r",\s*,", ",", value)
+    value = re.sub(r"\s{2,}", " ", value)
+    value = re.sub(r"^\s*,\s*", "", value)
+    return value.strip()
+
+
 def build_carona_prompt(
     *,
     facts_prompt: str,
     phase: dict,
     row: dict,
     state: dict,
+    character_name: str = "",
     continuity_text: str = "",
     closing_convergence_text: str = "",
 ) -> str:
@@ -402,8 +413,10 @@ def build_carona_prompt(
         f"convite_status={_clean(state.get('invite_status')) or 'unknown'}",
         "",
         "REGRA DE EXECUÇÃO",
-        "A fase guia a trajetória. A linha selecionada fornece o conteúdo autoral deste turno.",
-        "Responda primeiro ao usuário e não repita conteúdo presente em linhas_concluidas.",
+        "A fase apenas localiza o trecho do enredo. A linha selecionada é o conteúdo autoral deste turno.",
+        "O Redator pode variar somente a forma da fala: palavras, ritmo e naturalidade.",
+        "Não amplie o conjunto de fatos, perguntas, hipóteses ou objetivos autorizados pela linha.",
+        "Responda ao usuário sem repetir conteúdo presente em linhas_concluidas.",
         "Não use nem antecipe linhas futuras.",
         "O runtime, não o modelo, controla conclusão e avanço.",
     ]
@@ -431,27 +444,27 @@ def build_carona_prompt(
         f"ordem={int(row.get('order', 0) or 0)}",
         f"tipo={_clean(row.get('type')) or 'INTERPRETADA'}",
     ])
+    speech_guide = _resolve_placeholders(
+        row.get("speech_guide", ""),
+        character_name=character_name,
+    )
     fields = [
-        ("FALA-GUIA", "speech_guide"),
-        ("ESTILO / ATITUDE", "style"),
-        ("SENTIDO INTERPRETATIVO", "interpretive_meaning"),
-        ("NÚCLEO SEMÂNTICO OBRIGATÓRIO", "semantic_core"),
-        ("ATMOSFERA", "atmosphere"),
-        ("FATO LIBERADO NESTA LINHA", "released_fact"),
-        ("PRÉ-CONDIÇÃO AUTORAL", "precondition"),
-        ("VESTIMENTA ATUAL", "wardrobe"),
-        ("AÇÃO FÍSICA / ENCENAÇÃO", "physical_action"),
-        ("LIMITES DO REDATOR", "writer_limits"),
-        ("RESULTADO ESPERADO", "expected_result"),
+        ("ROTEIRO DESTA INTERAÇÃO", speech_guide),
+        ("ESTILO / ATITUDE", _clean(row.get("style"))),
+        ("ATMOSFERA", _clean(row.get("atmosphere"))),
+        ("FATO LIBERADO NESTA LINHA", _clean(row.get("released_fact"))),
+        ("PRÉ-CONDIÇÃO AUTORAL", _clean(row.get("precondition"))),
+        ("VESTIMENTA ATUAL", _clean(row.get("wardrobe"))),
+        ("AÇÃO FÍSICA / ENCENAÇÃO", _clean(row.get("physical_action"))),
+        ("LIMITES DO REDATOR", _clean(row.get("writer_limits"))),
     ]
-    for title, key in fields:
-        value = _clean(row.get(key))
+    for title, value in fields:
         if value:
             parts.extend(["", title, value])
 
     parts.extend([
         "",
-        "A fala-guia é interpretativa, não literal, salvo Tipo=EXATA.",
-        "Use somente esta linha como novo conteúdo roteirizado do turno.",
+        "Use somente o conteúdo desta linha como novo material roteirizado do turno.",
+        "Se tipo=EXATA, preserve a fala literalmente. Caso contrário, varie somente a forma sem ampliar o conteúdo.",
     ])
     return "\n".join(parts)
