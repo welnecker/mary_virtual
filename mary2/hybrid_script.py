@@ -287,7 +287,7 @@ def _line_precondition_ready(order: int, state: dict, scene: dict) -> bool:
 
 
 def select_carona_line(rows: list[dict], state: dict, scene: dict) -> tuple[dict, dict, str]:
-    """Seleciona a próxima linha sem perguntar a outro LLM se algo foi cumprido."""
+    """Seleciona a próxima linha. O terceiro retorno é só continuidade neutra entre linhas."""
     phase = _phase_for_state(state)
     if phase["id"] == "concluida":
         return phase, {}, ""
@@ -324,12 +324,13 @@ def select_carona_line(rows: list[dict], state: dict, scene: dict) -> tuple[dict
             phase,
             {},
             (
-                "CONVERGÊNCIA DA FASE\n"
+                "CONTINUIDADE ENTRE LINHAS\n"
                 f"fase_atual={phase['id']}\n"
-                f"objetivo_da_fase={phase['goal']}\n"
-                "A próxima linha autoral ainda não tem sua pré-condição física satisfeita.\n"
-                "Responda naturalmente ao usuário e mantenha a cena avançando, sem repetir conteúdo já usado "
-                "e sem antecipar linhas futuras."
+                "A próxima linha autoral ainda não tem sua pré-condição objetiva satisfeita.\n"
+                "Responda somente ao conteúdo mais recente do usuário e preserve a situação já estabelecida.\n"
+                "Não crie novo destino, objetivo, assunto, premissa ou acontecimento estrutural.\n"
+                "Não force avanço de fase e não antecipe linhas futuras.\n"
+                "Aguarde a condição objetiva da próxima linha surgir pela interação ou pela cena física."
             ),
         )
 
@@ -354,13 +355,39 @@ def carona_ready_for_choice(state: dict) -> bool:
     return 13 in completed
 
 
+def closing_convergence_prompt(
+    *,
+    state: dict,
+    phase: dict,
+    chapter_turn: int,
+    after_turns: int,
+) -> str:
+    """Convergência existe somente no fechamento tardio do enredo."""
+    if int(chapter_turn or 0) <= int(after_turns or 0):
+        return ""
+    if _clean(phase.get("id")) != "despedida":
+        return ""
+    if carona_ready_for_choice(state):
+        return ""
+    return (
+        "CONVERGÊNCIA DE ENCERRAMENTO DO ENREDO\n"
+        f"turno_atual={int(chapter_turn or 0)}\n"
+        "A Carona já ultrapassou a duração esperada e está em sua fase final.\n"
+        "Não introduza novos assuntos importantes. Responda normalmente ao usuário e, quando houver oportunidade natural, "
+        "aproxime a cena de chegada, combinação final e despedida.\n"
+        "Não force o encerramento, não pule a linha autoral ativa e não decida ações do personagem do usuário.\n"
+        "O objetivo é apenas favorecer um gancho natural para o próximo enredo."
+    )
+
+
 def build_carona_prompt(
     *,
     facts_prompt: str,
     phase: dict,
     row: dict,
     state: dict,
-    convergence_text: str = "",
+    continuity_text: str = "",
+    closing_convergence_text: str = "",
 ) -> str:
     completed = sorted(_orders(state, "completed_orders"))
     skipped = sorted(_orders(state, "skipped_orders"))
@@ -381,8 +408,13 @@ def build_carona_prompt(
         "O runtime, não o modelo, controla conclusão e avanço.",
     ]
 
-    if convergence_text:
-        parts.extend(["", convergence_text])
+    if continuity_text:
+        parts.extend(["", continuity_text])
+
+    if closing_convergence_text:
+        parts.extend(["", closing_convergence_text])
+
+    if continuity_text and not row:
         return "\n".join(part for part in parts if part is not None)
 
     if not row:
