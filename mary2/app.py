@@ -1528,6 +1528,24 @@ def generate_model_chapter_opening(
         turn_record["seq"] = saved_seq
         st.session_state.run_last_seq = saved_seq
         try:
+            save_model_audit(
+                service_account_info=persistence["service_account_info"],
+                spreadsheet_id=info["spreadsheet_id"],
+                spreadsheet_title=persistence["spreadsheet_title"],
+                owner_email=persistence["owner_email"],
+                run_id=st.session_state.run_id,
+                seq=saved_seq,
+                chapter_id=_chapter_id(),
+                user_role=user_role,
+                user_text="",
+                audit=model_audit,
+                branch_id=str(narrative.get("branch_id", "main") or "main"),
+                chapter_instance_id=str(narrative.get("chapter_instance_id", "") or ""),
+                chapter_turn=0,
+            )
+        except Exception as model_audit_exc:
+            st.session_state.audit_error = str(model_audit_exc)
+        try:
             save_director_audit(
                 service_account_info=persistence["service_account_info"],
                 spreadsheet_id=info["spreadsheet_id"],
@@ -2018,6 +2036,24 @@ if user_text:
                 )
                 turn_record["seq"] = saved_seq
                 st.session_state.run_last_seq = saved_seq
+                try:
+                    save_model_audit(
+                        service_account_info=persistence["service_account_info"],
+                        spreadsheet_id=info["spreadsheet_id"],
+                        spreadsheet_title=persistence["spreadsheet_title"],
+                        owner_email=persistence["owner_email"],
+                        run_id=st.session_state.run_id,
+                        seq=saved_seq,
+                        chapter_id=_chapter_id(),
+                        user_role=user_role,
+                        user_text=dialogue_text,
+                        audit=model_audit,
+                        branch_id=str(narrative.get("branch_id", "main") or "main"),
+                        chapter_instance_id=str(narrative.get("chapter_instance_id", "") or ""),
+                        chapter_turn=int(narrative.get("chapter_turns", 0) or 0),
+                    )
+                except Exception as model_audit_exc:
+                    st.session_state.audit_error = str(model_audit_exc)
                 try:
                     save_director_audit(
                         service_account_info=persistence["service_account_info"],
