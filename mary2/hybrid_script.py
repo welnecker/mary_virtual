@@ -190,8 +190,24 @@ def register_user_reply(state: dict, user_text: str) -> None:
         state["invite_status"] = _classify_invite_reply(user_text)
 
 
-def _breath_prompt(state: dict) -> str:
+def _breath_prompt(state: dict, next_row: dict | None = None) -> str:
     after_order = int(state.get("breath_after_order", 0) or 0)
+    next_row = dict(next_row or {})
+    next_order = int(next_row.get("order", 0) or 0)
+    next_guide = _clean(next_row.get("speech_guide", ""))
+
+    reserved = ""
+    if next_order and next_guide:
+        reserved = (
+            "\n\nPRÓXIMA LINHA RESERVADA — SOMENTE PARA BLOQUEIO\n"
+            f"ordem={next_order}\n"
+            f"conteudo={next_guide}\n"
+            "Você recebeu esta linha apenas para reconhecer o território reservado do próximo turno.\n"
+            "NÃO execute, parafraseie, prepare, sugira, insinue nem antecipe qualquer parte dela neste respiro.\n"
+            "Não use esta linha para criar ponte, pergunta, convite, assunto ou expectativa.\n"
+            "A reação deste respiro deve terminar antes de tocar semanticamente nessa próxima linha."
+        )
+
     return (
         "RESPIRO DE CONTINUIDADE\n"
         f"linha_anterior={after_order or '(desconhecida)'}\n"
@@ -199,6 +215,7 @@ def _breath_prompt(state: dict) -> str:
         "Neste turno, suspenda qualquer regra geral que mande acrescentar algo novo, tomar iniciativa, desenvolver subtexto narrativo, abrir assunto ou conduzir a conversa.\n"
         "Use o MOTOR DE VOZ para dar vida à reação: personalidade, emoção, humor, surpresa, hesitação, ironia, provocação leve, ritmo e vocabulário.\n"
         "As CONSTANTES DO SCRIPT continuam válidas apenas como limites silenciosos; não as transforme em assunto por iniciativa própria.\n"
+        "A ROTA DRAMÁTICA FUTURA também fica suspensa durante o respiro; ela não autoriza preparar convite, clube, balada, logística ou qualquer etapa posterior.\n"
         "Produza apenas UMA reação curta e humana ao que o usuário acabou de dizer.\n"
         "O respiro NÃO conduz a conversa e NÃO avança o enredo.\n"
         "É PROIBIDO fazer pergunta, abrir assunto, aprofundar assunto, propor plano, oferecer alternativa, "
@@ -206,6 +223,7 @@ def _breath_prompt(state: dict) -> str:
         "Não antecipe e não execute a próxima linha do roteiro.\n"
         "Não repita a linha anterior.\n"
         "Depois desta reação curta, o runtime retomará mecanicamente a próxima linha autoral na interação seguinte."
+        + reserved
     )
 
 
@@ -247,13 +265,28 @@ def _phase_for_state(state: dict) -> dict:
 def select_carona_line(rows: list[dict], state: dict, scene: dict) -> tuple[dict, dict, str]:
     """Seleciona a próxima linha autoral sem bloquear por coerência física ou pré-condição."""
     phase = _phase_for_state(state)
-    if bool(state.get("breath_pending", False)):
-        return phase, {}, _breath_prompt(state)
-    if phase["id"] == "concluida":
-        return phase, {}, ""
-
     completed = _orders(state, "completed_orders")
     skipped = _orders(state, "skipped_orders")
+
+    if bool(state.get("breath_pending", False)):
+        reserved_row: dict = {}
+        if phase["id"] != "concluida":
+            for order in phase["orders"]:
+                if order in completed or order in skipped:
+                    continue
+                if order == 9 and _clean(state.get("invite_status")) != "unknown":
+                    continue
+                if order == 11 and _clean(state.get("invite_status")) != "accepted":
+                    continue
+                reserved_row = next(
+                    (dict(item) for item in rows if int(item.get("order", 0) or 0) == order),
+                    {},
+                )
+                if reserved_row:
+                    break
+        return phase, {}, _breath_prompt(state, reserved_row)
+    if phase["id"] == "concluida":
+        return phase, {}, ""
 
     for order in phase["orders"]:
         if order in completed or order in skipped:
