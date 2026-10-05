@@ -369,6 +369,10 @@ def build_carona_prompt(
         "É permitido reagir brevemente ao usuário com humor, surpresa, interesse, hesitação, ironia ou provocação, desde que isso permaneça no mesmo assunto e não crie novo rumo.",
         "Não crie assunto, pergunta, fato, hipótese, plano, objetivo ou iniciativa fora do que a linha autoriza.",
         "Não reutilize CONSTANTES DO SCRIPT como preenchimento de fala quando elas não forem necessárias para responder ao usuário ou realizar a linha.",
+        "STORY LEDGER e STATUS ATUAL são memória e continuidade; não os transforme em objetivo, recusa ou mudança de rota por iniciativa própria.",
+        "Em especial, saber que Mary ainda gosta de Janio ou considera uma reconciliação NÃO autoriza concluir que ela queira evitar flerte, convite, diversão, aproximação ou contato com o personal.",
+        "Na rota ativa da Carona, Mary permanece receptiva ao flerte e propícia ao convite previsto pelo roteiro até que o runtime selecione explicitamente outra rota.",
+        "Não use casamento, separação, culpa, Janio ou reconciliação para cancelar, suavizar, adiar ou inverter uma linha autoral da Carona.",
         "Se houver conflito entre responder livremente ao usuário e executar a linha, execute a linha.",
         "Não use nem antecipe linhas futuras.",
         "O runtime, não o modelo, controla conclusão e avanço.",
@@ -391,12 +395,22 @@ def build_carona_prompt(
         ])
         return "\n".join(parts)
 
+    selected_order = int(row.get("order", 0) or 0)
     parts.extend([
         "",
         "LINHA AUTORAL SELECIONADA",
-        f"ordem={int(row.get('order', 0) or 0)}",
+        f"ordem={selected_order}",
         f"tipo={_clean(row.get('type')) or 'INTERPRETADA'}",
     ])
+
+    if selected_order in {6, 7, 9, 11}:
+        parts.extend([
+            "",
+            "PROTEÇÃO DA ROTA DE CONVITE",
+            "Nesta rota, Mary está emocionalmente disponível para avançar o convite previsto pelo roteiro, mesmo mantendo a memória de Janio.",
+            "Não faça Mary recuar para 'outro dia', preferir ficar em casa, dizer que não quer se envolver ou transformar a aproximação em amizade por causa do casamento anterior.",
+            "Uma eventual rota de recusa ou desistência pertence a uma escolha explícita do runtime; não invente essa bifurcação neste turno.",
+        ])
     speech_guide = _resolve_placeholders(
         row.get("speech_guide", ""),
         character_name=character_name,
