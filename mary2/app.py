@@ -668,21 +668,14 @@ def apply_pending_auto_transition(persistence: dict | None) -> bool:
 
 
 def _hybrid_script_rows(*, persistence: dict, chapter: dict) -> list[dict]:
-    """Carrega uma vez por sessão o roteiro autoral usado pelo runtime híbrido."""
+    """Carrega o roteiro autoral atual da planilha em cada interação."""
     if not persistence:
         raise PersistenceError("A Carona híbrida requer a planilha de persistência configurada.")
 
-    worksheet = str(chapter.get("script_worksheet", "ROTEIRO_REDATOR") or "ROTEIRO_REDATOR").strip()
+    worksheet = str(
+        chapter.get("script_worksheet", "ROTEIRO_REDATOR") or "ROTEIRO_REDATOR"
+    ).strip()
     script_name = str(chapter.get("script_name", "Carona") or "Carona").strip()
-    cache_key = ":".join([
-        str(persistence.get("spreadsheet_id", "") or ""),
-        worksheet,
-        script_name,
-    ])
-    cache = st.session_state.setdefault("hybrid_script_cache", {})
-    rows = cache.get(cache_key)
-    if isinstance(rows, list) and rows:
-        return deepcopy(rows)
 
     rows = load_sheet_script(
         service_account_info=persistence["service_account_info"],
@@ -694,9 +687,7 @@ def _hybrid_script_rows(*, persistence: dict, chapter: dict) -> list[dict]:
         raise PersistenceError(
             f"Nenhuma linha do roteiro {script_name!r} foi encontrada em {worksheet!r}."
         )
-    cache[cache_key] = deepcopy(rows)
     return rows
-
 
 def persistence_config() -> dict | None:
     service_account = None
