@@ -219,7 +219,7 @@ def _phase_for_state(state: dict) -> dict:
 def _scene_text(scene: dict) -> str:
     return " ".join(
         _clean(scene.get(key))
-        for key in ("location", "time", "proximity", "event", "mary_action", "return_anchor")
+        for key in ("location", "time", "proximity", "event", "mary_action")
     ).lower()
 
 
@@ -233,7 +233,16 @@ def _line_precondition_ready(order: int, state: dict, scene: dict) -> bool:
         # Não exige palavras exatas do Diretor: basta a cena já estar no carro/trajeto,
         # ou a abertura ter sido concluída e o usuário ter continuado a ação.
         return 1 in completed and any(
-            token in text for token in ("carro", "suv", "trajeto", "dirig", "movimento", "saída")
+            token in text
+            for token in (
+                "trajeto",
+                "dirig",
+                "movimento",
+                "em movimento",
+                "sai do estacionamento",
+                "deixa o estacionamento",
+                "inicia a viagem",
+            )
         )
     if order in {3, 4}:
         return 2 in completed
@@ -248,7 +257,15 @@ def _line_precondition_ready(order: int, state: dict, scene: dict) -> bool:
     if order == 10:
         return 8 in completed and any(
             token in text
-            for token in ("camburi", "cheg", "destino", "golden", "prédio", "predio", "proxim")
+            for token in (
+                "chegando",
+                "chegada",
+                "se aproxima do prédio",
+                "se aproxima do predio",
+                "prédio à vista",
+                "predio a vista",
+                "golden tulip",
+            )
         )
     if order == 11:
         return 10 in completed and _clean(state.get("invite_status")) == "accepted"
@@ -256,7 +273,8 @@ def _line_precondition_ready(order: int, state: dict, scene: dict) -> bool:
         return 10 in completed and (11 in completed or 11 in _orders(state, "skipped_orders"))
     if order == 13:
         return 12 in completed and any(
-            token in text for token in ("parad", "estacion", "golden", "prédio", "predio", "destino")
+            token in text
+            for token in ("parad", "estacion", "encost", "imobiliz")
         )
     return True
 
