@@ -180,32 +180,68 @@ def build_line_prompt(row: dict, *, line_order: int) -> str:
         return (
             "BEAT ATUAL DO ROTEIRO\n"
             f"ordem={int(line_order)}\n"
-            "Beat não encontrado. Reaja somente ao usuário e à cena atual; não invente futuro."
+            "Beat não encontrado. Responda apenas ao que já está estabelecido na fala do usuário "
+            "e na cena atual. Não crie conteúdo narrativo novo."
         )
 
+    line_type = _clean(row.get("type")) or "INTERPRETADA"
     parts = [
         "BEAT ATUAL DO ROTEIRO — SOMENTE ESTE BEAT",
         f"ordem={int(row.get('order', line_order) or line_order)}",
-        f"tipo={_clean(row.get('type')) or 'INTERPRETADA'}",
+        f"tipo={line_type}",
+        "",
+        "AUTORIDADE DA LINHA",
+        "A LINHA ATUAL DA PLANILHA define o conteúdo narrativo autorizado para Mary neste turno.",
+        "Você NÃO é roteirista e NÃO desenvolve a história além desta linha.",
+        "Seu trabalho é somente expressar esta linha como Mary, de acordo com ESTILO / ATITUDE, "
+        "SENTIDO INTERPRETATIVO e ATMOSFERA.",
+        "",
+        "REGRA CENTRAL — CONTEÚDO NÃO É CRIATIVO",
+        "A emoção de Mary altera somente a FORMA da fala: palavras, ritmo, humor, hesitação, "
+        "provocação e intensidade.",
+        "A emoção de Mary NÃO autoriza criar fatos, lugares, pessoas, relações, ações, objetos, "
+        "planos, destinos, horários, convites, decisões, consequências ou antecedentes.",
+        "Não complete lacunas com conhecimento provável do mundo. Se um detalhe não estiver "
+        "estabelecido, deixe-o desconhecido.",
+        "",
+        "FONTES PERMITIDAS",
+        "Para conteúdo factual, use SOMENTE:",
+        "1. a fala atual do usuário;",
+        "2. a CENA ATUAL;",
+        "3. a MEMÓRIA DE ENTRADA autoral;",
+        "4. fatos estruturais já presentes no capítulo;",
+        "5. o FATO LIBERADO NESTE BEAT.",
+        "Perguntas, hipóteses, brincadeiras ou suspeitas do usuário não viram fatos por inferência.",
         "",
         "CONTRATO DO REDATOR",
-        "Responda primeiro ao usuário. Execute este beat quando couber naturalmente.",
-        "INTERPRETADA permite variar palavras, ritmo, humor e intensidade; não permite mudar o sentido.",
-        "Não crie nova logística, rota, destino, plano, alternativa ou consequência estrutural.",
-        "Não assuma ações, escolhas ou respostas do personagem do usuário.",
-        "Não use conteúdo de beats futuros.",
+        "Responda ao estímulo atual do usuário sem abandonar o beat.",
+        "Execute somente o núcleo semântico desta linha quando a pré-condição estiver satisfeita.",
+        "Não antecipe conteúdo de beats futuros.",
+        "Não crie nova logística, rota, destino, plano, alternativa ou consequência.",
+        "Não assuma ações, escolhas, sentimentos ou respostas do personagem do usuário.",
+        "Não acrescente informação factual apenas para tornar a fala mais rica, natural ou específica.",
+        "Quando precisar de naturalidade, varie a EXPRESSÃO, não os FATOS.",
     ]
+
+    if line_type.upper() == "EXATA":
+        parts.extend([
+            "Para tipo EXATA, preserve literalmente a FALA-GUIA, salvo substituições de placeholders já resolvidos.",
+        ])
+    else:
+        parts.extend([
+            "Para tipo INTERPRETADA, a FALA-GUIA define o conteúdo; varie apenas a maneira como Mary o expressa.",
+        ])
 
     fields = [
         ("FALA-GUIA", "speech_guide"),
-        ("ESTILO / ATITUDE", "style"),
-        ("SENTIDO INTERPRETATIVO", "interpretive_meaning"),
-        ("NÚCLEO SEMÂNTICO OBRIGATÓRIO", "semantic_core"),
-        ("ATMOSFERA", "atmosphere"),
-        ("FATO LIBERADO NESTE BEAT", "released_fact"),
+        ("ESTILO / ATITUDE — FORMA EMOCIONAL", "style"),
+        ("SENTIDO INTERPRETATIVO — INTENÇÃO DA FORMA", "interpretive_meaning"),
+        ("NÚCLEO SEMÂNTICO OBRIGATÓRIO — CONTEÚDO", "semantic_core"),
+        ("ATMOSFERA — TOM", "atmosphere"),
+        ("FATO LIBERADO NESTE BEAT — LIMITE FACTUAL", "released_fact"),
         ("PRÉ-CONDIÇÃO", "precondition"),
         ("VESTIMENTA ATUAL DE MARY", "wardrobe"),
-        ("AÇÃO FÍSICA / ENCENAÇÃO", "physical_action"),
+        ("AÇÃO FÍSICA / ENCENAÇÃO AUTORIZADA", "physical_action"),
         ("LIMITES DO REDATOR", "writer_limits"),
         ("RESULTADO ESPERADO", "expected_result"),
     ]
@@ -217,9 +253,18 @@ def build_line_prompt(row: dict, *, line_order: int) -> str:
                 parts.append(
                     "A vestimenta descreve exclusivamente Mary; nunca a transfira ao personagem do usuário."
                 )
+            elif key == "physical_action":
+                parts.append(
+                    "Esta coluna é um limite de encenação, não licença para inventar outras ações."
+                )
 
+    parts.extend([
+        "",
+        "TESTE ANTES DE RESPONDER",
+        "Se uma informação concreta da resposta não puder ser apontada para uma das FONTES PERMITIDAS, remova-a.",
+        "A resposta final deve parecer Mary emocionalmente coerente, mas factualmente contida pela linha atual.",
+    ])
     return "\n".join(parts)
-
 
 def build_hold_prompt(row: dict, *, line_order: int) -> str:
     """Keep a physical gate pending without repeating the authored beat."""
