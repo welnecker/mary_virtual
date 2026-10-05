@@ -6,7 +6,6 @@ from copy import deepcopy
 
 import streamlit as st
 
-from chapter_continuity import carry_user_statements
 from chapters import (
     apply_choice_to_story,
     chapter_choices,
@@ -38,14 +37,13 @@ from persistence import (
     update_run_snapshot,
 )
 from prompts import build_system_prompt
-from sheet_script import build_beat_validator_prompt, build_hold_prompt, build_line_prompt, build_memory_prompt, line_for_interaction, load_script_memory, load_sheet_script, max_script_order, parse_beat_validation, script_line
 from state import current_status_text, migrate_state, new_state, story_ledger_text
 from story_bible import PHYSICAL_CANON
 
 
 st.set_page_config(page_title="Mary Core 2", page_icon="🖤", layout="centered")
 
-BUILD_ID = "2026-10-04-carona-beat-runtime-v47"
+BUILD_ID = "2026-10-03-chapter-restart-quota-v38"
 
 DEFAULT_MODELS = [
     "google/gemini-2.5-flash-lite",
@@ -101,7 +99,6 @@ def reset_local_story() -> None:
     st.session_state.run_last_seq = 0
     st.session_state.route_checkpoints = []
     st.session_state.route_checkpoints_loaded_for_run = ""
-    st.session_state.sheet_script_cache = {}
 
 
 def _messages_from_records(records: list[dict]) -> list[dict[str, str]]:
@@ -206,10 +203,6 @@ def activate_chapter(
     last_seq = int(st.session_state.get("run_last_seq", 0) or 0)
     previous_state = deepcopy(st.session_state.story_state)
     previous_scene = deepcopy(st.session_state.scene_state)
-    if choice.get("carry_user_statements"):
-        previous_state = carry_user_statements(
-            previous_state, previous_chapter_id, st.session_state.turn_records
-        )
     previous_narrative = previous_state.setdefault("narrative", {})
     previous_branch_id = str(previous_narrative.get("branch_id", "main") or "main")
     previous_instance_id = str(
@@ -269,22 +262,10 @@ def activate_chapter(
     narrative.pop("active_phase_id", None)
 
     chapter = get_chapter(next_chapter_id)
-    if _sheet_runtime_mode(chapter):
-        st.session_state.story_state.setdefault("current_status", {}).pop(
-            "personal_conversation_reference",
-            None,
-        )
     st.session_state.scene_state = _scene_for_chapter_transition(
         chapter,
         previous_scene,
     )
-    if bool(choice.get("carry_character_identity", False)):
-        previous_character = previous_scene.get("temporary_character", {})
-        next_character = st.session_state.scene_state.get("temporary_character", {})
-        if isinstance(previous_character, dict) and isinstance(next_character, dict):
-            previous_name = str(previous_character.get("name", "") or "").strip()
-            if previous_name and previous_name.lower() != "personal":
-                next_character["name"] = previous_name
 
     next_role = str(
         st.session_state.scene_state.get("user_role", "JANIO") or "JANIO"
@@ -405,11 +386,6 @@ def restart_current_chapter(persistence: dict | None) -> None:
     last_seq = int(st.session_state.get("run_last_seq", 0) or 0)
     new_instance_id = new_chapter_instance_id(chapter_id)
     restored = migrate_state(entry_story)
-    if _sheet_runtime_mode(get_chapter(chapter_id)):
-        restored.setdefault("current_status", {}).pop(
-            "personal_conversation_reference",
-            None,
-        )
     narrative = restored.setdefault("narrative", {})
     narrative["chapter_id"] = chapter_id
     narrative["chapter_turns"] = 0
@@ -488,24 +464,6 @@ def activate_choice_from_checkpoint(
 
     base_state = migrate_state(checkpoint["story_state"])
     base_scene = deepcopy(checkpoint["scene_state"])
-    if choice.get("carry_user_statements") and not base_state.get("current_status", {}).get("personal_conversation_reference"):
-        # Old decision checkpoints predate source-based continuity. Read only
-        # this run, then select the exact original chapter instance for replay.
-        source_rows = load_run_interactions(
-            service_account_info=persistence["service_account_info"],
-            spreadsheet_id=persistence["spreadsheet_id"],
-            spreadsheet_title=persistence["spreadsheet_title"],
-            owner_email=persistence["owner_email"],
-            run_id=str(checkpoint.get("run_id", st.session_state.run_id)),
-        )
-        source_instance = str(checkpoint.get("source_chapter_instance_id", ""))
-        source_seq = int(checkpoint.get("source_seq", 0) or 0)
-        base_state = carry_user_statements(
-            base_state, source_chapter_id,
-            [row for row in source_rows
-             if str(row.get("chapter_instance_id", "")) == source_instance
-             and int(row.get("seq", 0) or 0) <= source_seq],
-        )
     base_narrative = base_state.setdefault("narrative", {})
     parent_branch_id = str(
         checkpoint.get("source_branch_id", "")
@@ -542,19 +500,7 @@ def activate_choice_from_checkpoint(
     narrative.pop("active_phase_id", None)
 
     chapter = get_chapter(next_chapter_id)
-    if _sheet_runtime_mode(chapter):
-        next_state.setdefault("current_status", {}).pop(
-            "personal_conversation_reference",
-            None,
-        )
     next_scene = _scene_for_chapter_transition(chapter, base_scene)
-    if bool(choice.get("carry_character_identity", False)):
-        previous_character = base_scene.get("temporary_character", {})
-        next_character = next_scene.get("temporary_character", {})
-        if isinstance(previous_character, dict) and isinstance(next_character, dict):
-            previous_name = str(previous_character.get("name", "") or "").strip()
-            if previous_name and previous_name.lower() != "personal":
-                next_character["name"] = previous_name
     next_role = str(next_scene.get("user_role", "JANIO") or "JANIO").upper()
     if next_role not in {"JANIO", "PERSONAGEM_DA_CENA"}:
         next_role = "JANIO"
@@ -732,164 +678,6 @@ def persistence_config() -> dict | None:
     }
 
 
-def _status_text_for_chapter(chapter_config: dict) -> str:
-    """Hide legacy raw dialogue sources from sheet-driven chapters."""
-    status = deepcopy(
-        st.session_state.story_state.get("current_status", {})
-        if isinstance(st.session_state.story_state, dict)
-        else {}
-    )
-    if _sheet_runtime_mode(chapter_config):
-        status.pop("personal_conversation_reference", None)
-    if not isinstance(status, dict) or not status:
-        return "(sem status estrutural definido)"
-    return json.dumps(status, ensure_ascii=False, indent=2)
-
-
-def _sheet_line_chapter_prompt(
-    *,
-    chapter_config: dict,
-    chapter_turn: int,
-    base_prompt: str,
-    persistence: dict | None,
-) -> tuple[str, int, dict]:
-    """Build the active authored beat plus concise authored entry memory."""
-    if not _sheet_runtime_mode(chapter_config):
-        return base_prompt, 0, {}
-
-    configured_id = str(chapter_config.get("script_spreadsheet_id", "") or "").strip()
-    try:
-        secret_id = str(st.secrets.get("MARY_SCRIPT_SHEETS_ID", "") or "").strip()
-    except Exception:
-        secret_id = ""
-    spreadsheet_id = secret_id or configured_id
-    worksheet_name = str(
-        chapter_config.get("script_worksheet", "ROTEIRO_REDATOR") or "ROTEIRO_REDATOR"
-    ).strip()
-    memory_worksheet = str(
-        chapter_config.get("script_memory_worksheet", "ROTEIRO_MEMORIA")
-        or "ROTEIRO_MEMORIA"
-    ).strip()
-    script_name = str(chapter_config.get("script_name", "") or "").strip()
-    opening_consumes = bool(
-        chapter_config.get("script_opening_consumes_line_one", False)
-    )
-
-    narrative = st.session_state.story_state.setdefault("narrative", {})
-    default_order = line_for_interaction(
-        chapter_turn=1,
-        opening_consumes_line_one=opening_consumes,
-    )
-    line_order = int(narrative.get("script_line_order", default_order) or default_order)
-    narrative["script_line_order"] = line_order
-
-    if not persistence or not persistence.get("service_account_info") or not spreadsheet_id:
-        fallback = build_line_prompt({}, line_order=line_order)
-        return (base_prompt + "\n\n" + fallback).strip(), line_order, {}
-
-    cache = st.session_state.setdefault("sheet_script_cache", {})
-    rows_key = f"rows:{spreadsheet_id}:{worksheet_name}:{script_name}"
-    rows = cache.get(rows_key)
-    if rows is None:
-        rows = load_sheet_script(
-            service_account_info=persistence["service_account_info"],
-            spreadsheet_id=spreadsheet_id,
-            worksheet_name=worksheet_name,
-            script_name=script_name,
-        )
-        cache[rows_key] = rows
-
-    memory_key = f"memory:{spreadsheet_id}:{memory_worksheet}:{script_name}"
-    memories = cache.get(memory_key)
-    if memories is None:
-        memories = load_script_memory(
-            service_account_info=persistence["service_account_info"],
-            spreadsheet_id=spreadsheet_id,
-            worksheet_name=memory_worksheet,
-            script_name=script_name,
-        )
-        cache[memory_key] = memories
-
-    narrative["script_max_order"] = max_script_order(rows)
-    row = script_line(rows, line_order)
-    if bool(narrative.get("script_waiting_for_gate", False)):
-        line_prompt = build_hold_prompt(row, line_order=line_order)
-    else:
-        line_prompt = build_line_prompt(row, line_order=line_order)
-
-    memory_prompt = build_memory_prompt(memories)
-    pieces = [base_prompt, memory_prompt, line_prompt]
-    return "\n\n".join(piece for piece in pieces if str(piece or "").strip()).strip(), line_order, row
-
-
-def _validate_sheet_beat(
-    *,
-    api_key: str,
-    model: str,
-    fallback_model: str | None,
-    row: dict,
-    user_text: str,
-    mary_text: str,
-    recent_dialogue: list[dict],
-) -> bool:
-    if not row:
-        return False
-    prompt = build_beat_validator_prompt(
-        row=row,
-        user_text=user_text,
-        mary_text=mary_text,
-        recent_dialogue=recent_dialogue,
-    )
-    try:
-        raw = chat(
-            api_key=api_key,
-            model=model,
-            fallback_model=fallback_model,
-            messages=[{"role": "system", "content": prompt}],
-            temperature=0.0,
-        )
-    except Exception:
-        return False
-    return parse_beat_validation(raw)
-
-
-
-def _sheet_vehicle_stopped(scene: dict) -> bool:
-    text = " ".join(
-        str(scene.get(key, "") or "")
-        for key in ("location", "proximity", "event", "scene_caption")
-    ).lower()
-    moving_markers = (
-        "em movimento",
-        "a caminho",
-        "dirigindo",
-        "trajeto",
-        "trânsito",
-        "transito",
-    )
-    stopped_markers = (
-        "parado",
-        "parada",
-        "estacionado",
-        "estacionou",
-        "em frente",
-        "próximo ao golden",
-        "proximo ao golden",
-        "junto ao golden",
-        "golden tulip",
-    )
-    if any(marker in text for marker in moving_markers) and not any(
-        marker in text for marker in ("parado", "estacionado", "estacionou")
-    ):
-        return False
-    return any(marker in text for marker in stopped_markers)
-
-
-def _sheet_runtime_mode(chapter_config: dict) -> bool:
-    return str(chapter_config.get("script_mode", "") or "") == "sheet_line_runtime"
-
-
-
 def reconstruct_legacy_snapshot(
     *,
     persistence: dict,
@@ -981,7 +769,6 @@ for key, default in {
     "run_last_seq": 0,
     "route_checkpoints": [],
     "route_checkpoints_loaded_for_run": "",
-    "sheet_script_cache": {},
 }.items():
     if key not in st.session_state:
         st.session_state[key] = default
@@ -1881,11 +1668,6 @@ if user_text:
 
         current_turn_number = _chapter_turns() + 1
         chapter_config = get_chapter(_chapter_id())
-        if _sheet_runtime_mode(chapter_config):
-            st.session_state.story_state.setdefault("current_status", {}).pop(
-                "personal_conversation_reference",
-                None,
-            )
         current_phase = chapter_phase(_chapter_id(), current_turn_number)
         current_phase_id = str(current_phase.get("id", "") or "").strip()
         current_phase_goal = str(current_phase.get("goal", "") or "").strip()
@@ -1933,49 +1715,6 @@ if user_text:
             _chapter_id(),
             turn_number=current_turn_number,
         )
-        sheet_mode = _sheet_runtime_mode(chapter_config)
-        current_chapter_prompt, script_line_order, script_row = _sheet_line_chapter_prompt(
-            chapter_config=chapter_config,
-            chapter_turn=current_turn_number,
-            base_prompt=current_chapter_prompt,
-            persistence=persistence,
-        )
-
-        # Antes de Mary responder, o controlador verifica se a fala atual do usuário
-        # já concluiu o beat pendente (por exemplo, respondeu a uma pergunta anterior).
-        if sheet_mode and user_spoke and script_row:
-            for _ in range(3):
-                if script_line_order == 10 or bool(
-                    narrative_state.get("script_waiting_for_gate", False)
-                ):
-                    break
-                completed_by_user = _validate_sheet_beat(
-                    api_key=api_key,
-                    model=input_model,
-                    fallback_model=fallback,
-                    row=script_row,
-                    user_text=dialogue_text,
-                    mary_text="",
-                    recent_dialogue=phase_messages[-12:],
-                )
-                if not completed_by_user:
-                    break
-                max_order = int(narrative_state.get("script_max_order", 0) or 0)
-                if script_line_order <= 0 or script_line_order >= max_order:
-                    break
-                narrative_state["script_line_order"] = script_line_order + 1
-                current_chapter_prompt, script_line_order, script_row = _sheet_line_chapter_prompt(
-                    chapter_config=chapter_config,
-                    chapter_turn=current_turn_number,
-                    base_prompt=chapter_prompt(
-                        _chapter_id(),
-                        turn_number=current_turn_number,
-                    ),
-                    persistence=persistence,
-                )
-
-        if script_line_order:
-            scene_for_director["script_line_order"] = script_line_order
 
         scene = direct_scene(
             api_key=api_key,
@@ -1983,7 +1722,7 @@ if user_text:
             fallback_model=fallback,
             physical_canon=PHYSICAL_CANON,
             story_ledger=story_ledger_text(st.session_state.story_state),
-            current_status=_status_text_for_chapter(chapter_config),
+            current_status=current_status_text(st.session_state.story_state),
             current_scene=scene_for_director,
             user_role=user_role,
             recent_messages=phase_messages,
@@ -1993,8 +1732,7 @@ if user_text:
             conditional_transition=(
                 str(chapter_config.get("transition", "")) == "auto_condition"
                 or (
-                    not _sheet_runtime_mode(chapter_config)
-                    and bool(str(chapter_config.get("choice_ready_when", "") or "").strip())
+                    bool(str(chapter_config.get("choice_ready_when", "") or "").strip())
                     and current_turn_number
                     >= int(chapter_config.get("decision_after_turns", 0) or 0)
                 )
@@ -2009,38 +1747,6 @@ if user_text:
         scene["chapter_turn_current"] = current_turn_number
         scene["chapter_phase"] = current_phase_id
         scene["chapter_phase_goal"] = current_phase_goal
-        if script_line_order:
-            scene["script_line_order"] = script_line_order
-
-        previous_action = str(
-            pre_turn_snapshot["scene_state"].get("mary_action", "") or ""
-        ).strip()
-        current_action = str(scene.get("mary_action", "") or "").strip()
-        if current_action and previous_action and current_action.casefold() == previous_action.casefold():
-            scene["mary_action"] = ""
-
-        sheet_mode = _sheet_runtime_mode(chapter_config)
-        sheet_advanced_before_redactor = False
-        if sheet_mode and script_line_order == 10:
-            narrative_state = st.session_state.story_state.setdefault("narrative", {})
-            if bool(narrative_state.get("script_waiting_for_gate", False)):
-                if _sheet_vehicle_stopped(scene):
-                    narrative_state["script_line_order"] = 11
-                    narrative_state["script_waiting_for_gate"] = False
-                    script_line_order = 11
-                    scene["script_line_order"] = 11
-                    current_chapter_prompt, _, script_row = _sheet_line_chapter_prompt(
-                        chapter_config=chapter_config,
-                        chapter_turn=current_turn_number,
-                        base_prompt=chapter_prompt(_chapter_id(), turn_number=current_turn_number),
-                        persistence=persistence,
-                    )
-                    sheet_advanced_before_redactor = True
-            elif _sheet_vehicle_stopped(scene):
-                # If the user has already stopped as line 10 becomes active,
-                # line 10 may be consumed normally this turn.
-                pass
-
         if current_phase_id:
             # Em capítulos com microprompt, o runtime já define a direção
             # psicológica. O Diretor permanece responsável pela cena física.
@@ -2095,7 +1801,7 @@ if user_text:
         system_prompt = build_system_prompt(
             physical_canon=PHYSICAL_CANON,
             story_ledger=story_ledger_text(st.session_state.story_state),
-            current_status=_status_text_for_chapter(chapter_config),
+            current_status=current_status_text(st.session_state.story_state),
             chapter_text=current_chapter_prompt,
             scene_text=scene_text,
             user_role=user_role,
@@ -2178,48 +1884,7 @@ if user_text:
 
         active_chapter = get_chapter(_chapter_id())
 
-        if _sheet_runtime_mode(active_chapter):
-            max_order = int(narrative.get("script_max_order", 0) or 0)
-            active_order = int(
-                narrative.get("script_line_order", script_line_order)
-                or script_line_order
-                or 0
-            )
-
-            beat_completed = False
-            if script_row and not bool(narrative.get("script_waiting_for_gate", False)):
-                beat_completed = _validate_sheet_beat(
-                    api_key=api_key,
-                    model=input_model,
-                    fallback_model=fallback,
-                    row=script_row,
-                    user_text=dialogue_text,
-                    mary_text=answer,
-                    recent_dialogue=phase_messages[-12:],
-                )
-            narrative["script_last_validation"] = bool(beat_completed)
-
-            if bool(narrative.get("script_waiting_for_gate", False)):
-                narrative["script_line_order"] = active_order
-            elif not beat_completed:
-                narrative["script_line_order"] = active_order
-            elif active_order == 10:
-                if _sheet_vehicle_stopped(scene):
-                    narrative["script_line_order"] = 11
-                    narrative["script_waiting_for_gate"] = False
-                else:
-                    narrative["script_line_order"] = 10
-                    narrative["script_waiting_for_gate"] = True
-            elif active_order > 0 and active_order < max_order:
-                narrative["script_line_order"] = active_order + 1
-                narrative["script_waiting_for_gate"] = False
-            elif active_order == max_order and max_order > 0:
-                narrative["script_line_order"] = max_order + 1
-                narrative["script_waiting_for_gate"] = False
-                if _sheet_vehicle_stopped(scene):
-                    narrative["choice_ready"] = True
-            # No modo por beat, o Diretor não controla progressão nem libera botão.
-        elif (
+        if (
             str(active_chapter.get("choice_ready_when", "") or "").strip()
             and int(narrative.get("chapter_turns", 0) or 0)
             >= int(active_chapter.get("decision_after_turns", 0) or 0)
