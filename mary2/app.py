@@ -54,7 +54,7 @@ from story_bible import PHYSICAL_CANON
 
 st.set_page_config(page_title="Mary Core 2", page_icon="🖤", layout="centered")
 
-BUILD_ID = "2026-10-05-carona-hybrid-v41"
+BUILD_ID = "2026-10-05-carona-hybrid-v42"
 
 DEFAULT_MODELS = [
     "google/gemini-2.5-flash-lite",
@@ -163,6 +163,24 @@ def _handoff_text(state: dict) -> str:
 
 def _scene_for_chapter_transition(chapter: dict, previous_scene: dict) -> dict:
     initial = deepcopy(chapter.get("initial_scene", {}) or {})
+
+    if bool(chapter.get("inherit_character", False)):
+        previous_character = deepcopy(
+            (previous_scene or {}).get("temporary_character", {}) or {}
+        )
+        previous_name = str(previous_character.get("name", "") or "").strip()
+        if (
+            previous_character.get("active")
+            and previous_name
+            and previous_name.lower() not in {"personal", "personagem", "personagem_da_cena"}
+        ):
+            initial["temporary_character"] = previous_character
+            present = list(initial.get("present_characters", []) or [])
+            initial["present_characters"] = [
+                previous_name if str(item).upper() == "PERSONAGEM_DA_CENA" else item
+                for item in present
+            ]
+
     if not bool(chapter.get("inherit_scene", False)):
         return initial
 
@@ -1828,6 +1846,9 @@ if user_text:
                 phase=current_phase,
                 row=hybrid_selected_row,
                 state=hybrid_state or {},
+                character_name=str(
+                    scene_for_director.get("temporary_character", {}).get("name", "") or ""
+                ),
                 continuity_text=hybrid_continuity,
                 closing_convergence_text=closing_convergence_prompt(
                     state=hybrid_state or {},
@@ -1900,6 +1921,9 @@ if user_text:
                 phase=current_phase,
                 row=hybrid_selected_row,
                 state=hybrid_state or {},
+                character_name=str(
+                    scene.get("temporary_character", {}).get("name", "") or ""
+                ),
                 continuity_text=hybrid_continuity,
                 closing_convergence_text=hybrid_closing_convergence,
             )
