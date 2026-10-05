@@ -505,22 +505,64 @@ Quando a carona estiver claramente combinada, encerre a conversa sem iniciar a v
     "carona_camburi": {
         "title": "Carona para Camburi",
         "allowed_roles": ["PERSONAGEM_DA_CENA"],
-        "prompt": "Mary aceitou a carona do novo personal para Camburi. Não antecipe fatos ainda não roteirizados.",
+        "phase_context": "chapter",
+        "script_mode": "hybrid_phase_sheet",
+        "script_worksheet": "ROTEIRO_REDATOR",
+        "script_name": "Carona",
+        "facts_prompt": """
+FATOS FIXOS DO CAPÍTULO
+
+Mary aceitou a carona do mesmo personal conhecido na academia e na lanchonete.
+O personal dirige; Mary é passageira.
+A carona segue até a residência de Mary em Camburi.
+É sábado, início da noite, antes das 20 horas.
+O celular de Mary continua sem bateria.
+Mary está separada de Janio.
+O usuário controla falas, decisões, direção, rota, velocidade, manobras, parada e estacionamento do veículo.
+
+CONTINUIDADE
+Use somente fatos realmente estabelecidos sobre o personal.
+Não invente onde ele mora, rotina, estado civil, animais, gostos ou decisões.
+Não antecipe informações de linhas futuras da ROTEIRO_REDATOR.
+
+ARQUITETURA HÍBRIDA
+A fase dramática guia a trajetória.
+A linha selecionada da ROTEIRO_REDATOR fornece o conteúdo autoral novo do turno.
+Linhas já concluídas não devem ser repetidas.
+O runtime controla avanço e conclusão por eventos objetivos; Mary apenas expressa o conteúdo liberado.
+""".strip(),
         "decision_after_turns": 0,
-        "choices": [],
-        "opening_caption": "A lanchonete fecha. Mary e o personal deixam a academia juntos; ele vai levá-la de carro para Camburi.",
+        "choice_ready_when": (
+            "A despedida da carona foi efetivamente produzida depois da chegada ao destino. "
+            "O runtime híbrido controla essa condição; número de turnos não basta."
+        ),
+        "choices": [{
+            "id": "mary_em_seu_apartamento",
+            "label": "Mary em seu apartamento",
+            "next_chapter": "mary_apartamento_camburi",
+            "carry_handoff": True,
+            "ledger_entries": [
+                "Depois da lanchonete, o personal levou Mary de carro até seu destino em Camburi.",
+                "Durante a carona, Mary e o personal continuaram se conhecendo e puderam combinar novo contato.",
+                "Mary encerrou a carona e se despediu."
+            ],
+            "status_updates": {"living_situation": "apartamento de Mary em Camburi"},
+        }],
+        "opening_caption": "A lanchonete fecha. Mary e o personal deixam a academia juntos e seguem até o carro dele para iniciar a carona a Camburi.",
         "opening_mary": "", "model_opening": False,
         "initial_scene": {
-            "location": "saída da academia", "time": "noite",
+            "location": "saída da academia, junto ao carro do personal",
+            "time": "sábado, início da noite, antes das 20 horas",
             "present_characters": ["MARY", "PERSONAGEM_DA_CENA"], "interaction_mode": "in_person",
-            "user_role": "PERSONAGEM_DA_CENA", "proximity": "caminhando juntos em direção ao carro",
+            "user_role": "PERSONAGEM_DA_CENA", "proximity": "junto ao carro do personal",
             "sexual_intensity": "none", "mary_immediate_goal": "",
-            "mary_action": "Mary acompanha o personal em direção ao carro.",
+            "mary_action": "Mary acompanha o personal até o carro e observa o veículo.",
             "open_hook": False, "hook_resolution": "",
-            "temporary_character": {"active": True, "name": "Personal", "description": "novo personal trainer da academia", "relation_to_mary": "conhecido recente", "user_can_play": True},
-            "return_anchor": "", "event": "Mary aceitou a carona para Camburi.",
+            "temporary_character": {"active": True, "name": "Personal", "description": "o mesmo personal conhecido na academia", "relation_to_mary": "conhecido recente", "user_can_play": True},
+            "return_anchor": "chegar à residência de Mary em Camburi",
+            "event": "Mary e o personal chegam ao carro para iniciar a carona.",
             "scene_changed": True, "show_caption": True, "scene_caption": "",
-            "arc_phase": "opening", "resolution_type": "choice", "resolution_summary": "A carona foi combinada.",
+            "arc_phase": "entrada_rota", "resolution_type": "choice", "resolution_summary": "A carona foi combinada.",
             "start_new_scene": True, "turns_in_scene": 0, "scene_number": 4,
             "mary_should_initiate": False, "user_scene_direction": "", "microstep_complete": False,
         },
