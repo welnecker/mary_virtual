@@ -507,6 +507,7 @@ Quando a carona estiver claramente combinada, encerre a conversa sem iniciar a v
         "allowed_roles": ["PERSONAGEM_DA_CENA"],
         "phase_context": "chapter",
         "script_mode": "hybrid_phase_sheet",
+        "inherit_character": True,
         "script_worksheet": "ROTEIRO_REDATOR",
         "script_name": "Carona",
         "facts_prompt": """
@@ -537,8 +538,9 @@ Não invente onde ele mora, rotina, estado civil, animais, gostos ou decisões.
 Não antecipe informações de linhas futuras da ROTEIRO_REDATOR.
 
 ARQUITETURA HÍBRIDA
-A fase dramática guia a trajetória.
-A linha selecionada da ROTEIRO_REDATOR fornece o conteúdo autoral novo do turno.
+A fase apenas identifica em qual trecho estrutural da Carona estamos.
+A linha selecionada da ROTEIRO_REDATOR é o conteúdo autoral novo do turno.
+O Redator pode variar somente a forma da fala, sem ampliar fatos, perguntas, hipóteses ou objetivos.
 Linhas já concluídas não devem ser repetidas.
 O runtime controla avanço e conclusão por eventos objetivos; Mary apenas expressa o conteúdo liberado.
 """.strip(),
