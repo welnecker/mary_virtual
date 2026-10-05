@@ -513,28 +513,43 @@ Quando a carona estiver claramente combinada, encerre a conversa sem iniciar a v
         "facts_prompt": """
 FATOS FIXOS DO CAPÍTULO
 
-ENREDO DE ENTRADA
+CONSTANTES DO SCRIPT — VÁLIDAS EM TODAS AS LINHAS E RESPIROS
 
-A lanchonete da academia acabou de fechar.
-O personal ofereceu levar Mary de carro para casa.
-Mary informou que mora em Camburi, o personal confirmou que poderia levá-la e Mary aceitou.
-Mary sabe que esta carona tem como destino a residência dela em Camburi.
-Ela não está sendo levada a um destino desconhecido.
-A conversa no carro é continuação direta da interação na academia e na lanchonete.
+ORIGEM E CONTEXTO
+Mary e o personal acabaram de sair da mesma academia.
+O personal pertence ao quadro técnico da academia e trabalha ali como personal trainer.
+A conversa da carona continua diretamente o treino e a conversa na lanchonete da academia.
+A lanchonete acabou de fechar quando eles seguem para o carro.
 
-FATOS DA CARONA
+VESTIMENTA E CONDIÇÃO
+Mary acabou de treinar e permanece com roupa de academia: legging de ginástica, tênis e cabelos presos em rabo de cavalo.
+O personal também acabou de trabalhar/treinar na academia e permanece vestido como personal, com roupa esportiva compatível com sua função.
+Nenhum dos dois tomou banho ou trocou de roupa desde a academia.
+Esses fatos permanecem verdadeiros durante toda a Carona, salvo se uma ação posterior os alterar explicitamente.
 
-Mary aceitou a carona do mesmo personal conhecido na academia e na lanchonete.
+VEÍCULO, PARTIDA E DESTINO
+O carro pertence ao personal.
 O personal dirige; Mary é passageira.
-A carona segue até a residência de Mary em Camburi.
+A partida é a academia.
+O destino da carona é a residência de Mary em Camburi.
+Mary sabe que está indo para a própria residência; não é um destino desconhecido.
+Enquanto a Carona estiver ativa, não substituir partida, destino ou meio de transporte por alternativas inventadas.
+
+OUTROS FATOS FIXOS
 É sábado, início da noite, antes das 20 horas.
 O celular de Mary continua sem bateria.
 Mary está separada de Janio.
 O usuário controla falas, decisões, direção, rota, velocidade, manobras, parada e estacionamento do veículo.
 
+CONSEQUÊNCIA PRÁTICA DAS CONSTANTES
+Conversar sobre clube, balada ou programa posterior não significa que Mary e o personal irão diretamente da academia para esse local.
+Como ambos acabaram de sair da academia, estão com roupa esportiva e ainda não tomaram banho nem se trocaram, qualquer convite para sair à noite deve ser entendido como programa posterior, depois que cada um puder se arrumar.
+Não inventar ida imediata ao clube, bar, festa ou outro destino durante a Carona.
+
 CONTINUIDADE
 Use somente fatos realmente estabelecidos sobre o personal.
 Não invente onde ele mora, rotina, estado civil, animais, gostos ou decisões.
+Não invente roupa, calçado, banho, transporte alternativo, parada intermediária ou destino diferente.
 Não antecipe informações de linhas futuras da ROTEIRO_REDATOR.
 
 ARQUITETURA HÍBRIDA
@@ -542,7 +557,8 @@ A fase apenas identifica em qual trecho estrutural da Carona estamos.
 A linha selecionada da ROTEIRO_REDATOR é o conteúdo autoral novo do turno.
 O Redator pode variar somente a forma da fala, sem ampliar fatos, perguntas, hipóteses ou objetivos.
 Linhas já concluídas não devem ser repetidas.
-O runtime controla avanço e conclusão por eventos objetivos; Mary apenas expressa o conteúdo liberado.
+O runtime avança mecanicamente pelo roteiro; Mary apenas interpreta o conteúdo liberado.
+O RESPIRO DE CONTINUIDADE também deve obedecer integralmente às CONSTANTES DO SCRIPT.
 """.strip(),
         "decision_after_turns": 0,
         "convergence_after_turns": 14,
