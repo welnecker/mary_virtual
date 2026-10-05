@@ -29,7 +29,7 @@ CARONA_PHASES = [
     {
         "id": "sabado_convite",
         "goal": "sábado e convite",
-        "orders": [5, 6, 7, 9],
+        "orders": [5, 6, 7],
     },
     {
         "id": "trajeto_chegada",
@@ -43,8 +43,6 @@ CARONA_PHASES = [
     },
 ]
 
-# Exceções estruturais do roteiro. Não são gates de coerência.
-OPTIONAL_ORDERS = {9, 11}
 
 
 def _clean(value: Any) -> str:
@@ -117,7 +115,6 @@ def ensure_carona_state(narrative: dict) -> dict:
             "awaiting_reply_order": 0,
             "breath_pending": False,
             "breath_after_order": 0,
-            "invite_status": "unknown",
             "last_selected_order": 0,
         }
         narrative["hybrid_script"] = state
@@ -126,7 +123,6 @@ def ensure_carona_state(narrative: dict) -> dict:
     state.setdefault("awaiting_reply_order", 0)
     state.setdefault("breath_pending", False)
     state.setdefault("breath_after_order", 0)
-    state.setdefault("invite_status", "unknown")
     state.setdefault("last_selected_order", 0)
     return state
 
@@ -145,34 +141,6 @@ def _write_orders(state: dict, key: str, values: set[int]) -> None:
     state[key] = sorted(values)
 
 
-def _classify_invite_reply(text: str) -> str:
-    """Classificação lexical conservadora; ambiguidade permanece unknown."""
-    value = _clean(text).lower()
-    if not value:
-        return "unknown"
-
-    refusal_patterns = [
-        r"\bn[aã]o\b.*\b(vou|posso|quero|topo|d[aá])\b",
-        r"\bmelhor n[aã]o\b",
-        r"\bdeixa pra (outra|pr[oó]xima)\b",
-        r"\brecus",
-        r"\bdispens",
-    ]
-    for pattern in refusal_patterns:
-        if re.search(pattern, value):
-            return "declined"
-
-    accept_patterns = [
-        r"\b(sim|bora|fechado|combinado|topo|aceito)\b",
-        r"\b(vou|vamos)\b.*\b(clube|balada|n[aá]utico)\b",
-        r"\bpode ser\b",
-    ]
-    for pattern in accept_patterns:
-        if re.search(pattern, value):
-            return "accepted"
-    return "unknown"
-
-
 def register_user_reply(state: dict, user_text: str) -> None:
     """Fecha a linha emitida e agenda exatamente um respiro antes da próxima linha."""
     awaiting = int(state.get("awaiting_reply_order", 0) or 0)
@@ -185,9 +153,6 @@ def register_user_reply(state: dict, user_text: str) -> None:
     state["awaiting_reply_order"] = 0
     state["breath_pending"] = True
     state["breath_after_order"] = awaiting
-
-    if awaiting in {7, 9}:
-        state["invite_status"] = _classify_invite_reply(user_text)
 
 
 def _breath_prompt(state: dict, next_row: dict | None = None) -> str:
@@ -236,18 +201,9 @@ def consume_breath(state: dict) -> None:
 def _phase_for_state(state: dict) -> dict:
     completed = _orders(state, "completed_orders")
     skipped = _orders(state, "skipped_orders")
-    invite_status = _clean(state.get("invite_status")) or "unknown"
 
     for phase in CARONA_PHASES:
-        required = []
-        for order in phase["orders"]:
-            if order == 9 and invite_status != "unknown":
-                skipped.add(order)
-                continue
-            if order == 11 and invite_status != "accepted":
-                skipped.add(order)
-                continue
-            required.append(order)
+        required = list(phase["orders"])
         if any(order not in completed and order not in skipped for order in required):
             _write_orders(state, "skipped_orders", skipped)
             state["phase_id"] = phase["id"]
@@ -274,10 +230,6 @@ def select_carona_line(rows: list[dict], state: dict, scene: dict) -> tuple[dict
             for order in phase["orders"]:
                 if order in completed or order in skipped:
                     continue
-                if order == 9 and _clean(state.get("invite_status")) != "unknown":
-                    continue
-                if order == 11 and _clean(state.get("invite_status")) != "accepted":
-                    continue
                 reserved_row = next(
                     (dict(item) for item in rows if int(item.get("order", 0) or 0) == order),
                     {},
@@ -290,14 +242,6 @@ def select_carona_line(rows: list[dict], state: dict, scene: dict) -> tuple[dict
 
     for order in phase["orders"]:
         if order in completed or order in skipped:
-            continue
-        if order == 9 and _clean(state.get("invite_status")) != "unknown":
-            skipped.add(order)
-            _write_orders(state, "skipped_orders", skipped)
-            continue
-        if order == 11 and _clean(state.get("invite_status")) != "accepted":
-            skipped.add(order)
-            _write_orders(state, "skipped_orders", skipped)
             continue
 
         row = next(
@@ -386,7 +330,6 @@ def build_carona_prompt(
         f"objetivo_da_fase={_clean(phase.get('goal'))}",
         f"linhas_concluidas={completed or '(nenhuma)'}",
         f"linhas_puladas={skipped or '(nenhuma)'}",
-        f"convite_status={_clean(state.get('invite_status')) or 'unknown'}",
         "",
         "MODO ROTEIRIZADO — PRIORIDADE SOBRE O MOTOR DE VOZ",
         "Neste capítulo, as regras abaixo têm prioridade sobre qualquer instrução geral de criatividade, iniciativa, subtexto, interesse próprio ou de acrescentar algo novo.",
@@ -436,7 +379,7 @@ def build_carona_prompt(
         f"tipo={_clean(row.get('type')) or 'INTERPRETADA'}",
     ])
 
-    if selected_order in {6, 7, 9, 11}:
+    if selected_order in {6, 7, 11}:
         parts.extend([
             "",
             "PROTEÇÃO DA ROTA DE CONVITE",
