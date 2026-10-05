@@ -472,7 +472,6 @@ Quando a carona estiver claramente combinada, encerre a conversa sem iniciar a v
             {
                 "id": "dar_carona",
                 "carry_character_identity": True,
-                "generate_recent_memory": True,
                 "label": "Dar carona para Mary",
                 "next_chapter": "carona_camburi",
                 "ledger_entries": [
@@ -536,9 +535,9 @@ mudar para uma pergunta, provocação, convite ou outra iniciativa local.
 
 CONTINUIDADE
 O usuário interpreta o MESMO personal da academia e da lanchonete.
-Use somente a MEMÓRIA DE ENTRADA autoral e a MEMÓRIA RECENTE DA EXECUÇÃO como continuidade
-do capítulo anterior. Não reconstrua falas antigas e não invente nome, residência, rotina,
-estado civil, animais, gostos, planos ou decisões que essas memórias não sustentem.
+Use somente a MEMÓRIA DE ENTRADA autoral como continuidade consolidada do capítulo anterior.
+Não reconstrua falas antigas e não invente nome, residência, rotina, estado civil, animais,
+gostos, planos ou decisões que essa memória não sustente.
 
 AUTORIA FÍSICA
 O personal controla direção, rota, velocidade, manobras, parada e estacionamento do SUV.
@@ -586,7 +585,7 @@ Não antecipe conteúdo de linhas futuras.
             "temporary_character": {
                 "active": True,
                 "name": "Personal",
-                "description": "o mesmo personal conhecido na academia; o nome deve vir de personal_conversation_reference",
+                "description": "o mesmo personal conhecido na academia e na lanchonete",
                 "relation_to_mary": "conhecido recente com quem acabou de conversar na lanchonete",
                 "user_can_play": True,
             },
