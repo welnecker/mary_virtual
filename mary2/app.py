@@ -45,7 +45,7 @@ from story_bible import PHYSICAL_CANON
 
 st.set_page_config(page_title="Mary Core 2", page_icon="🖤", layout="centered")
 
-BUILD_ID = "2026-10-04-carona-beat-runtime-v47"
+BUILD_ID = "2026-10-04-carona-sheet-authority-v49"
 
 DEFAULT_MODELS = [
     "google/gemini-2.5-flash-lite",
@@ -2107,13 +2107,21 @@ if user_text:
             *phase_messages[-24:],
         ]
 
+        # Em roteiro por planilha, a variação pertence à voz de Mary, não ao conteúdo.
+        # Limitar a temperatura reduz improvisação factual sem tornar a fala literal.
+        redactor_temperature = (
+            max(0.2, min(float(temperature), 0.45))
+            if sheet_mode
+            else float(temperature)
+        )
+
         try:
             raw_answer = chat(
                 api_key=api_key,
                 model=model,
                 fallback_model=fallback,
                 messages=llm_messages,
-                temperature=temperature,
+                temperature=redactor_temperature,
             )
             mary_intent, mary_speech_raw = parse_mary_response(raw_answer)
             narration_leak = looks_like_action_narration(mary_speech_raw)
@@ -2139,7 +2147,7 @@ if user_text:
                     model=model,
                     fallback_model=fallback,
                     messages=retry_messages,
-                    temperature=max(0.2, min(float(temperature), 0.8)),
+                    temperature=max(0.2, min(redactor_temperature, 0.45 if sheet_mode else 0.8)),
                 )
                 mary_intent, mary_speech_raw = parse_mary_response(raw_answer)
                 narration_leak = looks_like_action_narration(mary_speech_raw)
