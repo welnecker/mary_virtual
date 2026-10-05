@@ -216,75 +216,8 @@ def _phase_for_state(state: dict) -> dict:
     }
 
 
-def _scene_text(scene: dict) -> str:
-    return " ".join(
-        _clean(scene.get(key))
-        for key in ("location", "time", "proximity", "event", "mary_action")
-    ).lower()
-
-
-def _line_precondition_ready(order: int, state: dict, scene: dict) -> bool:
-    completed = _orders(state, "completed_orders")
-    text = _scene_text(scene)
-
-    if order == 1:
-        return True
-    if order == 2:
-        # Não exige palavras exatas do Diretor: basta a cena já estar no carro/trajeto,
-        # ou a abertura ter sido concluída e o usuário ter continuado a ação.
-        return 1 in completed and any(
-            token in text
-            for token in (
-                "trajeto",
-                "dirig",
-                "movimento",
-                "em movimento",
-                "sai do estacionamento",
-                "deixa o estacionamento",
-                "inicia a viagem",
-            )
-        )
-    if order in {3, 4}:
-        return 2 in completed
-    if order == 5:
-        return 4 in completed
-    if order == 6:
-        return 5 in completed
-    if order == 7:
-        return 6 in completed
-    if order == 9:
-        return 7 in completed and _clean(state.get("invite_status")) == "unknown"
-    if order == 8:
-        return 7 in completed and (
-            9 in completed or 9 in _orders(state, "skipped_orders")
-        )
-    if order == 10:
-        return 8 in completed and any(
-            token in text
-            for token in (
-                "chegando",
-                "chegada",
-                "se aproxima do prédio",
-                "se aproxima do predio",
-                "prédio à vista",
-                "predio a vista",
-                "golden tulip",
-            )
-        )
-    if order == 11:
-        return 10 in completed and _clean(state.get("invite_status")) == "accepted"
-    if order == 12:
-        return 10 in completed and (11 in completed or 11 in _orders(state, "skipped_orders"))
-    if order == 13:
-        return 12 in completed and any(
-            token in text
-            for token in ("parad", "estacion", "encost", "imobiliz")
-        )
-    return True
-
-
 def select_carona_line(rows: list[dict], state: dict, scene: dict) -> tuple[dict, dict, str]:
-    """Seleciona a próxima linha. O terceiro retorno é só continuidade neutra entre linhas."""
+    """Seleciona a próxima linha autoral sem bloquear por coerência física ou pré-condição."""
     phase = _phase_for_state(state)
     if phase["id"] == "concluida":
         return phase, {}, ""
@@ -313,23 +246,8 @@ def select_carona_line(rows: list[dict], state: dict, scene: dict) -> tuple[dict
             _write_orders(state, "skipped_orders", skipped)
             continue
 
-        if _line_precondition_ready(order, state, scene):
-            state["last_selected_order"] = order
-            return phase, row, ""
-
-        return (
-            phase,
-            {},
-            (
-                "CONTINUIDADE ENTRE LINHAS\n"
-                f"fase_atual={phase['id']}\n"
-                "A próxima linha autoral ainda não tem sua pré-condição objetiva satisfeita.\n"
-                "Responda somente ao conteúdo mais recente do usuário e preserve a situação já estabelecida.\n"
-                "Não crie novo destino, objetivo, assunto, premissa ou acontecimento estrutural.\n"
-                "Não force avanço de fase e não antecipe linhas futuras.\n"
-                "Aguarde a condição objetiva da próxima linha surgir pela interação ou pela cena física."
-            ),
-        )
+        state["last_selected_order"] = order
+        return phase, row, ""
 
     return phase, {}, ""
 
@@ -409,7 +327,7 @@ def build_carona_prompt(
         f"fase_atual={_clean(phase.get('id'))}",
         f"objetivo_da_fase={_clean(phase.get('goal'))}",
         f"linhas_concluidas={completed or '(nenhuma)'}",
-        f"linhas_puladas_por_precondicao={skipped or '(nenhuma)'}",
+        f"linhas_puladas={skipped or '(nenhuma)'}",
         f"convite_status={_clean(state.get('invite_status')) or 'unknown'}",
         "",
         "REGRA DE EXECUÇÃO",
