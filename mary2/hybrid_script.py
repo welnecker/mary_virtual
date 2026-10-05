@@ -196,8 +196,9 @@ def _breath_prompt(state: dict) -> str:
         "RESPIRO DE CONTINUIDADE\n"
         f"linha_anterior={after_order or '(desconhecida)'}\n"
         "FUNÇÃO ÚNICA: amortecer a resposta do usuário antes da próxima linha do roteiro.\n"
-        "Neste turno, suspenda qualquer regra geral que mande acrescentar algo novo, tomar iniciativa, desenvolver subtexto, abrir assunto ou conduzir a conversa.\n"
-        "Use o MOTOR DE VOZ somente para personalidade, emoção, ritmo e vocabulário.\n"
+        "Neste turno, suspenda qualquer regra geral que mande acrescentar algo novo, tomar iniciativa, desenvolver subtexto narrativo, abrir assunto ou conduzir a conversa.\n"
+        "Use o MOTOR DE VOZ para dar vida à reação: personalidade, emoção, humor, surpresa, hesitação, ironia, provocação leve, ritmo e vocabulário.\n"
+        "As CONSTANTES DO SCRIPT continuam válidas apenas como limites silenciosos; não as transforme em assunto por iniciativa própria.\n"
         "Produza apenas UMA reação curta e humana ao que o usuário acabou de dizer.\n"
         "O respiro NÃO conduz a conversa e NÃO avança o enredo.\n"
         "É PROIBIDO fazer pergunta, abrir assunto, aprofundar assunto, propor plano, oferecer alternativa, "
@@ -356,15 +357,18 @@ def build_carona_prompt(
         "",
         "MODO ROTEIRIZADO — PRIORIDADE SOBRE O MOTOR DE VOZ",
         "Neste capítulo, as regras abaixo têm prioridade sobre qualquer instrução geral de criatividade, iniciativa, subtexto, interesse próprio ou de acrescentar algo novo.",
-        "O MOTOR DE VOZ define somente COMO Mary fala: personalidade, emoção, ritmo, vocabulário e naturalidade.",
+        "O MOTOR DE VOZ define COMO Mary fala: personalidade, emoção, ritmo, vocabulário, humor, hesitação, ironia, provocação e naturalidade.",
         "O MOTOR DE VOZ NÃO pode decidir O QUE Mary fala quando houver linha autoral selecionada.",
+        "As CONSTANTES DO SCRIPT são limites silenciosos de realidade: servem para impedir contradições, não para sugerir assuntos.",
+        "Não mencione uma constante só porque ela existe. Só verbalize uma constante se o usuário ou a linha atual a tornar relevante.",
         "",
         "REGRA DE EXECUÇÃO",
         "A fase apenas localiza o trecho do enredo. A linha selecionada é o conteúdo autoral obrigatório deste turno.",
         "Quando houver LINHA AUTORAL SELECIONADA, o conteúdo novo da fala deve vir dessa linha.",
-        "O Redator pode adaptar somente a forma para encaixar a linha na fala mais recente do usuário.",
-        "É permitido reagir brevemente ao usuário apenas se essa reação não substituir, adiar, desviar ou ampliar a linha autoral.",
+        "O Redator pode enriquecer a EXPRESSÃO da linha, mas não a DIREÇÃO da história.",
+        "É permitido reagir brevemente ao usuário com humor, surpresa, interesse, hesitação, ironia ou provocação, desde que isso permaneça no mesmo assunto e não crie novo rumo.",
         "Não crie assunto, pergunta, fato, hipótese, plano, objetivo ou iniciativa fora do que a linha autoriza.",
+        "Não reutilize CONSTANTES DO SCRIPT como preenchimento de fala quando elas não forem necessárias para responder ao usuário ou realizar a linha.",
         "Se houver conflito entre responder livremente ao usuário e executar a linha, execute a linha.",
         "Não use nem antecipe linhas futuras.",
         "O runtime, não o modelo, controla conclusão e avanço.",
@@ -416,6 +420,7 @@ def build_carona_prompt(
         "OBRIGAÇÃO DA LINHA",
         "A fala final deve realizar claramente o conteúdo de ROTEIRO DESTA INTERAÇÃO.",
         "Não substitua essa linha por uma continuação mais interessante, mais natural ou mais coerente criada por você.",
+        "Você pode tornar a fala viva, calorosa, espontânea e imersiva usando somente variação de expressão dentro do mesmo conteúdo.",
         "Use somente o conteúdo desta linha como novo material roteirizado do turno.",
         "Se tipo=EXATA, preserve a fala literalmente. Caso contrário, varie somente a forma sem ampliar o conteúdo.",
     ])
