@@ -33,6 +33,7 @@ from persistence import (
     save_branch,
     save_checkpoint,
     save_director_audit,
+    save_model_audit,
     save_turn,
     update_run_snapshot,
 )
@@ -1393,42 +1394,64 @@ def generate_model_chapter_opening(
         ),
     }
 
+    opening_messages = [
+        {"role": "system", "content": system_prompt},
+        opening_instruction,
+    ]
+    model_audit = {
+        "model": model,
+        "fallback_model": fallback or "",
+        "temperature": temperature,
+        "system_prompt": system_prompt,
+        "messages": deepcopy(opening_messages),
+        "initial_raw_response": "",
+        "retry_used": False,
+        "retry_messages": [],
+        "retry_raw_response": "",
+        "final_raw_response": "",
+        "mary_speech_raw": "",
+        "mary_thought": "",
+        "final_mary_text": "",
+    }
+
     raw_answer = chat(
         api_key=api_key,
         model=model,
         fallback_model=fallback,
-        messages=[
-            {"role": "system", "content": system_prompt},
-            opening_instruction,
-        ],
+        messages=opening_messages,
         temperature=temperature,
     )
+    model_audit["initial_raw_response"] = raw_answer
     mary_intent, mary_speech_raw = parse_mary_response(raw_answer)
     narration_leak = looks_like_action_narration(mary_speech_raw)
     answer = sanitize_mary_output(mary_speech_raw)
 
     if not answer or narration_leak:
+        opening_retry_messages = [
+            {"role": "system", "content": system_prompt},
+            opening_instruction,
+            {
+                "role": "system",
+                "content": (
+                    "CORREÇÃO DE FORMATO: use exatamente [FALA] e depois [PENSAMENTO]. "
+                    "[FALA] deve conter somente palavras que Mary diria em voz alta, "
+                    "[PENSAMENTO] deve ser uma frase curta em primeira pessoa escrita depois da fala, "
+                    "também em primeira pessoa. Gestos, aparência, postura e movimentos "
+                    "pertencem ao Diretor. Use sensação corporal somente quando Mary "
+                    "realmente a verbalizaria numa conversa."
+                ),
+            },
+        ]
+        model_audit["retry_used"] = True
+        model_audit["retry_messages"] = deepcopy(opening_retry_messages)
         raw_answer = chat(
             api_key=api_key,
             model=model,
             fallback_model=fallback,
-            messages=[
-                {"role": "system", "content": system_prompt},
-                opening_instruction,
-                {
-                    "role": "system",
-                    "content": (
-                        "CORREÇÃO DE FORMATO: use exatamente [FALA] e depois [PENSAMENTO]. "
-                        "[FALA] deve conter somente palavras que Mary diria em voz alta, "
-                        "[PENSAMENTO] deve ser uma frase curta em primeira pessoa escrita depois da fala, "
-                        "também em primeira pessoa. Gestos, aparência, postura e movimentos "
-                        "pertencem ao Diretor. Use sensação corporal somente quando Mary "
-                        "realmente a verbalizaria numa conversa."
-                    ),
-                },
-            ],
+            messages=opening_retry_messages,
             temperature=max(0.2, min(float(temperature), 0.8)),
         )
+        model_audit["retry_raw_response"] = raw_answer
         mary_intent, mary_speech_raw = parse_mary_response(raw_answer)
         narration_leak = looks_like_action_narration(mary_speech_raw)
         answer = sanitize_mary_output(mary_speech_raw)
@@ -1437,6 +1460,11 @@ def generate_model_chapter_opening(
         raise OpenRouterError(
             "O modelo não produziu uma abertura verbal limpa para o novo capítulo."
         )
+
+    model_audit["final_raw_response"] = raw_answer
+    model_audit["mary_speech_raw"] = mary_speech_raw
+    model_audit["mary_thought"] = mary_intent
+    model_audit["final_mary_text"] = answer
 
     st.session_state.scene_state = scene
     st.session_state.messages = [{"role": "assistant", "content": answer}]
@@ -1812,6 +1840,21 @@ if user_text:
             {"role": "system", "content": system_prompt},
             *phase_messages[-24:],
         ]
+        model_audit = {
+            "model": model,
+            "fallback_model": fallback or "",
+            "temperature": temperature,
+            "system_prompt": system_prompt,
+            "messages": deepcopy(llm_messages),
+            "initial_raw_response": "",
+            "retry_used": False,
+            "retry_messages": [],
+            "retry_raw_response": "",
+            "final_raw_response": "",
+            "mary_speech_raw": "",
+            "mary_thought": "",
+            "final_mary_text": "",
+        }
 
         try:
             raw_answer = chat(
@@ -1821,6 +1864,7 @@ if user_text:
                 messages=llm_messages,
                 temperature=temperature,
             )
+            model_audit["initial_raw_response"] = raw_answer
             mary_intent, mary_speech_raw = parse_mary_response(raw_answer)
             narration_leak = looks_like_action_narration(mary_speech_raw)
             answer = sanitize_mary_output(mary_speech_raw)
@@ -1840,6 +1884,8 @@ if user_text:
                         ),
                     },
                 ]
+                model_audit["retry_used"] = True
+                model_audit["retry_messages"] = deepcopy(retry_messages)
                 raw_answer = chat(
                     api_key=api_key,
                     model=model,
@@ -1847,6 +1893,7 @@ if user_text:
                     messages=retry_messages,
                     temperature=max(0.2, min(float(temperature), 0.8)),
                 )
+                model_audit["retry_raw_response"] = raw_answer
                 mary_intent, mary_speech_raw = parse_mary_response(raw_answer)
                 narration_leak = looks_like_action_narration(mary_speech_raw)
                 answer = sanitize_mary_output(mary_speech_raw)
@@ -1868,6 +1915,11 @@ if user_text:
             ]
             st.session_state.messages = messages_before_turn
             raise
+
+        model_audit["final_raw_response"] = raw_answer
+        model_audit["mary_speech_raw"] = mary_speech_raw
+        model_audit["mary_thought"] = mary_intent
+        model_audit["final_mary_text"] = answer
 
         # Só confirma a cena depois que Mary respondeu de fato.
         st.session_state.scene_state = scene
