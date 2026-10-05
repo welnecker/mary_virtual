@@ -43,10 +43,7 @@ CARONA_PHASES = [
     },
 ]
 
-# Linhas que só terminam quando o usuário responde ao conteúdo emitido.
-AWAIT_REPLY_ORDERS = {3, 4, 5, 6, 7, 9, 11, 12}
-
-# Linha 11 só faz sentido quando o convite já foi aceito de forma explícita.
+# Exceções estruturais do roteiro. Não são gates de coerência.
 OPTIONAL_ORDERS = {9, 11}
 
 
@@ -118,6 +115,8 @@ def ensure_carona_state(narrative: dict) -> dict:
             "completed_orders": [],
             "skipped_orders": [],
             "awaiting_reply_order": 0,
+            "breath_pending": False,
+            "breath_after_order": 0,
             "invite_status": "unknown",
             "last_selected_order": 0,
         }
@@ -125,6 +124,8 @@ def ensure_carona_state(narrative: dict) -> dict:
     state.setdefault("completed_orders", [])
     state.setdefault("skipped_orders", [])
     state.setdefault("awaiting_reply_order", 0)
+    state.setdefault("breath_pending", False)
+    state.setdefault("breath_after_order", 0)
     state.setdefault("invite_status", "unknown")
     state.setdefault("last_selected_order", 0)
     return state
@@ -173,7 +174,7 @@ def _classify_invite_reply(text: str) -> str:
 
 
 def register_user_reply(state: dict, user_text: str) -> None:
-    """Fecha somente uma espera objetiva: houve resposta após uma pergunta/convite."""
+    """Fecha a linha emitida e agenda exatamente um respiro antes da próxima linha."""
     awaiting = int(state.get("awaiting_reply_order", 0) or 0)
     if not awaiting or not _clean(user_text):
         return
@@ -182,9 +183,30 @@ def register_user_reply(state: dict, user_text: str) -> None:
     completed.add(awaiting)
     _write_orders(state, "completed_orders", completed)
     state["awaiting_reply_order"] = 0
+    state["breath_pending"] = True
+    state["breath_after_order"] = awaiting
 
     if awaiting in {7, 9}:
         state["invite_status"] = _classify_invite_reply(user_text)
+
+
+def _breath_prompt(state: dict) -> str:
+    after_order = int(state.get("breath_after_order", 0) or 0)
+    return (
+        "RESPIRO DE CONTINUIDADE\n"
+        f"linha_anterior={after_order or '(desconhecida)'}\n"
+        "Este turno existe somente para absorver a resposta do usuário à linha anterior.\n"
+        "Responda diretamente ao que o usuário acabou de dizer em uma ou duas frases curtas.\n"
+        "Não introduza novo assunto, pergunta estrutural, fato, hipótese, plano, destino ou acontecimento.\n"
+        "Não antecipe nem tente executar a próxima linha do roteiro.\n"
+        "Não repita a linha anterior. Mantenha apenas a reação humana necessária para a conversa respirar."
+    )
+
+
+def consume_breath(state: dict) -> None:
+    """Consome o único respiro; a próxima interação volta ao roteiro."""
+    state["breath_pending"] = False
+    state["breath_after_order"] = 0
 
 
 def _phase_for_state(state: dict) -> dict:
@@ -219,6 +241,8 @@ def _phase_for_state(state: dict) -> dict:
 def select_carona_line(rows: list[dict], state: dict, scene: dict) -> tuple[dict, dict, str]:
     """Seleciona a próxima linha autoral sem bloquear por coerência física ou pré-condição."""
     phase = _phase_for_state(state)
+    if bool(state.get("breath_pending", False)):
+        return phase, {}, _breath_prompt(state)
     if phase["id"] == "concluida":
         return phase, {}, ""
 
@@ -253,16 +277,11 @@ def select_carona_line(rows: list[dict], state: dict, scene: dict) -> tuple[dict
 
 
 def mark_carona_line_emitted(state: dict, order: int) -> None:
+    """Toda linha emitida aguarda a próxima fala do usuário antes de ser encerrada."""
     order = int(order or 0)
     if not order:
         return
-    if order in AWAIT_REPLY_ORDERS:
-        state["awaiting_reply_order"] = order
-        return
-
-    completed = _orders(state, "completed_orders")
-    completed.add(order)
-    _write_orders(state, "completed_orders", completed)
+    state["awaiting_reply_order"] = order
 
 
 def carona_ready_for_choice(state: dict) -> bool:
