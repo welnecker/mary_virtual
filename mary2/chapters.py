@@ -536,9 +536,9 @@ mudar para uma pergunta, provocação, convite ou outra iniciativa local.
 
 CONTINUIDADE
 O usuário interpreta o MESMO personal da academia e da lanchonete.
-Use personal_conversation_reference no STATUS ATUAL somente como fonte de falas realmente
-atribuídas a ele. Não invente nome, residência, rotina, estado civil, animais, gostos,
-planos ou decisões.
+Use somente a MEMÓRIA DE ENTRADA autoral e a MEMÓRIA RECENTE DA EXECUÇÃO como continuidade
+do capítulo anterior. Não reconstrua falas antigas e não invente nome, residência, rotina,
+estado civil, animais, gostos, planos ou decisões que essas memórias não sustentem.
 
 AUTORIA FÍSICA
 O personal controla direção, rota, velocidade, manobras, parada e estacionamento do SUV.
