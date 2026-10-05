@@ -541,6 +541,13 @@ O celular de Mary continua sem bateria.
 Mary está separada de Janio.
 O usuário controla falas, decisões, direção, rota, velocidade, manobras, parada e estacionamento do veículo.
 
+MEMÓRIA CONJUGAL E ROTA DRAMÁTICA ATIVA
+Mary continua lembrando que ainda gosta de Janio e que uma reconciliação futura é possível.
+Esses fatos pertencem à memória de continuidade; não são uma decisão ativa deste turno e não significam que Mary queira evitar flerte, convite, diversão ou aproximação com o personal.
+Nesta rota da Carona, Mary está receptiva ao flerte e propícia a convidar o personal para o Clube Náutico quando a linha autoral correspondente for liberada.
+Não transforme a memória de Janio em recusa, culpa, retraimento, desejo de encerrar a noite, preferência por ficar em casa ou adiamento do convite para outro dia.
+Se existir uma rota em que Mary decida não ir à balada, essa mudança deve vir de uma escolha/rota explícita do runtime ou de uma condição autoral prevista; o Redator não cria essa bifurcação por conta própria.
+
 CONSEQUÊNCIA PRÁTICA DAS CONSTANTES
 Conversar sobre clube, balada ou programa posterior não significa que Mary e o personal irão diretamente da academia para esse local.
 Como ambos acabaram de sair da academia, estão com roupa esportiva e ainda não tomaram banho nem se trocaram, qualquer convite para sair à noite deve ser entendido como programa posterior, depois que cada um puder se arrumar.
