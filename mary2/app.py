@@ -20,6 +20,7 @@ from input_router import parse_user_input
 from hybrid_script import (
     build_carona_prompt,
     carona_ready_for_choice,
+    closing_convergence_prompt,
     ensure_carona_state,
     load_sheet_script,
     mark_carona_line_emitted,
@@ -53,7 +54,7 @@ from story_bible import PHYSICAL_CANON
 
 st.set_page_config(page_title="Mary Core 2", page_icon="🖤", layout="centered")
 
-BUILD_ID = "2026-10-05-carona-hybrid-v40"
+BUILD_ID = "2026-10-05-carona-hybrid-v41"
 
 DEFAULT_MODELS = [
     "google/gemini-2.5-flash-lite",
@@ -1760,7 +1761,8 @@ if user_text:
         hybrid_rows: list[dict] = []
         hybrid_state: dict | None = None
         hybrid_selected_row: dict = {}
-        hybrid_convergence = ""
+        hybrid_continuity = ""
+        hybrid_closing_convergence = ""
 
         if script_mode == "hybrid_phase_sheet":
             hybrid_rows = _hybrid_script_rows(
@@ -1770,7 +1772,7 @@ if user_text:
             hybrid_state = ensure_carona_state(narrative_state)
             if user_spoke:
                 register_user_reply(hybrid_state, dialogue_text)
-            current_phase, hybrid_selected_row, hybrid_convergence = select_carona_line(
+            current_phase, hybrid_selected_row, hybrid_continuity = select_carona_line(
                 hybrid_rows,
                 hybrid_state,
                 st.session_state.scene_state,
@@ -1817,7 +1819,8 @@ if user_text:
             scene_for_director["mary_immediate_goal"] = ""
             scene_for_director["mary_action"] = ""
             scene_for_director["event"] = ""
-            scene_for_director["return_anchor"] = ""
+            if script_mode != "hybrid_phase_sheet":
+                scene_for_director["return_anchor"] = ""
 
         if script_mode == "hybrid_phase_sheet":
             current_chapter_prompt = build_carona_prompt(
@@ -1825,7 +1828,13 @@ if user_text:
                 phase=current_phase,
                 row=hybrid_selected_row,
                 state=hybrid_state or {},
-                convergence_text=hybrid_convergence,
+                continuity_text=hybrid_continuity,
+                closing_convergence_text=closing_convergence_prompt(
+                    state=hybrid_state or {},
+                    phase=current_phase,
+                    chapter_turn=current_turn_number,
+                    after_turns=int(chapter_config.get("convergence_after_turns", 14) or 14),
+                ),
             )
         else:
             current_chapter_prompt = chapter_prompt(
@@ -1873,19 +1882,26 @@ if user_text:
         # Na Carona híbrida, a cena física atualizada pelo Diretor pode liberar
         # uma linha que ainda não estava disponível antes deste turno.
         if script_mode == "hybrid_phase_sheet":
-            current_phase, hybrid_selected_row, hybrid_convergence = select_carona_line(
+            current_phase, hybrid_selected_row, hybrid_continuity = select_carona_line(
                 hybrid_rows,
                 hybrid_state or {},
                 scene,
             )
             current_phase_id = str(current_phase.get("id", "") or "").strip()
             current_phase_goal = str(current_phase.get("goal", "") or "").strip()
+            hybrid_closing_convergence = closing_convergence_prompt(
+                state=hybrid_state or {},
+                phase=current_phase,
+                chapter_turn=current_turn_number,
+                after_turns=int(chapter_config.get("convergence_after_turns", 14) or 14),
+            )
             current_chapter_prompt = build_carona_prompt(
                 facts_prompt=str(chapter_config.get("facts_prompt", "") or ""),
                 phase=current_phase,
                 row=hybrid_selected_row,
                 state=hybrid_state or {},
-                convergence_text=hybrid_convergence,
+                continuity_text=hybrid_continuity,
+                closing_convergence_text=hybrid_closing_convergence,
             )
 
         scene["chapter_turn_current"] = current_turn_number
