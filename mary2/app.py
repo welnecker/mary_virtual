@@ -7,7 +7,6 @@ from copy import deepcopy
 import streamlit as st
 
 from chapter_continuity import carry_user_statements
-from chapter_memory import build_recent_memory_prompt, parse_recent_memory, recent_memory_text
 from chapters import (
     apply_choice_to_story,
     chapter_choices,
@@ -46,7 +45,7 @@ from story_bible import PHYSICAL_CANON
 
 st.set_page_config(page_title="Mary Core 2", page_icon="🖤", layout="centered")
 
-BUILD_ID = "2026-10-04-carona-recent-memory-v48"
+BUILD_ID = "2026-10-04-carona-beat-runtime-v47"
 
 DEFAULT_MODELS = [
     "google/gemini-2.5-flash-lite",
@@ -154,68 +153,6 @@ def _handoff_text(state: dict) -> str:
     return "\n".join(parts) or "(nenhum)"
 
 
-def _generate_recent_memory_for_transition(
-    *,
-    source_chapter_id: str,
-    records: list[dict],
-    source_state: dict,
-) -> dict:
-    """Generate one compact memory snapshot at chapter close; never during turns."""
-    if not records:
-        return {}
-
-    try:
-        api_key = str(st.secrets["OPENROUTER_API_KEY"]).strip()
-    except Exception:
-        return {}
-    if not api_key:
-        return {}
-
-    fallback = str(st.secrets.get("MARY_FALLBACK_MODEL", "")).strip() or None
-    default_model = str(globals().get("model", "") or DEFAULT_MODELS[0]).strip()
-    memory_model = str(
-        st.secrets.get(
-            "MARY_MEMORY_MODEL",
-            st.secrets.get("MARY_INPUT_MODEL", default_model),
-        )
-    ).strip() or default_model
-
-    structural_facts: list[str] = []
-    ledger = source_state.get("story_ledger", []) if isinstance(source_state, dict) else []
-    if isinstance(ledger, list):
-        structural_facts.extend(
-            str(item or "").strip()
-            for item in ledger[-12:]
-            if str(item or "").strip()
-        )
-
-    status = source_state.get("current_status", {}) if isinstance(source_state, dict) else {}
-    if isinstance(status, dict):
-        for key, value in status.items():
-            if key == "personal_conversation_reference":
-                continue
-            if isinstance(value, (str, int, float, bool)) and str(value).strip():
-                structural_facts.append(f"{key}: {value}")
-
-    prompt = build_recent_memory_prompt(
-        source_chapter_id=source_chapter_id,
-        records=records,
-        structural_facts=structural_facts,
-    )
-    try:
-        raw = chat(
-            api_key=api_key,
-            model=memory_model,
-            fallback_model=fallback,
-            messages=[{"role": "system", "content": prompt}],
-            temperature=0.1,
-            max_tokens=650,
-        )
-    except Exception:
-        return {}
-    return parse_recent_memory(raw)
-
-
 def _scene_for_chapter_transition(chapter: dict, previous_scene: dict) -> dict:
     initial = deepcopy(chapter.get("initial_scene", {}) or {})
     if not bool(chapter.get("inherit_scene", False)):
@@ -269,13 +206,6 @@ def activate_chapter(
     last_seq = int(st.session_state.get("run_last_seq", 0) or 0)
     previous_state = deepcopy(st.session_state.story_state)
     previous_scene = deepcopy(st.session_state.scene_state)
-    recent_memory = {}
-    if bool(choice.get("generate_recent_memory", False)):
-        recent_memory = _generate_recent_memory_for_transition(
-            source_chapter_id=previous_chapter_id,
-            records=list(st.session_state.turn_records),
-            source_state=previous_state,
-        )
     if choice.get("carry_user_statements"):
         previous_state = carry_user_statements(
             previous_state, previous_chapter_id, st.session_state.turn_records
@@ -335,10 +265,6 @@ def activate_chapter(
     narrative["chapter_instance_id"] = chapter_instance_id
     narrative["chapter_entry_checkpoint_id"] = ""
     narrative["choice_ready"] = False
-    narrative["recent_memory"] = recent_memory
-    narrative["recent_memory_source_chapter"] = (
-        previous_chapter_id if recent_memory else ""
-    )
     narrative.pop("phase_start_message_index", None)
     narrative.pop("active_phase_id", None)
 
@@ -562,15 +488,9 @@ def activate_choice_from_checkpoint(
 
     base_state = migrate_state(checkpoint["story_state"])
     base_scene = deepcopy(checkpoint["scene_state"])
-    source_records: list[dict] = []
-    if (
-        bool(choice.get("generate_recent_memory", False))
-        or (
-            choice.get("carry_user_statements")
-            and not base_state.get("current_status", {}).get("personal_conversation_reference")
-        )
-    ):
-        # Read only the original chapter instance up to the selected decision.
+    if choice.get("carry_user_statements") and not base_state.get("current_status", {}).get("personal_conversation_reference"):
+        # Old decision checkpoints predate source-based continuity. Read only
+        # this run, then select the exact original chapter instance for replay.
         source_rows = load_run_interactions(
             service_account_info=persistence["service_account_info"],
             spreadsheet_id=persistence["spreadsheet_id"],
@@ -580,28 +500,11 @@ def activate_choice_from_checkpoint(
         )
         source_instance = str(checkpoint.get("source_chapter_instance_id", ""))
         source_seq = int(checkpoint.get("source_seq", 0) or 0)
-        source_records = [
-            row for row in source_rows
-            if str(row.get("chapter_instance_id", "")) == source_instance
-            and int(row.get("seq", 0) or 0) <= source_seq
-        ]
-
-    if (
-        choice.get("carry_user_statements")
-        and not base_state.get("current_status", {}).get("personal_conversation_reference")
-    ):
         base_state = carry_user_statements(
-            base_state,
-            source_chapter_id,
-            source_records,
-        )
-
-    recent_memory = {}
-    if bool(choice.get("generate_recent_memory", False)):
-        recent_memory = _generate_recent_memory_for_transition(
-            source_chapter_id=source_chapter_id,
-            records=source_records,
-            source_state=base_state,
+            base_state, source_chapter_id,
+            [row for row in source_rows
+             if str(row.get("chapter_instance_id", "")) == source_instance
+             and int(row.get("seq", 0) or 0) <= source_seq],
         )
     base_narrative = base_state.setdefault("narrative", {})
     parent_branch_id = str(
@@ -635,10 +538,6 @@ def activate_choice_from_checkpoint(
     narrative["chapter_instance_id"] = instance_id
     narrative["chapter_entry_checkpoint_id"] = ""
     narrative["choice_ready"] = False
-    narrative["recent_memory"] = recent_memory
-    narrative["recent_memory_source_chapter"] = (
-        source_chapter_id if recent_memory else ""
-    )
     narrative.pop("phase_start_message_index", None)
     narrative.pop("active_phase_id", None)
 
@@ -919,8 +818,7 @@ def _sheet_line_chapter_prompt(
         line_prompt = build_line_prompt(row, line_order=line_order)
 
     memory_prompt = build_memory_prompt(memories)
-    recent_prompt = recent_memory_text(narrative.get("recent_memory", {}))
-    pieces = [base_prompt, memory_prompt, recent_prompt, line_prompt]
+    pieces = [base_prompt, memory_prompt, line_prompt]
     return "\n\n".join(piece for piece in pieces if str(piece or "").strip()).strip(), line_order, row
 
 
