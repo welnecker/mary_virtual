@@ -21,6 +21,7 @@ from hybrid_script import (
     build_carona_prompt,
     carona_ready_for_choice,
     closing_convergence_prompt,
+    consume_breath,
     ensure_carona_state,
     load_sheet_script,
     mark_carona_line_emitted,
@@ -54,7 +55,7 @@ from story_bible import PHYSICAL_CANON
 
 st.set_page_config(page_title="Mary Core 2", page_icon="🖤", layout="centered")
 
-BUILD_ID = "2026-10-05-carona-hybrid-v43"
+BUILD_ID = "2026-10-05-carona-hybrid-v44"
 
 DEFAULT_MODELS = [
     "google/gemini-2.5-flash-lite",
@@ -2096,6 +2097,8 @@ if user_text:
             selected_order = int(hybrid_selected_row.get("order", 0) or 0)
             if selected_order:
                 mark_carona_line_emitted(hybrid_state, selected_order)
+            elif hybrid_continuity.startswith("RESPIRO DE CONTINUIDADE"):
+                consume_breath(hybrid_state)
             if carona_ready_for_choice(hybrid_state):
                 narrative["choice_ready"] = True
 
