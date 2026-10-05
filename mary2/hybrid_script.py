@@ -23,22 +23,22 @@ SCRIPT_HEADERS = {
 CARONA_PHASES = [
     {
         "id": "entrada_rota",
-        "goal": "iniciar a carona, estabelecer o trajeto e conhecer a rotina do personal",
+        "goal": "saída e início do trajeto",
         "orders": [1, 2, 3, 4],
     },
     {
         "id": "sabado_convite",
-        "goal": "conhecer os planos de sábado e fazer o convite para o Clube Náutico",
+        "goal": "sábado e convite",
         "orders": [5, 6, 7, 9],
     },
     {
         "id": "trajeto_chegada",
-        "goal": "manter o trajeto vivo e chegar fisicamente ao Golden Tulip",
+        "goal": "trajeto e chegada",
         "orders": [8, 10],
     },
     {
         "id": "despedida",
-        "goal": "resolver reencontro, contato e despedida sem decidir pelo personal",
+        "goal": "combinação e despedida",
         "orders": [11, 12, 13],
     },
 ]
