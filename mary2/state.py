@@ -19,8 +19,6 @@ INITIAL_STATE = {
         "parent_checkpoint_id": "",
         "chapter_instance_id": "confissao_inicial_001",
         "chapter_entry_checkpoint_id": "",
-        "recent_memory": {},
-        "recent_memory_source_chapter": "",
     },
     "story_ledger": [],
     "current_status": {
@@ -89,14 +87,6 @@ def migrate_state(state: dict | None) -> dict:
             ),
             "chapter_entry_checkpoint_id": str(
                 narrative.get("chapter_entry_checkpoint_id", "") or ""
-            ),
-            "recent_memory": (
-                deepcopy(narrative.get("recent_memory"))
-                if isinstance(narrative.get("recent_memory"), dict)
-                else {}
-            ),
-            "recent_memory_source_chapter": str(
-                narrative.get("recent_memory_source_chapter", "") or ""
             ),
         })
 
