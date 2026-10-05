@@ -38,7 +38,7 @@ CARONA_PHASES = [
     },
     {
         "id": "despedida",
-        "goal": "combinação e despedida",
+        "goal": "fechamento emocional, contato e despedida",
         "orders": [11, 12, 13],
     },
 ]
@@ -291,7 +291,7 @@ def closing_convergence_prompt(
         f"turno_atual={int(chapter_turn or 0)}\n"
         "A Carona já ultrapassou a duração esperada e está em sua fase final.\n"
         "Não introduza novos assuntos importantes. Responda normalmente ao usuário e, quando houver oportunidade natural, "
-        "aproxime a cena de chegada, combinação final e despedida.\n"
+        "aproxime a cena de chegada, fechamento emocional, contato e despedida.\n"
         "Não force o encerramento, não pule a linha autoral ativa e não decida ações do personagem do usuário.\n"
         "O objetivo é apenas favorecer um gancho natural para o próximo enredo."
     )
@@ -379,7 +379,7 @@ def build_carona_prompt(
         f"tipo={_clean(row.get('type')) or 'INTERPRETADA'}",
     ])
 
-    if selected_order in {6, 7, 11}:
+    if selected_order in {6, 7}:
         parts.extend([
             "",
             "PROTEÇÃO DA ROTA DE CONVITE",
