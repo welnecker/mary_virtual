@@ -90,6 +90,7 @@ def recent_memory_text(memory: dict | None) -> str:
     parts = [
         "MEMORIA RECENTE DA EXECUCAO",
         "Resumo consolidado do capitulo imediatamente anterior. Nao reconstrua o dialogo original.",
+        "Se houver conflito com fatos estruturais ou com a MEMORIA DE ENTRADA autoral, a memoria autoral prevalece.",
     ]
     for key, label in labels.items():
         items = memory.get(key, [])
