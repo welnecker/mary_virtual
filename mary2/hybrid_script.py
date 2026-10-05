@@ -32,7 +32,7 @@ CARONA_PHASES = [
     {
         "id": "sabado_convite",
         "goal": "conhecer os planos de sábado e fazer o convite para o Clube Náutico",
-        "orders": [5, 6, 7],
+        "orders": [5, 6, 7, 9],
     },
     {
         "id": "trajeto_chegada",
@@ -47,10 +47,10 @@ CARONA_PHASES = [
 ]
 
 # Linhas que só terminam quando o usuário responde ao conteúdo emitido.
-AWAIT_REPLY_ORDERS = {3, 4, 5, 6, 7, 11, 12}
+AWAIT_REPLY_ORDERS = {3, 4, 5, 6, 7, 9, 11, 12}
 
 # Linha 11 só faz sentido quando o convite já foi aceito de forma explícita.
-OPTIONAL_ORDERS = {11}
+OPTIONAL_ORDERS = {9, 11}
 
 
 def _clean(value: Any) -> str:
@@ -186,7 +186,7 @@ def register_user_reply(state: dict, user_text: str) -> None:
     _write_orders(state, "completed_orders", completed)
     state["awaiting_reply_order"] = 0
 
-    if awaiting == 7:
+    if awaiting in {7, 9}:
         state["invite_status"] = _classify_invite_reply(user_text)
 
 
@@ -198,7 +198,10 @@ def _phase_for_state(state: dict) -> dict:
     for phase in CARONA_PHASES:
         required = []
         for order in phase["orders"]:
-            if order in OPTIONAL_ORDERS and order == 11 and invite_status != "accepted":
+            if order == 9 and invite_status != "unknown":
+                skipped.add(order)
+                continue
+            if order == 11 and invite_status != "accepted":
                 skipped.add(order)
                 continue
             required.append(order)
@@ -252,8 +255,12 @@ def _line_precondition_ready(order: int, state: dict, scene: dict) -> bool:
         return 5 in completed
     if order == 7:
         return 6 in completed
+    if order == 9:
+        return 7 in completed and _clean(state.get("invite_status")) == "unknown"
     if order == 8:
-        return 7 in completed
+        return 7 in completed and (
+            9 in completed or 9 in _orders(state, "skipped_orders")
+        )
     if order == 10:
         return 8 in completed and any(
             token in text
@@ -290,6 +297,10 @@ def select_carona_line(rows: list[dict], state: dict, scene: dict) -> tuple[dict
 
     for order in phase["orders"]:
         if order in completed or order in skipped:
+            continue
+        if order == 9 and _clean(state.get("invite_status")) != "unknown":
+            skipped.add(order)
+            _write_orders(state, "skipped_orders", skipped)
             continue
         if order == 11 and _clean(state.get("invite_status")) != "accepted":
             skipped.add(order)
