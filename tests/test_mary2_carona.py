@@ -96,6 +96,7 @@ def test_carona_transition_does_not_request_raw_dialogue_memory():
     choice = find_choice('academia_suco_aceito', 'dar_carona')
     assert choice.get('carry_user_statements') is not True
     assert choice.get('carry_character_identity') is True
+    assert choice.get('generate_recent_memory') is True
 
     carona_choice = find_choice('carona_camburi', 'mary_em_seu_apartamento')
     assert carona_choice.get('carry_user_statements') is not True
