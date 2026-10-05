@@ -16,6 +16,7 @@ from google.oauth2.service_account import Credentials
 RUNS_SHEET = "STORY_RUNS"
 INTERACTIONS_SHEET = "INTERACTIONS"
 DIRECTOR_AUDIT_SHEET = "DIRECTOR_AUDIT"
+MODEL_AUDIT_SHEET = "MODEL_AUDIT"
 CHECKPOINTS_SHEET = "STORY_CHECKPOINTS"
 BRANCHES_SHEET = "STORY_BRANCHES"
 
@@ -82,6 +83,31 @@ DIRECTOR_AUDIT_HEADERS = [
     "scene_after_json",
     "main_model",
     "mary_text",
+    "branch_id",
+    "chapter_instance_id",
+    "chapter_turn",
+]
+
+MODEL_AUDIT_HEADERS = [
+    "run_id",
+    "seq",
+    "created_at",
+    "chapter_id",
+    "user_role",
+    "user_text",
+    "main_model",
+    "fallback_model",
+    "temperature",
+    "system_prompt",
+    "messages_json",
+    "initial_raw_response",
+    "retry_used",
+    "retry_messages_json",
+    "retry_raw_response",
+    "final_raw_response",
+    "mary_speech_raw",
+    "mary_thought",
+    "final_mary_text",
     "branch_id",
     "chapter_instance_id",
     "chapter_turn",
@@ -284,6 +310,7 @@ def ensure_schema(
     _ensure_worksheet(book, RUNS_SHEET, RUN_HEADERS)
     _ensure_worksheet(book, INTERACTIONS_SHEET, INTERACTION_HEADERS)
     _ensure_worksheet(book, DIRECTOR_AUDIT_SHEET, DIRECTOR_AUDIT_HEADERS)
+    _ensure_worksheet(book, MODEL_AUDIT_SHEET, MODEL_AUDIT_HEADERS)
     _ensure_worksheet(book, CHECKPOINTS_SHEET, CHECKPOINT_HEADERS)
     _ensure_worksheet(book, BRANCHES_SHEET, BRANCH_HEADERS)
     return {
@@ -714,6 +741,64 @@ def save_director_audit(
             _audit_cell(after),
             main_model,
             _audit_cell(mary_text),
+            branch_id,
+            chapter_instance_id,
+            int(chapter_turn or 0),
+        ],
+        value_input_option="RAW",
+    )
+
+
+
+def save_model_audit(
+    *,
+    service_account_info: dict,
+    run_id: str,
+    seq: int,
+    chapter_id: str,
+    user_role: str,
+    user_text: str,
+    audit: dict,
+    branch_id: str = "",
+    chapter_instance_id: str = "",
+    chapter_turn: int = 0,
+    spreadsheet_id: str = "",
+    spreadsheet_title: str = "MARY_CORE_PERSISTENCE",
+    owner_email: str = "",
+) -> None:
+    """Registra exatamente o pacote lógico enviado ao modelo principal e suas respostas."""
+    if not isinstance(audit, dict) or not audit:
+        return
+
+    book = open_or_create_book(
+        service_account_info=service_account_info,
+        spreadsheet_id=spreadsheet_id,
+        spreadsheet_title=spreadsheet_title,
+        owner_email=owner_email,
+    )
+    ws = _ensure_worksheet(book, MODEL_AUDIT_SHEET, MODEL_AUDIT_HEADERS)
+
+    ws.append_row(
+        [
+            run_id,
+            int(seq or 0),
+            _now(),
+            chapter_id,
+            user_role,
+            user_text,
+            str(audit.get("model", "") or ""),
+            str(audit.get("fallback_model", "") or ""),
+            audit.get("temperature", ""),
+            _audit_cell(audit.get("system_prompt", "")),
+            _audit_cell(audit.get("messages", [])),
+            _audit_cell(audit.get("initial_raw_response", "")),
+            bool(audit.get("retry_used", False)),
+            _audit_cell(audit.get("retry_messages", [])),
+            _audit_cell(audit.get("retry_raw_response", "")),
+            _audit_cell(audit.get("final_raw_response", "")),
+            _audit_cell(audit.get("mary_speech_raw", "")),
+            _audit_cell(audit.get("mary_thought", "")),
+            _audit_cell(audit.get("final_mary_text", "")),
             branch_id,
             chapter_instance_id,
             int(chapter_turn or 0),
