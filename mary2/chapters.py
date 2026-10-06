@@ -593,6 +593,12 @@ O runtime muda de cena somente quando a condição de saída estiver realmente s
             "temporary_character": {"active": True, "name": "Personal", "description": "o mesmo personal conhecido na academia", "relation_to_mary": "conhecido recente", "user_can_play": True},
             "return_anchor": "chegar à residência de Mary em Camburi",
             "event": "Mary e o personal chegam ao carro para iniciar a carona.",
+            "physical_state": {
+                "location_type": "outside_vehicle",
+                "vehicle_motion": "parked",
+                "mary_position": "outside_vehicle",
+                "arrival_state": "not_started",
+            },
             "scene_changed": True, "show_caption": True, "scene_caption": "",
             "arc_phase": "entrada_rota", "resolution_type": "choice", "resolution_summary": "A carona foi combinada.",
             "start_new_scene": True, "turns_in_scene": 0, "scene_number": 4,
