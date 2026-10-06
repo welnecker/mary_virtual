@@ -1899,6 +1899,7 @@ if user_text:
                 facts_prompt=str(chapter_config.get("facts_prompt", "") or ""),
                 row=funnel_row,
                 state=funnel_state or {},
+                scene=scene_for_director,
             )
         elif script_mode == "hybrid_phase_sheet":
             current_chapter_prompt = build_carona_prompt(
@@ -2255,9 +2256,10 @@ if user_text:
                 state=funnel_state,
                 row=funnel_row,
                 evaluation=funnel_evaluation,
+                scene=scene,
             )
             _LOG.info(
-                "FUNNEL_AUDIT scene=%s turn=%s stage=%s boundary_ok=%s exit=%s advanced=%s next=%s",
+                "FUNNEL_AUDIT scene=%s turn=%s stage=%s boundary_ok=%s pending=%s advanced=%s next=%s",
                 str(funnel_row.get("scene_id", "") or ""),
                 int(
                     funnel_progress.get("state_after", {}).get(
@@ -2268,7 +2270,7 @@ if user_text:
                 ),
                 str(funnel_progress.get("stage", "") or ""),
                 bool(funnel_evaluation.get("boundary_ok", True)),
-                bool(funnel_evaluation.get("exit_condition_met", False)),
+                ",".join(funnel_progress.get("pending_markers", []) or []),
                 bool(funnel_progress.get("advanced", False)),
                 str(funnel_progress.get("advanced_to", "") or ""),
             )
