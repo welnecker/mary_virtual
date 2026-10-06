@@ -72,8 +72,10 @@ def test_writer_prompt_is_direct_and_contains_only_authorial_fields():
     assert "STORY LEDGER" not in prompt
     assert "CONTEXTO FIXO DO CAPÍTULO" not in prompt
     assert "FALA DO USUÁRIO é o único acontecimento verbal que acabou de ocorrer" in prompt
-    assert "FALA-GUIA é uma MISSÃO AUTORAL" in prompt
-    assert "Não é uma fala anterior" in prompt
+    assert "interprete silenciosamente o que essa fala significa neste contexto" in prompt
+    assert "INTERPRETAR O USUÁRIO -> REAGIR COMO MARY -> DESENVOLVER A FALA-GUIA" in prompt
+    assert "Não responda apenas às palavras literais do usuário" in prompt
+    assert "A FALA-GUIA orienta para onde a conversa deve caminhar" in prompt
     assert "Não devem ser recitados, explicados nem transformados em assunto" in prompt
     assert "Não puxe delas informações que o usuário não pediu" in prompt
 
