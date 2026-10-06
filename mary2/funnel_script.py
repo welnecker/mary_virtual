@@ -809,7 +809,13 @@ def evaluate_funnel_turn(
         data.get("violations", []),
         limit=12,
     )
-    if not mission_progress_ok:
+    mission_progress_target = _clean(
+        data.get("mission_progress_target")
+    )
+    if (
+        not mission_progress_ok
+        and mission_progress_target not in PHYSICAL_ONLY_MARKERS
+    ):
         boundary_ok = False
         violations = _unique_text(
             violations + ["missão obrigatória ignorada"],
@@ -821,9 +827,7 @@ def evaluate_funnel_turn(
         "violations": violations,
         "semantic_markers": semantic_markers,
         "mission_progress_ok": mission_progress_ok,
-        "mission_progress_target": _clean(
-            data.get("mission_progress_target")
-        ),
+        "mission_progress_target": mission_progress_target,
         "physical_markers": sorted(physical),
         "user_facts": _normalize_user_facts(
             data.get("user_facts", []),
