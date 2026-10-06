@@ -778,10 +778,6 @@ def save_director_audit(
             branch_id,
             chapter_instance_id,
             int(chapter_turn or 0),
-            _audit_cell(progress.get("required_markers", [])),
-            _audit_cell(progress.get("achieved_markers", [])),
-            _audit_cell(progress.get("pending_markers", [])),
-            bool(progress.get("exit_ready", False)),
         ],
         value_input_option="RAW",
     )
@@ -911,6 +907,10 @@ def save_funnel_audit(
             branch_id,
             chapter_instance_id,
             int(chapter_turn or 0),
+            _audit_cell(progress.get("required_markers", [])),
+            _audit_cell(progress.get("achieved_markers", [])),
+            _audit_cell(progress.get("pending_markers", [])),
+            bool(progress.get("exit_ready", False)),
         ],
         value_input_option="RAW",
     )
