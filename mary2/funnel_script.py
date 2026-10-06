@@ -561,6 +561,8 @@ Formato:
   "boundary_ok": true,
   "violations": [],
   "semantic_markers": [],
+  "mission_progress_ok": true,
+  "mission_progress_target": "",
   "user_facts": [],
   "consumed_topics": [],
   "user_stance": {},
@@ -571,6 +573,9 @@ REGRAS DE FRONTEIRA:
 - boundary_ok=false se Mary abrir assunto fora de ABERTURA PERMITIDA/CONVERGÊNCIA, violar NÃO PODE, inventar fato/decisão/ação do usuário ou antecipar território de cena futura.
 - Em convergência/fechamento, abrir um assunto novo que não ajuda uma pendência é violação.
 - Não aprove uma resposta só porque ela soa natural; confira o território autorizado.
+- Se houver pending_markers, a resposta de Mary deve avançar a missão: ou cumprir uma entrega de Mary, ou perguntar/conduzir claramente para obter a próxima entrega do usuário.
+- Responder apenas ao assunto incidental sem avançar ou buscar next_priority significa mission_progress_ok=false.
+- Quando mission_progress_ok=false, boundary_ok também deve ser false e violations deve incluir "missão obrigatória ignorada".
 
 MARCADORES:
 - semantic_markers pode conter SOMENTE IDs listados em allowed_semantic_markers.
@@ -678,7 +683,11 @@ def evaluate_funnel_turn(
     semantic_allowed = [
         marker
         for marker in required
-        if marker not in {"carro_em_movimento", "chegada_golden_tulip"}
+        if marker not in {
+            "carro_em_movimento",
+            "mary_passageira_instalada",
+            "chegada_golden_tulip",
+        }
     ]
 
     payload = {
@@ -698,6 +707,19 @@ def evaluate_funnel_turn(
         "physical_markers": sorted(physical),
         "already_achieved_markers": achieved_markers(state, scene),
         "pending_markers": pending_markers(row, state, scene),
+        "next_priority": (
+            pending_markers(row, state, scene)[0]
+            if pending_markers(row, state, scene)
+            else ""
+        ),
+        "next_priority_description": (
+            MARKER_DESCRIPTIONS.get(
+                pending_markers(row, state, scene)[0],
+                pending_markers(row, state, scene)[0],
+            )
+            if pending_markers(row, state, scene)
+            else ""
+        ),
         "user_text": _clean(user_text),
         "mary_text": _clean(mary_text),
     }
@@ -724,10 +746,29 @@ def evaluate_funnel_turn(
         if marker in semantic_allowed
     ]
 
+    mission_progress_ok = bool(
+        data.get("mission_progress_ok", True)
+    )
+    boundary_ok = bool(data.get("boundary_ok", True))
+    violations = _unique_text(
+        data.get("violations", []),
+        limit=12,
+    )
+    if not mission_progress_ok:
+        boundary_ok = False
+        violations = _unique_text(
+            violations + ["missão obrigatória ignorada"],
+            limit=12,
+        )
+
     return {
-        "boundary_ok": bool(data.get("boundary_ok", True)),
-        "violations": _unique_text(data.get("violations", []), limit=12),
+        "boundary_ok": boundary_ok,
+        "violations": violations,
         "semantic_markers": semantic_markers,
+        "mission_progress_ok": mission_progress_ok,
+        "mission_progress_target": _clean(
+            data.get("mission_progress_target")
+        ),
         "physical_markers": sorted(physical),
         "user_facts": _normalize_user_facts(
             data.get("user_facts", []),
