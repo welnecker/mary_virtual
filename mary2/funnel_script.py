@@ -723,24 +723,51 @@ def correction_prompt(
     )
 
 
+def _merge_fact_dicts(existing: Any, new_items: Any, *, limit: int = 24) -> list[dict]:
+    result: list[dict] = []
+    seen: set[tuple[str, str, str]] = set()
+
+    for item in list(existing or []) + list(new_items or []):
+        if not isinstance(item, dict):
+            continue
+        fact = _clean(item.get("fact"))
+        if not fact:
+            continue
+        normalized = {
+            "category": _clean(item.get("category")) or "outro",
+            "fact": fact,
+            "modality": _clean(item.get("modality")) or "confirmado",
+            "source_quote": _clean(item.get("source_quote")),
+        }
+        key = (
+            normalized["category"].casefold(),
+            normalized["fact"].casefold(),
+            normalized["modality"].casefold(),
+        )
+        if key in seen:
+            continue
+        seen.add(key)
+        result.append(normalized)
+        if len(result) >= limit:
+            break
+
+    return result
+
+
 def apply_funnel_evaluation(
     *,
     rows: list[dict],
     state: dict,
     row: dict,
     evaluation: dict,
+    scene: dict,
 ) -> dict:
     before = deepcopy(state)
     memory = state.setdefault("memory", {})
 
-    memory["user_facts"] = _unique_text(
-        list(memory.get("user_facts", []))
-        + list(evaluation.get("user_facts", [])),
-        limit=24,
-    )
-    memory["mary_facts"] = _unique_text(
-        list(memory.get("mary_facts", []))
-        + list(evaluation.get("mary_facts", [])),
+    memory["user_facts"] = _merge_fact_dicts(
+        memory.get("user_facts", []),
+        evaluation.get("user_facts", []),
         limit=24,
     )
     memory["consumed_topics"] = _unique_text(
@@ -749,87 +776,92 @@ def apply_funnel_evaluation(
         limit=24,
     )
 
-    state["scene_turn"] = (
-        int(state.get("scene_turn", 0) or 0) + 1
+    semantic = _unique_text(
+        evaluation.get("semantic_markers", []),
+        limit=16,
     )
+    physical = derive_physical_markers(scene)
+    state["markers"] = _unique_text(
+        list(state.get("markers", []))
+        + semantic
+        + physical,
+        limit=32,
+    )
+
+    state["scene_turn"] = int(state.get("scene_turn", 0) or 0) + 1
     state["last_evaluation"] = deepcopy(evaluation)
     state["last_advance_reason"] = ""
 
-    min_turns = int(
-        row.get("min_turns", 1) or 1
-    )
+    required = required_markers(row)
+    achieved = achieved_markers(state, scene)
+    missing = [
+        marker
+        for marker in required
+        if marker not in set(achieved)
+    ]
+
+    min_turns = int(row.get("min_turns", 1) or 1)
     can_advance = (
         bool(evaluation.get("boundary_ok", True))
-        and bool(
-            evaluation.get(
-                "exit_condition_met",
-                False,
-            )
-        )
         and int(state["scene_turn"]) >= min_turns
+        and not missing
     )
 
     advanced_to = ""
+    completed_markers = list(achieved)
 
     if can_advance:
-        current_id = _clean(
-            row.get("scene_id")
-        )
+        current_id = _clean(row.get("scene_id"))
         state["completed_scene_ids"] = _unique_text(
-            list(
-                state.get(
-                    "completed_scene_ids",
-                    [],
-                )
-            )
+            list(state.get("completed_scene_ids", []))
             + [current_id],
             limit=64,
         )
 
-        candidates = list(
-            evaluation.get(
-                "consolidated_memory_candidates",
-                [],
-            )
-        )
-        if evaluation.get("user_stance"):
-            candidates.append(
-                f"Na cena {current_id}, posição do usuário: "
-                f"{_clean(evaluation.get('user_stance'))}."
-            )
-
-        memory["consolidated"] = _unique_text(
-            list(memory.get("consolidated", []))
-            + candidates,
+        consolidated = _merge_fact_dicts(
+            memory.get("consolidated", []),
+            memory.get("user_facts", []),
             limit=40,
         )
 
-        next_index = (
-            int(state.get("scene_index", 0) or 0)
-            + 1
-        )
+        stance = evaluation.get("user_stance", {})
+        if isinstance(stance, dict) and _clean(stance.get("value")):
+            consolidated = _merge_fact_dicts(
+                consolidated,
+                [
+                    {
+                        "category": "posição_na_cena",
+                        "fact": (
+                            f"Na cena {current_id}, posição do usuário: "
+                            f"{_clean(stance.get('value'))}."
+                        ),
+                        "modality": _clean(stance.get("value")),
+                        "source_quote": _clean(stance.get("source_quote")),
+                    }
+                ],
+                limit=40,
+            )
 
+        memory["consolidated"] = consolidated
+
+        next_index = int(state.get("scene_index", 0) or 0) + 1
         if next_index >= len(rows):
             state["completed"] = True
             state["scene_id"] = ""
             state["last_advance_reason"] = (
-                "condição de saída satisfeita; "
-                "funil concluído"
+                "todos os marcadores obrigatórios foram comprovados; funil concluído"
             )
             advanced_to = "FIM"
         else:
             state["scene_index"] = next_index
-            state["scene_id"] = _clean(
-                rows[next_index].get("scene_id")
-            )
+            state["scene_id"] = _clean(rows[next_index].get("scene_id"))
             state["scene_turn"] = 0
+            state["markers"] = []
             state["last_advance_reason"] = (
-                "condição de saída satisfeita"
+                "todos os marcadores obrigatórios foram comprovados"
             )
             advanced_to = state["scene_id"]
 
-            # A memória curta pertence à cena.
-            # Só o consolidado atravessa o funil.
             memory["user_facts"] = []
             memory["mary_facts"] = []
             memory["consumed_topics"] = []
@@ -839,10 +871,11 @@ def apply_funnel_evaluation(
         "state_after": deepcopy(state),
         "advanced": can_advance,
         "advanced_to": advanced_to,
-        "stage": funnel_stage(
-            row,
-            before,
-        ),
+        "stage": funnel_stage(row, before),
+        "required_markers": required,
+        "achieved_markers": completed_markers,
+        "pending_markers": missing,
+        "exit_ready": not missing,
     }
 
 
