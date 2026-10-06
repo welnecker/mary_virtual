@@ -79,6 +79,7 @@ from persistence import (
     save_branch,
     save_block_audit,
     save_direct_script_audit,
+    save_director_validation_audit,
     save_checkpoint,
     save_director_audit,
     save_funnel_audit,
@@ -2372,6 +2373,35 @@ if user_text:
                     row=direct_row,
                     mary_text=answer,
                 )
+                if persistence:
+                    try:
+                        save_director_validation_audit(
+                            service_account_info=persistence["service_account_info"],
+                            spreadsheet_id=persistence["spreadsheet_id"],
+                            spreadsheet_title=persistence["spreadsheet_title"],
+                            owner_email=persistence["owner_email"],
+                            run_id=str(st.session_state.run_id or ""),
+                            seq_candidate=int(st.session_state.run_last_seq or 0) + 1,
+                            chapter_id=_chapter_id(),
+                            chapter_instance_id=str(
+                                narrative_state.get("chapter_instance_id", "") or ""
+                            ),
+                            chapter_turn=current_turn_number,
+                            row=direct_row,
+                            user_text=dialogue_text,
+                            attempt=1,
+                            mary_text=answer,
+                            evaluation=direct_validation,
+                            status=(
+                                "APPROVED"
+                                if bool(direct_validation.get("fulfilled", False))
+                                else "REJECTED_RETRY"
+                            ),
+                        )
+                    except Exception as director_validation_audit_exc:
+                        st.session_state.audit_error = str(
+                            director_validation_audit_exc
+                        )
                 director_audit = {
                     "model": direct_validation.get("model", director_model),
                     "duration_ms": direct_validation.get("duration_ms", ""),
@@ -2426,6 +2456,35 @@ if user_text:
                         row=direct_row,
                         mary_text=answer,
                     )
+                    if persistence:
+                        try:
+                            save_director_validation_audit(
+                                service_account_info=persistence["service_account_info"],
+                                spreadsheet_id=persistence["spreadsheet_id"],
+                                spreadsheet_title=persistence["spreadsheet_title"],
+                                owner_email=persistence["owner_email"],
+                                run_id=str(st.session_state.run_id or ""),
+                                seq_candidate=int(st.session_state.run_last_seq or 0) + 1,
+                                chapter_id=_chapter_id(),
+                                chapter_instance_id=str(
+                                    narrative_state.get("chapter_instance_id", "") or ""
+                                ),
+                                chapter_turn=current_turn_number,
+                                row=direct_row,
+                                user_text=dialogue_text,
+                                attempt=2,
+                                mary_text=answer,
+                                evaluation=direct_validation,
+                                status=(
+                                    "APPROVED_RETRY"
+                                    if bool(direct_validation.get("fulfilled", False))
+                                    else "REJECTED_FINAL"
+                                ),
+                            )
+                        except Exception as director_validation_audit_exc:
+                            st.session_state.audit_error = str(
+                                director_validation_audit_exc
+                            )
                     director_audit = {
                         "model": direct_validation.get("model", director_model),
                         "duration_ms": direct_validation.get("duration_ms", ""),
