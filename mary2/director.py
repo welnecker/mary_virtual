@@ -227,6 +227,7 @@ def direct_scene(
     scene_direction: str = "",
     user_spoke: bool = True,
     chapter_text: str = "",
+    funnel_mode: bool = False,
     conditional_transition: bool = False,
     advance_when: str = "",
 ) -> dict:
@@ -259,6 +260,7 @@ def direct_scene(
         + "\n\nPAPEL MUDOU?\n" + ("SIM" if role_changed else "NÃO")
         + "\n\nDIREÇÃO EXPLÍCITA DO USUÁRIO:\n" + (scene_direction.strip() or "(nenhuma)")
         + "\n\nO PERSONAGEM ATIVO FALOU?\n" + ("SIM" if user_spoke else "NÃO")
+        + "\n\nMODO FUNIL:\n" + ("SIM" if funnel_mode else "NÃO")
         + "\n\nTRANSIÇÃO CONDICIONAL:\n" + ("SIM" if conditional_transition else "NÃO")
         + "\n\nCONDIÇÃO OBJETIVA DE SAÍDA:\n"
         + (advance_when.strip() if conditional_transition and advance_when.strip() else "(não se aplica)")
@@ -269,7 +271,10 @@ def direct_scene(
           "A direção explícita e as interações recentes prevalecem sobre campos antigos. "
           "Se houver mudança física real, atualize proximity/event/mary_action. "
           "Se houver gancho aberto, resolva a lacuna de forma jogável. "
-          "Se o personagem não falou, Mary pode tomar uma iniciativa concreta coerente. "
+          "Se MODO FUNIL=SIM, cuide somente do estado físico: não derive objetivo psicológico "
+          "de Mary a partir de falas anteriores e não transforme assunto inventado por Mary em direção "
+          "da cena; deixe mary_immediate_goal vazio. "
+          "Se o personagem não falou, Mary pode tomar uma iniciativa física concreta coerente. "
           "Quando TRANSIÇÃO CONDICIONAL=SIM, avalie a condição objetiva e preencha microstep_complete."
     )
 
@@ -329,7 +334,11 @@ def direct_scene(
             or current_scene.get("sexual_intensity", "")
             or ""
         ).strip(),
-        "mary_immediate_goal": str(data.get("mary_immediate_goal", "") or "").strip(),
+        "mary_immediate_goal": (
+            ""
+            if funnel_mode
+            else str(data.get("mary_immediate_goal", "") or "").strip()
+        ),
         "mary_action": str(
             data.get("mary_action", "")
             or (
