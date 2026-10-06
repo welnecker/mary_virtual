@@ -26,7 +26,7 @@ ROWS = [
         "min_turns": 1,
         "ideal_turns": 2,
         "max_turns": 3,
-        "exit_markers": "usuario_residencia_ou_vida_domestica; usuario_preferencia_noturna",
+        "exit_markers": "usuario_residencia; usuario_vida_domestica; usuario_preferencia_noturna",
     },
 ]
 
@@ -51,7 +51,7 @@ def moving_scene():
     }
 
 
-def test_funnel_drops_legacy_hybrid_state_and_starts_v2():
+def test_funnel_drops_legacy_hybrid_state_and_starts_v3():
     narrative = {
         "hybrid_script": {
             "completed_orders": [1, 2],
@@ -146,7 +146,7 @@ def test_migrate_state_preserves_funnel_runtime_state():
                 "scene_id": "conversa",
                 "scene_turn": 2,
                 "completed_scene_ids": ["entrada"],
-                "markers": ["usuario_residencia_ou_vida_domestica"],
+                "markers": ["usuario_residencia"],
                 "user_stance": {
                     "value": "talvez/incerto",
                     "source_quote": "talvez",
