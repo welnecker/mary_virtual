@@ -71,7 +71,7 @@ st.set_page_config(page_title="Mary Core 2", page_icon="🖤", layout="centered"
 
 _LOG = logging.getLogger(__name__)
 
-BUILD_ID = "2026-10-06-carona-funnel-v3"
+BUILD_ID = "2026-10-06-carona-funnel-v3-audit"
 
 DEFAULT_MODELS = [
     "google/gemini-2.5-flash-lite",
@@ -2167,16 +2167,17 @@ if user_text:
                         True,
                     )
                 ):
+                    funnel_correction_prompt = correction_prompt(
+                        funnel_row,
+                        funnel_evaluation,
+                        state=funnel_state,
+                        scene=scene,
+                    )
                     retry_messages = [
                         *llm_messages,
                         {
                             "role": "system",
-                            "content": correction_prompt(
-                                funnel_row,
-                                funnel_evaluation,
-                                state=funnel_state,
-                                scene=scene,
-                            ),
+                            "content": funnel_correction_prompt,
                         },
                     ]
                     model_audit["retry_used"] = True
@@ -2246,6 +2247,7 @@ if user_text:
                                     "funnel_evaluation_initial",
                                     {},
                                 ),
+                                correction_prompt=funnel_correction_prompt,
                                 retry_mary_text=answer,
                                 retry_evaluation=funnel_evaluation,
                                 branch_id=str(
