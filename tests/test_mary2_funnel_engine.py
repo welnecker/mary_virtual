@@ -13,42 +13,47 @@ from mary2.state import migrate_state
 ROWS = [
     {
         "order": 1,
-        "scene_id": "entrada",
-        "min_turns": 2,
-        "ideal_turns": 3,
-        "max_turns": 4,
-        "exit_markers": "carro_em_movimento; mary_passageira_instalada",
-        "mission": "Colocar a carona em movimento.",
-    },
-    {
-        "order": 2,
-        "scene_id": "conversa",
+        "scene_id": "roteiro_step_01",
+        "mission": "Descobrir onde o usuário mora.",
+        "completion_criterion": "O usuário informou onde mora.",
+        "completion_type": "USER",
         "min_turns": 1,
         "ideal_turns": 2,
         "max_turns": 3,
-        "exit_markers": "usuario_residencia; usuario_vida_domestica; usuario_preferencia_noturna",
+    },
+    {
+        "order": 2,
+        "scene_id": "roteiro_step_02",
+        "mission": "Mary reconhece que gostou da conversa.",
+        "completion_criterion": "Mary reconheceu claramente que gostou da conversa.",
+        "completion_type": "MARY",
+        "min_turns": 1,
+        "ideal_turns": 2,
+        "max_turns": 3,
     },
 ]
 
 
-def evaluation(*, markers=None, stance=None, facts=None):
+def evaluation(*, complete=False, evidence=None, missing=None, facts=None):
     return {
         "boundary_ok": True,
         "violations": [],
-        "semantic_markers": list(markers or []),
+        "step_complete": complete,
+        "completion_evidence": list(evidence or []),
+        "missing": list(missing or []),
+        "mission_progress_ok": True,
+        "semantic_markers": [],
         "physical_markers": [],
         "user_facts": list(facts or []),
         "consumed_topics": [],
-        "user_stance": dict(stance or {}),
-        "summary": "A conversa avançou.",
+        "user_stance": {},
+        "summary": "O passo avançou.",
     }
 
 
 def moving_scene():
     return {
-        "location": "interior do carro do personal",
-        "proximity": "sentada no banco do passageiro",
-        "event": "O carro segue pela estrada rumo a Camburi.",
+        "event": "Texto humano livre.",
         "physical_state": {
             "location_type": "inside_vehicle",
             "vehicle_motion": "moving",
@@ -58,58 +63,115 @@ def moving_scene():
     }
 
 
-def test_funnel_drops_legacy_hybrid_state_and_starts_v3():
+def test_generic_engine_replaces_legacy_runtime():
     narrative = {
-        "hybrid_script": {
-            "completed_orders": [1, 2],
-            "breath_pending": True,
-        }
+        "hybrid_script": {"completed_orders": [1, 2]},
+        "funnel_script": {"engine": "carona_funnel_v5"},
     }
 
     state = ensure_funnel_state(narrative, ROWS)
 
     assert "hybrid_script" not in narrative
-    assert state["engine"] == "carona_funnel_v5"
-    assert state["scene_id"] == "entrada"
-    assert state["markers"] == []
+    assert state["engine"] == "generic_script_v6"
+    assert state["scene_id"] == "roteiro_step_01"
+    assert state["step_complete"] is False
+    assert state["step_evidence"] == []
 
 
-def test_physical_scene_state_proves_vehicle_movement():
-    assert "carro_em_movimento" in derive_physical_markers(
-        moving_scene()
-    )
-
-
-def test_runtime_advances_immediately_when_mission_is_complete():
+def test_incomplete_step_stays_on_same_author_line():
     state = ensure_funnel_state({}, ROWS)
 
     result = apply_funnel_evaluation(
         rows=ROWS,
         state=state,
         row=ROWS[0],
-        evaluation=evaluation(),
+        evaluation=evaluation(
+            complete=False,
+            evidence=[
+                {
+                    "source": "mary",
+                    "detail": "Mary perguntou onde o usuário mora.",
+                    "quote": "Onde você mora?",
+                }
+            ],
+            missing=["resposta do usuário sobre residência"],
+        ),
         scene=moving_scene(),
     )
 
-    assert result["exit_ready"] is True
+    assert result["advanced"] is False
+    assert state["scene_id"] == "roteiro_step_01"
+    assert state["scene_turn"] == 1
+    assert state["step_evidence"]
+    assert state["step_missing"] == ["resposta do usuário sobre residência"]
+
+
+def test_complete_step_advances_without_story_specific_markers():
+    state = ensure_funnel_state({}, ROWS)
+
+    result = apply_funnel_evaluation(
+        rows=ROWS,
+        state=state,
+        row=ROWS[0],
+        evaluation=evaluation(
+            complete=True,
+            evidence=[
+                {
+                    "source": "user",
+                    "detail": "O usuário informou sua residência.",
+                    "quote": "Moro em Jardim da Penha.",
+                }
+            ],
+        ),
+        scene=moving_scene(),
+    )
+
     assert result["advanced"] is True
-    assert result["advanced_to"] == "conversa"
-    assert state["scene_id"] == "conversa"
+    assert result["advanced_to"] == "roteiro_step_02"
+    assert state["scene_id"] == "roteiro_step_02"
     assert state["scene_turn"] == 0
-    assert state["markers"] == []
+    assert state["step_evidence"] == []
+    assert state["step_missing"] == []
 
 
-def test_question_or_invitation_is_not_accepted_as_user_fact_without_literal_evidence():
-    raw = [
-        {
-            "category": "moradia",
-            "fact": "O usuário mora sozinho.",
-            "modality": "confirmado",
-            "source_quote": "moro sozinho",
-        }
-    ]
+def test_boundary_failure_never_advances_even_if_step_complete():
+    state = ensure_funnel_state({}, ROWS)
+    bad = evaluation(complete=True)
+    bad["boundary_ok"] = False
+    bad["violations"] = ["Mary abriu assunto de linha futura."]
 
-    assert _normalize_user_facts(raw, "Vamos nessa?") == []
+    result = apply_funnel_evaluation(
+        rows=ROWS,
+        state=state,
+        row=ROWS[0],
+        evaluation=bad,
+        scene=moving_scene(),
+    )
+
+    assert result["advanced"] is False
+    assert state["scene_id"] == "roteiro_step_01"
+
+
+def test_physical_state_is_exposed_generically_not_as_story_marker():
+    facts = derive_physical_markers(moving_scene())
+
+    assert "physical:vehicle_motion=moving" in facts
+    assert "physical:mary_position=passenger_seat" in facts
+    assert "carro_em_movimento" not in facts
+
+
+def test_event_text_does_not_create_physical_truth():
+    scene = {
+        "event": "O carro acelera, entra no fluxo e segue pela avenida.",
+        "physical_state": {
+            "location_type": "unknown",
+            "vehicle_motion": "unknown",
+            "mary_position": "unknown",
+            "arrival_state": "unknown",
+        },
+    }
+
+    assert derive_physical_markers(scene) == []
 
 
 def test_user_fact_requires_literal_support_and_preserves_modality():
@@ -131,37 +193,56 @@ def test_user_fact_requires_literal_support_and_preserves_modality():
     assert normalized[0]["source_quote"] == "talvez eu apareça"
 
 
-def test_stage_tightens_with_turn_budget():
+def test_question_is_not_accepted_as_user_fact():
+    raw = [
+        {
+            "category": "moradia",
+            "fact": "O usuário mora sozinho.",
+            "modality": "confirmado",
+            "source_quote": "onde você mora?",
+        }
+    ]
+
+    assert _normalize_user_facts(raw, "Onde você mora?") == []
+
+
+def test_stage_tightens_without_forcing_completion():
     state = {"scene_turn": 0}
     assert funnel_stage(ROWS[0], state) == "abertura"
 
-    state["scene_turn"] = 2
+    state["scene_turn"] = 1
     assert funnel_stage(ROWS[0], state) == "convergencia"
 
-    state["scene_turn"] = 3
+    state["scene_turn"] = 2
     assert funnel_stage(ROWS[0], state) == "fechamento"
 
 
-def test_migrate_state_preserves_funnel_runtime_state():
+def test_migrate_state_preserves_generic_runtime_state():
     original = {
         "narrative": {
             "chapter_id": "carona_camburi",
             "chapter_turns": 5,
             "funnel_script": {
-                "engine": "carona_funnel_v5",
-                "scene_index": 1,
-                "scene_id": "conversa",
+                "engine": "generic_script_v6",
+                "scene_index": 0,
+                "scene_id": "roteiro_step_01",
                 "scene_turn": 2,
-                "completed_scene_ids": ["entrada"],
-                "markers": ["usuario_residencia"],
-                "user_stance": {
-                    "value": "talvez/incerto",
-                    "source_quote": "talvez",
-                },
+                "completed_scene_ids": [],
+                "markers": [],
+                "step_complete": False,
+                "step_evidence": [
+                    {
+                        "source": "mary",
+                        "detail": "Mary perguntou sobre residência.",
+                        "quote": "Onde você mora?",
+                    }
+                ],
+                "step_missing": ["resposta do usuário"],
+                "user_stance": {},
                 "memory": {
                     "user_facts": [],
                     "mary_facts": [],
-                    "consumed_topics": ["moradia"],
+                    "consumed_topics": [],
                     "consolidated": [],
                 },
                 "completed": False,
@@ -177,71 +258,3 @@ def test_migrate_state_preserves_funnel_runtime_state():
         migrated["narrative"]["funnel_script"]
         == original["narrative"]["funnel_script"]
     )
-
-
-def test_second_funnel_requires_all_three_deliveries():
-    state = ensure_funnel_state({}, ROWS)
-    state["scene_index"] = 1
-    state["scene_id"] = "conversa"
-    row = ROWS[1]
-
-    partial = apply_funnel_evaluation(
-        rows=ROWS,
-        state=state,
-        row=row,
-        evaluation=evaluation(
-            markers=["usuario_residencia", "usuario_vida_domestica"]
-        ),
-        scene=moving_scene(),
-    )
-
-    assert partial["advanced"] is False
-    assert "usuario_preferencia_noturna" in partial["pending_markers"]
-
-    complete = apply_funnel_evaluation(
-        rows=ROWS,
-        state=state,
-        row=row,
-        evaluation=evaluation(
-            markers=["usuario_preferencia_noturna"]
-        ),
-        scene=moving_scene(),
-    )
-
-    assert complete["advanced"] is True
-
-
-def test_event_text_alone_does_not_prove_physical_marker():
-    scene = {
-        "event": "O carro segue pela estrada rumo a Camburi.",
-        "location": "interior do carro do personal",
-        "proximity": "sentada no banco do passageiro",
-        "physical_state": {
-            "location_type": "inside_vehicle",
-            "vehicle_motion": "unknown",
-            "mary_position": "unknown",
-            "arrival_state": "unknown",
-        },
-    }
-
-    markers = derive_physical_markers(scene)
-
-    assert "carro_em_movimento" not in markers
-    assert "mary_passageira_instalada" not in markers
-
-
-def test_structured_physical_state_is_the_only_source_of_vehicle_markers():
-    scene = {
-        "event": "texto qualquer sem palavras de movimento",
-        "physical_state": {
-            "location_type": "inside_vehicle",
-            "vehicle_motion": "moving",
-            "mary_position": "passenger_seat",
-            "arrival_state": "en_route",
-        },
-    }
-
-    markers = derive_physical_markers(scene)
-
-    assert "carro_em_movimento" in markers
-    assert "mary_passageira_instalada" in markers
