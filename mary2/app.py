@@ -70,7 +70,7 @@ st.set_page_config(page_title="Mary Core 2", page_icon="🖤", layout="centered"
 
 _LOG = logging.getLogger(__name__)
 
-BUILD_ID = "2026-10-06-carona-funnel-v1"
+BUILD_ID = "2026-10-06-carona-funnel-v2"
 
 DEFAULT_MODELS = [
     "google/gemini-2.5-flash-lite",
