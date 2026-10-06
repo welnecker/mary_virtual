@@ -140,6 +140,10 @@ FUNNEL_AUDIT_HEADERS = [
     "branch_id",
     "chapter_instance_id",
     "chapter_turn",
+    "required_markers_json",
+    "achieved_markers_json",
+    "pending_markers_json",
+    "exit_ready",
 ]
 
 CHECKPOINT_HEADERS = [
@@ -774,6 +778,10 @@ def save_director_audit(
             branch_id,
             chapter_instance_id,
             int(chapter_turn or 0),
+            _audit_cell(progress.get("required_markers", [])),
+            _audit_cell(progress.get("achieved_markers", [])),
+            _audit_cell(progress.get("pending_markers", [])),
+            bool(progress.get("exit_ready", False)),
         ],
         value_input_option="RAW",
     )
@@ -894,7 +902,7 @@ def save_funnel_audit(
             _audit_cell(mary_text),
             bool(evaluation.get("boundary_ok", True)) if isinstance(evaluation, dict) else True,
             _audit_cell(evaluation.get("violations", []) if isinstance(evaluation, dict) else []),
-            bool(evaluation.get("exit_condition_met", False)) if isinstance(evaluation, dict) else False,
+            bool(progress.get("exit_ready", False)),
             _audit_cell(evaluation if isinstance(evaluation, dict) else {}),
             _audit_cell(before),
             _audit_cell(after),
