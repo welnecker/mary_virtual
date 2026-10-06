@@ -622,6 +622,27 @@ def _extract_json(raw: str) -> dict:
     return data
 
 
+def _looks_like_question_quote(value: str) -> bool:
+    text = _clean(value).casefold().lstrip(" -…")
+    if "?" in text:
+        return True
+    starters = (
+        "qual ",
+        "qual é",
+        "quais ",
+        "quem ",
+        "onde ",
+        "aonde ",
+        "como ",
+        "quando ",
+        "por que ",
+        "porque ",
+        "o que ",
+        "que horas ",
+    )
+    return any(text.startswith(prefix) for prefix in starters)
+
+
 def _normalize_user_facts(items: Any, user_text: str) -> list[dict]:
     source_text = _clean(user_text)
     source_fold = source_text.casefold()
@@ -639,7 +660,7 @@ def _normalize_user_facts(items: Any, user_text: str) -> list[dict]:
             continue
         if quote.casefold() not in source_fold:
             continue
-        if "?" in quote:
+        if _looks_like_question_quote(quote):
             continue
 
         result.append(
@@ -688,7 +709,6 @@ def evaluate_funnel_turn(
         if marker not in {
             "carro_em_movimento",
             "mary_passageira_instalada",
-            "chegada_golden_tulip",
         }
     ]
 
