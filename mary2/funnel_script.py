@@ -374,3 +374,265 @@ def _extract_json(raw: str) -> dict:
             "validador do funil não retornou objeto JSON"
         )
     return data
+
+
+def evaluate_funnel_turn(
+    *,
+    api_key: str,
+    model: str,
+    fallback_model: str | None,
+    row: dict,
+    state: dict,
+    scene: dict,
+    user_text: str,
+    mary_text: str,
+) -> dict:
+    payload = {
+        "scene_id": _clean(row.get("scene_id")),
+        "scene_turn": int(state.get("scene_turn", 0) or 0) + 1,
+        "objective": _clean(row.get("objective")),
+        "opening_allowed": _clean(row.get("opening_allowed")),
+        "convergence": _clean(row.get("convergence")),
+        "forbidden": _clean(row.get("forbidden")),
+        "exit_condition": _clean(row.get("exit_condition")),
+        "fixed_facts": _clean(row.get("fixed_facts")),
+        "memory_policy": _clean(row.get("memory_policy")),
+        "memory_before": deepcopy(state.get("memory", {})),
+        "scene_now": deepcopy(scene),
+        "user_text": _clean(user_text),
+        "mary_text": _clean(mary_text),
+    }
+
+    raw = chat(
+        api_key=api_key,
+        model=model,
+        fallback_model=fallback_model,
+        messages=[
+            {"role": "system", "content": _EVALUATOR_PROMPT},
+            {
+                "role": "user",
+                "content": json.dumps(
+                    payload,
+                    ensure_ascii=False,
+                ),
+            },
+        ],
+        temperature=0.0,
+        max_tokens=700,
+    )
+    data = _extract_json(raw)
+
+    return {
+        "boundary_ok": bool(data.get("boundary_ok", True)),
+        "violations": _unique_text(
+            data.get("violations", []),
+            limit=12,
+        ),
+        "exit_condition_met": bool(
+            data.get("exit_condition_met", False)
+        ),
+        "user_facts": _unique_text(
+            data.get("user_facts", []),
+            limit=12,
+        ),
+        "mary_facts": _unique_text(
+            data.get("mary_facts", []),
+            limit=12,
+        ),
+        "consumed_topics": _unique_text(
+            data.get("consumed_topics", []),
+            limit=12,
+        ),
+        "consolidated_memory_candidates": _unique_text(
+            data.get(
+                "consolidated_memory_candidates",
+                [],
+            ),
+            limit=12,
+        ),
+        "user_stance": _clean(
+            data.get("user_stance")
+        ),
+        "summary": _clean(
+            data.get("summary")
+        ),
+        "raw": raw,
+    }
+
+
+def correction_prompt(
+    row: dict,
+    evaluation: dict,
+) -> str:
+    violations = "; ".join(
+        _unique_text(
+            evaluation.get("violations", []),
+            limit=12,
+        )
+    ) or "saída fora das paredes da cena"
+
+    return (
+        "CORREÇÃO DE FRONTEIRA DO FUNIL. "
+        "Reescreva somente a resposta de Mary. "
+        "Mantenha a reação humana à fala atual, mas elimine estas violações: "
+        + violations
+        + ". Permaneça dentro de ABERTURA/CONVERGÊNCIA e PAREDES da cena "
+        + _clean(row.get("scene_id"))
+        + ". Não invente ação, decisão, aceite, logística ou fato do usuário. "
+        "Use exatamente [FALA] e depois [PENSAMENTO]."
+    )
+
+
+def apply_funnel_evaluation(
+    *,
+    rows: list[dict],
+    state: dict,
+    row: dict,
+    evaluation: dict,
+) -> dict:
+    before = deepcopy(state)
+    memory = state.setdefault("memory", {})
+
+    memory["user_facts"] = _unique_text(
+        list(memory.get("user_facts", []))
+        + list(evaluation.get("user_facts", [])),
+        limit=24,
+    )
+    memory["mary_facts"] = _unique_text(
+        list(memory.get("mary_facts", []))
+        + list(evaluation.get("mary_facts", [])),
+        limit=24,
+    )
+    memory["consumed_topics"] = _unique_text(
+        list(memory.get("consumed_topics", []))
+        + list(evaluation.get("consumed_topics", [])),
+        limit=24,
+    )
+
+    state["scene_turn"] = (
+        int(state.get("scene_turn", 0) or 0) + 1
+    )
+    state["last_evaluation"] = deepcopy(evaluation)
+    state["last_advance_reason"] = ""
+
+    min_turns = int(
+        row.get("min_turns", 1) or 1
+    )
+    can_advance = (
+        bool(evaluation.get("boundary_ok", True))
+        and bool(
+            evaluation.get(
+                "exit_condition_met",
+                False,
+            )
+        )
+        and int(state["scene_turn"]) >= min_turns
+    )
+
+    advanced_to = ""
+
+    if can_advance:
+        current_id = _clean(
+            row.get("scene_id")
+        )
+        state["completed_scene_ids"] = _unique_text(
+            list(
+                state.get(
+                    "completed_scene_ids",
+                    [],
+                )
+            )
+            + [current_id],
+            limit=64,
+        )
+
+        candidates = list(
+            evaluation.get(
+                "consolidated_memory_candidates",
+                [],
+            )
+        )
+        if evaluation.get("user_stance"):
+            candidates.append(
+                f"Na cena {current_id}, posição do usuário: "
+                f"{_clean(evaluation.get('user_stance'))}."
+            )
+
+        memory["consolidated"] = _unique_text(
+            list(memory.get("consolidated", []))
+            + candidates,
+            limit=40,
+        )
+
+        next_index = (
+            int(state.get("scene_index", 0) or 0)
+            + 1
+        )
+
+        if next_index >= len(rows):
+            state["completed"] = True
+            state["scene_id"] = ""
+            state["last_advance_reason"] = (
+                "condição de saída satisfeita; "
+                "funil concluído"
+            )
+            advanced_to = "FIM"
+        else:
+            state["scene_index"] = next_index
+            state["scene_id"] = _clean(
+                rows[next_index].get("scene_id")
+            )
+            state["scene_turn"] = 0
+            state["last_advance_reason"] = (
+                "condição de saída satisfeita"
+            )
+            advanced_to = state["scene_id"]
+
+            # A memória curta pertence à cena.
+            # Só o consolidado atravessa o funil.
+            memory["user_facts"] = []
+            memory["mary_facts"] = []
+            memory["consumed_topics"] = []
+
+    return {
+        "state_before": before,
+        "state_after": deepcopy(state),
+        "advanced": can_advance,
+        "advanced_to": advanced_to,
+        "stage": funnel_stage(
+            row,
+            before,
+        ),
+    }
+
+
+def funnel_ready_for_choice(
+    state: dict,
+) -> bool:
+    return bool(
+        state.get("completed", False)
+    )
+
+
+def compact_context_messages(
+    messages: list[dict[str, str]],
+    *,
+    limit: int = 8,
+) -> list[dict[str, str]]:
+    cleaned = [
+        {
+            "role": str(
+                item.get("role", "")
+            ),
+            "content": _clean(
+                item.get("content")
+            ),
+        }
+        for item in messages
+        if _clean(
+            item.get("content")
+        )
+    ]
+    return cleaned[
+        -max(2, int(limit or 8)) :
+    ]
