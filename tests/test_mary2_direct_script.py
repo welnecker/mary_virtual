@@ -60,6 +60,8 @@ def test_writer_prompt_is_direct_and_contains_only_authorial_fields():
     assert "HIERARQUIA DE AUTORIDADE" not in prompt
     assert "STORY LEDGER" not in prompt
     assert "CONTEXTO FIXO DO CAPÍTULO" not in prompt
+    assert "responda primeiro a isso de forma breve e natural" in prompt
+    assert "não cria uma interação extra" in prompt
 
 
 def test_next_user_reply_advances_directly_without_breath_turn():
