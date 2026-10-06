@@ -287,7 +287,7 @@ def direct_scene(
         + "\n\nPAPEL MUDOU?\n" + ("SIM" if role_changed else "NÃO")
         + "\n\nDIREÇÃO EXPLÍCITA DO USUÁRIO:\n" + (scene_direction.strip() or "(nenhuma)")
         + "\n\nO PERSONAGEM ATIVO FALOU?\n" + ("SIM" if user_spoke else "NÃO")
-        + "\n\nMODO FUNIL:\n" + ("SIM" if funnel_mode else "NÃO")
+        + "\n\nMODO ROTEIRO ESTRUTURADO:\n" + ("SIM" if funnel_mode else "NÃO")
         + "\n\nTRANSIÇÃO CONDICIONAL:\n" + ("SIM" if conditional_transition else "NÃO")
         + "\n\nCONDIÇÃO OBJETIVA DE SAÍDA:\n"
         + (advance_when.strip() if conditional_transition and advance_when.strip() else "(não se aplica)")
@@ -298,7 +298,7 @@ def direct_scene(
           "A direção explícita e as interações recentes prevalecem sobre campos antigos. "
           "Se houver mudança física real, atualize proximity/event/mary_action. "
           "Se houver gancho aberto, resolva a lacuna de forma jogável. "
-          "Se MODO FUNIL=SIM, cuide somente do estado físico: não derive objetivo psicológico "
+          "Se MODO ROTEIRO ESTRUTURADO=SIM, cuide somente do estado físico: não derive objetivo psicológico "
           "de Mary a partir de falas anteriores e não transforme assunto inventado por Mary em direção "
           "da cena; deixe mary_immediate_goal vazio. Atualize physical_state de forma estruturada e "
           "trate-o como fonte canônica do estado físico; event é apenas descrição humana. "
