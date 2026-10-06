@@ -301,14 +301,41 @@ def funnel_stage(row: dict, state: dict) -> str:
     return "fechamento"
 
 
+def _normalize_fact_record(item: Any, *, default_subject: str = "USER") -> dict:
+    if not isinstance(item, dict):
+        return {}
+
+    subject = _clean(item.get("subject")).upper() or default_subject.upper()
+    predicate = (
+        _clean(item.get("predicate"))
+        or _clean(item.get("category"))
+        or "outro"
+    )
+    value = _clean(item.get("value")) or _clean(item.get("fact"))
+    modality = _clean(item.get("modality")) or "confirmado"
+    source_quote = _clean(item.get("source_quote"))
+
+    if not value:
+        return {}
+
+    return {
+        "subject": subject,
+        "predicate": predicate,
+        "value": value,
+        "modality": modality,
+        "source_quote": source_quote,
+    }
+
+
 def _fact_text(item: Any) -> str:
     if isinstance(item, dict):
-        fact = _clean(item.get("fact"))
-        modality = _clean(item.get("modality"))
-        category = _clean(item.get("category"))
-        parts = [part for part in (category, modality) if part]
-        suffix = f" [{'/'.join(parts)}]" if parts else ""
-        return fact + suffix if fact else ""
+        fact = _normalize_fact_record(item)
+        if not fact:
+            return ""
+        return (
+            f"{fact['predicate']}: {fact['value']} "
+            f"[{fact['modality']}]"
+        )
     return _clean(item)
 
 
@@ -319,34 +346,64 @@ def _memory_text(state: dict) -> str:
         else {}
     )
 
-    user_facts = [
-        _fact_text(item)
+    current_user_facts = [
+        _normalize_fact_record(item, default_subject="USER")
         for item in memory.get("user_facts", [])
-        if _fact_text(item)
+        if isinstance(item, dict)
     ]
+    current_user_facts = [item for item in current_user_facts if item]
+
+    consolidated = [
+        _normalize_fact_record(item, default_subject="USER")
+        for item in memory.get("consolidated", [])
+        if isinstance(item, dict)
+    ]
+    consolidated = [item for item in consolidated if item]
+
     consumed = _unique_text(
         memory.get("consumed_topics", []),
         limit=24,
     )
-    consolidated = [
-        _fact_text(item)
-        for item in memory.get("consolidated", [])
-        if _fact_text(item)
+
+    grouped: dict[str, list[dict]] = {}
+    for item in [*consolidated, *current_user_facts]:
+        grouped.setdefault(item["subject"], []).append(item)
+
+    labels = {
+        "USER": "FATOS DO PERSONAGEM DO USUÁRIO / INTERLOCUTOR",
+        "MARY": "FATOS DE MARY",
+        "JANIO": "FATOS DE JANIO",
+    }
+
+    sections = [
+        "MEMÓRIA ESTRUTURADA POR SUJEITO",
+        "REGRA CRÍTICA: cada fato pertence SOMENTE ao sujeito indicado. "
+        "Nunca atribua a MARY um fato de USER, nem a USER um fato de MARY.",
     ]
 
-    sections = ["FATOS CONFIRMADOS DO USUÁRIO NESTA CENA"]
-    sections.extend(f"- {item}" for item in user_facts)
-    if not user_facts:
-        sections.append("- (nenhum)")
+    if not grouped:
+        sections.append("- (nenhum fato estruturado)")
+    else:
+        for subject in sorted(grouped):
+            sections.append(labels.get(subject, f"FATOS DE {subject}"))
+            seen: set[tuple[str, str, str]] = set()
+            for item in grouped[subject]:
+                key = (
+                    item["predicate"].casefold(),
+                    item["value"].casefold(),
+                    item["modality"].casefold(),
+                )
+                if key in seen:
+                    continue
+                seen.add(key)
+                sections.append(
+                    f"- {item['predicate']}: {item['value']} "
+                    f"[{item['modality']}]"
+                )
 
     sections.append("ASSUNTOS JÁ CONSUMIDOS")
     sections.extend(f"- {item}" for item in consumed)
     if not consumed:
-        sections.append("- (nenhum)")
-
-    sections.append("MEMÓRIA CONSOLIDADA DE CENAS ANTERIORES")
-    sections.extend(f"- {item}" for item in consolidated)
-    if not consolidated:
         sections.append("- (nenhum)")
 
     return "\n".join(sections)
@@ -583,12 +640,20 @@ def _normalize_user_facts(items: Any, user_text: str) -> list[dict]:
     for item in items if isinstance(items, list) else []:
         if not isinstance(item, dict):
             continue
-        fact = _clean(item.get("fact"))
-        category = _clean(item.get("category"))
-        modality = _clean(item.get("modality"))
+
+        subject = _clean(item.get("subject")).upper() or "USER"
+        predicate = (
+            _clean(item.get("predicate"))
+            or _clean(item.get("category"))
+            or "outro"
+        )
+        value = _clean(item.get("value")) or _clean(item.get("fact"))
+        modality = _clean(item.get("modality")) or "confirmado"
         quote = _clean(item.get("source_quote"))
 
-        if not fact or not quote:
+        if subject != "USER":
+            continue
+        if not value or not quote:
             continue
         if quote.casefold() not in source_fold:
             continue
@@ -597,9 +662,10 @@ def _normalize_user_facts(items: Any, user_text: str) -> list[dict]:
 
         result.append(
             {
-                "category": category or "outro",
-                "fact": fact,
-                "modality": modality or "confirmado",
+                "subject": "USER",
+                "predicate": predicate,
+                "value": value,
+                "modality": modality,
                 "source_quote": quote,
             }
         )
@@ -819,23 +885,17 @@ def correction_prompt(
 
 def _merge_fact_dicts(existing: Any, new_items: Any, *, limit: int = 24) -> list[dict]:
     result: list[dict] = []
-    seen: set[tuple[str, str, str]] = set()
+    seen: set[tuple[str, str, str, str]] = set()
 
     for item in list(existing or []) + list(new_items or []):
-        if not isinstance(item, dict):
+        normalized = _normalize_fact_record(item, default_subject="USER")
+        if not normalized:
             continue
-        fact = _clean(item.get("fact"))
-        if not fact:
-            continue
-        normalized = {
-            "category": _clean(item.get("category")) or "outro",
-            "fact": fact,
-            "modality": _clean(item.get("modality")) or "confirmado",
-            "source_quote": _clean(item.get("source_quote")),
-        }
+
         key = (
-            normalized["category"].casefold(),
-            normalized["fact"].casefold(),
+            normalized["subject"].casefold(),
+            normalized["predicate"].casefold(),
+            normalized["value"].casefold(),
             normalized["modality"].casefold(),
         )
         if key in seen:
