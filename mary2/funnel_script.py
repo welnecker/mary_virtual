@@ -289,9 +289,9 @@ def ensure_funnel_state(narrative: dict, rows: list[dict]) -> dict:
         if _clean(row.get("scene_id"))
     ]
     state = narrative.get("funnel_script")
-    if not isinstance(state, dict) or state.get("engine") != "carona_funnel_v4":
+    if not isinstance(state, dict) or state.get("engine") != "carona_funnel_v5":
         state = {
-            "engine": "carona_funnel_v4",
+            "engine": "carona_funnel_v5",
             "scene_index": 0,
             "scene_id": scene_ids[0] if scene_ids else "",
             "scene_turn": 0,
