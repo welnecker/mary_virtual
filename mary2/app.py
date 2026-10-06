@@ -28,6 +28,17 @@ from hybrid_script import (
     register_user_reply,
     select_carona_line,
 )
+from funnel_script import (
+    apply_funnel_evaluation,
+    build_funnel_prompt,
+    compact_context_messages,
+    correction_prompt,
+    current_funnel_row,
+    ensure_funnel_state,
+    evaluate_funnel_turn,
+    funnel_ready_for_choice,
+    load_funnel_rows,
+)
 from openrouter_client import OpenRouterError, chat
 from output_filter import looks_like_action_narration, parse_mary_response, sanitize_mary_output
 from persistence import (
@@ -44,6 +55,7 @@ from persistence import (
     save_branch,
     save_checkpoint,
     save_director_audit,
+    save_funnel_audit,
     save_model_audit,
     save_turn,
     update_run_snapshot,
@@ -55,7 +67,7 @@ from story_bible import PHYSICAL_CANON
 
 st.set_page_config(page_title="Mary Core 2", page_icon="🖤", layout="centered")
 
-BUILD_ID = "2026-10-05-carona-hybrid-v46"
+BUILD_ID = "2026-10-06-carona-funnel-v1"
 
 DEFAULT_MODELS = [
     "google/gemini-2.5-flash-lite",
@@ -688,6 +700,30 @@ def _hybrid_script_rows(*, persistence: dict, chapter: dict) -> list[dict]:
             f"Nenhuma linha do roteiro {script_name!r} foi encontrada em {worksheet!r}."
         )
     return rows
+
+def _funnel_script_rows(*, persistence: dict, chapter: dict) -> list[dict]:
+    """Carrega as cenas do funil atual diretamente da planilha."""
+    if not persistence:
+        raise PersistenceError(
+            "A Carona em funil requer a planilha de persistência configurada."
+        )
+
+    worksheet = str(
+        chapter.get("script_worksheet", "ROTEIRO_FUNIL_CARONA")
+        or "ROTEIRO_FUNIL_CARONA"
+    ).strip()
+
+    rows = load_funnel_rows(
+        service_account_info=persistence["service_account_info"],
+        spreadsheet_id=persistence["spreadsheet_id"],
+        worksheet_name=worksheet,
+    )
+    if not rows:
+        raise PersistenceError(
+            f"Nenhuma cena de funil foi encontrada em {worksheet!r}."
+        )
+    return rows
+
 
 def persistence_config() -> dict | None:
     service_account = None
