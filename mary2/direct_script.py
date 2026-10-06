@@ -26,6 +26,8 @@ DIRECT_HEADERS = {
     "memoria instantanea": "instant_memory",
     "memória permanente": "permanent_memory",
     "memoria permanente": "permanent_memory",
+    "descrição inicial": "initial_description",
+    "descricao inicial": "initial_description",
 }
 
 
@@ -198,6 +200,8 @@ def build_direct_writer_prompt(
     )
 
     return (
+        "DESCRIÇÃO INICIAL\n"
+        f"{_clean(row.get('initial_description')) or '(não informada nesta linha)'}\n\n"
         "MEMÓRIA PERMANENTE\n"
         f"{_clean(row.get('permanent_memory')) or '(não informada nesta linha)'}\n\n"
         "MEMÓRIA RECENTE PARA ROTEIRO\n"
