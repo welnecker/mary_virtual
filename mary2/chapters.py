@@ -506,9 +506,9 @@ Quando a carona estiver claramente combinada, encerre a conversa sem iniciar a v
         "title": "Carona para Camburi",
         "allowed_roles": ["PERSONAGEM_DA_CENA"],
         "phase_context": "chapter",
-        "script_mode": "funnel_sheet",
+        "script_mode": "block_sheet",
         "inherit_character": True,
-        "script_worksheet": "ROTEIRO_REDATOR",
+        "script_worksheet": "ROTEIRO_BLOCOS_TESTE",
         "facts_prompt": """
 FATOS FIXOS DO CAPÍTULO
 
