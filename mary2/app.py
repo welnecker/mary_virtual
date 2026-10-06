@@ -20,7 +20,6 @@ from chapters import (
 from director import direct_scene
 from input_router import parse_user_input
 from direct_script import (
-    build_direct_director_context,
     build_direct_writer_prompt,
     current_direct_row,
     direct_script_ready_for_choice,
@@ -2062,10 +2061,6 @@ if user_text:
                     scene_for_director.get("temporary_character", {}).get("name", "") or ""
                 ),
             )
-            director_chapter_prompt = build_direct_director_context(
-                row=direct_row,
-                user_text=dialogue_text,
-            )
         elif script_mode == "block_sheet":
             current_chapter_prompt = build_block_prompt(
                 facts_prompt=str(chapter_config.get("facts_prompt", "") or ""),
@@ -2126,9 +2121,7 @@ if user_text:
             # apenas o estado existente e o Redator interpreta a linha autoral.
             scene = deepcopy(scene_for_director)
             scene["mary_immediate_goal"] = ""
-            scene["mary_action"] = str(
-                direct_row.get("physical_action", "") if direct_row else ""
-            ).strip()
+            scene["mary_action"] = ""
             scene["event"] = str(
                 direct_row.get("instant_memory", "") if direct_row else ""
             ).strip()
