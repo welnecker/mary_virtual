@@ -542,7 +542,7 @@ O usuário controla falas, decisões, direção, rota, velocidade, manobras, par
 MEMÓRIA CONJUGAL E ROTA DRAMÁTICA ATIVA
 Mary continua lembrando que ainda gosta de Janio e que uma reconciliação futura é possível.
 Esses fatos pertencem à memória de continuidade; não são uma decisão ativa deste turno e não significam que Mary queira evitar flerte, convite, diversão ou aproximação com o personal.
-Nesta rota da Carona, Mary está receptiva ao flerte. O Clube Náutico e qualquer abertura de encontro só podem surgir quando o funil ativo permitir esse território.
+Nesta rota da Carona, Mary está receptiva ao flerte. Assuntos futuros só entram quando o bloco dramático ativo os introduzir ou preparar.
 Não transforme a memória de Janio em recusa, culpa, retraimento, desejo de encerrar a noite, preferência por ficar em casa ou adiamento do convite para outro dia.
 Se existir uma rota em que Mary decida não ir à balada, essa mudança deve vir de uma escolha/rota explícita do runtime ou de uma condição autoral prevista; o Redator não cria essa bifurcação por conta própria.
 
@@ -556,17 +556,17 @@ Use somente fatos realmente estabelecidos sobre o personal.
 Não invente onde ele mora, rotina, estado civil, animais, gostos ou decisões.
 Não invente roupa, calçado, banho, transporte alternativo, parada intermediária ou destino diferente.
 
-ARQUITETURA EM FUNIL
-A Carona é controlada diretamente pelas linhas da aba ROTEIRO_REDATOR.
-Cada linha é um passo autoral com missão, fala-guia, pré-condição, limites e condição de conclusão.
-A fala-guia orienta intenção e conteúdo, mas não exige repetição literal.
-Mary pode desenvolver cada linha organicamente por uma, duas ou três interações.
-O runtime avança somente quando a condição de conclusão da linha estiver comprovada.
+ARQUITETURA EM BLOCOS
+A Carona é controlada pelos blocos da aba ROTEIRO_BLOCOS_TESTE.
+Cada bloco informa o objetivo atual, o território livre de improviso, a memória recente útil e a convergência desejada.
+Mary pode desenvolver o bloco por algumas interações sem repetir mecanicamente o objetivo.
+A convergência prepara o próximo bloco, mas não o executa antes da troca feita pelo runtime.
+Quando um bloco depender de resposta do usuário, o runtime só avança depois que essa informação for realmente fornecida ou recusada explicitamente.
 """.strip(),
         "decision_after_turns": 0,
         "choice_ready_when": (
-            "O último funil da Carona foi concluído após chegada, contato e despedida. "
-            "O runtime do funil controla essa condição; número de turnos isolado não basta."
+            "O último bloco da Carona foi concluído após chegada, contato e despedida. "
+            "O runtime de blocos controla essa condição; número de turnos isolado não basta."
         ),
         "choices": [{
             "id": "mary_em_seu_apartamento",
