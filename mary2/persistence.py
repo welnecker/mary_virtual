@@ -90,6 +90,7 @@ DIRECTOR_AUDIT_HEADERS = [
     "branch_id",
     "chapter_instance_id",
     "chapter_turn",
+    "initial_description",
 ]
 
 MODEL_AUDIT_HEADERS = [
@@ -875,6 +876,7 @@ def save_director_audit(
             branch_id,
             chapter_instance_id,
             int(chapter_turn or 0),
+            _audit_cell(row.get("initial_description", "")),
         ],
         value_input_option="RAW",
     )
