@@ -622,6 +622,65 @@ def _normalize_user_stance(value: Any, user_text: str) -> dict:
     }
 
 
+def _normalize_completion_evidence(
+    items: Any,
+    *,
+    user_text: str,
+    mary_text: str,
+    prior_evidence: list,
+) -> list[dict]:
+    user_fold = _clean(user_text).casefold()
+    mary_fold = _clean(mary_text).casefold()
+    normalized: list[dict] = []
+
+    for item in items if isinstance(items, list) else []:
+        if not isinstance(item, dict):
+            continue
+        source = _clean(item.get("source")).lower()
+        detail = _clean(item.get("detail"))
+        quote = _clean(item.get("quote"))
+        if source not in {"user", "mary", "physical", "prior"}:
+            continue
+        if source == "user" and quote and quote.casefold() not in user_fold:
+            continue
+        if source == "mary" and quote and quote.casefold() not in mary_fold:
+            continue
+        if source == "prior":
+            prior_text = " ".join(
+                _clean(x.get("detail")) + " " + _clean(x.get("quote"))
+                for x in prior_evidence
+                if isinstance(x, dict)
+            ).casefold()
+            needle = (detail or quote).casefold()
+            if needle and needle not in prior_text:
+                continue
+        if not detail and not quote:
+            continue
+        normalized.append(
+            {
+                "source": source,
+                "detail": detail or quote,
+                "quote": quote,
+            }
+        )
+
+    seen: set[tuple[str, str, str]] = set()
+    result: list[dict] = []
+    for item in normalized:
+        key = (
+            _clean(item.get("source")).casefold(),
+            _clean(item.get("detail")).casefold(),
+            _clean(item.get("quote")).casefold(),
+        )
+        if key in seen:
+            continue
+        seen.add(key)
+        result.append(item)
+        if len(result) >= 16:
+            break
+    return result
+
+
 def evaluate_funnel_turn(
     *,
     api_key: str,
@@ -633,48 +692,36 @@ def evaluate_funnel_turn(
     user_text: str,
     mary_text: str,
 ) -> dict:
-    required = required_markers(row)
-    pending_now = pending_markers(row, state, scene)
-    physical = set(derive_physical_markers(scene))
-    semantic_allowed = [
-        marker
-        for marker in required
-        if marker not in PHYSICAL_ONLY_MARKERS
-    ]
+    prior_evidence = (
+        state.get("step_evidence", [])
+        if isinstance(state.get("step_evidence"), list)
+        else []
+    )
+    physical_state = (
+        scene.get("physical_state", {})
+        if isinstance(scene, dict) and isinstance(scene.get("physical_state"), dict)
+        else {}
+    )
 
     payload = {
-        "scene_id": _clean(row.get("scene_id")),
-        "scene_turn": int(state.get("scene_turn", 0) or 0) + 1,
+        "step_id": _clean(row.get("scene_id")),
+        "order": int(row.get("order", 0) or 0),
+        "step_turn": int(state.get("scene_turn", 0) or 0) + 1,
         "stage": funnel_stage(row, state),
+        "completion_type": _clean(row.get("completion_type")).upper() or "MIXED",
         "mission": _clean(row.get("mission")) or _clean(row.get("objective")),
-        "deliverables": _clean(row.get("deliverables")),
+        "guide": _clean(row.get("guide")),
         "completion_criterion": _clean(row.get("completion_criterion")),
-        "objective": _clean(row.get("objective")),
-        "opening_allowed": _clean(row.get("opening_allowed")),
-        "convergence": _clean(row.get("convergence")),
+        "released_fact": _clean(row.get("released_fact")),
+        "precondition": _clean(row.get("precondition")),
         "forbidden": _clean(row.get("forbidden")),
-        "fixed_facts": _clean(row.get("fixed_facts")),
-        "memory_policy": _clean(row.get("memory_policy")),
-        "allowed_semantic_markers": {
-            marker: MARKER_DESCRIPTIONS.get(marker, marker)
-            for marker in semantic_allowed
-        },
-        "physical_markers": sorted(physical),
-        "already_achieved_markers": achieved_markers(state, scene),
-        "pending_markers": pending_now,
-        "next_priority": (
-            pending_now[0]
-            if pending_now
-            else ""
+        "prior_step_evidence": prior_evidence,
+        "prior_missing": (
+            state.get("step_missing", [])
+            if isinstance(state.get("step_missing"), list)
+            else []
         ),
-        "next_priority_description": (
-            MARKER_DESCRIPTIONS.get(
-                pending_now[0],
-                pending_now[0],
-            )
-            if pending_now
-            else ""
-        ),
+        "physical_state": physical_state,
         "user_text": _clean(user_text),
         "mary_text": _clean(mary_text),
     }
@@ -691,37 +738,36 @@ def evaluate_funnel_turn(
             },
         ],
         temperature=0.0,
-        max_tokens=700,
+        max_tokens=900,
     )
     data = _extract_json(raw)
 
-    semantic_markers = [
-        marker
-        for marker in _unique_text(data.get("semantic_markers", []), limit=16)
-        if marker in semantic_allowed
-    ]
-
-    mission_progress_ok = bool(
-        data.get(
-            "mission_progress_ok",
-            True,
-        )
-    )
     boundary_ok = bool(data.get("boundary_ok", True))
-    violations = _unique_text(
-        data.get("violations", []),
-        limit=12,
+    step_complete = bool(data.get("step_complete", False))
+    violations = _unique_text(data.get("violations", []), limit=12)
+    missing = _unique_text(data.get("missing", []), limit=12)
+    mission_progress_ok = bool(data.get("mission_progress_ok", True))
+
+    evidence = _normalize_completion_evidence(
+        data.get("completion_evidence", []),
+        user_text=user_text,
+        mary_text=mary_text,
+        prior_evidence=prior_evidence,
     )
-    mission_progress_target = _clean(
-        data.get("mission_progress_target")
-    )
+
+    if step_complete and missing:
+        step_complete = False
+
     return {
         "boundary_ok": boundary_ok,
         "violations": violations,
-        "semantic_markers": semantic_markers,
+        "step_complete": step_complete,
+        "completion_evidence": evidence,
+        "missing": missing,
         "mission_progress_ok": mission_progress_ok,
-        "mission_progress_target": mission_progress_target,
-        "physical_markers": sorted(physical),
+        "mission_progress_target": _clean(row.get("completion_criterion")),
+        "semantic_markers": [],
+        "physical_markers": derive_physical_markers(scene),
         "user_facts": _normalize_user_facts(
             data.get("user_facts", []),
             user_text,
@@ -746,38 +792,26 @@ def correction_prompt(
     state: dict | None = None,
     scene: dict | None = None,
 ) -> str:
-    violations_list = _unique_text(
-        evaluation.get("violations", []),
-        limit=12,
-    )
-    if violations_list:
-        violations = "; ".join(violations_list)
-    elif not bool(evaluation.get("mission_progress_ok", True)):
-        violations = "missão ainda não avançada; conduza para a próxima entrega pendente"
-    else:
-        violations = "ajuste de condução do funil"
+    violations = "; ".join(
+        _unique_text(evaluation.get("violations", []), limit=12)
+    ) or "a resposta saiu dos limites autorais desta linha"
 
-    pending = [
-        marker
-        for marker in pending_markers(
-            row,
-            state or {},
-            scene or {},
-        )
-        if marker not in PHYSICAL_ONLY_MARKERS
-    ]
     mission = _clean(row.get("mission")) or _clean(row.get("objective"))
+    completion = _clean(row.get("completion_criterion"))
+    missing = _unique_text(evaluation.get("missing", []), limit=12)
+
     return (
-        "CORREÇÃO DE MISSÃO DO FUNIL. "
-        "Reescreva somente a resposta de Mary. "
-        "Elimine estas violações: "
-        + violations
-        + ". MISSÃO OBRIGATÓRIA: "
-        + mission
-        + ". ENTREGAS DO FUNIL: "
-        + marker_summary(pending).replace("\n", " | ")
-        + ". Reaja à fala atual do usuário, mas faça esta resposta avançar "
-        "a próxima entrega ainda pendente em vez de permanecer no assunto incidental. "
+        "CORREÇÃO DE FRONTEIRA DO PASSO AUTORAL. "
+        "Reescreva somente a resposta de Mary, sem avançar para a próxima linha. "
+        f"VIOLAÇÕES: {violations}. "
+        f"MISSÃO DA LINHA: {mission}. "
+        f"CONDIÇÃO DE CONCLUSÃO: {completion}. "
+        + (
+            "AINDA FALTA: " + " | ".join(missing) + ". "
+            if missing
+            else ""
+        )
+        + "Reaja naturalmente à fala atual do usuário dentro deste território. "
         "Não invente ação, decisão, aceite, logística ou fato do usuário. "
         "Use exatamente [FALA] e depois [PENSAMENTO]."
     )
@@ -836,53 +870,68 @@ def apply_funnel_evaluation(
         limit=24,
     )
 
-    semantic = _unique_text(
-        evaluation.get("semantic_markers", []),
-        limit=16,
+    prior_evidence = (
+        state.get("step_evidence", [])
+        if isinstance(state.get("step_evidence"), list)
+        else []
     )
-    physical = derive_physical_markers(scene)
-    saved_semantic = [
-        marker
-        for marker in _unique_text(state.get("markers", []), limit=32)
-        if marker not in PHYSICAL_ONLY_MARKERS
-    ]
-    state["markers"] = _unique_text(
-        saved_semantic + semantic,
-        limit=32,
+    current_evidence = (
+        evaluation.get("completion_evidence", [])
+        if isinstance(evaluation.get("completion_evidence"), list)
+        else []
     )
+    merged_evidence: list[dict] = []
+    seen_evidence: set[tuple[str, str, str]] = set()
+    for item in [*prior_evidence, *current_evidence]:
+        if not isinstance(item, dict):
+            continue
+        normalized = {
+            "source": _clean(item.get("source")) or "context",
+            "detail": _clean(item.get("detail")) or _clean(item.get("quote")),
+            "quote": _clean(item.get("quote")),
+        }
+        if not normalized["detail"]:
+            continue
+        key = (
+            normalized["source"].casefold(),
+            normalized["detail"].casefold(),
+            normalized["quote"].casefold(),
+        )
+        if key in seen_evidence:
+            continue
+        seen_evidence.add(key)
+        merged_evidence.append(normalized)
+        if len(merged_evidence) >= 20:
+            break
+
+    state["step_evidence"] = merged_evidence
+    state["step_missing"] = _unique_text(
+        evaluation.get("missing", []),
+        limit=12,
+    )
+    state["step_complete"] = bool(evaluation.get("step_complete", False))
+    state["markers"] = []
 
     current_stance = evaluation.get("user_stance", {})
-    if (
-        isinstance(current_stance, dict)
-        and _clean(current_stance.get("value"))
-    ):
+    if isinstance(current_stance, dict) and _clean(current_stance.get("value")):
         state["user_stance"] = deepcopy(current_stance)
 
     state["scene_turn"] = int(state.get("scene_turn", 0) or 0) + 1
     state["last_evaluation"] = deepcopy(evaluation)
     state["last_advance_reason"] = ""
 
-    required = required_markers(row)
-    achieved = achieved_markers(state, scene)
-    missing = [
-        marker
-        for marker in required
-        if marker not in set(achieved)
-    ]
-
     can_advance = (
         bool(evaluation.get("boundary_ok", True))
-        and not missing
+        and bool(evaluation.get("step_complete", False))
     )
 
     advanced_to = ""
-    completed_markers = list(achieved)
+    completed_evidence = deepcopy(merged_evidence)
 
     if can_advance:
         current_id = _clean(row.get("scene_id"))
         state["completed_scene_ids"] = _unique_text(
-            list(state.get("completed_scene_ids", []))
-            + [current_id],
+            list(state.get("completed_scene_ids", [])) + [current_id],
             limit=64,
         )
 
@@ -891,25 +940,6 @@ def apply_funnel_evaluation(
             memory.get("user_facts", []),
             limit=40,
         )
-
-        stance = state.get("user_stance", {})
-        if isinstance(stance, dict) and _clean(stance.get("value")):
-            consolidated = _merge_fact_dicts(
-                consolidated,
-                [
-                    {
-                        "category": "posição_na_cena",
-                        "fact": (
-                            f"Na cena {current_id}, posição do usuário: "
-                            f"{_clean(stance.get('value'))}."
-                        ),
-                        "modality": _clean(stance.get("value")),
-                        "source_quote": _clean(stance.get("source_quote")),
-                    }
-                ],
-                limit=40,
-            )
-
         memory["consolidated"] = consolidated
 
         next_index = int(state.get("scene_index", 0) or 0) + 1
@@ -917,23 +947,29 @@ def apply_funnel_evaluation(
             state["completed"] = True
             state["scene_id"] = ""
             state["last_advance_reason"] = (
-                "missão cumprida; todas as entregas obrigatórias foram comprovadas; funil concluído"
+                "condição de conclusão do passo comprovada; roteiro concluído"
             )
             advanced_to = "FIM"
         else:
             state["scene_index"] = next_index
             state["scene_id"] = _clean(rows[next_index].get("scene_id"))
             state["scene_turn"] = 0
-            state["markers"] = []
+            state["step_complete"] = False
+            state["step_evidence"] = []
+            state["step_missing"] = []
             state["user_stance"] = {}
             state["last_advance_reason"] = (
-                "missão cumprida; todas as entregas obrigatórias foram comprovadas"
+                "condição de conclusão do passo comprovada"
             )
             advanced_to = state["scene_id"]
 
             memory["user_facts"] = []
             memory["mary_facts"] = []
             memory["consumed_topics"] = []
+
+    required = required_markers(row)
+    pending = [] if bool(evaluation.get("step_complete", False)) else required
+    achieved = ["step_complete"] if bool(evaluation.get("step_complete", False)) else []
 
     return {
         "state_before": before,
@@ -942,9 +978,11 @@ def apply_funnel_evaluation(
         "advanced_to": advanced_to,
         "stage": funnel_stage(row, before),
         "required_markers": required,
-        "achieved_markers": completed_markers,
-        "pending_markers": missing,
-        "exit_ready": not missing,
+        "achieved_markers": achieved,
+        "pending_markers": pending,
+        "exit_ready": bool(evaluation.get("step_complete", False)),
+        "completion_evidence": completed_evidence,
+        "missing": _unique_text(evaluation.get("missing", []), limit=12),
         "physical_state": deepcopy(
             scene.get("physical_state", {})
             if isinstance(scene, dict)
