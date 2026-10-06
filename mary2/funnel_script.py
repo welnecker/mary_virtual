@@ -136,57 +136,29 @@ def required_markers(row: dict) -> list[str]:
     return _marker_list(row.get("exit_markers", ""))
 
 
-def _normalized_scene_text(scene: dict) -> str:
-    if not isinstance(scene, dict):
-        return ""
-    values = [
-        scene.get("location", ""),
-        scene.get("event", ""),
-        scene.get("proximity", ""),
-        scene.get("scene_caption", ""),
-        scene.get("resolution_summary", ""),
-    ]
-    return " ".join(
-        _clean(value).casefold()
-        for value in values
-        if _clean(value)
-    )
-
-
 def derive_physical_markers(scene: dict) -> list[str]:
-    text = _normalized_scene_text(scene)
+    """Converte apenas physical_state estruturado em marcadores do funil."""
+    if not isinstance(scene, dict):
+        return []
+
+    physical = scene.get("physical_state", {})
+    if not isinstance(physical, dict):
+        return []
+
+    location_type = _clean(physical.get("location_type")).lower()
+    vehicle_motion = _clean(physical.get("vehicle_motion")).lower()
+    mary_position = _clean(physical.get("mary_position")).lower()
+    arrival_state = _clean(physical.get("arrival_state")).lower()
+
     markers: list[str] = []
 
-    moving_terms = (
-        "em movimento",
-        "segue pela estrada",
-        "segue pela",
-        "carro segue",
-        "suv segue",
-        "trafegando",
-        "rodando",
-    )
-    if any(term in text for term in moving_terms):
+    if vehicle_motion == "moving":
         markers.append("carro_em_movimento")
 
-    passenger_terms = (
-        "banco do passageiro",
-        "passageira",
-    )
-    if "interior do carro" in text and any(
-        term in text for term in passenger_terms
-    ):
+    if mary_position == "passenger_seat":
         markers.append("mary_passageira_instalada")
 
-    arrived_golden = "golden tulip" in text
-    stopped_terms = (
-        "parou",
-        "parado",
-        "encostou",
-        "encostado",
-        "estacion",
-    )
-    if arrived_golden and any(term in text for term in stopped_terms):
+    if arrival_state == "arrived":
         markers.append("chegada_golden_tulip")
 
     return markers
