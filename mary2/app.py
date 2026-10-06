@@ -2054,9 +2054,19 @@ if user_text:
                 scene_for_director["return_anchor"] = ""
 
         if script_mode == "direct_sheet":
+            previous_mary_text = next(
+                (
+                    str(message.get("content", "") or "").strip()
+                    for message in reversed(messages_before_turn)
+                    if str(message.get("role", "") or "").strip().lower() == "assistant"
+                    and str(message.get("content", "") or "").strip()
+                ),
+                "",
+            )
             current_chapter_prompt = build_direct_writer_prompt(
                 row=direct_row,
                 user_text=dialogue_text,
+                previous_mary_text=previous_mary_text,
                 character_name=str(
                     scene_for_director.get("temporary_character", {}).get("name", "") or ""
                 ),
