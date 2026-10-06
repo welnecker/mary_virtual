@@ -264,6 +264,7 @@ def ensure_funnel_state(narrative: dict, rows: list[dict]) -> dict:
             "scene_id": scene_ids[0] if scene_ids else "",
             "scene_turn": 0,
             "completed_scene_ids": [],
+            "markers": [],
             "memory": {
                 "user_facts": [],
                 "mary_facts": [],
@@ -310,6 +311,10 @@ def ensure_funnel_state(narrative: dict, rows: list[dict]) -> dict:
     state["completed_scene_ids"] = _unique_text(
         state.get("completed_scene_ids", []),
         limit=64,
+    )
+    state["markers"] = _unique_text(
+        state.get("markers", []),
+        limit=32,
     )
     state["completed"] = bool(state.get("completed", False))
     return state
