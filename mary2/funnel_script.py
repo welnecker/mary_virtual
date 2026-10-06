@@ -702,6 +702,7 @@ def evaluate_funnel_turn(
     mary_text: str,
 ) -> dict:
     required = required_markers(row)
+    pending_now = pending_now
     physical = set(derive_physical_markers(scene))
     semantic_allowed = [
         marker
@@ -731,18 +732,18 @@ def evaluate_funnel_turn(
         },
         "physical_markers": sorted(physical),
         "already_achieved_markers": achieved_markers(state, scene),
-        "pending_markers": pending_markers(row, state, scene),
+        "pending_markers": pending_now,
         "next_priority": (
-            pending_markers(row, state, scene)[0]
-            if pending_markers(row, state, scene)
+            pending_now[0]
+            if pending_now
             else ""
         ),
         "next_priority_description": (
             MARKER_DESCRIPTIONS.get(
-                pending_markers(row, state, scene)[0],
-                pending_markers(row, state, scene)[0],
+                pending_now[0],
+                pending_now[0],
             )
-            if pending_markers(row, state, scene)
+            if pending_now
             else ""
         ),
         "user_text": _clean(user_text),
@@ -772,7 +773,10 @@ def evaluate_funnel_turn(
     ]
 
     mission_progress_ok = bool(
-        data.get("mission_progress_ok", True)
+        data.get(
+            "mission_progress_ok",
+            not bool(pending_now),
+        )
     )
     boundary_ok = bool(data.get("boundary_ok", True))
     violations = _unique_text(
