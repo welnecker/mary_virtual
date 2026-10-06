@@ -41,6 +41,32 @@ FUNNEL_HEADERS = {
 }
 
 
+PHYSICAL_ONLY_MARKERS = {
+    "carro_em_movimento",
+    "mary_passageira_instalada",
+}
+
+USER_INFORMATION_MARKERS = {
+    "usuario_residencia",
+    "usuario_vida_domestica",
+    "usuario_preferencia_noturna",
+}
+
+MARY_DELIVERY_MARKERS = {
+    "mary_nautico",
+    "mary_passado_nautico",
+    "mary_retomar_vida_social",
+    "possibilidade_encontro_posterior",
+    "mary_reconhecimento_companhia",
+    "contato_tratado",
+    "despedida_realizada",
+}
+
+SHARED_EVIDENCE_MARKERS = {
+    "chegada_golden_tulip",
+}
+
+
 MARKER_DESCRIPTIONS = {
     "carro_em_movimento": "O carro do personal está efetivamente em movimento rumo a Camburi.",
     "mary_passageira_instalada": "Mary está efetivamente instalada no banco do passageiro.",
