@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import logging
 import re
 from copy import deepcopy
 
@@ -66,6 +67,8 @@ from story_bible import PHYSICAL_CANON
 
 
 st.set_page_config(page_title="Mary Core 2", page_icon="🖤", layout="centered")
+
+_LOG = logging.getLogger(__name__)
 
 BUILD_ID = "2026-10-06-carona-funnel-v1"
 
@@ -2252,6 +2255,22 @@ if user_text:
                 state=funnel_state,
                 row=funnel_row,
                 evaluation=funnel_evaluation,
+            )
+            _LOG.info(
+                "FUNNEL_AUDIT scene=%s turn=%s stage=%s boundary_ok=%s exit=%s advanced=%s next=%s",
+                str(funnel_row.get("scene_id", "") or ""),
+                int(
+                    funnel_progress.get("state_after", {}).get(
+                        "scene_turn",
+                        0,
+                    )
+                    or 0
+                ),
+                str(funnel_progress.get("stage", "") or ""),
+                bool(funnel_evaluation.get("boundary_ok", True)),
+                bool(funnel_evaluation.get("exit_condition_met", False)),
+                bool(funnel_progress.get("advanced", False)),
+                str(funnel_progress.get("advanced_to", "") or ""),
             )
 
         # Só confirma a cena depois que Mary respondeu de fato.
