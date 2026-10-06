@@ -71,8 +71,11 @@ def test_writer_prompt_is_direct_and_contains_only_authorial_fields():
     assert "HIERARQUIA DE AUTORIDADE" not in prompt
     assert "STORY LEDGER" not in prompt
     assert "CONTEXTO FIXO DO CAPÍTULO" not in prompt
-    assert "responda primeiro a isso de forma breve e natural" in prompt
-    assert "não cria uma interação extra" in prompt
+    assert "FALA DO USUÁRIO é o único acontecimento verbal que acabou de ocorrer" in prompt
+    assert "FALA-GUIA é uma MISSÃO AUTORAL" in prompt
+    assert "Não é uma fala anterior" in prompt
+    assert "Não devem ser recitados, explicados nem transformados em assunto" in prompt
+    assert "Não puxe delas informações que o usuário não pediu" in prompt
 
 
 def test_next_user_reply_advances_directly_without_breath_turn():
