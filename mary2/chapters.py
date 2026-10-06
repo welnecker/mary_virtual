@@ -536,7 +536,6 @@ Enquanto a Carona estiver ativa, não substituir partida, destino ou meio de tra
 
 OUTROS FATOS FIXOS
 É sábado, início da noite, antes das 20 horas.
-O celular de Mary continua sem bateria.
 Mary está separada de Janio.
 O usuário controla falas, decisões, direção, rota, velocidade, manobras, parada e estacionamento do veículo.
 
