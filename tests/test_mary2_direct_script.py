@@ -53,7 +53,8 @@ ROWS = [
 def test_writer_prompt_is_direct_and_contains_only_authorial_fields():
     prompt = build_direct_writer_prompt(
         row=ROWS[0],
-        user_text="Vamos, Mary...",
+        user_text="Obrigado pelo elogio...",
+        previous_mary_text="Gostei do seu carro. Parece bem cuidado.",
         character_name="Personal",
     )
 
@@ -63,7 +64,8 @@ def test_writer_prompt_is_direct_and_contains_only_authorial_fields():
     assert prompt.index("DESCRIÇÃO INICIAL") < prompt.index("MEMÓRIA PERMANENTE")
     assert "MEMÓRIA RECENTE PARA ROTEIRO" in prompt
     assert "MEMÓRIA INSTANTÂNEA" in prompt
-    assert "FALA DO USUÁRIO\nVamos, Mary..." in prompt
+    assert "ÚLTIMA FALA DE MARY\nGostei do seu carro. Parece bem cuidado." in prompt
+    assert "FALA DO USUÁRIO\nObrigado pelo elogio..." in prompt
     assert "FALA-GUIA\nesse é seu carro? gostei..." in prompt
     assert "ESTILO / ATITUDE" in prompt
     assert "VESTIMENTA ATUAL" in prompt
@@ -72,6 +74,8 @@ def test_writer_prompt_is_direct_and_contains_only_authorial_fields():
     assert "STORY LEDGER" not in prompt
     assert "CONTEXTO FIXO DO CAPÍTULO" not in prompt
     assert "O usuário não conhece o roteiro" in prompt
+    assert "Use primeiro a ÚLTIMA FALA DE MARY" in prompt
+    assert "Não introduza cidade, lugar, pessoa, objeto, acontecimento ou fato" in prompt
     assert "INTERPRETAR O USUÁRIO -> REAGIR COMO MARY -> CUMPRIR A FALA-GUIA" in prompt
     assert "A resposta só está completa" in prompt
     assert "nunca autoriza omitir, inverter, contradizer ou substituir" in prompt
