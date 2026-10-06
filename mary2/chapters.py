@@ -506,10 +506,9 @@ Quando a carona estiver claramente combinada, encerre a conversa sem iniciar a v
         "title": "Carona para Camburi",
         "allowed_roles": ["PERSONAGEM_DA_CENA"],
         "phase_context": "chapter",
-        "script_mode": "hybrid_phase_sheet",
+        "script_mode": "funnel_sheet",
         "inherit_character": True,
-        "script_worksheet": "ROTEIRO_REDATOR",
-        "script_name": "Carona",
+        "script_worksheet": "ROTEIRO_FUNIL_CARONA",
         "facts_prompt": """
 FATOS FIXOS DO CAPÍTULO
 
@@ -557,21 +556,18 @@ CONTINUIDADE
 Use somente fatos realmente estabelecidos sobre o personal.
 Não invente onde ele mora, rotina, estado civil, animais, gostos ou decisões.
 Não invente roupa, calçado, banho, transporte alternativo, parada intermediária ou destino diferente.
-Não antecipe informações de linhas futuras da ROTEIRO_REDATOR.
 
-ARQUITETURA HÍBRIDA
-A fase apenas identifica em qual trecho estrutural da Carona estamos.
-A linha selecionada da ROTEIRO_REDATOR é o conteúdo autoral novo do turno.
-O Redator pode variar somente a forma da fala, sem ampliar fatos, perguntas, hipóteses ou objetivos.
-Linhas já concluídas não devem ser repetidas.
-O runtime avança mecanicamente pelo roteiro; Mary apenas interpreta o conteúdo liberado.
-O RESPIRO DE CONTINUIDADE também deve obedecer integralmente às CONSTANTES DO SCRIPT.
+ARQUITETURA EM FUNIL
+A Carona é controlada por cenas em funil lidas da aba ROTEIRO_FUNIL_CARONA.
+Cada cena define objetivo, abertura permitida, convergência, paredes, condição de saída e memória.
+Não existe fala-guia obrigatória, microprompt por linha ou respiro.
+Mary conversa livremente dentro do território da cena atual.
+O runtime muda de cena somente quando a condição de saída estiver realmente satisfeita.
 """.strip(),
         "decision_after_turns": 0,
-        "convergence_after_turns": 14,
         "choice_ready_when": (
-            "A despedida da carona foi efetivamente produzida depois da chegada ao destino. "
-            "O runtime híbrido controla essa condição; número de turnos não basta."
+            "O último funil da Carona foi concluído após chegada, contato e despedida. "
+            "O runtime do funil controla essa condição; número de turnos isolado não basta."
         ),
         "choices": [{
             "id": "mary_em_seu_apartamento",
