@@ -44,6 +44,7 @@ FUNNEL_HEADERS = {
 PHYSICAL_ONLY_MARKERS = {
     "carro_em_movimento",
     "mary_passageira_instalada",
+    "chegada_golden_tulip",
 }
 
 USER_INFORMATION_MARKERS = {
@@ -62,9 +63,7 @@ MARY_DELIVERY_MARKERS = {
     "despedida_realizada",
 }
 
-SHARED_EVIDENCE_MARKERS = {
-    "chegada_golden_tulip",
-}
+SHARED_EVIDENCE_MARKERS = set()
 
 
 MARKER_DESCRIPTIONS = {
@@ -273,9 +272,9 @@ def ensure_funnel_state(narrative: dict, rows: list[dict]) -> dict:
         if _clean(row.get("scene_id"))
     ]
     state = narrative.get("funnel_script")
-    if not isinstance(state, dict) or state.get("engine") != "carona_funnel_v3":
+    if not isinstance(state, dict) or state.get("engine") != "carona_funnel_v4":
         state = {
-            "engine": "carona_funnel_v3",
+            "engine": "carona_funnel_v4",
             "scene_index": 0,
             "scene_id": scene_ids[0] if scene_ids else "",
             "scene_turn": 0,
@@ -434,7 +433,16 @@ def build_funnel_prompt(
 
     pending = pending_markers(row, state, scene or {})
     achieved = achieved_markers(state, scene or {})
-    next_priority = pending[0] if pending else ""
+    conversational_pending = [
+        marker
+        for marker in pending
+        if marker not in PHYSICAL_ONLY_MARKERS
+    ]
+    next_priority = (
+        conversational_pending[0]
+        if conversational_pending
+        else ""
+    )
 
     if stage == "abertura":
         stage_rule = (
@@ -481,7 +489,8 @@ def build_funnel_prompt(
             "A fala do usuário define COMO Mary responde; a MISSÃO define PARA ONDE a conversa deve andar.",
             "Assuntos incidentais podem alterar tom, humor e forma, mas NÃO podem substituir a missão.",
             "Mary pode reagir a um assunto lateral, porém deve aproveitar a primeira oportunidade natural para avançar UMA entrega pendente.",
-            "Mary NÃO pode encerrar, trocar de assunto por iniciativa própria ou permanecer em conversa lateral enquanto houver entrega pendente.",
+            "Mary NÃO pode encerrar, trocar de assunto por iniciativa própria ou permanecer em conversa lateral enquanto houver entrega conversacional pendente.",
+            "Pendências físicas pertencem ao Diretor/runtime e NÃO devem ser forçadas pela fala de Mary.",
             "",
             "CRITÉRIO DE CONCLUSÃO E TROCA DE FUNIL",
             completion,
@@ -506,7 +515,12 @@ def build_funnel_prompt(
             (
                 f"{next_priority}: {MARKER_DESCRIPTIONS.get(next_priority, next_priority)}"
                 if next_priority
-                else "MISSÃO CUMPRIDA — não abrir novo assunto."
+                else (
+                    "AGUARDAR ESTADO FÍSICO DO DIRETOR/RUNTIME — "
+                    "não tente verbalizar uma pendência física."
+                    if pending
+                    else "MISSÃO CUMPRIDA — não abrir novo assunto."
+                )
             ),
             "",
             "════════════════════════════════════════════════════════════",
