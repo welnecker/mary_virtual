@@ -483,6 +483,10 @@ def build_funnel_prompt(
             "Não avance para a próxima linha por conta própria.",
             "Não repita pergunta que já foi respondida de forma suficiente.",
             "Não invente resposta, ação, aceite, recusa ou fato do usuário.",
+            "AUTORIA DE FATOS: preserve sempre quem é o dono de cada informação. "
+            "Um fato do USER nunca vira fato de MARY, e um fato de MARY nunca vira fato do USER.",
+            "Se o usuário perguntar sobre Mary, responda somente com fatos de Mary presentes nas fontes autoritativas; "
+            "não reutilize para Mary um valor conhecido do interlocutor.",
             "Se a conclusão depender do estado físico, não verbalize o fato para forçá-lo; o Diretor fornece physical_state.",
             "",
             "EVIDÊNCIAS JÁ ACUMULADAS NESTE PASSO",
