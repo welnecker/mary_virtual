@@ -69,7 +69,7 @@ def test_funnel_drops_legacy_hybrid_state_and_starts_v3():
     state = ensure_funnel_state(narrative, ROWS)
 
     assert "hybrid_script" not in narrative
-    assert state["engine"] == "carona_funnel_v4"
+    assert state["engine"] == "carona_funnel_v5"
     assert state["scene_id"] == "entrada"
     assert state["markers"] == []
 
@@ -148,7 +148,7 @@ def test_migrate_state_preserves_funnel_runtime_state():
             "chapter_id": "carona_camburi",
             "chapter_turns": 5,
             "funnel_script": {
-                "engine": "carona_funnel_v4",
+                "engine": "carona_funnel_v5",
                 "scene_index": 1,
                 "scene_id": "conversa",
                 "scene_turn": 2,
