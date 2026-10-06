@@ -263,6 +263,23 @@ def ensure_funnel_state(narrative: dict, rows: list[dict]) -> dict:
     )
     if not isinstance(state.get("completed_steps"), list):
         state["completed_steps"] = []
+    if not state["completed_steps"] and state.get("completed_scene_ids"):
+        completed_ids = set(state.get("completed_scene_ids", []))
+        rebuilt: list[dict] = []
+        for item in rows:
+            scene_id = _clean(item.get("scene_id"))
+            if scene_id not in completed_ids:
+                continue
+            rebuilt.append(
+                {
+                    "order": int(item.get("order", 0) or 0),
+                    "scene_id": scene_id,
+                    "mission": _clean(item.get("mission")) or _clean(item.get("objective")),
+                    "completion": _clean(item.get("completion_criterion")),
+                    "summary": _clean(item.get("completion_criterion")),
+                }
+            )
+        state["completed_steps"] = rebuilt[-24:]
     state["markers"] = []
     state["step_complete"] = bool(state.get("step_complete", False))
     if not isinstance(state.get("step_evidence"), list):
@@ -924,9 +941,19 @@ def correction_prompt(
     state: dict | None = None,
     scene: dict | None = None,
 ) -> str:
-    violations = "; ".join(
-        _unique_text(evaluation.get("violations", []), limit=12)
-    ) or "a resposta saiu dos limites autorais desta linha"
+    violations_list = _unique_text(
+        evaluation.get("violations", []),
+        limit=12,
+    )
+    if violations_list:
+        violations = "; ".join(violations_list)
+    elif not bool(evaluation.get("mission_progress_ok", True)):
+        violations = (
+            "a resposta não avançou a missão atual; pode ter retomado ou "
+            "reinvestigado objetivo já concluído em passo anterior"
+        )
+    else:
+        violations = "a resposta precisa ser realinhada à missão atual"
 
     mission = _clean(row.get("mission")) or _clean(row.get("objective"))
     completion = _clean(row.get("completion_criterion"))
