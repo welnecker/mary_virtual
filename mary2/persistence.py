@@ -19,6 +19,7 @@ DIRECTOR_AUDIT_SHEET = "DIRECTOR_AUDIT"
 MODEL_AUDIT_SHEET = "MODEL_AUDIT"
 FUNNEL_AUDIT_SHEET = "FUNNEL_AUDIT"
 BLOCK_AUDIT_SHEET = "BLOCK_AUDIT"
+DIRECT_SCRIPT_AUDIT_SHEET = "DIRECT_SCRIPT_AUDIT"
 FUNNEL_REJECTIONS_SHEET = "FUNNEL_REJECTIONS"
 CHECKPOINTS_SHEET = "STORY_CHECKPOINTS"
 BRANCHES_SHEET = "STORY_BRANCHES"
@@ -178,6 +179,34 @@ BLOCK_AUDIT_HEADERS = [
     "state_before_json",
     "state_after_json",
     "physical_state_json",
+    "branch_id",
+    "chapter_instance_id",
+    "chapter_turn",
+]
+
+DIRECT_SCRIPT_AUDIT_HEADERS = [
+    "run_id",
+    "seq",
+    "created_at",
+    "chapter_id",
+    "line_id",
+    "line_order",
+    "line_type",
+    "completion_type",
+    "precondition",
+    "instant_memory",
+    "recent_memory",
+    "permanent_memory",
+    "wardrobe",
+    "physical_action",
+    "speech_guide",
+    "style",
+    "user_text",
+    "mary_text",
+    "mary_thought",
+    "awaiting_reply_order",
+    "completed_orders_json",
+    "script_completed",
     "branch_id",
     "chapter_instance_id",
     "chapter_turn",
@@ -411,6 +440,7 @@ def ensure_schema(
     _ensure_worksheet(book, MODEL_AUDIT_SHEET, MODEL_AUDIT_HEADERS)
     _ensure_worksheet(book, FUNNEL_AUDIT_SHEET, FUNNEL_AUDIT_HEADERS)
     _ensure_worksheet(book, BLOCK_AUDIT_SHEET, BLOCK_AUDIT_HEADERS)
+    _ensure_worksheet(book, DIRECT_SCRIPT_AUDIT_SHEET, DIRECT_SCRIPT_AUDIT_HEADERS)
     _ensure_worksheet(book, FUNNEL_REJECTIONS_SHEET, FUNNEL_REJECTION_HEADERS)
     _ensure_worksheet(book, CHECKPOINTS_SHEET, CHECKPOINT_HEADERS)
     _ensure_worksheet(book, BRANCHES_SHEET, BRANCH_HEADERS)
@@ -1048,6 +1078,73 @@ def save_funnel_audit(
             _audit_cell(progress.get("pending_markers", [])),
             bool(progress.get("exit_ready", False)),
             _audit_cell(progress.get("physical_state", {})),
+        ],
+        value_input_option="RAW",
+    )
+
+
+def save_direct_script_audit(
+    *,
+    service_account_info: dict,
+    run_id: str,
+    seq: int,
+    chapter_id: str,
+    user_text: str,
+    mary_text: str,
+    mary_thought: str,
+    row: dict,
+    state: dict,
+    branch_id: str = "",
+    chapter_instance_id: str = "",
+    chapter_turn: int = 0,
+    spreadsheet_id: str = "",
+    spreadsheet_title: str = "MARY_CORE_PERSISTENCE",
+    owner_email: str = "",
+) -> None:
+    """Registra exatamente qual linha da MINHA_SUGESTAO foi usada no turno."""
+    if not isinstance(state, dict):
+        return
+
+    book = open_or_create_book(
+        service_account_info=service_account_info,
+        spreadsheet_id=spreadsheet_id,
+        spreadsheet_title=spreadsheet_title,
+        owner_email=owner_email,
+    )
+    ws = _ensure_worksheet(
+        book,
+        DIRECT_SCRIPT_AUDIT_SHEET,
+        DIRECT_SCRIPT_AUDIT_HEADERS,
+    )
+    row = row if isinstance(row, dict) else {}
+
+    ws.append_row(
+        [
+            run_id,
+            int(seq or 0),
+            _now(),
+            chapter_id,
+            str(row.get("line_id", "") or ""),
+            int(row.get("order", 0) or 0),
+            str(row.get("type", "") or ""),
+            str(row.get("completion_type", "") or ""),
+            _audit_cell(row.get("precondition", "")),
+            _audit_cell(row.get("instant_memory", "")),
+            _audit_cell(row.get("recent_memory", "")),
+            _audit_cell(row.get("permanent_memory", "")),
+            _audit_cell(row.get("wardrobe", "")),
+            _audit_cell(row.get("physical_action", "")),
+            _audit_cell(row.get("speech_guide", "")),
+            _audit_cell(row.get("style", "")),
+            _audit_cell(user_text),
+            _audit_cell(mary_text),
+            _audit_cell(mary_thought),
+            int(state.get("awaiting_reply_order", 0) or 0),
+            _audit_cell(state.get("completed_orders", [])),
+            bool(state.get("completed", False)),
+            branch_id,
+            chapter_instance_id,
+            int(chapter_turn or 0),
         ],
         value_input_option="RAW",
     )
