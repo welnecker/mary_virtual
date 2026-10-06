@@ -71,13 +71,13 @@ def test_writer_prompt_is_direct_and_contains_only_authorial_fields():
     assert "HIERARQUIA DE AUTORIDADE" not in prompt
     assert "STORY LEDGER" not in prompt
     assert "CONTEXTO FIXO DO CAPÍTULO" not in prompt
-    assert "FALA DO USUÁRIO é o único acontecimento verbal que acabou de ocorrer" in prompt
-    assert "interprete silenciosamente o que essa fala significa neste contexto" in prompt
-    assert "INTERPRETAR O USUÁRIO -> REAGIR COMO MARY -> DESENVOLVER A FALA-GUIA" in prompt
-    assert "Não responda apenas às palavras literais do usuário" in prompt
-    assert "A FALA-GUIA orienta para onde a conversa deve caminhar" in prompt
+    assert "O usuário não conhece o roteiro" in prompt
+    assert "INTERPRETAR O USUÁRIO -> REAGIR COMO MARY -> CUMPRIR A FALA-GUIA" in prompt
+    assert "A resposta só está completa" in prompt
+    assert "nunca autoriza omitir, inverter, contradizer ou substituir" in prompt
+    assert "Uma parte não substitui a outra" in prompt
+    assert "Preserve rigorosamente os papéis e propriedades" in prompt
     assert "Não devem ser recitados, explicados nem transformados em assunto" in prompt
-    assert "Não puxe delas informações que o usuário não pediu" in prompt
 
 
 def test_next_user_reply_advances_directly_without_breath_turn():
