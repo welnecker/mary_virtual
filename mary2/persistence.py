@@ -17,6 +17,7 @@ RUNS_SHEET = "STORY_RUNS"
 INTERACTIONS_SHEET = "INTERACTIONS"
 DIRECTOR_AUDIT_SHEET = "DIRECTOR_AUDIT"
 MODEL_AUDIT_SHEET = "MODEL_AUDIT"
+FUNNEL_AUDIT_SHEET = "FUNNEL_AUDIT"
 CHECKPOINTS_SHEET = "STORY_CHECKPOINTS"
 BRANCHES_SHEET = "STORY_BRANCHES"
 
@@ -108,6 +109,34 @@ MODEL_AUDIT_HEADERS = [
     "mary_speech_raw",
     "mary_thought",
     "final_mary_text",
+    "branch_id",
+    "chapter_instance_id",
+    "chapter_turn",
+]
+
+FUNNEL_AUDIT_HEADERS = [
+    "run_id",
+    "seq",
+    "created_at",
+    "chapter_id",
+    "scene_id",
+    "scene_order",
+    "scene_turn_before",
+    "scene_turn_after",
+    "stage",
+    "min_turns",
+    "ideal_turns",
+    "max_turns",
+    "user_text",
+    "mary_text",
+    "boundary_ok",
+    "violations_json",
+    "exit_condition_met",
+    "evaluation_json",
+    "state_before_json",
+    "state_after_json",
+    "advanced",
+    "advanced_to",
     "branch_id",
     "chapter_instance_id",
     "chapter_turn",
@@ -311,6 +340,7 @@ def ensure_schema(
     _ensure_worksheet(book, INTERACTIONS_SHEET, INTERACTION_HEADERS)
     _ensure_worksheet(book, DIRECTOR_AUDIT_SHEET, DIRECTOR_AUDIT_HEADERS)
     _ensure_worksheet(book, MODEL_AUDIT_SHEET, MODEL_AUDIT_HEADERS)
+    _ensure_worksheet(book, FUNNEL_AUDIT_SHEET, FUNNEL_AUDIT_HEADERS)
     _ensure_worksheet(book, CHECKPOINTS_SHEET, CHECKPOINT_HEADERS)
     _ensure_worksheet(book, BRANCHES_SHEET, BRANCH_HEADERS)
     return {
@@ -799,6 +829,77 @@ def save_model_audit(
             _audit_cell(audit.get("mary_speech_raw", "")),
             _audit_cell(audit.get("mary_thought", "")),
             _audit_cell(audit.get("final_mary_text", "")),
+            branch_id,
+            chapter_instance_id,
+            int(chapter_turn or 0),
+        ],
+        value_input_option="RAW",
+    )
+
+
+def save_funnel_audit(
+    *,
+    service_account_info: dict,
+    run_id: str,
+    seq: int,
+    chapter_id: str,
+    user_text: str,
+    mary_text: str,
+    row: dict,
+    evaluation: dict,
+    progress: dict,
+    branch_id: str = "",
+    chapter_instance_id: str = "",
+    chapter_turn: int = 0,
+    spreadsheet_id: str = "",
+    spreadsheet_title: str = "MARY_CORE_PERSISTENCE",
+    owner_email: str = "",
+) -> None:
+    """Registra o estado do funil em formato compacto e legível por turno."""
+    if not isinstance(row, dict) or not row:
+        return
+    if not isinstance(progress, dict) or not progress:
+        return
+
+    book = open_or_create_book(
+        service_account_info=service_account_info,
+        spreadsheet_id=spreadsheet_id,
+        spreadsheet_title=spreadsheet_title,
+        owner_email=owner_email,
+    )
+    ws = _ensure_worksheet(
+        book,
+        FUNNEL_AUDIT_SHEET,
+        FUNNEL_AUDIT_HEADERS,
+    )
+
+    before = progress.get("state_before", {})
+    after = progress.get("state_after", {})
+
+    ws.append_row(
+        [
+            run_id,
+            int(seq or 0),
+            _now(),
+            chapter_id,
+            str(row.get("scene_id", "") or ""),
+            int(row.get("order", 0) or 0),
+            int(before.get("scene_turn", 0) or 0) if isinstance(before, dict) else 0,
+            int(after.get("scene_turn", 0) or 0) if isinstance(after, dict) else 0,
+            str(progress.get("stage", "") or ""),
+            int(row.get("min_turns", 0) or 0),
+            int(row.get("ideal_turns", 0) or 0),
+            int(row.get("max_turns", 0) or 0),
+            _audit_cell(user_text),
+            _audit_cell(mary_text),
+            bool(evaluation.get("boundary_ok", True)) if isinstance(evaluation, dict) else True,
+            _audit_cell(evaluation.get("violations", []) if isinstance(evaluation, dict) else []),
+            bool(evaluation.get("exit_condition_met", False)) if isinstance(evaluation, dict) else False,
+            _audit_cell(evaluation if isinstance(evaluation, dict) else {}),
+            _audit_cell(before),
+            _audit_cell(after),
+            bool(progress.get("advanced", False)),
+            str(progress.get("advanced_to", "") or ""),
             branch_id,
             chapter_instance_id,
             int(chapter_turn or 0),
