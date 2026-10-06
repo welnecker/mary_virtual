@@ -884,6 +884,8 @@ def save_funnel_rejection(
     correction_prompt: str,
     retry_mary_text: str,
     retry_evaluation: dict,
+    pending_markers: list | None = None,
+    required_markers: list | None = None,
     branch_id: str = "",
     chapter_instance_id: str = "",
     chapter_turn: int = 0,
@@ -930,13 +932,8 @@ def save_funnel_rejection(
             _audit_cell(retry_evaluation.get("violations", [])),
             retry_evaluation.get("mission_progress_ok", ""),
             str(retry_evaluation.get("mission_progress_target", "") or ""),
-            _audit_cell(
-                retry_evaluation.get(
-                    "pending_markers",
-                    state.get("markers", []) if isinstance(state, dict) else [],
-                )
-            ),
-            _audit_cell(row.get("exit_markers", "")),
+            _audit_cell(pending_markers or []),
+            _audit_cell(required_markers or []),
             _audit_cell(state if isinstance(state, dict) else {}),
         ],
         value_input_option="RAW",
