@@ -9,92 +9,31 @@ import gspread
 from openrouter_client import chat
 
 
-FUNNEL_HEADERS = {
+REDATOR_HEADERS = {
     "ordem": "order",
-    "cena id": "scene_id",
-    "objetivo da cena": "objective",
-    "abertura permitida": "opening_allowed",
-    "convergência": "convergence",
-    "convergencia": "convergence",
-    "não pode": "forbidden",
-    "nao pode": "forbidden",
-    "min turns": "min_turns",
-    "ideal turns": "ideal_turns",
-    "max turns": "max_turns",
-    "condição de saída": "exit_condition",
-    "condicao de saida": "exit_condition",
-    "saída prevista": "next_scene",
-    "saida prevista": "next_scene",
-    "atmosfera / atitude": "atmosphere",
-    "vestimenta": "wardrobe",
-    "fatos fixos da cena": "fixed_facts",
-    "memória a consolidar": "memory_policy",
-    "memoria a consolidar": "memory_policy",
-    "marcos de saída": "exit_markers",
-    "marcos de saida": "exit_markers",
-    "missão obrigatória": "mission",
-    "missao obrigatoria": "mission",
-    "entregas obrigatórias": "deliverables",
-    "entregas obrigatorias": "deliverables",
-    "critério de conclusão": "completion_criterion",
-    "criterio de conclusao": "completion_criterion",
+    "roteiro": "script_name",
+    "tipo": "line_type",
+    "fala-guia": "guide",
+    "fala guia": "guide",
+    "estilo / atitude": "style",
+    "atmosfera": "atmosphere",
+    "fato liberado nesta linha": "released_fact",
+    "pré-condição": "precondition",
+    "pre-condição": "precondition",
+    "pre-condicao": "precondition",
+    "vestimenta atual": "wardrobe",
+    "ação física / encenação": "physical_action",
+    "acao fisica / encenacao": "physical_action",
+    "limites do redator": "forbidden",
+    "missão da linha": "mission",
+    "missao da linha": "mission",
+    "condição de conclusão": "completion_criterion",
+    "condicao de conclusao": "completion_criterion",
+    "tipo de conclusão": "completion_type",
+    "tipo de conclusao": "completion_type",
 }
 
-
-PHYSICAL_ONLY_MARKERS = {
-    "carro_em_movimento",
-    "mary_passageira_instalada",
-    "aproximando_golden_tulip",
-    "chegada_golden_tulip",
-}
-
-USER_INFORMATION_MARKERS = {
-    "usuario_residencia",
-    "usuario_desvio_camburi",
-    "usuario_vida_domestica",
-    "usuario_preferencia_noturna",
-}
-
-MARY_DELIVERY_MARKERS = {
-    "mary_reage_suv",
-    "mary_comenta_transito",
-    "mary_nautico",
-    "mary_passado_nautico",
-    "mary_retomar_vida_social",
-    "mary_plano_hoje",
-    "possibilidade_encontro_hoje",
-    "possibilidade_encontro_posterior",
-    "mary_indica_golden_tulip",
-    "mary_reconhecimento_companhia",
-    "contato_tratado",
-    "despedida_realizada",
-}
-
-SHARED_EVIDENCE_MARKERS = set()
-
-
-MARKER_DESCRIPTIONS = {
-    "carro_em_movimento": "O carro do personal está efetivamente em movimento rumo a Camburi.",
-    "mary_passageira_instalada": "Mary está efetivamente instalada no banco do passageiro.",
-    "usuario_residencia": "O usuário afirmou onde mora ou sua região de residência.",
-    "usuario_desvio_camburi": "O usuário esclareceu se levar Mary a Camburi representa desvio relevante em relação ao seu caminho.",
-    "usuario_vida_domestica": "O usuário afirmou se mora sozinho ou com alguém / como é sua coabitação.",
-    "usuario_preferencia_noturna": "O usuário afirmou ao menos uma preferência real de lazer para sábado/noite.",
-    "mary_reage_suv": "Mary reagiu ao SUV do personal de modo compatível com o primeiro contato com o veículo.",
-    "mary_comenta_transito": "Mary comentou o trânsito ou fluxo da via já dentro do trajeto, sem controlar a condução.",
-    "mary_nautico": "Mary mencionou explicitamente o Clube Náutico dentro da conversa.",
-    "mary_passado_nautico": "Mary disse que frequentava o Clube Náutico quando solteira.",
-    "mary_retomar_vida_social": "Mary revelou que sua vida social esfriou e que deseja retomar essa parte da vida.",
-    "mary_plano_hoje": "Mary deixou explícito que pretende sair naquela noite, por volta das oito, depois de ir para casa e se arrumar.",
-    "possibilidade_encontro_hoje": "Mary abriu ao personal a possibilidade de encontrá-la no Clube Náutico naquela mesma noite, sem presumir aceite ou logística.",
-    "possibilidade_encontro_posterior": "Mary abriu a possibilidade de encontrá-lo mais tarde, sem presumir aceite ou logística.",
-    "aproximando_golden_tulip": "O estado físico indica que o SUV está se aproximando do destino/Golden Tulip.",
-    "mary_indica_golden_tulip": "Mary indicou explicitamente o Golden Tulip como referência de chegada e pediu para parar por perto, sem controlar a ação do motorista.",
-    "chegada_golden_tulip": "A chegada ao Golden Tulip está efetivamente estabelecida pelo estado físico estruturado.",
-    "mary_reconhecimento_companhia": "Mary reconheceu explicitamente que gostou da companhia/conversa.",
-    "contato_tratado": "A troca de contato foi realmente tratada sem inventar número ou confirmação do usuário.",
-    "despedida_realizada": "Mary realizou a despedida e não abriu novo assunto depois dela.",
-}
+GENERIC_COMPLETION_TYPES = {"USER", "MARY", "PHYSICAL", "MIXED"}
 
 
 def _clean(value: Any) -> str:
@@ -134,67 +73,16 @@ def _unique_text(items: Any, *, limit: int = 24) -> list[str]:
     return result
 
 
-def _marker_list(value: Any) -> list[str]:
-    return _unique_text(
-        [
-            part.strip()
-            for part in _clean(value).replace(",", ";").split(";")
-            if part.strip()
-        ],
-        limit=32,
-    )
-
-
 def required_markers(row: dict) -> list[str]:
-    return _marker_list(row.get("exit_markers", ""))
-
-
-def derive_physical_markers(scene: dict) -> list[str]:
-    """Converte apenas physical_state estruturado em marcadores do funil."""
-    if not isinstance(scene, dict):
-        return []
-
-    physical = scene.get("physical_state", {})
-    if not isinstance(physical, dict):
-        return []
-
-    location_type = _clean(physical.get("location_type")).lower()
-    vehicle_motion = _clean(physical.get("vehicle_motion")).lower()
-    mary_position = _clean(physical.get("mary_position")).lower()
-    arrival_state = _clean(physical.get("arrival_state")).lower()
-
-    markers: list[str] = []
-
-    if vehicle_motion == "moving":
-        markers.append("carro_em_movimento")
-
-    if mary_position == "passenger_seat":
-        markers.append("mary_passageira_instalada")
-
-    if arrival_state in {"approaching", "arrived"}:
-        markers.append("aproximando_golden_tulip")
-
-    if arrival_state == "arrived":
-        markers.append("chegada_golden_tulip")
-
-    return markers
+    """Adaptador legado: um passo genérico exige apenas sua conclusão."""
+    return ["step_complete"] if _clean(row.get("completion_criterion")) else []
 
 
 def achieved_markers(
     state: dict,
     scene: dict | None = None,
 ) -> list[str]:
-    saved = _unique_text(
-        state.get("markers", []),
-        limit=32,
-    )
-    physical = derive_physical_markers(
-        scene or {}
-    )
-    return _unique_text(
-        saved + physical,
-        limit=32,
-    )
+    return ["step_complete"] if bool(state.get("step_complete", False)) else []
 
 
 def pending_markers(
@@ -202,27 +90,31 @@ def pending_markers(
     state: dict,
     scene: dict | None = None,
 ) -> list[str]:
-    achieved = set(
-        achieved_markers(
-            state,
-            scene,
-        )
-    )
-    return [
-        marker
-        for marker in required_markers(row)
-        if marker not in achieved
-    ]
+    if not required_markers(row):
+        return []
+    return [] if bool(state.get("step_complete", False)) else ["step_complete"]
 
 
 def marker_summary(markers: list[str]) -> str:
     if not markers:
         return "- (nenhum)"
-    return "\n".join(
-        f"- {marker}: "
-        f"{MARKER_DESCRIPTIONS.get(marker, marker)}"
-        for marker in markers
-    )
+    labels = {
+        "step_complete": "condição de conclusão do passo ainda não comprovada",
+    }
+    return "\n".join(f"- {labels.get(marker, marker)}" for marker in markers)
+
+
+def derive_physical_markers(scene: dict) -> list[str]:
+    """Mantido apenas para auditoria compatível; não decide progressão."""
+    physical = scene.get("physical_state", {}) if isinstance(scene, dict) else {}
+    if not isinstance(physical, dict):
+        return []
+    result: list[str] = []
+    for key in ("location_type", "vehicle_motion", "mary_position", "arrival_state"):
+        value = _clean(physical.get(key))
+        if value and value.lower() != "unknown":
+            result.append(f"physical:{key}={value}")
+    return result
 
 
 def load_funnel_rows(
@@ -231,14 +123,15 @@ def load_funnel_rows(
     spreadsheet_id: str,
     worksheet_name: str,
 ) -> list[dict]:
+    """Carrega passos autorais diretamente de ROTEIRO_REDATOR."""
     if not service_account_info:
-        raise ValueError("service_account_info ausente para roteiro em funil")
+        raise ValueError("service_account_info ausente para roteiro")
     if not _clean(spreadsheet_id):
-        raise ValueError("spreadsheet_id ausente para roteiro em funil")
+        raise ValueError("spreadsheet_id ausente para roteiro")
 
     client = gspread.service_account_from_dict(service_account_info)
     worksheet = client.open_by_key(_clean(spreadsheet_id)).worksheet(
-        _clean(worksheet_name) or "ROTEIRO_FUNIL_CARONA"
+        _clean(worksheet_name) or "ROTEIRO_REDATOR"
     )
     values = worksheet.get_all_values()
     if not values:
@@ -246,14 +139,14 @@ def load_funnel_rows(
 
     header_index = -1
     headers: list[str] = []
-    for idx, row in enumerate(values):
-        normalized = [_clean(cell).lower() for cell in row]
-        if "ordem" in normalized and "cena id" in normalized and "objetivo da cena" in normalized:
+    for idx, source in enumerate(values):
+        normalized = [_clean(cell).lower() for cell in source]
+        if "ordem" in normalized and "fala-guia" in normalized:
             header_index = idx
             headers = normalized
             break
     if header_index < 0:
-        raise ValueError("cabeçalho do roteiro em funil não encontrado")
+        raise ValueError("cabeçalho do ROTEIRO_REDATOR não encontrado")
 
     rows: list[dict] = []
     for source_row in values[header_index + 1 :]:
@@ -261,24 +154,43 @@ def load_funnel_rows(
             continue
         record: dict[str, Any] = {}
         for index, header in enumerate(headers):
-            key = FUNNEL_HEADERS.get(header)
+            key = REDATOR_HEADERS.get(header)
             if key:
                 record[key] = _clean(source_row[index] if index < len(source_row) else "")
-        if not _clean(record.get("scene_id")):
+
+        order = _int(record.get("order"), len(rows) + 1)
+        if not _clean(record.get("guide")) and not _clean(record.get("mission")):
             continue
-        record["order"] = _int(record.get("order"), len(rows) + 1)
-        record["min_turns"] = max(1, _int(record.get("min_turns"), 1))
-        record["ideal_turns"] = max(
-            record["min_turns"],
-            _int(record.get("ideal_turns"), record["min_turns"]),
+
+        completion_type = _clean(record.get("completion_type")).upper() or "MIXED"
+        if completion_type not in GENERIC_COMPLETION_TYPES:
+            completion_type = "MIXED"
+
+        record["order"] = order
+        record["scene_id"] = f"roteiro_step_{order:02d}"
+        record["completion_type"] = completion_type
+        record["objective"] = _clean(record.get("mission")) or _clean(record.get("guide"))
+        record["opening_allowed"] = _clean(record.get("released_fact"))
+        record["convergence"] = _clean(record.get("mission"))
+        record["fixed_facts"] = _clean(record.get("precondition"))
+        record["memory_policy"] = (
+            "Preserve somente fatos explicitamente confirmados e evidências úteis "
+            "para continuidade; não transforme hipótese, pergunta ou fala de Mary em fato do usuário."
         )
-        record["max_turns"] = max(
-            record["ideal_turns"],
-            _int(record.get("max_turns"), record["ideal_turns"]),
-        )
+        record["deliverables"] = _clean(record.get("completion_criterion"))
+        record["exit_condition"] = _clean(record.get("completion_criterion"))
+        record["min_turns"] = 1
+        record["ideal_turns"] = 2
+        record["max_turns"] = 3
         rows.append(record)
 
     rows.sort(key=lambda item: int(item.get("order", 0) or 0))
+    for index, row in enumerate(rows):
+        row["next_scene"] = (
+            _clean(rows[index + 1].get("scene_id"))
+            if index + 1 < len(rows)
+            else ""
+        )
     return rows
 
 
@@ -289,14 +201,17 @@ def ensure_funnel_state(narrative: dict, rows: list[dict]) -> dict:
         if _clean(row.get("scene_id"))
     ]
     state = narrative.get("funnel_script")
-    if not isinstance(state, dict) or state.get("engine") != "carona_funnel_v5":
+    if not isinstance(state, dict) or state.get("engine") != "generic_script_v6":
         state = {
-            "engine": "carona_funnel_v5",
+            "engine": "generic_script_v6",
             "scene_index": 0,
             "scene_id": scene_ids[0] if scene_ids else "",
             "scene_turn": 0,
             "completed_scene_ids": [],
             "markers": [],
+            "step_complete": False,
+            "step_evidence": [],
+            "step_missing": [],
             "user_stance": {},
             "memory": {
                 "user_facts": [],
@@ -345,10 +260,12 @@ def ensure_funnel_state(narrative: dict, rows: list[dict]) -> dict:
         state.get("completed_scene_ids", []),
         limit=64,
     )
-    state["markers"] = _unique_text(
-        state.get("markers", []),
-        limit=32,
-    )
+    state["markers"] = []
+    state["step_complete"] = bool(state.get("step_complete", False))
+    if not isinstance(state.get("step_evidence"), list):
+        state["step_evidence"] = []
+    if not isinstance(state.get("step_missing"), list):
+        state["step_missing"] = []
     if not isinstance(state.get("user_stance"), dict):
         state["user_stance"] = {}
     state["completed"] = bool(state.get("completed", False))
