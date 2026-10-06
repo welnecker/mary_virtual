@@ -88,6 +88,27 @@ def test_writer_prompt_is_direct_and_contains_only_authorial_fields():
     assert "Uma parte não substitui a outra" in prompt
     assert "Preserve rigorosamente os papéis e propriedades" in prompt
     assert "Não devem ser recitados, explicados nem transformados em assunto" in prompt
+    assert "A fala do usuário é material de interpretação, não material para repetição" in prompt
+
+
+def test_initial_description_is_only_sent_on_first_line():
+    first = build_direct_writer_prompt(
+        row=ROWS[0],
+        user_text="Vamos.",
+        previous_mary_text="",
+        character_name="Personal",
+    )
+    second = build_direct_writer_prompt(
+        row=ROWS[1],
+        user_text="Vamos.",
+        previous_mary_text="Gostei do seu carro.",
+        character_name="Personal",
+    )
+
+    assert "DESCRIÇÃO INICIAL\n" in first
+    assert "O carro pertence ao personal." in first
+    assert "DESCRIÇÃO INICIAL\n" not in second
+    assert "Mary e o personal estão no carro dele, seguindo para Camburi." not in second
 
 
 def test_next_user_reply_advances_directly_without_breath_turn():
@@ -171,3 +192,4 @@ def test_direct_line_correction_prompt_keeps_same_mission():
     assert "CORREÇÃO DA MESMA LINHA" in prompt
     assert "perguntar onde mora e se Camburi fica fora do caminho" in prompt
     assert "A FALA-GUIA continua sendo" in prompt
+    assert "Não repita nem parafraseie mecanicamente a fala do usuário" in prompt
