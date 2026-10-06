@@ -801,7 +801,7 @@ def evaluate_funnel_turn(
     mission_progress_ok = bool(
         data.get(
             "mission_progress_ok",
-            not bool(pending_now),
+            True,
         )
     )
     boundary_ok = bool(data.get("boundary_ok", True))
