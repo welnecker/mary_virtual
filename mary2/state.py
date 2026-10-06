@@ -90,6 +90,24 @@ def migrate_state(state: dict | None) -> dict:
             ),
         })
 
+        if isinstance(narrative.get("funnel_script"), dict):
+            current["narrative"]["funnel_script"] = deepcopy(
+                narrative.get("funnel_script")
+            )
+        if "choice_ready" in narrative:
+            current["narrative"]["choice_ready"] = bool(
+                narrative.get("choice_ready", False)
+            )
+        if "active_phase_id" in narrative:
+            current["narrative"]["active_phase_id"] = str(
+                narrative.get("active_phase_id", "") or ""
+            )
+        if "phase_start_message_index" in narrative:
+            current["narrative"]["phase_start_message_index"] = max(
+                0,
+                int(narrative.get("phase_start_message_index", 0) or 0),
+            )
+
     ledger = state.get("story_ledger")
     if isinstance(ledger, list):
         current["story_ledger"] = [str(item).strip() for item in ledger if str(item).strip()]
