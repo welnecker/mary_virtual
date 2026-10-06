@@ -702,7 +702,7 @@ def evaluate_funnel_turn(
     mary_text: str,
 ) -> dict:
     required = required_markers(row)
-    pending_now = pending_now
+    pending_now = pending_markers(row, state, scene)
     physical = set(derive_physical_markers(scene))
     semantic_allowed = [
         marker
