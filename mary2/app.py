@@ -2049,9 +2049,17 @@ if user_text:
             handoff_text=_handoff_text(st.session_state.story_state),
         )
 
+        context_messages = (
+            compact_context_messages(
+                phase_messages,
+                limit=8,
+            )
+            if script_mode == "funnel_sheet"
+            else phase_messages[-24:]
+        )
         llm_messages = [
             {"role": "system", "content": system_prompt},
-            *phase_messages[-24:],
+            *context_messages,
         ]
         model_audit = {
             "model": model,
@@ -2067,6 +2075,8 @@ if user_text:
             "mary_speech_raw": "",
             "mary_thought": "",
             "final_mary_text": "",
+            "funnel_evaluation_initial": {},
+            "funnel_evaluation_final": {},
         }
 
         try:
@@ -2115,6 +2125,95 @@ if user_text:
                 raise OpenRouterError(
                     "O modelo não produziu fala verbal limpa de Mary após duas tentativas."
                 )
+
+            if (
+                script_mode == "funnel_sheet"
+                and funnel_state is not None
+                and funnel_row
+            ):
+                funnel_evaluation = evaluate_funnel_turn(
+                    api_key=api_key,
+                    model=director_model,
+                    fallback_model=fallback,
+                    row=funnel_row,
+                    state=funnel_state,
+                    scene=scene,
+                    user_text=dialogue_text,
+                    mary_text=answer,
+                )
+                model_audit[
+                    "funnel_evaluation_initial"
+                ] = deepcopy(funnel_evaluation)
+
+                if not bool(
+                    funnel_evaluation.get(
+                        "boundary_ok",
+                        True,
+                    )
+                ):
+                    retry_messages = [
+                        *llm_messages,
+                        {
+                            "role": "system",
+                            "content": correction_prompt(
+                                funnel_row,
+                                funnel_evaluation,
+                            ),
+                        },
+                    ]
+                    model_audit["retry_used"] = True
+                    model_audit["retry_messages"] = deepcopy(
+                        retry_messages
+                    )
+                    raw_answer = chat(
+                        api_key=api_key,
+                        model=model,
+                        fallback_model=fallback,
+                        messages=retry_messages,
+                        temperature=max(
+                            0.2,
+                            min(float(temperature), 0.7),
+                        ),
+                    )
+                    model_audit["retry_raw_response"] = raw_answer
+                    mary_intent, mary_speech_raw = parse_mary_response(
+                        raw_answer
+                    )
+                    narration_leak = looks_like_action_narration(
+                        mary_speech_raw
+                    )
+                    answer = sanitize_mary_output(
+                        mary_speech_raw
+                    )
+                    if not answer or narration_leak:
+                        raise OpenRouterError(
+                            "A correção do funil não produziu fala verbal limpa."
+                        )
+
+                    funnel_evaluation = evaluate_funnel_turn(
+                        api_key=api_key,
+                        model=director_model,
+                        fallback_model=fallback,
+                        row=funnel_row,
+                        state=funnel_state,
+                        scene=scene,
+                        user_text=dialogue_text,
+                        mary_text=answer,
+                    )
+
+                model_audit[
+                    "funnel_evaluation_final"
+                ] = deepcopy(funnel_evaluation)
+
+                if not bool(
+                    funnel_evaluation.get(
+                        "boundary_ok",
+                        True,
+                    )
+                ):
+                    raise OpenRouterError(
+                        "A resposta de Mary ultrapassou as paredes do funil após correção."
+                    )
         except Exception:
             # Turno atômico: nada da tentativa incompleta fica na sessão.
             st.session_state.scene_state = deepcopy(
