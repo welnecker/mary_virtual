@@ -1,4 +1,4 @@
-from block_script import (
+from mary2.block_script import (
     apply_block_turn,
     build_block_prompt,
     current_block_row,
