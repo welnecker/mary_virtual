@@ -18,6 +18,7 @@ ROWS = [
         "ideal_turns": 3,
         "max_turns": 4,
         "exit_markers": "carro_em_movimento",
+        "mission": "Colocar a carona em movimento.",
     },
     {
         "order": 2,
@@ -61,7 +62,7 @@ def test_funnel_drops_legacy_hybrid_state_and_starts_v2():
     state = ensure_funnel_state(narrative, ROWS)
 
     assert "hybrid_script" not in narrative
-    assert state["engine"] == "carona_funnel_v2"
+    assert state["engine"] == "carona_funnel_v3"
     assert state["scene_id"] == "entrada"
     assert state["markers"] == []
 
@@ -72,7 +73,7 @@ def test_physical_scene_state_proves_vehicle_movement():
     )
 
 
-def test_required_physical_marker_does_not_advance_before_minimum():
+def test_runtime_advances_immediately_when_mission_is_complete():
     state = ensure_funnel_state({}, ROWS)
 
     result = apply_funnel_evaluation(
@@ -84,28 +85,6 @@ def test_required_physical_marker_does_not_advance_before_minimum():
     )
 
     assert result["exit_ready"] is True
-    assert result["advanced"] is False
-    assert state["scene_turn"] == 1
-
-
-def test_runtime_advances_without_llm_exit_decision_when_marker_is_proven():
-    state = ensure_funnel_state({}, ROWS)
-
-    apply_funnel_evaluation(
-        rows=ROWS,
-        state=state,
-        row=ROWS[0],
-        evaluation=evaluation(),
-        scene=moving_scene(),
-    )
-    result = apply_funnel_evaluation(
-        rows=ROWS,
-        state=state,
-        row=ROWS[0],
-        evaluation=evaluation(),
-        scene=moving_scene(),
-    )
-
     assert result["advanced"] is True
     assert result["advanced_to"] == "conversa"
     assert state["scene_id"] == "conversa"
@@ -162,7 +141,7 @@ def test_migrate_state_preserves_funnel_runtime_state():
             "chapter_id": "carona_camburi",
             "chapter_turns": 5,
             "funnel_script": {
-                "engine": "carona_funnel_v2",
+                "engine": "carona_funnel_v3",
                 "scene_index": 1,
                 "scene_id": "conversa",
                 "scene_turn": 2,
