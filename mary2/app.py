@@ -19,6 +19,16 @@ from chapters import (
 )
 from director import direct_scene
 from input_router import parse_user_input
+from direct_script import (
+    build_direct_director_context,
+    build_direct_writer_prompt,
+    current_direct_row,
+    direct_script_ready_for_choice,
+    ensure_direct_state,
+    load_direct_script_rows,
+    mark_direct_line_emitted,
+    register_direct_user_reply,
+)
 from hybrid_script import (
     build_carona_prompt,
     carona_ready_for_choice,
@@ -84,7 +94,7 @@ st.set_page_config(page_title="Mary Core 2", page_icon="🖤", layout="centered"
 
 _LOG = logging.getLogger(__name__)
 
-BUILD_ID = "2026-10-06-block-script-v1"
+BUILD_ID = "2026-10-06-direct-sheet-v1"
 
 DEFAULT_MODELS = [
     "google/gemini-2.5-flash-lite",
@@ -728,6 +738,31 @@ def apply_pending_auto_transition(persistence: dict | None) -> bool:
         )
 
     return True
+
+
+def _direct_script_rows(*, persistence: dict, chapter: dict) -> list[dict]:
+    """Carrega a MINHA_SUGESTAO sem transformar o conteúdo autoral."""
+    if not persistence:
+        raise PersistenceError(
+            "O roteiro direto requer a planilha de persistência configurada."
+        )
+
+    worksheet = str(
+        chapter.get("script_worksheet", "MINHA_SUGESTAO") or "MINHA_SUGESTAO"
+    ).strip()
+    script_name = str(chapter.get("script_name", "Carona") or "Carona").strip()
+
+    rows = load_direct_script_rows(
+        service_account_info=persistence["service_account_info"],
+        spreadsheet_id=persistence["spreadsheet_id"],
+        worksheet_name=worksheet,
+        script_name=script_name,
+    )
+    if not rows:
+        raise PersistenceError(
+            f"Nenhuma linha do roteiro {script_name!r} foi encontrada em {worksheet!r}."
+        )
+    return rows
 
 
 def _hybrid_script_rows(*, persistence: dict, chapter: dict) -> list[dict]:
@@ -1879,6 +1914,12 @@ if user_text:
         chapter_config = get_chapter(_chapter_id())
         narrative_state = st.session_state.story_state.setdefault("narrative", {})
         script_mode = str(chapter_config.get("script_mode", "") or "").strip().lower()
+        director_chapter_prompt = ""
+        direct_rows: list[dict] = []
+        direct_state: dict | None = None
+        direct_row: dict = {}
+        direct_registration: dict = {}
+
         hybrid_rows: list[dict] = []
         hybrid_state: dict | None = None
         hybrid_selected_row: dict = {}
@@ -1897,7 +1938,30 @@ if user_text:
         funnel_evaluation: dict = {}
         funnel_progress: dict = {}
 
-        if script_mode == "block_sheet":
+        if script_mode == "direct_sheet":
+            direct_rows = _direct_script_rows(
+                persistence=persistence,
+                chapter=chapter_config,
+            )
+            direct_state = ensure_direct_state(
+                narrative_state,
+                direct_rows,
+            )
+            if user_spoke:
+                direct_registration = register_direct_user_reply(
+                    direct_state,
+                    direct_rows,
+                    dialogue_text,
+                )
+            direct_row = current_direct_row(
+                direct_rows,
+                direct_state,
+            )
+            current_phase = {
+                "id": str(direct_row.get("line_id", "") or "roteiro_concluido"),
+                "goal": str(direct_row.get("speech_guide", "") or "encerrar a Carona"),
+            }
+        elif script_mode == "block_sheet":
             block_rows = _block_script_rows(
                 persistence=persistence,
                 chapter=chapter_config,
@@ -1986,10 +2050,22 @@ if user_text:
             scene_for_director["mary_immediate_goal"] = ""
             scene_for_director["mary_action"] = ""
             scene_for_director["event"] = ""
-            if script_mode not in {"hybrid_phase_sheet", "funnel_sheet", "block_sheet"}:
+            if script_mode not in {"direct_sheet", "hybrid_phase_sheet", "funnel_sheet", "block_sheet"}:
                 scene_for_director["return_anchor"] = ""
 
-        if script_mode == "block_sheet":
+        if script_mode == "direct_sheet":
+            current_chapter_prompt = build_direct_writer_prompt(
+                row=direct_row,
+                user_text=dialogue_text,
+                character_name=str(
+                    scene_for_director.get("temporary_character", {}).get("name", "") or ""
+                ),
+            )
+            director_chapter_prompt = build_direct_director_context(
+                row=direct_row,
+                user_text=dialogue_text,
+            )
+        elif script_mode == "block_sheet":
             current_chapter_prompt = build_block_prompt(
                 facts_prompt=str(chapter_config.get("facts_prompt", "") or ""),
                 row=block_row,
@@ -2026,7 +2102,12 @@ if user_text:
                 turn_number=current_turn_number,
             )
 
-        if script_mode == "block_sheet":
+        if not director_chapter_prompt:
+            director_chapter_prompt = current_chapter_prompt
+
+        if script_mode == "direct_sheet":
+            director_context_messages = phase_messages[-1:] if user_spoke else []
+        elif script_mode == "block_sheet":
             # No motor de blocos, a memória recente autoral substitui o histórico bruto.
             # O Diretor recebe somente a fala atual para não canonizar erros antigos.
             director_context_messages = phase_messages[-1:] if user_spoke else []
@@ -2050,11 +2131,11 @@ if user_text:
             recent_messages=director_context_messages,
             scene_direction=scene_direction,
             user_spoke=user_spoke,
-            chapter_text=current_chapter_prompt,
-            funnel_mode=(script_mode in {"funnel_sheet", "block_sheet"}),
+            chapter_text=director_chapter_prompt,
+            funnel_mode=(script_mode in {"direct_sheet", "funnel_sheet", "block_sheet"}),
             conditional_transition=(
                 False
-                if script_mode in {"hybrid_phase_sheet", "funnel_sheet", "block_sheet"}
+                if script_mode in {"direct_sheet", "hybrid_phase_sheet", "funnel_sheet", "block_sheet"}
                 else (
                     str(chapter_config.get("transition", "")) == "auto_condition"
                     or (
@@ -2066,7 +2147,7 @@ if user_text:
             ),
             advance_when=(
                 ""
-                if script_mode in {"hybrid_phase_sheet", "funnel_sheet", "block_sheet"}
+                if script_mode in {"direct_sheet", "hybrid_phase_sheet", "funnel_sheet", "block_sheet"}
                 else (
                     str(chapter_config.get("advance_when", "") or "")
                     if str(chapter_config.get("transition", "")) == "auto_condition"
@@ -2158,17 +2239,24 @@ if user_text:
                 scene["scene_caption"] = opening_caption
 
         scene_text = json.dumps(scene, ensure_ascii=False)
-        system_prompt = build_system_prompt(
-            physical_canon=PHYSICAL_CANON,
-            story_ledger=story_ledger_text(st.session_state.story_state),
-            current_status=current_status_text(st.session_state.story_state),
-            chapter_text=current_chapter_prompt,
-            scene_text=scene_text,
-            user_role=user_role,
-            handoff_text=_handoff_text(st.session_state.story_state),
-        )
+        if script_mode == "direct_sheet":
+            # O Redator recebe diretamente a linha autoral da planilha.
+            system_prompt = current_chapter_prompt
+        else:
+            system_prompt = build_system_prompt(
+                physical_canon=PHYSICAL_CANON,
+                story_ledger=story_ledger_text(st.session_state.story_state),
+                current_status=current_status_text(st.session_state.story_state),
+                chapter_text=current_chapter_prompt,
+                scene_text=scene_text,
+                user_role=user_role,
+                handoff_text=_handoff_text(st.session_state.story_state),
+            )
 
-        if script_mode == "block_sheet":
+        if script_mode == "direct_sheet":
+            # A fala atual já está dentro do prompt direto; não envie histórico paralelo.
+            context_messages = []
+        elif script_mode == "block_sheet":
             # O bloco traz memória recente autoral explícita; não reenvia o histórico bruto.
             context_messages = phase_messages[-1:] if user_spoke else []
         elif script_mode == "funnel_sheet":
@@ -2420,6 +2508,19 @@ if user_text:
         model_audit["final_mary_text"] = answer
 
         if (
+            script_mode == "direct_sheet"
+            and direct_state is not None
+            and direct_row
+        ):
+            mark_direct_line_emitted(direct_state, direct_row)
+            _LOG.info(
+                "DIRECT_SCRIPT_AUDIT order=%s type=%s completion=%s awaiting=%s",
+                int(direct_row.get("order", 0) or 0),
+                str(direct_row.get("type", "") or ""),
+                str(direct_row.get("completion_type", "") or ""),
+                int(direct_state.get("awaiting_reply_order", 0) or 0),
+            )
+        elif (
             script_mode == "block_sheet"
             and block_state is not None
             and block_row
@@ -2499,7 +2600,10 @@ if user_text:
 
         active_chapter = get_chapter(_chapter_id())
 
-        if script_mode == "block_sheet" and block_state is not None:
+        if script_mode == "direct_sheet" and direct_state is not None:
+            if direct_script_ready_for_choice(direct_state):
+                narrative["choice_ready"] = True
+        elif script_mode == "block_sheet" and block_state is not None:
             if block_ready_for_choice(block_state):
                 narrative["choice_ready"] = True
         elif script_mode == "funnel_sheet" and funnel_state is not None:
@@ -2515,7 +2619,7 @@ if user_text:
                 narrative["choice_ready"] = True
 
         if (
-            script_mode not in {"hybrid_phase_sheet", "funnel_sheet", "block_sheet"}
+            script_mode not in {"direct_sheet", "hybrid_phase_sheet", "funnel_sheet", "block_sheet"}
             and str(active_chapter.get("choice_ready_when", "") or "").strip()
             and int(narrative.get("chapter_turns", 0) or 0)
             >= int(active_chapter.get("decision_after_turns", 0) or 0)
