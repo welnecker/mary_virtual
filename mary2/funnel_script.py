@@ -30,6 +30,22 @@ FUNNEL_HEADERS = {
     "fatos fixos da cena": "fixed_facts",
     "memória a consolidar": "memory_policy",
     "memoria a consolidar": "memory_policy",
+    "marcos de saída": "exit_markers",
+    "marcos de saida": "exit_markers",
+}
+
+
+MARKER_DESCRIPTIONS = {
+    "carro_em_movimento": "O carro do personal está efetivamente em movimento rumo a Camburi.",
+    "usuario_residencia_ou_vida_domestica": "O usuário afirmou ao menos um fato confiável sobre onde mora ou com quem vive.",
+    "usuario_preferencia_noturna": "O usuário afirmou ao menos uma preferência real de lazer para sábado/noite.",
+    "mary_nautico": "Mary mencionou explicitamente o Clube Náutico dentro da conversa.",
+    "mary_passado_nautico": "Mary disse que frequentava o Clube Náutico quando solteira.",
+    "mary_retomar_vida_social": "Mary revelou que sua vida social esfriou e que deseja retomar essa parte da vida.",
+    "possibilidade_encontro_posterior": "Mary abriu a possibilidade de encontrá-lo mais tarde, sem presumir aceite ou logística.",
+    "chegada_golden_tulip": "O veículo efetivamente chegou e parou/encostou próximo ao Golden Tulip.",
+    "contato_tratado": "A troca de contato foi realmente tratada sem inventar número ou confirmação do usuário.",
+    "despedida_realizada": "Mary realizou a despedida e não abriu novo assunto depois dela.",
 }
 
 
