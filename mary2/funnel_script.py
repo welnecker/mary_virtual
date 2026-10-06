@@ -44,20 +44,27 @@ FUNNEL_HEADERS = {
 PHYSICAL_ONLY_MARKERS = {
     "carro_em_movimento",
     "mary_passageira_instalada",
+    "aproximando_golden_tulip",
     "chegada_golden_tulip",
 }
 
 USER_INFORMATION_MARKERS = {
     "usuario_residencia",
+    "usuario_desvio_camburi",
     "usuario_vida_domestica",
     "usuario_preferencia_noturna",
 }
 
 MARY_DELIVERY_MARKERS = {
+    "mary_reage_suv",
+    "mary_comenta_transito",
     "mary_nautico",
     "mary_passado_nautico",
     "mary_retomar_vida_social",
+    "mary_plano_hoje",
+    "possibilidade_encontro_hoje",
     "possibilidade_encontro_posterior",
+    "mary_indica_golden_tulip",
     "mary_reconhecimento_companhia",
     "contato_tratado",
     "despedida_realizada",
@@ -70,13 +77,20 @@ MARKER_DESCRIPTIONS = {
     "carro_em_movimento": "O carro do personal está efetivamente em movimento rumo a Camburi.",
     "mary_passageira_instalada": "Mary está efetivamente instalada no banco do passageiro.",
     "usuario_residencia": "O usuário afirmou onde mora ou sua região de residência.",
+    "usuario_desvio_camburi": "O usuário esclareceu se levar Mary a Camburi representa desvio relevante em relação ao seu caminho.",
     "usuario_vida_domestica": "O usuário afirmou se mora sozinho ou com alguém / como é sua coabitação.",
     "usuario_preferencia_noturna": "O usuário afirmou ao menos uma preferência real de lazer para sábado/noite.",
+    "mary_reage_suv": "Mary reagiu ao SUV do personal de modo compatível com o primeiro contato com o veículo.",
+    "mary_comenta_transito": "Mary comentou o trânsito ou fluxo da via já dentro do trajeto, sem controlar a condução.",
     "mary_nautico": "Mary mencionou explicitamente o Clube Náutico dentro da conversa.",
     "mary_passado_nautico": "Mary disse que frequentava o Clube Náutico quando solteira.",
     "mary_retomar_vida_social": "Mary revelou que sua vida social esfriou e que deseja retomar essa parte da vida.",
+    "mary_plano_hoje": "Mary deixou explícito que pretende sair naquela noite, por volta das oito, depois de ir para casa e se arrumar.",
+    "possibilidade_encontro_hoje": "Mary abriu ao personal a possibilidade de encontrá-la no Clube Náutico naquela mesma noite, sem presumir aceite ou logística.",
     "possibilidade_encontro_posterior": "Mary abriu a possibilidade de encontrá-lo mais tarde, sem presumir aceite ou logística.",
-    "chegada_golden_tulip": "A chegada ao Golden Tulip está efetivamente estabelecida.",
+    "aproximando_golden_tulip": "O estado físico indica que o SUV está se aproximando do destino/Golden Tulip.",
+    "mary_indica_golden_tulip": "Mary indicou explicitamente o Golden Tulip como referência de chegada e pediu para parar por perto, sem controlar a ação do motorista.",
+    "chegada_golden_tulip": "A chegada ao Golden Tulip está efetivamente estabelecida pelo estado físico estruturado.",
     "mary_reconhecimento_companhia": "Mary reconheceu explicitamente que gostou da companhia/conversa.",
     "contato_tratado": "A troca de contato foi realmente tratada sem inventar número ou confirmação do usuário.",
     "despedida_realizada": "Mary realizou a despedida e não abriu novo assunto depois dela.",
@@ -156,6 +170,9 @@ def derive_physical_markers(scene: dict) -> list[str]:
 
     if mary_position == "passenger_seat":
         markers.append("mary_passageira_instalada")
+
+    if arrival_state in {"approaching", "arrived"}:
+        markers.append("aproximando_golden_tulip")
 
     if arrival_state == "arrived":
         markers.append("chegada_golden_tulip")
@@ -719,10 +736,7 @@ def evaluate_funnel_turn(
     semantic_allowed = [
         marker
         for marker in required
-        if marker not in {
-            "carro_em_movimento",
-            "mary_passageira_instalada",
-        }
+        if marker not in PHYSICAL_ONLY_MARKERS
     ]
 
     payload = {
@@ -930,10 +944,13 @@ def apply_funnel_evaluation(
         limit=16,
     )
     physical = derive_physical_markers(scene)
+    saved_semantic = [
+        marker
+        for marker in _unique_text(state.get("markers", []), limit=32)
+        if marker not in PHYSICAL_ONLY_MARKERS
+    ]
     state["markers"] = _unique_text(
-        list(state.get("markers", []))
-        + semantic
-        + physical,
+        saved_semantic + semantic,
         limit=32,
     )
 
