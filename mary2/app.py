@@ -77,6 +77,7 @@ from persistence import (
     new_chapter_instance_id,
     save_branch,
     save_block_audit,
+    save_direct_script_audit,
     save_checkpoint,
     save_director_audit,
     save_funnel_audit,
@@ -2719,6 +2720,34 @@ if user_text:
                     )
                 except Exception as model_audit_exc:
                     st.session_state.audit_error = str(model_audit_exc)
+
+                if script_mode == "direct_sheet" and direct_state is not None:
+                    try:
+                        save_direct_script_audit(
+                            service_account_info=persistence["service_account_info"],
+                            spreadsheet_id=info["spreadsheet_id"],
+                            spreadsheet_title=persistence["spreadsheet_title"],
+                            owner_email=persistence["owner_email"],
+                            run_id=st.session_state.run_id,
+                            seq=saved_seq,
+                            chapter_id=_chapter_id(),
+                            user_text=dialogue_text,
+                            mary_text=answer,
+                            mary_thought=mary_intent,
+                            row=direct_row,
+                            state=direct_state,
+                            branch_id=str(
+                                narrative.get("branch_id", "main") or "main"
+                            ),
+                            chapter_instance_id=str(
+                                narrative.get("chapter_instance_id", "") or ""
+                            ),
+                            chapter_turn=int(
+                                narrative.get("chapter_turns", 0) or 0
+                            ),
+                        )
+                    except Exception as direct_audit_exc:
+                        st.session_state.audit_error = str(direct_audit_exc)
 
                 if (
                     script_mode == "block_sheet"
