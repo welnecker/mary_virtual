@@ -2233,6 +2233,18 @@ if user_text:
         model_audit["mary_thought"] = mary_intent
         model_audit["final_mary_text"] = answer
 
+        if (
+            script_mode == "funnel_sheet"
+            and funnel_state is not None
+            and funnel_row
+        ):
+            funnel_progress = apply_funnel_evaluation(
+                rows=funnel_rows,
+                state=funnel_state,
+                row=funnel_row,
+                evaluation=funnel_evaluation,
+            )
+
         # Só confirma a cena depois que Mary respondeu de fato.
         st.session_state.scene_state = scene
         st.session_state.messages.append(
@@ -2248,7 +2260,10 @@ if user_text:
 
         active_chapter = get_chapter(_chapter_id())
 
-        if script_mode == "hybrid_phase_sheet" and hybrid_state is not None:
+        if script_mode == "funnel_sheet" and funnel_state is not None:
+            if funnel_ready_for_choice(funnel_state):
+                narrative["choice_ready"] = True
+        elif script_mode == "hybrid_phase_sheet" and hybrid_state is not None:
             selected_order = int(hybrid_selected_row.get("order", 0) or 0)
             if selected_order:
                 mark_carona_line_emitted(hybrid_state, selected_order)
@@ -2258,7 +2273,7 @@ if user_text:
                 narrative["choice_ready"] = True
 
         if (
-            script_mode != "hybrid_phase_sheet"
+            script_mode not in {"hybrid_phase_sheet", "funnel_sheet"}
             and str(active_chapter.get("choice_ready_when", "") or "").strip()
             and int(narrative.get("chapter_turns", 0) or 0)
             >= int(active_chapter.get("decision_after_turns", 0) or 0)
