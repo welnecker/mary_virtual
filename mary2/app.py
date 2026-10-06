@@ -22,11 +22,13 @@ from input_router import parse_user_input
 from direct_script import (
     build_direct_writer_prompt,
     current_direct_row,
+    direct_line_correction_prompt,
     direct_script_ready_for_choice,
     ensure_direct_state,
     load_direct_script_rows,
     mark_direct_line_emitted,
     register_direct_user_reply,
+    validate_direct_line_completion,
 )
 from hybrid_script import (
     build_carona_prompt,
@@ -2355,6 +2357,96 @@ if user_text:
                 )
 
             if (
+                script_mode == "direct_sheet"
+                and direct_state is not None
+                and direct_row
+            ):
+                direct_validation = validate_direct_line_completion(
+                    api_key=api_key,
+                    model=director_model,
+                    fallback_model=fallback,
+                    row=direct_row,
+                    mary_text=answer,
+                )
+                director_audit = {
+                    "model": direct_validation.get("model", director_model),
+                    "duration_ms": direct_validation.get("duration_ms", ""),
+                    "conditional_transition": False,
+                    "advance_when": "",
+                    "scene_before": {},
+                    "input_payload": direct_validation.get("input_payload", ""),
+                    "raw_response": direct_validation.get("raw_response", ""),
+                    "parsed_response": direct_validation.get("parsed_response", {}),
+                    "parse_error": direct_validation.get("parse_error", ""),
+                    "scene_after": {
+                        "validation_mode": "direct_line_completion",
+                        "fulfilled": bool(direct_validation.get("fulfilled", False)),
+                        "missing": str(direct_validation.get("missing", "") or ""),
+                        "reason": str(direct_validation.get("reason", "") or ""),
+                    },
+                }
+
+                if not bool(direct_validation.get("fulfilled", False)):
+                    retry_messages = [
+                        *llm_messages,
+                        {
+                            "role": "system",
+                            "content": direct_line_correction_prompt(
+                                direct_row,
+                                direct_validation,
+                            ),
+                        },
+                    ]
+                    model_audit["retry_used"] = True
+                    model_audit["retry_messages"] = deepcopy(retry_messages)
+                    raw_answer = chat(
+                        api_key=api_key,
+                        model=model,
+                        fallback_model=fallback,
+                        messages=retry_messages,
+                        temperature=max(0.2, min(float(temperature), 0.7)),
+                    )
+                    model_audit["retry_raw_response"] = raw_answer
+                    mary_intent, mary_speech_raw = parse_mary_response(raw_answer)
+                    narration_leak = looks_like_action_narration(mary_speech_raw)
+                    answer = sanitize_mary_output(mary_speech_raw)
+                    if not answer or narration_leak:
+                        raise OpenRouterError(
+                            "A correção da linha direta não produziu fala verbal limpa."
+                        )
+
+                    direct_validation = validate_direct_line_completion(
+                        api_key=api_key,
+                        model=director_model,
+                        fallback_model=fallback,
+                        row=direct_row,
+                        mary_text=answer,
+                    )
+                    director_audit = {
+                        "model": direct_validation.get("model", director_model),
+                        "duration_ms": direct_validation.get("duration_ms", ""),
+                        "conditional_transition": False,
+                        "advance_when": "",
+                        "scene_before": {},
+                        "input_payload": direct_validation.get("input_payload", ""),
+                        "raw_response": direct_validation.get("raw_response", ""),
+                        "parsed_response": direct_validation.get("parsed_response", {}),
+                        "parse_error": direct_validation.get("parse_error", ""),
+                        "scene_after": {
+                            "validation_mode": "direct_line_completion",
+                            "fulfilled": bool(direct_validation.get("fulfilled", False)),
+                            "missing": str(direct_validation.get("missing", "") or ""),
+                            "reason": str(direct_validation.get("reason", "") or ""),
+                            "retry": True,
+                        },
+                    }
+
+                if not bool(direct_validation.get("fulfilled", False)):
+                    raise OpenRouterError(
+                        "O Diretor reprovou a resposta de Mary: a fala-guia da linha não foi satisfeita."
+                    )
+
+            if (
                 script_mode == "funnel_sheet"
                 and funnel_state is not None
                 and funnel_row
@@ -2854,7 +2946,7 @@ if user_text:
                             funnel_audit_exc
                         )
 
-                if script_mode != "direct_sheet":
+                if director_audit:
                     try:
                         save_director_audit(
                             service_account_info=persistence["service_account_info"],
