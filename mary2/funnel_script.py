@@ -602,9 +602,11 @@ REGRAS DE FRONTEIRA:
 - boundary_ok=false se Mary abrir assunto fora de ABERTURA PERMITIDA/CONVERGÊNCIA, violar NÃO PODE, inventar fato/decisão/ação do usuário ou antecipar território de cena futura.
 - Em convergência/fechamento, abrir um assunto novo que não ajuda uma pendência é violação.
 - Não aprove uma resposta só porque ela soa natural; confira o território autorizado.
-- Se houver pending_markers, a resposta de Mary deve avançar a missão: ou cumprir uma entrega de Mary, ou perguntar/conduzir claramente para obter a próxima entrega do usuário.
-- Responder apenas ao assunto incidental sem avançar ou buscar next_priority significa mission_progress_ok=false.
-- Quando mission_progress_ok=false, boundary_ok também deve ser false e violations deve incluir "missão obrigatória ignorada".
+- Se houver pending_markers, avalie separadamente se Mary avançou a missão: ou cumprindo uma entrega própria, ou perguntando/conduzindo claramente para obter a próxima entrega do usuário.
+- Para marcadores de informação do usuário, uma pergunta clara e pertinente de Mary JÁ conta como avanço de missão, mesmo que o usuário ainda não tenha respondido; nesse caso mission_progress_ok=true.
+- Responder apenas ao assunto incidental sem cumprir entrega nem buscar claramente next_priority significa mission_progress_ok=false.
+- mission_progress_ok mede condução narrativa e NUNCA altera boundary_ok.
+- boundary_ok=false somente para violação real de fronteira: assunto proibido/futuro, fato inventado, ação/decisão do usuário controlada, contradição de fato fixo ou outra violação explícita de NÃO PODE.
 
 MARCADORES:
 - semantic_markers pode conter SOMENTE IDs listados em allowed_semantic_markers.
@@ -812,16 +814,6 @@ def evaluate_funnel_turn(
     mission_progress_target = _clean(
         data.get("mission_progress_target")
     )
-    if (
-        not mission_progress_ok
-        and mission_progress_target not in PHYSICAL_ONLY_MARKERS
-    ):
-        boundary_ok = False
-        violations = _unique_text(
-            violations + ["missão obrigatória ignorada"],
-            limit=12,
-        )
-
     return {
         "boundary_ok": boundary_ok,
         "violations": violations,
@@ -853,12 +845,16 @@ def correction_prompt(
     state: dict | None = None,
     scene: dict | None = None,
 ) -> str:
-    violations = "; ".join(
-        _unique_text(
-            evaluation.get("violations", []),
-            limit=12,
-        )
-    ) or "saída fora das paredes da cena"
+    violations_list = _unique_text(
+        evaluation.get("violations", []),
+        limit=12,
+    )
+    if violations_list:
+        violations = "; ".join(violations_list)
+    elif not bool(evaluation.get("mission_progress_ok", True)):
+        violations = "missão ainda não avançada; conduza para a próxima entrega pendente"
+    else:
+        violations = "ajuste de condução do funil"
 
     pending = [
         marker
