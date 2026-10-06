@@ -524,6 +524,9 @@ def build_funnel_prompt(
             "Não invente resposta, ação, aceite, recusa ou fato do usuário.",
             "AUTORIA DE FATOS: preserve sempre quem é o dono de cada informação. "
             "Um fato do USER nunca vira fato de MARY, e um fato de MARY nunca vira fato do USER.",
+            "PENSAMENTO: o bloco [PENSAMENTO] deve ser apenas subtexto emocional/reação interna ao momento atual. "
+            "Não crie fatos, não resuma acontecimentos inexistentes, não retome missão já encerrada e não antecipe linha futura.",
+            "O [PENSAMENTO] não executa nem conclui a missão; somente a fala e os fatos/estado realmente ocorridos movem o passo.",
             "Se o usuário perguntar sobre Mary, responda somente com fatos de Mary presentes nas fontes autoritativas; "
             "não reutilize para Mary um valor conhecido do interlocutor.",
             "Se a conclusão depender do estado físico, não verbalize o fato para forçá-lo; o Diretor fornece physical_state.",
@@ -601,6 +604,9 @@ REGRAS DE FRONTEIRA:
 - Fatos estruturados têm DONO. Se known_facts disser que um fato pertence a USER, Mary não pode assumi-lo como fato próprio; se pertencer a MARY, não pode atribuí-lo ao USER.
 - Reatribuição de sujeito é violação de fronteira, mesmo quando local, valor ou propriedade isoladamente parecem plausíveis.
 - Biografia de Mary ausente de known_facts, contexto fixo ou fontes autoritativas continua desconhecida; não invente tempo de moradia, naturalidade, residência anterior, rotina ou histórico pessoal para responder uma pergunta incidental.
+- O pensamento privado de Mary também deve respeitar fatos, autoria, passo atual e passos já concluídos.
+- mary_thought não pode inventar acontecimentos, reatribuir fatos entre personagens, resumir como verdadeiro algo que não ocorreu, reinvestigar mentalmente um objetivo já encerrado como se ainda estivesse pendente ou antecipar passo futuro.
+- Um pensamento incoerente com as fontes autoritativas é violação de fronteira, mesmo quando mary_text estiver correta.
 - Falta de progresso NÃO é violação de fronteira.
 - Não use naturalidade como desculpa para abrir assunto novo não autorizado.
 
@@ -615,6 +621,7 @@ CONCLUSÃO DO PASSO:
 - Se a condição estiver parcialmente cumprida, step_complete=false e liste objetivamente apenas o que falta em missing.
 - Se estiver totalmente cumprida, step_complete=true e missing=[].
 - completion_evidence deve conter evidências que sustentam a conclusão ou avanço real.
+- mary_thought é subtexto interno e NUNCA conta como entrega nem evidência de conclusão do passo.
 - Cada evidência deve ser {"source":"user|mary|physical|prior","detail":"...","quote":"..."}.
 - Para source=user, quote deve ser trecho literal da fala atual do usuário quando a evidência for nova neste turno.
 - Para source=mary, quote deve ser trecho literal da resposta atual de Mary quando a evidência for nova neste turno.
@@ -817,6 +824,7 @@ def evaluate_funnel_turn(
     scene: dict,
     user_text: str,
     mary_text: str,
+    mary_thought: str = "",
 ) -> dict:
     prior_evidence = (
         state.get("step_evidence", [])
@@ -873,6 +881,7 @@ def evaluate_funnel_turn(
         "physical_state": physical_state,
         "user_text": _clean(user_text),
         "mary_text": _clean(mary_text),
+        "mary_thought": _clean(mary_thought),
     }
 
     raw = chat(
@@ -972,6 +981,8 @@ def correction_prompt(
         )
         + "Reaja naturalmente à fala atual do usuário dentro deste território. "
         "Não invente ação, decisão, aceite, logística ou fato do usuário. "
+        "O [PENSAMENTO] deve reagir internamente ao momento atual, sem criar fato, "
+        "sem retomar passo encerrado e sem antecipar passo futuro. "
         "Use exatamente [FALA] e depois [PENSAMENTO]."
     )
 
