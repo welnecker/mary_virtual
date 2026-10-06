@@ -1946,6 +1946,7 @@ if user_text:
             scene_direction=scene_direction,
             user_spoke=user_spoke,
             chapter_text=current_chapter_prompt,
+            funnel_mode=(script_mode == "funnel_sheet"),
             conditional_transition=(
                 False
                 if script_mode in {"hybrid_phase_sheet", "funnel_sheet"}
