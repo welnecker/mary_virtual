@@ -815,6 +815,9 @@ def evaluate_funnel_turn(
 def correction_prompt(
     row: dict,
     evaluation: dict,
+    *,
+    state: dict | None = None,
+    scene: dict | None = None,
 ) -> str:
     violations = "; ".join(
         _unique_text(
@@ -823,7 +826,11 @@ def correction_prompt(
         )
     ) or "saída fora das paredes da cena"
 
-    pending = required_markers(row)
+    pending = pending_markers(
+        row,
+        state or {},
+        scene or {},
+    )
     mission = _clean(row.get("mission")) or _clean(row.get("objective"))
     return (
         "CORREÇÃO DE MISSÃO DO FUNIL. "
