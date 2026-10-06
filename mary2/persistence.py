@@ -18,6 +18,7 @@ INTERACTIONS_SHEET = "INTERACTIONS"
 DIRECTOR_AUDIT_SHEET = "DIRECTOR_AUDIT"
 MODEL_AUDIT_SHEET = "MODEL_AUDIT"
 FUNNEL_AUDIT_SHEET = "FUNNEL_AUDIT"
+BLOCK_AUDIT_SHEET = "BLOCK_AUDIT"
 FUNNEL_REJECTIONS_SHEET = "FUNNEL_REJECTIONS"
 CHECKPOINTS_SHEET = "STORY_CHECKPOINTS"
 BRANCHES_SHEET = "STORY_BRANCHES"
@@ -146,6 +147,40 @@ FUNNEL_AUDIT_HEADERS = [
     "pending_markers_json",
     "exit_ready",
     "physical_state_json",
+]
+
+BLOCK_AUDIT_HEADERS = [
+    "run_id",
+    "seq",
+    "created_at",
+    "chapter_id",
+    "block_id",
+    "block_order",
+    "block_turn_before",
+    "block_turn_after",
+    "stage",
+    "target_min",
+    "target_max",
+    "max_interactions",
+    "depends_on_user",
+    "dynamic_requirement",
+    "user_text",
+    "mary_text",
+    "mary_thought",
+    "dependency_satisfied",
+    "dependency_refused",
+    "dependency_summary",
+    "dependency_source_quote",
+    "advanced",
+    "advanced_to",
+    "waiting_for_dependency",
+    "holding_for_next_block",
+    "state_before_json",
+    "state_after_json",
+    "physical_state_json",
+    "branch_id",
+    "chapter_instance_id",
+    "chapter_turn",
 ]
 
 FUNNEL_REJECTION_HEADERS = [
@@ -375,6 +410,7 @@ def ensure_schema(
     _ensure_worksheet(book, DIRECTOR_AUDIT_SHEET, DIRECTOR_AUDIT_HEADERS)
     _ensure_worksheet(book, MODEL_AUDIT_SHEET, MODEL_AUDIT_HEADERS)
     _ensure_worksheet(book, FUNNEL_AUDIT_SHEET, FUNNEL_AUDIT_HEADERS)
+    _ensure_worksheet(book, BLOCK_AUDIT_SHEET, BLOCK_AUDIT_HEADERS)
     _ensure_worksheet(book, FUNNEL_REJECTIONS_SHEET, FUNNEL_REJECTION_HEADERS)
     _ensure_worksheet(book, CHECKPOINTS_SHEET, CHECKPOINT_HEADERS)
     _ensure_worksheet(book, BRANCHES_SHEET, BRANCH_HEADERS)
@@ -1012,6 +1048,85 @@ def save_funnel_audit(
             _audit_cell(progress.get("pending_markers", [])),
             bool(progress.get("exit_ready", False)),
             _audit_cell(progress.get("physical_state", {})),
+        ],
+        value_input_option="RAW",
+    )
+
+
+def save_block_audit(
+    *,
+    service_account_info: dict,
+    run_id: str,
+    seq: int,
+    chapter_id: str,
+    user_text: str,
+    mary_text: str,
+    mary_thought: str,
+    row: dict,
+    dependency: dict,
+    progress: dict,
+    branch_id: str = "",
+    chapter_instance_id: str = "",
+    chapter_turn: int = 0,
+    spreadsheet_id: str = "",
+    spreadsheet_title: str = "MARY_CORE_PERSISTENCE",
+    owner_email: str = "",
+) -> None:
+    """Registra a progressão do roteiro em blocos sem reutilizar semântica do funil."""
+    if not isinstance(row, dict) or not row:
+        return
+    if not isinstance(progress, dict) or not progress:
+        return
+
+    book = open_or_create_book(
+        service_account_info=service_account_info,
+        spreadsheet_id=spreadsheet_id,
+        spreadsheet_title=spreadsheet_title,
+        owner_email=owner_email,
+    )
+    ws = _ensure_worksheet(
+        book,
+        BLOCK_AUDIT_SHEET,
+        BLOCK_AUDIT_HEADERS,
+    )
+
+    before = progress.get("state_before", {})
+    after = progress.get("state_after", {})
+    dep = dependency if isinstance(dependency, dict) else {}
+
+    ws.append_row(
+        [
+            run_id,
+            int(seq or 0),
+            _now(),
+            chapter_id,
+            str(row.get("block_id", "") or ""),
+            int(row.get("order", 0) or 0),
+            int(before.get("block_turn", 0) or 0) if isinstance(before, dict) else 0,
+            int(after.get("block_turn", 0) or 0) if isinstance(after, dict) else 0,
+            str(progress.get("stage", "") or ""),
+            int(progress.get("target_min", row.get("target_min", 0)) or 0),
+            int(progress.get("target_max", row.get("target_max", 0)) or 0),
+            int(progress.get("max_interactions", row.get("max_turns", 0)) or 0),
+            bool(row.get("depends_on_user", False)),
+            _audit_cell(row.get("dynamic_requirement", "")),
+            _audit_cell(user_text),
+            _audit_cell(mary_text),
+            _audit_cell(mary_thought),
+            bool(progress.get("dependency_satisfied", False)),
+            bool(dep.get("refused", False)),
+            _audit_cell(dep.get("summary", "")),
+            _audit_cell(dep.get("source_quote", "")),
+            bool(progress.get("advanced", False)),
+            str(progress.get("advanced_to", "") or ""),
+            bool(progress.get("waiting_for_dependency", False)),
+            bool(progress.get("holding_for_next_block", False)),
+            _audit_cell(before),
+            _audit_cell(after),
+            _audit_cell(progress.get("physical_state", {})),
+            branch_id,
+            chapter_instance_id,
+            int(chapter_turn or 0),
         ],
         value_input_option="RAW",
     )
