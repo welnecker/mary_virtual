@@ -6,6 +6,8 @@ from mary2.funnel_script import (
     ensure_funnel_state,
     funnel_stage,
     _normalize_user_facts,
+    _merge_fact_dicts,
+    _memory_text,
 )
 from mary2.state import migrate_state
 
@@ -258,3 +260,79 @@ def test_migrate_state_preserves_generic_runtime_state():
         migrated["narrative"]["funnel_script"]
         == original["narrative"]["funnel_script"]
     )
+
+
+def test_legacy_fact_without_subject_defaults_to_user():
+    merged = _merge_fact_dicts(
+        [],
+        [
+            {
+                "category": "location",
+                "fact": "Jardim da Penha",
+                "modality": "confirmado",
+                "source_quote": "em Jardim da Penha",
+            }
+        ],
+    )
+
+    assert merged[0]["subject"] == "USER"
+    assert merged[0]["predicate"] == "location"
+    assert merged[0]["value"] == "Jardim da Penha"
+
+
+def test_same_value_for_different_subjects_is_not_merged():
+    merged = _merge_fact_dicts(
+        [
+            {
+                "subject": "USER",
+                "predicate": "residencia",
+                "value": "Jardim da Penha",
+                "modality": "confirmado",
+                "source_quote": "moro em Jardim da Penha",
+            }
+        ],
+        [
+            {
+                "subject": "MARY",
+                "predicate": "residencia",
+                "value": "Jardim da Penha",
+                "modality": "confirmado",
+                "source_quote": "",
+            }
+        ],
+    )
+
+    assert len(merged) == 2
+    assert {item["subject"] for item in merged} == {"USER", "MARY"}
+
+
+def test_memory_text_labels_fact_owner_explicitly():
+    state = {
+        "memory": {
+            "user_facts": [],
+            "consolidated": [
+                {
+                    "subject": "USER",
+                    "predicate": "residencia",
+                    "value": "Jardim da Penha",
+                    "modality": "confirmado",
+                    "source_quote": "em Jardim da Penha",
+                },
+                {
+                    "subject": "MARY",
+                    "predicate": "residencia",
+                    "value": "Camburi",
+                    "modality": "confirmado",
+                    "source_quote": "",
+                },
+            ],
+            "consumed_topics": [],
+        }
+    }
+
+    text = _memory_text(state)
+
+    assert "FATOS DO PERSONAGEM DO USUÁRIO / INTERLOCUTOR" in text
+    assert "FATOS DE MARY" in text
+    assert "residencia: Jardim da Penha" in text
+    assert "residencia: Camburi" in text
