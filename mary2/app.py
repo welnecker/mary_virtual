@@ -2120,43 +2120,58 @@ if user_text:
         else:
             director_context_messages = phase_messages
 
-        scene = direct_scene(
-            api_key=api_key,
-            model=director_model,
-            fallback_model=fallback,
-            physical_canon=PHYSICAL_CANON,
-            story_ledger=story_ledger_text(st.session_state.story_state),
-            current_status=current_status_text(st.session_state.story_state),
-            current_scene=scene_for_director,
-            user_role=user_role,
-            recent_messages=director_context_messages,
-            scene_direction=scene_direction,
-            user_spoke=user_spoke,
-            chapter_text=director_chapter_prompt,
-            funnel_mode=(script_mode in {"direct_sheet", "funnel_sheet", "block_sheet"}),
-            conditional_transition=(
-                False
-                if script_mode in {"direct_sheet", "hybrid_phase_sheet", "funnel_sheet", "block_sheet"}
-                else (
-                    str(chapter_config.get("transition", "")) == "auto_condition"
-                    or (
-                        bool(str(chapter_config.get("choice_ready_when", "") or "").strip())
-                        and current_turn_number
-                        >= int(chapter_config.get("decision_after_turns", 0) or 0)
+        if script_mode == "direct_sheet":
+            # No roteiro direto não existe Diretor. A planilha já fornece
+            # memória instantânea, vestimenta e encenação; o runtime preserva
+            # apenas o estado existente e o Redator interpreta a linha autoral.
+            scene = deepcopy(scene_for_director)
+            scene["mary_immediate_goal"] = ""
+            scene["mary_action"] = str(
+                direct_row.get("physical_action", "") if direct_row else ""
+            ).strip()
+            scene["event"] = str(
+                direct_row.get("instant_memory", "") if direct_row else ""
+            ).strip()
+            scene["scene_changed"] = False
+            director_audit = {}
+        else:
+            scene = direct_scene(
+                api_key=api_key,
+                model=director_model,
+                fallback_model=fallback,
+                physical_canon=PHYSICAL_CANON,
+                story_ledger=story_ledger_text(st.session_state.story_state),
+                current_status=current_status_text(st.session_state.story_state),
+                current_scene=scene_for_director,
+                user_role=user_role,
+                recent_messages=director_context_messages,
+                scene_direction=scene_direction,
+                user_spoke=user_spoke,
+                chapter_text=director_chapter_prompt,
+                funnel_mode=(script_mode in {"funnel_sheet", "block_sheet"}),
+                conditional_transition=(
+                    False
+                    if script_mode in {"hybrid_phase_sheet", "funnel_sheet", "block_sheet"}
+                    else (
+                        str(chapter_config.get("transition", "")) == "auto_condition"
+                        or (
+                            bool(str(chapter_config.get("choice_ready_when", "") or "").strip())
+                            and current_turn_number
+                            >= int(chapter_config.get("decision_after_turns", 0) or 0)
+                        )
                     )
-                )
-            ),
-            advance_when=(
-                ""
-                if script_mode in {"direct_sheet", "hybrid_phase_sheet", "funnel_sheet", "block_sheet"}
-                else (
-                    str(chapter_config.get("advance_when", "") or "")
-                    if str(chapter_config.get("transition", "")) == "auto_condition"
-                    else str(chapter_config.get("choice_ready_when", "") or "")
-                )
-            ),
-        )
-        director_audit = scene.pop("_director_audit", {})
+                ),
+                advance_when=(
+                    ""
+                    if script_mode in {"hybrid_phase_sheet", "funnel_sheet", "block_sheet"}
+                    else (
+                        str(chapter_config.get("advance_when", "") or "")
+                        if str(chapter_config.get("transition", "")) == "auto_condition"
+                        else str(chapter_config.get("choice_ready_when", "") or "")
+                    )
+                ),
+            )
+            director_audit = scene.pop("_director_audit", {})
 
         # Na Carona híbrida, a cena física atualizada pelo Diretor pode liberar
         # uma linha que ainda não estava disponível antes deste turno.
@@ -2836,29 +2851,30 @@ if user_text:
                             funnel_audit_exc
                         )
 
-                try:
-                    save_director_audit(
-                        service_account_info=persistence["service_account_info"],
-                        spreadsheet_id=info["spreadsheet_id"],
-                        spreadsheet_title=persistence["spreadsheet_title"],
-                        owner_email=persistence["owner_email"],
-                        run_id=st.session_state.run_id,
-                        seq=saved_seq,
-                        chapter_id=_chapter_id(),
-                        user_role=user_role,
-                        user_text=dialogue_text,
-                        scene_direction=scene_direction,
-                        audit=director_audit,
-                        main_model=model,
-                        mary_text=answer,
-                        branch_id=str(narrative.get("branch_id", "main") or "main"),
-                        chapter_instance_id=str(narrative.get("chapter_instance_id", "") or ""),
-                        chapter_turn=int(narrative.get("chapter_turns", 0) or 0),
-                    )
-                    st.session_state.audit_error = ""
-                except Exception as audit_exc:
-                    # O turno já foi salvo. Falha de auditoria não torna a história indisponível.
-                    st.session_state.audit_error = str(audit_exc)
+                if script_mode != "direct_sheet":
+                    try:
+                        save_director_audit(
+                            service_account_info=persistence["service_account_info"],
+                            spreadsheet_id=info["spreadsheet_id"],
+                            spreadsheet_title=persistence["spreadsheet_title"],
+                            owner_email=persistence["owner_email"],
+                            run_id=st.session_state.run_id,
+                            seq=saved_seq,
+                            chapter_id=_chapter_id(),
+                            user_role=user_role,
+                            user_text=dialogue_text,
+                            scene_direction=scene_direction,
+                            audit=director_audit,
+                            main_model=model,
+                            mary_text=answer,
+                            branch_id=str(narrative.get("branch_id", "main") or "main"),
+                            chapter_instance_id=str(narrative.get("chapter_instance_id", "") or ""),
+                            chapter_turn=int(narrative.get("chapter_turns", 0) or 0),
+                        )
+                        st.session_state.audit_error = ""
+                    except Exception as audit_exc:
+                        # O turno já foi salvo. Falha de auditoria não torna a história indisponível.
+                        st.session_state.audit_error = str(audit_exc)
                 st.session_state.persistence_error = ""
             except Exception as exc:
                 # A história continua funcionando mesmo se o Google falhar.
