@@ -1920,6 +1920,15 @@ if user_text:
                 turn_number=current_turn_number,
             )
 
+        director_context_messages = (
+            compact_context_messages(
+                phase_messages,
+                limit=8,
+            )
+            if script_mode == "funnel_sheet"
+            else phase_messages
+        )
+
         scene = direct_scene(
             api_key=api_key,
             model=director_model,
@@ -1929,7 +1938,7 @@ if user_text:
             current_status=current_status_text(st.session_state.story_state),
             current_scene=scene_for_director,
             user_role=user_role,
-            recent_messages=phase_messages,
+            recent_messages=director_context_messages,
             scene_direction=scene_direction,
             user_spoke=user_spoke,
             chapter_text=current_chapter_prompt,
