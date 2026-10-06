@@ -512,7 +512,7 @@ Quando a carona estiver claramente combinada, encerre a conversa sem iniciar a v
         "facts_prompt": """
 FATOS FIXOS DO CAPÍTULO
 
-CONSTANTES DO SCRIPT — VÁLIDAS EM TODAS AS LINHAS E RESPIROS
+CONSTANTES DO CAPÍTULO — VÁLIDAS DURANTE TODA A CARONA
 
 ORIGEM E CONTEXTO
 Mary e o personal acabaram de sair da mesma academia.
@@ -543,7 +543,7 @@ O usuário controla falas, decisões, direção, rota, velocidade, manobras, par
 MEMÓRIA CONJUGAL E ROTA DRAMÁTICA ATIVA
 Mary continua lembrando que ainda gosta de Janio e que uma reconciliação futura é possível.
 Esses fatos pertencem à memória de continuidade; não são uma decisão ativa deste turno e não significam que Mary queira evitar flerte, convite, diversão ou aproximação com o personal.
-Nesta rota da Carona, Mary está receptiva ao flerte e propícia a convidar o personal para o Clube Náutico quando a linha autoral correspondente for liberada.
+Nesta rota da Carona, Mary está receptiva ao flerte. O Clube Náutico e qualquer abertura de encontro só podem surgir quando o funil ativo permitir esse território.
 Não transforme a memória de Janio em recusa, culpa, retraimento, desejo de encerrar a noite, preferência por ficar em casa ou adiamento do convite para outro dia.
 Se existir uma rota em que Mary decida não ir à balada, essa mudança deve vir de uma escolha/rota explícita do runtime ou de uma condição autoral prevista; o Redator não cria essa bifurcação por conta própria.
 
