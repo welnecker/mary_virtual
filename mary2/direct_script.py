@@ -1,10 +1,14 @@
 from __future__ import annotations
 
+import json
 import re
+import time
 from copy import deepcopy
 from typing import Any
 
 import gspread
+
+from openrouter_client import chat
 
 
 DIRECT_HEADERS = {
@@ -174,6 +178,112 @@ def mark_direct_line_emitted(state: dict, row: dict) -> None:
 
 def direct_script_ready_for_choice(state: dict) -> bool:
     return bool(state.get("completed", False))
+
+
+
+def validate_direct_line_completion(
+    *,
+    api_key: str,
+    model: str,
+    fallback_model: str | None,
+    row: dict,
+    mary_text: str,
+) -> dict:
+    """Diretor mínimo: verifica apenas se a missão autoral da linha foi satisfeita."""
+    speech_guide = _clean(row.get("speech_guide"))
+    if not speech_guide:
+        return {
+            "fulfilled": True,
+            "missing": "",
+            "reason": "linha sem fala-guia",
+            "model": model,
+            "duration_ms": 0.0,
+            "input_payload": "",
+            "raw_response": "",
+            "parsed_response": {"cumpriu": True, "faltou": "", "motivo": "linha sem fala-guia"},
+            "parse_error": "",
+        }
+
+    payload = (
+        "FALA-GUIA DA LINHA\n"
+        + speech_guide
+        + "\n\nRESPOSTA DE MARY\n"
+        + _clean(mary_text)
+        + "\n\n"
+        "Verifique SOMENTE se a resposta de Mary satisfez o conteúdo essencial da FALA-GUIA. "
+        "Não avalie estilo, profundidade, simpatia, resposta ao usuário ou qualidade literária. "
+        "A fala pode ser reinterpretada com outras palavras, desde que preserve e realize a missão essencial. "
+        "Se algum elemento essencial da FALA-GUIA estiver ausente, CUMPRIU deve ser false. "
+        "Retorne apenas JSON no formato: "
+        '{"cumpriu": true, "faltou": "", "motivo": "curto"}.'
+    )
+    system_prompt = (
+        "Você é um Diretor validador estritamente limitado. "
+        "Não escreve cenas, não inventa fatos, não altera o roteiro e não sugere novos rumos. "
+        "Sua única tarefa é decidir se a resposta de Mary cumpriu a FALA-GUIA fornecida."
+    )
+
+    started_at = time.perf_counter()
+    raw = chat(
+        api_key=api_key,
+        model=model,
+        fallback_model=fallback_model,
+        messages=[
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": payload},
+        ],
+        temperature=0.0,
+        max_tokens=180,
+    )
+    duration_ms = round((time.perf_counter() - started_at) * 1000.0, 1)
+
+    parse_error = ""
+    parsed: dict = {}
+    try:
+        text = str(raw or "").strip()
+        text = re.sub(r"^\\s*```(?:json)?\\s*", "", text, flags=re.I)
+        text = re.sub(r"\\s*```\\s*$", "", text)
+        start = text.find("{")
+        end = text.rfind("}")
+        if start >= 0 and end >= start:
+            text = text[start : end + 1]
+        parsed = json.loads(text)
+        if not isinstance(parsed, dict):
+            raise ValueError("resposta do Diretor não é objeto JSON")
+    except Exception as exc:
+        parse_error = str(exc)
+        parsed = {}
+
+    fulfilled = bool(parsed.get("cumpriu", False)) if not parse_error else False
+    missing = _clean(parsed.get("faltou"))
+    reason = _clean(parsed.get("motivo"))
+
+    return {
+        "fulfilled": fulfilled,
+        "missing": missing,
+        "reason": reason,
+        "model": model,
+        "duration_ms": duration_ms,
+        "input_payload": payload,
+        "raw_response": raw,
+        "parsed_response": parsed,
+        "parse_error": parse_error,
+    }
+
+
+def direct_line_correction_prompt(row: dict, evaluation: dict) -> str:
+    """Instrução curta para refazer a mesma linha sem dar autoria ao Diretor."""
+    guide = _clean(row.get("speech_guide"))
+    missing = _clean(evaluation.get("missing"))
+    detail = missing or "o conteúdo essencial da FALA-GUIA"
+    return (
+        "CORREÇÃO DA MESMA LINHA: sua resposta anterior não cumpriu integralmente a missão autoral. "
+        f"Faltou: {detail}. "
+        f"A FALA-GUIA continua sendo: {guide}. "
+        "Responda novamente à fala atual do usuário com naturalidade, mas desta vez cumpra obrigatoriamente "
+        "o conteúdo essencial da FALA-GUIA. Não explique a correção e mantenha exatamente o formato "
+        "[FALA] seguido de [PENSAMENTO]."
+    )
 
 
 def build_direct_writer_prompt(
