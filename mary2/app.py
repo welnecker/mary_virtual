@@ -2515,7 +2515,7 @@ if user_text:
                 narrative["choice_ready"] = True
 
         if (
-            script_mode not in {"hybrid_phase_sheet", "funnel_sheet"}
+            script_mode not in {"hybrid_phase_sheet", "funnel_sheet", "block_sheet"}
             and str(active_chapter.get("choice_ready_when", "") or "").strip()
             and int(narrative.get("chapter_turns", 0) or 0)
             >= int(active_chapter.get("decision_after_turns", 0) or 0)
