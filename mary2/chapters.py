@@ -506,9 +506,10 @@ Quando a carona estiver claramente combinada, encerre a conversa sem iniciar a v
         "title": "Carona para Camburi",
         "allowed_roles": ["PERSONAGEM_DA_CENA"],
         "phase_context": "chapter",
-        "script_mode": "block_sheet",
+        "script_mode": "direct_sheet",
         "inherit_character": True,
-        "script_worksheet": "ROTEIRO_BLOCOS_TESTE",
+        "script_worksheet": "MINHA_SUGESTAO",
+        "script_name": "Carona",
         "facts_prompt": """
 FATOS FIXOS DO CAPÍTULO
 
@@ -556,17 +557,15 @@ Use somente fatos realmente estabelecidos sobre o personal.
 Não invente onde ele mora, rotina, estado civil, animais, gostos ou decisões.
 Não invente roupa, calçado, banho, transporte alternativo, parada intermediária ou destino diferente.
 
-ARQUITETURA EM BLOCOS
-A Carona é controlada pelos blocos da aba ROTEIRO_BLOCOS_TESTE.
-Cada bloco informa o objetivo atual, o território livre de improviso, a memória recente útil e a convergência desejada.
-Mary pode desenvolver o bloco por algumas interações sem repetir mecanicamente o objetivo.
-A convergência prepara o próximo bloco, mas não o executa antes da troca feita pelo runtime.
-Quando um bloco depender de resposta do usuário, o runtime só avança depois que essa informação for realmente fornecida ou recusada explicitamente.
+ARQUITETURA DE ROTEIRO DIRETO
+A Carona é executada linha a linha a partir da aba MINHA_SUGESTAO.
+O conteúdo autoral da linha ativa é entregue diretamente ao Redator.
+O runtime seleciona e avança as linhas; não reescreve a fala-guia, as memórias, o estilo, a vestimenta ou a encenação.
 """.strip(),
         "decision_after_turns": 0,
         "choice_ready_when": (
-            "O último bloco da Carona foi concluído após chegada, contato e despedida. "
-            "O runtime de blocos controla essa condição; número de turnos isolado não basta."
+            "A última linha autoral da Carona foi concluída após chegada, contato e despedida. "
+            "O runtime de roteiro direto controla essa condição; número de turnos isolado não basta."
         ),
         "choices": [{
             "id": "mary_em_seu_apartamento",
