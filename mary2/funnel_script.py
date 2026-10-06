@@ -419,52 +419,89 @@ def build_funnel_prompt(
     stage = funnel_stage(row, state)
     next_turn = int(state.get("scene_turn", 0) or 0) + 1
     min_turns = int(row.get("min_turns", 1) or 1)
-    ideal_turns = int(
-        row.get("ideal_turns", min_turns) or min_turns
-    )
-    max_turns = int(
-        row.get("max_turns", ideal_turns) or ideal_turns
-    )
+    ideal_turns = int(row.get("ideal_turns", min_turns) or min_turns)
+    max_turns = int(row.get("max_turns", ideal_turns) or ideal_turns)
 
-    stage_rule = {
-        "abertura": (
-            "Há liberdade para reagir e explorar a ABERTURA PERMITIDA. "
-            "Não force a conclusão antes que a conversa tenha respirado."
-        ),
-        "desenvolvimento": (
-            "Reaja livremente, mas comece a favorecer a CONVERGÊNCIA. "
-            "Evite abrir temas que não ajudam esta cena."
-        ),
-        "convergencia": (
-            "A conversa já deve estreitar. Priorize CONVERGÊNCIA e pendências; "
-            "não reabra assuntos consumidos nem crie novos ramos."
-        ),
-        "fechamento": (
-            "O limite narrativo foi alcançado. Responda ao usuário e trabalhe "
-            "somente para satisfazer a CONDIÇÃO DE SAÍDA, sem controlar decisões "
-            "ou ações dele. Não abra nenhum assunto novo."
-        ),
-    }[stage]
+    pending = pending_markers(row, state, scene or {})
+    achieved = achieved_markers(state, scene or {})
+    next_priority = pending[0] if pending else ""
+
+    if stage == "abertura":
+        stage_rule = (
+            "Responda ao usuário naturalmente, mas não desperdice o turno. "
+            "Quando houver espaço conversacional, avance a PRIMEIRA ENTREGA PENDENTE."
+        )
+    elif stage == "desenvolvimento":
+        stage_rule = (
+            "A missão já deve estar avançando. Responda ao usuário e conduza "
+            "ativamente a conversa para uma ENTREGA PENDENTE."
+        )
+    else:
+        stage_rule = (
+            "Prioridade máxima às ENTREGAS PENDENTES. Responda ao usuário sem abrir "
+            "ramificações e faça a fala avançar diretamente uma pendência real."
+        )
+
+    mission = (
+        _clean(row.get("mission"))
+        or _clean(row.get("objective"))
+        or "(missão não informada)"
+    )
+    deliverables = (
+        _clean(row.get("deliverables"))
+        or marker_summary(required_markers(row))
+    )
+    completion = (
+        _clean(row.get("completion_criterion"))
+        or _clean(row.get("exit_condition"))
+        or "(critério não informado)"
+    )
 
     return "\n".join(
         [
-            _clean(facts_prompt),
+            "════════════════════════════════════════════════════════════",
+            "MISSÃO OBRIGATÓRIA DO FUNIL — AUTORIDADE MÁXIMA",
+            "════════════════════════════════════════════════════════════",
+            mission,
             "",
-            "CONTRATO DA CENA EM FUNIL — PRIORIDADE NARRATIVA",
-            "O roteiro controla o território; Mary escolhe como caminhar dentro dele.",
-            "Não existe fala-guia obrigatória, microprompt por linha ou respiro.",
-            "Mary deve reagir de verdade à fala atual do usuário, com personalidade e iniciativa local.",
-            "Liberdade de expressão NÃO autoriza criar fatos, planos, decisões ou direções fora deste contrato.",
+            "ENTREGAS OBRIGATÓRIAS",
+            deliverables,
             "",
+            "REGRA ABSOLUTA",
+            "A fala do usuário define COMO Mary responde; a MISSÃO define PARA ONDE a conversa deve andar.",
+            "Assuntos incidentais podem alterar tom, humor e forma, mas NÃO podem substituir a missão.",
+            "Mary pode reagir a um assunto lateral, porém deve aproveitar a primeira oportunidade natural para avançar UMA entrega pendente.",
+            "Mary NÃO pode encerrar, trocar de assunto por iniciativa própria ou permanecer em conversa lateral enquanto houver entrega pendente.",
+            "",
+            "CRITÉRIO DE CONCLUSÃO E TROCA DE FUNIL",
+            completion,
+            "Quando todas as entregas forem comprovadas nesta resposta, a missão está concluída.",
+            "Nesse caso, NÃO abra outro assunto desta cena: conclua apenas a resposta atual.",
+            f"O próximo turno será controlado por: {_clean(row.get('next_scene')) or '(fim)'}.",
+            "Min/ideal/max são apenas referências de ritmo; missão cumprida encerra o funil imediatamente.",
+            "",
+            "ESTADO OPERACIONAL DA MISSÃO",
             f"CENA_ID={_clean(row.get('scene_id'))}",
-            f"ORDEM_DA_CENA={int(row.get('order', 0) or 0)}",
             f"TURNO_DA_CENA={next_turn}",
-            f"FAIXA=min:{min_turns} ideal:{ideal_turns} max:{max_turns}",
-            f"POSIÇÃO_NO_FUNIL={stage}",
+            f"RITMO_REFERÊNCIA=min:{min_turns} ideal:{ideal_turns} max:{max_turns}",
+            f"ESTÁGIO={stage}",
             "",
-            "OBJETIVO DA CENA",
-            _clean(row.get("objective")) or "(não informado)",
+            "ENTREGAS JÁ COMPROVADAS",
+            marker_summary(achieved),
             "",
+            "ENTREGAS AINDA PENDENTES",
+            marker_summary(pending),
+            "",
+            "PRÓXIMA PRIORIDADE",
+            (
+                f"{next_priority}: {MARKER_DESCRIPTIONS.get(next_priority, next_priority)}"
+                if next_priority
+                else "MISSÃO CUMPRIDA — não abrir novo assunto."
+            ),
+            "",
+            "════════════════════════════════════════════════════════════",
+            "CONTRATO SECUNDÁRIO — COMO CUMPRIR A MISSÃO",
+            "════════════════════════════════════════════════════════════",
             "ABERTURA PERMITIDA",
             _clean(row.get("opening_allowed")) or "(nenhuma)",
             "",
@@ -473,12 +510,6 @@ def build_funnel_prompt(
             "",
             "PAREDES — NÃO PODE",
             _clean(row.get("forbidden")) or "(nenhuma)",
-            "",
-            "CONDIÇÃO DE SAÍDA",
-            _clean(row.get("exit_condition")) or "(não informada)",
-            "",
-            "SAÍDA PREVISTA",
-            _clean(row.get("next_scene")) or "(não informada)",
             "",
             "ATMOSFERA / ATITUDE",
             _clean(row.get("atmosphere")) or "(livre)",
@@ -493,23 +524,17 @@ def build_funnel_prompt(
             _clean(row.get("memory_policy"))
             or "(consolidar apenas fatos consequentes)",
             "",
-            "MARCADORES OBRIGATÓRIOS PARA SAÍDA",
-            marker_summary(required_markers(row)),
-            "",
-            "MARCADORES JÁ COMPROVADOS",
-            marker_summary(achieved_markers(state, scene or {})),
-            "",
-            "PENDÊNCIAS REAIS DA CENA",
-            marker_summary(pending_markers(row, state, scene or {})),
-            "",
             _memory_text(state),
             "",
             "DINÂMICA DESTE TURNO",
             stage_rule,
-            "Use fatos lembrados para evitar repetição e contradição, nunca como inspiração automática de assunto.",
+            "Não repita pergunta ou entrega já cumprida.",
+            "Não transforme assunto incidental em novo objetivo.",
             "Preserve modalidade: talvez não é sim; hipótese não é fato; brincadeira não é confirmação.",
-            "Não repita perguntas já respondidas apenas para preencher turno.",
             "A resposta pode ser curta. Profundidade vem da pertinência, não do comprimento.",
+            "",
+            "CONTEXTO FIXO DO CAPÍTULO — SUBORDINADO À MISSÃO ACIMA",
+            _clean(facts_prompt),
         ]
     ).strip()
 
