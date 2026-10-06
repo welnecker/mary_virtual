@@ -67,9 +67,32 @@ def serializar_json(valor: Any) -> str:
 @st.cache_resource(show_spinner=False)
 def obter_planilha() -> Spreadsheet:
     try:
-        credenciais = dict(
-            st.secrets["gcp_service_account"]
-        )
+        credenciais_json = str(
+            st.secrets.get("GOOGLE_CREDS_JSON", "")
+            or ""
+        ).strip()
+
+        if credenciais_json:
+            try:
+                credenciais = json.loads(
+                    credenciais_json
+                )
+            except json.JSONDecodeError as exc:
+                raise GoogleSheetsRepositoryError(
+                    "GOOGLE_CREDS_JSON existe nos secrets, "
+                    "mas não contém um JSON válido."
+                ) from exc
+        elif "gcp_service_account" in st.secrets:
+            credenciais = dict(
+                st.secrets["gcp_service_account"]
+            )
+        else:
+            raise GoogleSheetsRepositoryError(
+                "Nenhuma credencial do Google Sheets foi "
+                "encontrada nos secrets do Streamlit. "
+                "Defina GOOGLE_CREDS_JSON ou o bloco "
+                "[gcp_service_account]."
+            )
 
         spreadsheet_id = str(
             MARY_SPREADSHEET_ID or ""
@@ -88,12 +111,6 @@ def obter_planilha() -> Spreadsheet:
         return cliente.open_by_key(
             spreadsheet_id
         )
-
-    except KeyError as exc:
-        raise GoogleSheetsRepositoryError(
-            "O bloco [gcp_service_account] não foi "
-            "encontrado nos secrets do Streamlit."
-        ) from exc
 
     except SpreadsheetNotFound as exc:
         raise GoogleSheetsRepositoryError(
