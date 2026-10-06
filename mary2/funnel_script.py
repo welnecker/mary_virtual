@@ -44,10 +44,19 @@ def _int(value: Any, default: int) -> int:
         return int(default)
 
 
-def _unique_text(items: list[Any], *, limit: int = 24) -> list[str]:
+def _unique_text(items: Any, *, limit: int = 24) -> list[str]:
+    if items is None:
+        source: list[Any] = []
+    elif isinstance(items, list):
+        source = items
+    elif isinstance(items, (tuple, set)):
+        source = list(items)
+    else:
+        source = [items]
+
     result: list[str] = []
     seen: set[str] = set()
-    for item in items or []:
+    for item in source:
         value = _clean(item)
         if not value:
             continue
