@@ -18,6 +18,7 @@ INTERACTIONS_SHEET = "INTERACTIONS"
 DIRECTOR_AUDIT_SHEET = "DIRECTOR_AUDIT"
 MODEL_AUDIT_SHEET = "MODEL_AUDIT"
 FUNNEL_AUDIT_SHEET = "FUNNEL_AUDIT"
+FUNNEL_REJECTIONS_SHEET = "FUNNEL_REJECTIONS"
 CHECKPOINTS_SHEET = "STORY_CHECKPOINTS"
 BRANCHES_SHEET = "STORY_BRANCHES"
 
@@ -144,6 +145,30 @@ FUNNEL_AUDIT_HEADERS = [
     "achieved_markers_json",
     "pending_markers_json",
     "exit_ready",
+]
+
+FUNNEL_REJECTION_HEADERS = [
+    "created_at",
+    "run_id",
+    "chapter_id",
+    "scene_id",
+    "scene_order",
+    "scene_turn",
+    "branch_id",
+    "chapter_instance_id",
+    "chapter_turn",
+    "user_text",
+    "initial_mary_text",
+    "initial_evaluation_json",
+    "initial_violations_json",
+    "retry_mary_text",
+    "retry_evaluation_json",
+    "retry_violations_json",
+    "mission_progress_ok",
+    "mission_progress_target",
+    "pending_markers_json",
+    "required_markers_json",
+    "state_json",
 ]
 
 CHECKPOINT_HEADERS = [
@@ -348,6 +373,7 @@ def ensure_schema(
     _ensure_worksheet(book, DIRECTOR_AUDIT_SHEET, DIRECTOR_AUDIT_HEADERS)
     _ensure_worksheet(book, MODEL_AUDIT_SHEET, MODEL_AUDIT_HEADERS)
     _ensure_worksheet(book, FUNNEL_AUDIT_SHEET, FUNNEL_AUDIT_HEADERS)
+    _ensure_worksheet(book, FUNNEL_REJECTIONS_SHEET, FUNNEL_REJECTION_HEADERS)
     _ensure_worksheet(book, CHECKPOINTS_SHEET, CHECKPOINT_HEADERS)
     _ensure_worksheet(book, BRANCHES_SHEET, BRANCH_HEADERS)
     return {
@@ -839,6 +865,76 @@ def save_model_audit(
             branch_id,
             chapter_instance_id,
             int(chapter_turn or 0),
+        ],
+        value_input_option="RAW",
+    )
+
+
+def save_funnel_rejection(
+    *,
+    service_account_info: dict,
+    run_id: str,
+    chapter_id: str,
+    row: dict,
+    state: dict,
+    user_text: str,
+    initial_mary_text: str,
+    initial_evaluation: dict,
+    retry_mary_text: str,
+    retry_evaluation: dict,
+    branch_id: str = "",
+    chapter_instance_id: str = "",
+    chapter_turn: int = 0,
+    spreadsheet_id: str = "",
+    spreadsheet_title: str = "MARY_CORE_PERSISTENCE",
+    owner_email: str = "",
+) -> None:
+    """Persiste uma tentativa rejeitada antes do rollback atômico do turno."""
+    book = open_or_create_book(
+        service_account_info=service_account_info,
+        spreadsheet_id=spreadsheet_id,
+        spreadsheet_title=spreadsheet_title,
+        owner_email=owner_email,
+    )
+    ws = _ensure_worksheet(
+        book,
+        FUNNEL_REJECTIONS_SHEET,
+        FUNNEL_REJECTION_HEADERS,
+    )
+    initial_evaluation = (
+        initial_evaluation if isinstance(initial_evaluation, dict) else {}
+    )
+    retry_evaluation = (
+        retry_evaluation if isinstance(retry_evaluation, dict) else {}
+    )
+    ws.append_row(
+        [
+            _now(),
+            run_id,
+            chapter_id,
+            str(row.get("scene_id", "") or ""),
+            int(row.get("order", 0) or 0),
+            int(state.get("scene_turn", 0) or 0) if isinstance(state, dict) else 0,
+            branch_id,
+            chapter_instance_id,
+            int(chapter_turn or 0),
+            _audit_cell(user_text),
+            _audit_cell(initial_mary_text),
+            _audit_cell(initial_evaluation),
+            _audit_cell(initial_evaluation.get("violations", [])),
+            _audit_cell(retry_mary_text),
+            _audit_cell(retry_evaluation),
+            _audit_cell(retry_evaluation.get("violations", [])),
+            retry_evaluation.get("mission_progress_ok", ""),
+            str(retry_evaluation.get("mission_progress_target", "") or ""),
+            _audit_cell(
+                retry_evaluation.get(
+                    "pending_markers",
+                    state.get("markers", []) if isinstance(state, dict) else [],
+                )
+            ),
+            _audit_cell(row.get("exit_markers", "")),
+            _audit_cell(state if isinstance(state, dict) else {}),
         ],
         value_input_option="RAW",
     )
