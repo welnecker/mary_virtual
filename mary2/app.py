@@ -2373,6 +2373,50 @@ if user_text:
                     )
                 except Exception as model_audit_exc:
                     st.session_state.audit_error = str(model_audit_exc)
+
+                if (
+                    script_mode == "funnel_sheet"
+                    and funnel_row
+                    and funnel_progress
+                ):
+                    try:
+                        save_funnel_audit(
+                            service_account_info=persistence["service_account_info"],
+                            spreadsheet_id=info["spreadsheet_id"],
+                            spreadsheet_title=persistence["spreadsheet_title"],
+                            owner_email=persistence["owner_email"],
+                            run_id=st.session_state.run_id,
+                            seq=saved_seq,
+                            chapter_id=_chapter_id(),
+                            user_text=dialogue_text,
+                            mary_text=answer,
+                            row=funnel_row,
+                            evaluation=funnel_evaluation,
+                            progress=funnel_progress,
+                            branch_id=str(
+                                narrative.get("branch_id", "main")
+                                or "main"
+                            ),
+                            chapter_instance_id=str(
+                                narrative.get(
+                                    "chapter_instance_id",
+                                    "",
+                                )
+                                or ""
+                            ),
+                            chapter_turn=int(
+                                narrative.get(
+                                    "chapter_turns",
+                                    0,
+                                )
+                                or 0
+                            ),
+                        )
+                    except Exception as funnel_audit_exc:
+                        st.session_state.audit_error = str(
+                            funnel_audit_exc
+                        )
+
                 try:
                     save_director_audit(
                         service_account_info=persistence["service_account_info"],
