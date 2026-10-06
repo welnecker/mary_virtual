@@ -1,10 +1,12 @@
 from mary2.direct_script import (
     build_direct_writer_prompt,
     current_direct_row,
+    direct_line_correction_prompt,
     direct_script_ready_for_choice,
     ensure_direct_state,
     mark_direct_line_emitted,
     register_direct_user_reply,
+    validate_direct_line_completion,
 )
 
 
@@ -110,3 +112,62 @@ def test_last_line_completes_after_following_user_reply():
 
     assert direct_script_ready_for_choice(state) is True
     assert current_direct_row(ROWS, state) == {}
+
+
+
+def test_director_validator_only_checks_guide_completion(monkeypatch):
+    def fake_chat(**kwargs):
+        return '{"cumpriu": false, "faltou": "perguntar onde mora", "motivo": "a pergunta da fala-guia não apareceu"}'
+
+    monkeypatch.setattr("mary2.direct_script.chat", fake_chat)
+
+    result = validate_direct_line_completion(
+        api_key="test",
+        model="director-test",
+        fallback_model=None,
+        row={
+            "speech_guide": "então, onde você mora? Camburi fica muito fora do seu caminho?"
+        },
+        mary_text="Gostei muito do treino hoje. Você pegou pesado.",
+    )
+
+    assert result["fulfilled"] is False
+    assert result["missing"] == "perguntar onde mora"
+    assert "qualidade literária" in result["input_payload"]
+    assert result["parsed_response"]["cumpriu"] is False
+
+
+def test_director_validator_accepts_rephrased_guide(monkeypatch):
+    def fake_chat(**kwargs):
+        return '{"cumpriu": true, "faltou": "", "motivo": "a missão essencial foi realizada"}'
+
+    monkeypatch.setattr("mary2.direct_script.chat", fake_chat)
+
+    result = validate_direct_line_completion(
+        api_key="test",
+        model="director-test",
+        fallback_model=None,
+        row={
+            "speech_guide": "então, onde você mora? Camburi fica muito fora do seu caminho?"
+        },
+        mary_text="Gostei sim do treino. Agora me conta: você mora onde? Camburi desvia muito do seu caminho?",
+    )
+
+    assert result["fulfilled"] is True
+    assert result["missing"] == ""
+
+
+def test_direct_line_correction_prompt_keeps_same_mission():
+    prompt = direct_line_correction_prompt(
+        {
+            "speech_guide": "então, onde você mora? Camburi fica muito fora do seu caminho?"
+        },
+        {
+            "fulfilled": False,
+            "missing": "perguntar onde mora e se Camburi fica fora do caminho",
+        },
+    )
+
+    assert "CORREÇÃO DA MESMA LINHA" in prompt
+    assert "perguntar onde mora e se Camburi fica fora do caminho" in prompt
+    assert "A FALA-GUIA continua sendo" in prompt
