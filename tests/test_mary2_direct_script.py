@@ -58,7 +58,11 @@ def test_writer_prompt_is_direct_and_contains_only_authorial_fields():
         character_name="Personal",
     )
 
-    assert prompt.startswith("DESCRIÇÃO INICIAL\n")
+    assert prompt.startswith("IDENTIDADE INVARIÁVEL\n")
+    assert "Você é Mary." in prompt
+    assert "Nunca responda como o usuário" in prompt
+    assert "A ÚLTIMA FALA DE MARY não é autoridade factual" in prompt
+    assert "DESCRIÇÃO INICIAL\n" in prompt
     assert "O carro pertence ao personal." in prompt
     assert "Qualquer resposta inicial do usuário corresponde ao início da carona." in prompt
     assert prompt.index("DESCRIÇÃO INICIAL") < prompt.index("MEMÓRIA PERMANENTE")
