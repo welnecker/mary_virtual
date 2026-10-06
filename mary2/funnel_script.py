@@ -352,6 +352,24 @@ def _memory_text(state: dict) -> str:
     return "\n".join(sections)
 
 
+def _step_evidence_text(state: dict) -> str:
+    evidence = state.get("step_evidence", []) if isinstance(state, dict) else []
+    if not isinstance(evidence, list) or not evidence:
+        return "- (nenhuma evidência acumulada ainda)"
+    lines: list[str] = []
+    for item in evidence[:12]:
+        if isinstance(item, dict):
+            source = _clean(item.get("source")) or "context"
+            detail = _clean(item.get("detail")) or _clean(item.get("quote"))
+            if detail:
+                lines.append(f"- [{source}] {detail}")
+        else:
+            value = _clean(item)
+            if value:
+                lines.append(f"- {value}")
+    return "\n".join(lines) if lines else "- (nenhuma evidência acumulada ainda)"
+
+
 def build_funnel_prompt(
     *,
     facts_prompt: str,
@@ -361,154 +379,112 @@ def build_funnel_prompt(
 ) -> str:
     stage = funnel_stage(row, state)
     next_turn = int(state.get("scene_turn", 0) or 0) + 1
-    min_turns = int(row.get("min_turns", 1) or 1)
-    ideal_turns = int(row.get("ideal_turns", min_turns) or min_turns)
-    max_turns = int(row.get("max_turns", ideal_turns) or ideal_turns)
-
-    pending = pending_markers(row, state, scene or {})
-    achieved = achieved_markers(state, scene or {})
-    conversational_pending = [
-        marker
-        for marker in pending
-        if marker not in PHYSICAL_ONLY_MARKERS
-    ]
-    next_priority = (
-        conversational_pending[0]
-        if conversational_pending
-        else ""
-    )
+    mission = _clean(row.get("mission")) or _clean(row.get("objective"))
+    completion = _clean(row.get("completion_criterion"))
+    guide = _clean(row.get("guide"))
+    completion_type = _clean(row.get("completion_type")).upper() or "MIXED"
 
     if stage == "abertura":
         stage_rule = (
-            "Responda ao usuário naturalmente, mas não desperdice o turno. "
-            "Quando houver espaço conversacional, avance a PRIMEIRA ENTREGA PENDENTE."
+            "Responda naturalmente à fala atual e comece a trabalhar a MISSÃO desta linha. "
+            "Não tente executar linhas futuras."
         )
     elif stage == "desenvolvimento":
         stage_rule = (
-            "A missão já deve estar avançando. Responda ao usuário e conduza "
-            "ativamente a conversa para uma ENTREGA PENDENTE."
+            "Continue organicamente esta mesma missão. Use o que já foi obtido e busque apenas "
+            "o que ainda falta para a condição de conclusão."
         )
     else:
         stage_rule = (
-            "Prioridade máxima às ENTREGAS PENDENTES. Responda ao usuário sem abrir "
-            "ramificações e faça a fala avançar diretamente uma pendência real."
+            "Convirja diretamente para a condição de conclusão desta linha, sem abrir ramificações novas."
         )
-
-    mission = (
-        _clean(row.get("mission"))
-        or _clean(row.get("objective"))
-        or "(missão não informada)"
-    )
-    deliverables = (
-        _clean(row.get("deliverables"))
-        or marker_summary(required_markers(row))
-    )
-    completion = (
-        _clean(row.get("completion_criterion"))
-        or _clean(row.get("exit_condition"))
-        or "(critério não informado)"
-    )
 
     return "\n".join(
         [
             "════════════════════════════════════════════════════════════",
-            "MISSÃO OBRIGATÓRIA DO FUNIL — AUTORIDADE MÁXIMA",
+            "PASSO AUTORAL ATUAL — AUTORIDADE MÁXIMA",
             "════════════════════════════════════════════════════════════",
-            mission,
-            "",
-            "ENTREGAS OBRIGATÓRIAS",
-            deliverables,
-            "",
-            "REGRA ABSOLUTA",
-            "A fala do usuário define COMO Mary responde; a MISSÃO define PARA ONDE a conversa deve andar.",
-            "Assuntos incidentais podem alterar tom, humor e forma, mas NÃO podem substituir a missão.",
-            "Mary pode reagir a um assunto lateral, porém deve aproveitar a primeira oportunidade natural para avançar UMA entrega pendente.",
-            "Mary NÃO pode encerrar, trocar de assunto por iniciativa própria ou permanecer em conversa lateral enquanto houver entrega conversacional pendente.",
-            "Pendências físicas pertencem ao Diretor/runtime e NÃO devem ser forçadas pela fala de Mary.",
-            "",
-            "CRITÉRIO DE CONCLUSÃO E TROCA DE FUNIL",
-            completion,
-            "Quando todas as entregas forem comprovadas nesta resposta, a missão está concluída.",
-            "Nesse caso, NÃO abra outro assunto desta cena: conclua apenas a resposta atual.",
-            f"O próximo turno será controlado por: {_clean(row.get('next_scene')) or '(fim)'}.",
-            "Min/ideal/max são apenas referências de ritmo; missão cumprida encerra o funil imediatamente.",
-            "",
-            "ESTADO OPERACIONAL DA MISSÃO",
-            f"CENA_ID={_clean(row.get('scene_id'))}",
-            f"TURNO_DA_CENA={next_turn}",
-            f"RITMO_REFERÊNCIA=min:{min_turns} ideal:{ideal_turns} max:{max_turns}",
+            f"PASSO={_clean(row.get('scene_id'))}",
+            f"ORDEM={int(row.get('order', 0) or 0)}",
+            f"TIPO_DE_CONCLUSÃO={completion_type}",
+            f"TURNO_NESTE_PASSO={next_turn}",
             f"ESTÁGIO={stage}",
             "",
-            "ENTREGAS JÁ COMPROVADAS",
-            marker_summary(achieved),
+            "MISSÃO DA LINHA",
+            mission or "(não informada)",
             "",
-            "ENTREGAS AINDA PENDENTES",
-            marker_summary(pending),
+            "FALA-GUIA AUTORAL",
+            guide or "(sem fala-guia)",
+            "A fala-guia define intenção, direção e conteúdo permitido; NÃO exige repetição literal.",
             "",
-            "PRÓXIMA PRIORIDADE",
+            "CONDIÇÃO DE CONCLUSÃO",
+            completion or "(não informada)",
+            "",
+            "REGRA DE EXECUÇÃO",
+            "A fala atual do usuário define COMO Mary reage; a MISSÃO DA LINHA define PARA ONDE a resposta deve andar.",
+            "Mary pode levar uma, duas ou três interações para concluir o passo.",
+            "Não avance para a próxima linha por conta própria.",
+            "Não repita pergunta que já foi respondida de forma suficiente.",
+            "Não invente resposta, ação, aceite, recusa ou fato do usuário.",
+            "Se a conclusão depender do estado físico, não verbalize o fato para forçá-lo; o Diretor fornece physical_state.",
+            "",
+            "EVIDÊNCIAS JÁ ACUMULADAS NESTE PASSO",
+            _step_evidence_text(state),
+            "",
+            "PENDÊNCIAS INFORMADAS PELO ÚLTIMO AVALIADOR",
             (
-                f"{next_priority}: {MARKER_DESCRIPTIONS.get(next_priority, next_priority)}"
-                if next_priority
-                else (
-                    "AGUARDAR ESTADO FÍSICO DO DIRETOR/RUNTIME — "
-                    "não tente verbalizar uma pendência física."
-                    if pending
-                    else "MISSÃO CUMPRIDA — não abrir novo assunto."
-                )
+                "\n".join(f"- {_clean(item)}" for item in state.get("step_missing", []) if _clean(item))
+                if isinstance(state.get("step_missing"), list) and state.get("step_missing")
+                else "- (nenhuma registrada)"
             ),
             "",
-            "════════════════════════════════════════════════════════════",
-            "CONTRATO SECUNDÁRIO — COMO CUMPRIR A MISSÃO",
-            "════════════════════════════════════════════════════════════",
-            "ABERTURA PERMITIDA",
-            _clean(row.get("opening_allowed")) or "(nenhuma)",
+            "TERRITÓRIO LIBERADO NESTA LINHA",
+            _clean(row.get("released_fact")) or _clean(row.get("opening_allowed")) or "(nenhum adicional)",
             "",
-            "CONVERGÊNCIA",
-            _clean(row.get("convergence")) or "(nenhuma)",
+            "PRÉ-CONDIÇÃO",
+            _clean(row.get("precondition")) or _clean(row.get("fixed_facts")) or "(nenhuma adicional)",
             "",
-            "PAREDES — NÃO PODE",
-            _clean(row.get("forbidden")) or "(nenhuma)",
+            "LIMITES — NÃO PODE",
+            _clean(row.get("forbidden")) or "(nenhum adicional)",
             "",
-            "ATMOSFERA / ATITUDE",
-            _clean(row.get("atmosphere")) or "(livre)",
+            "ESTILO / ATITUDE",
+            _clean(row.get("style")) or "(usar voz natural de Mary)",
+            "",
+            "ATMOSFERA",
+            _clean(row.get("atmosphere")) or "(usar continuidade atual)",
             "",
             "VESTIMENTA",
             _clean(row.get("wardrobe")) or "(usar continuidade atual)",
             "",
-            "FATOS FIXOS DA CENA",
-            _clean(row.get("fixed_facts")) or "(nenhum adicional)",
-            "",
-            "POLÍTICA DE MEMÓRIA",
-            _clean(row.get("memory_policy"))
-            or "(consolidar apenas fatos consequentes)",
-            "",
-            _memory_text(state),
+            "AÇÃO FÍSICA / ENCENAÇÃO PERMITIDA",
+            _clean(row.get("physical_action")) or "(nenhuma obrigatória)",
             "",
             "DINÂMICA DESTE TURNO",
             stage_rule,
-            "Não repita pergunta ou entrega já cumprida.",
-            "Não transforme assunto incidental em novo objetivo.",
             "Preserve modalidade: talvez não é sim; hipótese não é fato; brincadeira não é confirmação.",
-            "A resposta pode ser curta. Profundidade vem da pertinência, não do comprimento.",
             "",
-            "CONTEXTO FIXO DO CAPÍTULO — SUBORDINADO À MISSÃO ACIMA",
+            _memory_text(state),
+            "",
+            "CONTEXTO FIXO DO CAPÍTULO — SUBORDINADO À LINHA ATUAL",
             _clean(facts_prompt),
         ]
     ).strip()
 
 
 _EVALUATOR_PROMPT = """
-Você é o FISCAL DE FRONTEIRAS E EXTRATOR DE EVIDÊNCIAS de uma cena narrativa em funil.
-Você NÃO decide se a cena terminou. O runtime decide isso por marcadores obrigatórios.
-Avalie somente o turno atual e retorne SOMENTE JSON válido.
+Você é um AVALIADOR GENÉRICO DE PASSO AUTORAL.
+Você não conhece esta história de antemão e não usa IDs específicos de roteiro.
+Avalie somente o contrato recebido no payload, as evidências acumuladas, a fala atual,
+a resposta de Mary e o physical_state estruturado.
 
-Formato:
+Retorne SOMENTE JSON válido neste formato:
 {
   "boundary_ok": true,
   "violations": [],
-  "semantic_markers": [],
+  "step_complete": false,
+  "completion_evidence": [],
+  "missing": [],
   "mission_progress_ok": true,
-  "mission_progress_target": "",
   "user_facts": [],
   "consumed_topics": [],
   "user_stance": {},
@@ -516,36 +492,44 @@ Formato:
 }
 
 REGRAS DE FRONTEIRA:
-- boundary_ok=false se Mary abrir assunto fora de ABERTURA PERMITIDA/CONVERGÊNCIA, violar NÃO PODE, inventar fato/decisão/ação do usuário ou antecipar território de cena futura.
-- Em convergência/fechamento, abrir um assunto novo que não ajuda uma pendência é violação.
-- Não aprove uma resposta só porque ela soa natural; confira o território autorizado.
-- Se houver pending_markers, avalie separadamente se Mary avançou a missão: ou cumprindo uma entrega própria, ou perguntando/conduzindo claramente para obter a próxima entrega do usuário.
-- Para marcadores de informação do usuário, uma pergunta clara e pertinente de Mary JÁ conta como avanço de missão, mesmo que o usuário ainda não tenha respondido; nesse caso mission_progress_ok=true.
-- Responder apenas ao assunto incidental sem cumprir entrega nem buscar claramente next_priority significa mission_progress_ok=false.
-- mission_progress_ok mede condução narrativa e NUNCA altera boundary_ok.
-- boundary_ok=false somente para violação real de fronteira: assunto proibido/futuro, fato inventado, ação/decisão do usuário controlada, contradição de fato fixo ou outra violação explícita de NÃO PODE.
+- boundary_ok=false somente quando Mary viola explicitamente os LIMITES da linha, inventa fato/ação/decisão do usuário, antecipa conteúdo de linha futura, cria rota/programa/objetivo não autorizado ou contradiz fato fixo.
+- Falta de progresso NÃO é violação de fronteira.
+- Não use naturalidade como desculpa para abrir assunto novo não autorizado.
 
-MARCADORES:
-- semantic_markers pode conter SOMENTE IDs listados em allowed_semantic_markers.
-- Marque um ID somente quando houver evidência explícita no texto atual de Mary ou do usuário.
-- Não marque evento físico que pertence a physical_markers; esses vêm do runtime.
+CONCLUSÃO DO PASSO:
+- Decida step_complete SOMENTE pela CONDIÇÃO DE CONCLUSÃO recebida.
+- Considere cumulativamente prior_step_evidence + user_text atual + mary_text atual + physical_state atual.
+- Não exija palavras idênticas às da condição; avalie equivalência semântica.
+- Se a condição estiver parcialmente cumprida, step_complete=false e liste objetivamente o que falta em missing.
+- Se estiver totalmente cumprida, step_complete=true e missing=[].
+- completion_evidence deve conter apenas evidências que sustentam a conclusão ou avanço real.
+- Cada evidência deve ser {"source":"user|mary|physical|prior","detail":"...","quote":"..."}.
+- Para source=user, quote deve ser trecho literal da fala atual do usuário quando a evidência for nova neste turno.
+- Para source=mary, quote deve ser trecho literal da resposta atual de Mary quando a evidência for nova neste turno.
+- Para source=physical, detail deve citar somente campos/valores do physical_state fornecido.
+- Para source=prior, use somente evidência já presente em prior_step_evidence.
+
+TIPO DE CONCLUSÃO:
+- USER: a conclusão depende de informação/posição fornecida pelo usuário; Mary perguntar não significa que o usuário respondeu.
+- MARY: a conclusão depende do que Mary efetivamente disse/entregou.
+- PHYSICAL: a conclusão depende somente do physical_state estruturado; não inferir estado físico pela prosa.
+- MIXED: combine apenas as fontes realmente exigidas pela condição.
+
+PROGRESSO:
+- mission_progress_ok=true quando Mary reagiu de forma pertinente e conduziu o passo em direção à condição, mesmo que o usuário ainda precise responder.
+- mission_progress_ok=false quando Mary ficou apenas em assunto incidental ou se afastou da missão sem violar necessariamente uma parede.
 
 FATOS DO USUÁRIO:
-- user_facts contém SOMENTE afirmações factuais do usuário, nunca perguntas, convites, comandos, brincadeiras ou falas sociais.
-- Cada item deve ser objeto com: category, fact, modality, source_quote.
-- source_quote deve ser trecho literal da fala atual do usuário que sustenta o fato.
-- modality deve preservar confirmado, talvez/incerto, negado, hipotético ou brincadeira.
-- Se não houver fato real, retorne [].
+- user_facts contém apenas afirmações factuais realmente ditas pelo usuário.
+- Cada item: {"category":"...", "fact":"...", "modality":"confirmado|talvez/incerto|negado|hipotético|brincadeira", "source_quote":"trecho literal"}.
+- Nunca transforme pergunta de Mary, inferência ou fala social em fato do usuário.
 
 POSIÇÃO DO USUÁRIO:
-- user_stance só deve existir quando a fala atual expressar posição relevante sobre uma proposta/possibilidade da cena.
-- Formato: {"value":"aceitou|recusou|talvez/incerto|não respondeu", "source_quote":"trecho literal"}.
-- Caso contrário, retorne {}.
+- user_stance só existe quando a fala atual expressar posição relevante sobre uma proposta da linha.
+- Formato: {"value":"aceitou|recusou|talvez/incerto|não respondeu","source_quote":"trecho literal"}.
+- Caso contrário, {}.
 
-MEMÓRIA:
-- consumed_topics serve apenas para impedir repetição.
-- Não transforme algo inventado por Mary em fato estrutural.
-- summary descreve em uma frase o avanço real do turno.
+summary descreve em uma frase o avanço real do turno.
 """.strip()
 
 
