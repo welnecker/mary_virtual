@@ -28,6 +28,7 @@ ROWS = [
         "max_turns": 5,
         "depends_on_user": False,
         "next_block_id": "bloco_02",
+        "prompt_preview": "BLOCO ATUAL\nPROMPT DIRETO DA PLANILHA\n\nMEMÓRIA RECENTE AUTORAL\nMary saiu da academia e conversou na lanchonete.\n\nREGRA\nNão invente fatos.",
     },
     {
         "order": 2,
@@ -65,7 +66,7 @@ def scene():
     }
 
 
-def test_prompt_uses_authorial_recent_memory():
+def test_prompt_uses_sheet_prompt_as_active_contract():
     state = ensure_block_state({}, ROWS)
     prompt = build_block_prompt(
         facts_prompt="Fatos fixos.",
@@ -74,9 +75,11 @@ def test_prompt_uses_authorial_recent_memory():
         scene=scene(),
     )
 
+    assert prompt.startswith("BLOCO ATUAL\nPROMPT DIRETO DA PLANILHA")
     assert "MEMÓRIA RECENTE AUTORAL" in prompt
     assert "Mary saiu da academia e conversou na lanchonete." in prompt
-    assert "Preparar o trajeto e o trânsito." in prompt
+    assert "O texto acima, vindo da coluna Prompt do bloco, é o contrato autoral principal" in prompt
+    assert "ESTADO DINÂMICO DO RUNTIME" in prompt
 
 
 def test_non_dependent_block_advances_at_target_max():
