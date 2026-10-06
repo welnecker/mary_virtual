@@ -1031,6 +1031,11 @@ def apply_funnel_evaluation(
         "achieved_markers": completed_markers,
         "pending_markers": missing,
         "exit_ready": not missing,
+        "physical_state": deepcopy(
+            scene.get("physical_state", {})
+            if isinstance(scene, dict)
+            else {}
+        ),
     }
 
 
