@@ -39,6 +39,8 @@ from funnel_script import (
     evaluate_funnel_turn,
     funnel_ready_for_choice,
     load_funnel_rows,
+    pending_markers,
+    required_markers,
 )
 from openrouter_client import OpenRouterError, chat
 from output_filter import looks_like_action_narration, parse_mary_response, sanitize_mary_output
@@ -2250,6 +2252,14 @@ if user_text:
                                 correction_prompt=funnel_correction_prompt,
                                 retry_mary_text=answer,
                                 retry_evaluation=funnel_evaluation,
+                                pending_markers=pending_markers(
+                                    funnel_row,
+                                    funnel_state or {},
+                                    scene,
+                                ),
+                                required_markers=required_markers(
+                                    funnel_row
+                                ),
                                 branch_id=str(
                                     narrative_state.get("branch_id", "main")
                                     or "main"
