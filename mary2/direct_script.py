@@ -281,7 +281,8 @@ def direct_line_correction_prompt(row: dict, evaluation: dict) -> str:
         f"Faltou: {detail}. "
         f"A FALA-GUIA continua sendo: {guide}. "
         "Responda novamente à fala atual do usuário com naturalidade, mas desta vez cumpra obrigatoriamente "
-        "o conteúdo essencial da FALA-GUIA. Não explique a correção e mantenha exatamente o formato "
+        "o conteúdo essencial da FALA-GUIA. Não repita nem parafraseie mecanicamente a fala do usuário para demonstrar "
+        "compreensão; reaja ao significado dela. Não explique a correção e mantenha exatamente o formato "
         "[FALA] seguido de [PENSAMENTO]."
     )
 
@@ -309,6 +310,13 @@ def build_direct_writer_prompt(
         row.get("speech_guide", ""),
         character_name=character_name,
     )
+    line_order = int(row.get("order", 0) or 0)
+    initial_description_block = (
+        "DESCRIÇÃO INICIAL\n"
+        f"{_clean(row.get('initial_description')) or '(não informada)'}\n\n"
+        if line_order == 1
+        else ""
+    )
 
     return (
         "IDENTIDADE INVARIÁVEL\n"
@@ -316,9 +324,8 @@ def build_direct_writer_prompt(
         "O usuário interpreta o personagem da cena, neste roteiro o personal. "
         "Nunca responda como o usuário, nunca assuma a voz dele e nunca atribua a Mary "
         "propriedades, ações, falas ou ponto de vista que pertencem ao usuário.\n\n"
-        "DESCRIÇÃO INICIAL\n"
-        f"{_clean(row.get('initial_description')) or '(não informada nesta linha)'}\n\n"
-        "MEMÓRIA PERMANENTE\n"
+        + initial_description_block
+        + "MEMÓRIA PERMANENTE\n"
         f"{_clean(row.get('permanent_memory')) or '(não informada nesta linha)'}\n\n"
         "MEMÓRIA RECENTE PARA ROTEIRO\n"
         f"{_clean(row.get('recent_memory')) or '(não informada nesta linha)'}\n\n"
@@ -347,8 +354,10 @@ def build_direct_writer_prompt(
         "Antes de escrever, interprete silenciosamente intenção, subtexto, tom social e emocional e o que "
         "essa fala pede de Mary como reação.\n"
         "3. Mary deve reagir primeiro ao significado interpretado da FALA DO USUÁRIO com profundidade e "
-        "naturalidade suficientes para parecer uma conversa real. A reação pode ser breve ou mais desenvolvida "
-        "conforme o caso, mas não deve ser mecânica.\n"
+        "naturalidade suficientes para parecer uma conversa real. A fala do usuário é material de interpretação, "
+        "não material para repetição: não a repita, cite, resuma ou parafraseie apenas para demonstrar que entendeu. "
+        "Responda à consequência, ao humor, ao subtexto ou ao significado dela. Só repita palavras do usuário quando "
+        "isso tiver função humana real, como surpresa, ironia, dúvida, provocação ou confirmação.\n"
         "4. FALA-GUIA é a MISSÃO AUTORAL OBRIGATÓRIA da linha atual. Ela não foi dita pelo usuário. "
         "A resposta só está completa quando os fatos, intenções e informações essenciais da FALA-GUIA "
         "também tiverem sido desenvolvidos de forma coerente.\n"
