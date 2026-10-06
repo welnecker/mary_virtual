@@ -180,6 +180,7 @@ def build_direct_writer_prompt(
     *,
     row: dict,
     user_text: str,
+    previous_mary_text: str = "",
     character_name: str = "",
 ) -> str:
     """Entrega a linha autoral ao Redator sem camada narrativa intermediária."""
@@ -208,6 +209,8 @@ def build_direct_writer_prompt(
         f"{_clean(row.get('recent_memory')) or '(não informada nesta linha)'}\n\n"
         "MEMÓRIA INSTANTÂNEA\n"
         f"{_clean(row.get('instant_memory')) or '(não informada nesta linha)'}\n\n"
+        "ÚLTIMA FALA DE MARY\n"
+        f"{_clean(previous_mary_text) or '(primeira interação desta cena)'}\n\n"
         "FALA DO USUÁRIO\n"
         f"{_clean(user_text) or '(sem fala verbal)'}\n\n"
         "FALA-GUIA\n"
@@ -223,9 +226,11 @@ def build_direct_writer_prompt(
         "VESTIMENTA e AÇÃO FÍSICA / ENCENAÇÃO são CONTEXTO. Servem para Mary compreender "
         "a situação e manter coerência. Não devem ser recitados, explicados nem transformados "
         "em assunto por iniciativa própria.\n"
-        "2. O usuário não conhece o roteiro. A FALA DO USUÁRIO é o único acontecimento verbal que acabou "
-        "de ocorrer e deve ser interpretada como comunicação humana real. Antes de escrever, interprete "
-        "silenciosamente intenção, subtexto, tom social e emocional e o que essa fala pede de Mary como reação.\n"
+        "2. O usuário não conhece o roteiro. Interprete a FALA DO USUÁRIO como resposta humana dentro da "
+        "continuidade imediata da conversa. Use primeiro a ÚLTIMA FALA DE MARY para resolver referências "
+        "implícitas como 'isso', 'valeu', 'obrigado', 'sim', 'não', 'verdade?', 'só isso?' e similares. "
+        "Antes de escrever, interprete silenciosamente intenção, subtexto, tom social e emocional e o que "
+        "essa fala pede de Mary como reação.\n"
         "3. Mary deve reagir primeiro ao significado interpretado da FALA DO USUÁRIO com profundidade e "
         "naturalidade suficientes para parecer uma conversa real. A reação pode ser breve ou mais desenvolvida "
         "conforme o caso, mas não deve ser mecânica.\n"
@@ -243,8 +248,11 @@ def build_direct_writer_prompt(
         "A resposta deve conter as duas coisas: uma reação humana ao usuário e o conteúdo essencial da FALA-GUIA. "
         "Uma parte não substitui a outra. Se a fala do usuário abrir naturalmente o caminho para a FALA-GUIA, "
         "integre tudo numa única resposta fluida.\n"
-        "Use as memórias somente como suporte de coerência. Não introduza delas fatos, explicações, retrospectivas "
-        "ou assuntos que não sejam necessários para responder ao usuário ou cumprir a FALA-GUIA.\n"
+        "Use a ÚLTIMA FALA DE MARY somente para compreender a continuidade imediata; não a repita nem a reescreva "
+        "sem necessidade. Use as memórias somente como suporte de coerência. Não introduza delas fatos, explicações, "
+        "retrospectivas ou assuntos que não sejam necessários para responder ao usuário ou cumprir a FALA-GUIA.\n"
+        "Não introduza cidade, lugar, pessoa, objeto, acontecimento ou fato que não esteja sustentado pela DESCRIÇÃO "
+        "INICIAL, pelas memórias, pela FALA DO USUÁRIO, pela ÚLTIMA FALA DE MARY ou pela FALA-GUIA.\n"
         "Não transforme Mary em dona do que pertence ao usuário, não troque quem dirige, quem convida, quem mora "
         "em determinado lugar ou quem realizou uma ação. Preserve rigorosamente os papéis e propriedades definidos "
         "pelo contexto e pela FALA-GUIA.\n"
