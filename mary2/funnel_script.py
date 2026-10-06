@@ -86,6 +86,113 @@ def _unique_text(items: Any, *, limit: int = 24) -> list[str]:
     return result
 
 
+def _marker_list(value: Any) -> list[str]:
+    return _unique_text(
+        [
+            part.strip()
+            for part in _clean(value).replace(",", ";").split(";")
+            if part.strip()
+        ],
+        limit=32,
+    )
+
+
+def required_markers(row: dict) -> list[str]:
+    return _marker_list(row.get("exit_markers", ""))
+
+
+def _normalized_scene_text(scene: dict) -> str:
+    if not isinstance(scene, dict):
+        return ""
+    values = [
+        scene.get("location", ""),
+        scene.get("event", ""),
+        scene.get("proximity", ""),
+        scene.get("scene_caption", ""),
+        scene.get("resolution_summary", ""),
+    ]
+    return " ".join(
+        _clean(value).casefold()
+        for value in values
+        if _clean(value)
+    )
+
+
+def derive_physical_markers(scene: dict) -> list[str]:
+    text = _normalized_scene_text(scene)
+    markers: list[str] = []
+
+    moving_terms = (
+        "em movimento",
+        "segue pela estrada",
+        "segue pela",
+        "carro segue",
+        "suv segue",
+        "trafegando",
+        "rodando",
+    )
+    if any(term in text for term in moving_terms):
+        markers.append("carro_em_movimento")
+
+    arrived_golden = "golden tulip" in text
+    stopped_terms = (
+        "parou",
+        "parado",
+        "encostou",
+        "encostado",
+        "estacion",
+    )
+    if arrived_golden and any(term in text for term in stopped_terms):
+        markers.append("chegada_golden_tulip")
+
+    return markers
+
+
+def achieved_markers(
+    state: dict,
+    scene: dict | None = None,
+) -> list[str]:
+    saved = _unique_text(
+        state.get("markers", []),
+        limit=32,
+    )
+    physical = derive_physical_markers(
+        scene or {}
+    )
+    return _unique_text(
+        saved + physical,
+        limit=32,
+    )
+
+
+def pending_markers(
+    row: dict,
+    state: dict,
+    scene: dict | None = None,
+) -> list[str]:
+    achieved = set(
+        achieved_markers(
+            state,
+            scene,
+        )
+    )
+    return [
+        marker
+        for marker in required_markers(row)
+        if marker not in achieved
+    ]
+
+
+def marker_summary(markers: list[str]) -> str:
+    if not markers:
+        return "- (nenhum)"
+    return "\n".join(
+        f"- {marker}: "
+        f"{MARKER_DESCRIPTIONS.get(marker, marker)}"
+        for marker in markers
+    )
+
+
 def load_funnel_rows(
     *,
     service_account_info: dict,
