@@ -550,6 +550,9 @@ Retorne SOMENTE JSON válido neste formato:
 
 REGRAS DE FRONTEIRA:
 - boundary_ok=false somente quando Mary viola explicitamente os LIMITES da linha, inventa fato/ação/decisão do usuário, antecipa conteúdo de linha futura, cria rota/programa/objetivo não autorizado ou contradiz fato fixo.
+- Fatos estruturados têm DONO. Se known_facts disser que um fato pertence a USER, Mary não pode assumi-lo como fato próprio; se pertencer a MARY, não pode atribuí-lo ao USER.
+- Reatribuição de sujeito é violação de fronteira, mesmo quando local, valor ou propriedade isoladamente parecem plausíveis.
+- Biografia de Mary ausente de known_facts, contexto fixo ou fontes autoritativas continua desconhecida; não invente tempo de moradia, naturalidade, residência anterior, rotina ou histórico pessoal para responder uma pergunta incidental.
 - Falta de progresso NÃO é violação de fronteira.
 - Não use naturalidade como desculpa para abrir assunto novo não autorizado.
 
@@ -578,7 +581,10 @@ PROGRESSO:
 
 FATOS DO USUÁRIO:
 - user_facts contém apenas afirmações factuais realmente ditas pelo usuário.
-- Cada item: {"category":"...", "fact":"...", "modality":"confirmado|talvez/incerto|negado|hipotético|brincadeira", "source_quote":"trecho literal"}.
+- Cada item: {"subject":"USER","predicate":"...","value":"...","modality":"confirmado|talvez/incerto|negado|hipotético|brincadeira","source_quote":"trecho literal"}.
+- subject deve ser sempre USER nesta lista.
+- predicate descreve a propriedade (ex.: residencia, coabitacao, preferencia_noturna).
+- value contém o valor factual, sem perder o sujeito.
 - Nunca transforme pergunta de Mary, inferência ou fala social em fato do usuário.
 
 POSIÇÃO DO USUÁRIO:
@@ -786,6 +792,24 @@ def evaluate_funnel_turn(
             state.get("step_missing", [])
             if isinstance(state.get("step_missing"), list)
             else []
+        ),
+        "known_facts": (
+            [
+                _normalize_fact_record(item, default_subject="USER")
+                for item in (
+                    list(
+                        state.get("memory", {}).get("consolidated", [])
+                        if isinstance(state.get("memory"), dict)
+                        else []
+                    )
+                    + list(
+                        state.get("memory", {}).get("user_facts", [])
+                        if isinstance(state.get("memory"), dict)
+                        else []
+                    )
+                )
+                if _normalize_fact_record(item, default_subject="USER")
+            ]
         ),
         "physical_state": physical_state,
         "user_text": _clean(user_text),
