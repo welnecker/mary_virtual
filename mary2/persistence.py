@@ -20,6 +20,7 @@ MODEL_AUDIT_SHEET = "MODEL_AUDIT"
 FUNNEL_AUDIT_SHEET = "FUNNEL_AUDIT"
 BLOCK_AUDIT_SHEET = "BLOCK_AUDIT"
 DIRECT_SCRIPT_AUDIT_SHEET = "DIRECT_SCRIPT_AUDIT"
+DIRECTOR_VALIDATION_AUDIT_SHEET = "DIRECTOR_VALIDATION_AUDIT"
 FUNNEL_REJECTIONS_SHEET = "FUNNEL_REJECTIONS"
 CHECKPOINTS_SHEET = "STORY_CHECKPOINTS"
 BRANCHES_SHEET = "STORY_BRANCHES"
@@ -212,6 +213,33 @@ DIRECT_SCRIPT_AUDIT_HEADERS = [
     "chapter_turn",
     "initial_description",
 ]
+
+DIRECTOR_VALIDATION_AUDIT_HEADERS = [
+    "run_id",
+    "seq_candidate",
+    "created_at",
+    "chapter_id",
+    "chapter_instance_id",
+    "chapter_turn",
+    "line_id",
+    "line_order",
+    "speech_guide",
+    "user_text",
+    "attempt",
+    "mary_text",
+    "director_model",
+    "duration_ms",
+    "fulfilled",
+    "missing",
+    "reason",
+    "director_input_payload",
+    "director_raw_response",
+    "director_parsed_json",
+    "parse_error",
+    "status",
+]
+
+
 
 FUNNEL_REJECTION_HEADERS = [
     "created_at",
@@ -442,6 +470,7 @@ def ensure_schema(
     _ensure_worksheet(book, FUNNEL_AUDIT_SHEET, FUNNEL_AUDIT_HEADERS)
     _ensure_worksheet(book, BLOCK_AUDIT_SHEET, BLOCK_AUDIT_HEADERS)
     _ensure_worksheet(book, DIRECT_SCRIPT_AUDIT_SHEET, DIRECT_SCRIPT_AUDIT_HEADERS)
+    _ensure_worksheet(book, DIRECTOR_VALIDATION_AUDIT_SHEET, DIRECTOR_VALIDATION_AUDIT_HEADERS)
     _ensure_worksheet(book, FUNNEL_REJECTIONS_SHEET, FUNNEL_REJECTION_HEADERS)
     _ensure_worksheet(book, CHECKPOINTS_SHEET, CHECKPOINT_HEADERS)
     _ensure_worksheet(book, BRANCHES_SHEET, BRANCH_HEADERS)
@@ -880,6 +909,70 @@ def save_director_audit(
         value_input_option="RAW",
     )
 
+
+
+
+@_serialized_cache
+def save_director_validation_audit(
+    *,
+    service_account_info: dict,
+    run_id: str,
+    seq_candidate: int,
+    chapter_id: str,
+    chapter_instance_id: str,
+    chapter_turn: int,
+    row: dict,
+    user_text: str,
+    attempt: int,
+    mary_text: str,
+    evaluation: dict,
+    status: str,
+    spreadsheet_id: str = "",
+    spreadsheet_title: str = "MARY_CORE_PERSISTENCE",
+    owner_email: str = "",
+) -> None:
+    """Registra cada decisão do Diretor validador, inclusive tentativas abortadas."""
+    if not isinstance(evaluation, dict) or not evaluation:
+        return
+
+    book = open_or_create_book(
+        service_account_info=service_account_info,
+        spreadsheet_id=spreadsheet_id,
+        spreadsheet_title=spreadsheet_title,
+        owner_email=owner_email,
+    )
+    ws = _ensure_worksheet(
+        book,
+        DIRECTOR_VALIDATION_AUDIT_SHEET,
+        DIRECTOR_VALIDATION_AUDIT_HEADERS,
+    )
+    ws.append_row(
+        [
+            run_id,
+            int(seq_candidate or 0),
+            _now(),
+            chapter_id,
+            chapter_instance_id,
+            int(chapter_turn or 0),
+            str(row.get("line_id", "") or ""),
+            int(row.get("order", 0) or 0),
+            _audit_cell(row.get("speech_guide", "")),
+            _audit_cell(user_text),
+            int(attempt or 0),
+            _audit_cell(mary_text),
+            str(evaluation.get("model", "") or ""),
+            evaluation.get("duration_ms", ""),
+            bool(evaluation.get("fulfilled", False)),
+            _audit_cell(evaluation.get("missing", "")),
+            _audit_cell(evaluation.get("reason", "")),
+            _audit_cell(evaluation.get("input_payload", "")),
+            _audit_cell(evaluation.get("raw_response", "")),
+            _audit_cell(evaluation.get("parsed_response", {})),
+            str(evaluation.get("parse_error", "") or ""),
+            str(status or ""),
+        ],
+        value_input_option="RAW",
+    )
 
 
 def save_model_audit(
