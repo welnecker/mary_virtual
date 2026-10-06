@@ -46,9 +46,15 @@ def evaluation(*, markers=None, stance=None, facts=None):
 
 def moving_scene():
     return {
-        "location": "interior do carro do personal, em movimento",
+        "location": "interior do carro do personal",
         "proximity": "sentada no banco do passageiro",
         "event": "O carro segue pela estrada rumo a Camburi.",
+        "physical_state": {
+            "location_type": "inside_vehicle",
+            "vehicle_motion": "moving",
+            "mary_position": "passenger_seat",
+            "arrival_state": "en_route",
+        },
     }
 
 
@@ -63,7 +69,7 @@ def test_funnel_drops_legacy_hybrid_state_and_starts_v3():
     state = ensure_funnel_state(narrative, ROWS)
 
     assert "hybrid_script" not in narrative
-    assert state["engine"] == "carona_funnel_v3"
+    assert state["engine"] == "carona_funnel_v4"
     assert state["scene_id"] == "entrada"
     assert state["markers"] == []
 
@@ -142,7 +148,7 @@ def test_migrate_state_preserves_funnel_runtime_state():
             "chapter_id": "carona_camburi",
             "chapter_turns": 5,
             "funnel_script": {
-                "engine": "carona_funnel_v3",
+                "engine": "carona_funnel_v4",
                 "scene_index": 1,
                 "scene_id": "conversa",
                 "scene_turn": 2,
@@ -203,3 +209,39 @@ def test_second_funnel_requires_all_three_deliveries():
     )
 
     assert complete["advanced"] is True
+
+
+def test_event_text_alone_does_not_prove_physical_marker():
+    scene = {
+        "event": "O carro segue pela estrada rumo a Camburi.",
+        "location": "interior do carro do personal",
+        "proximity": "sentada no banco do passageiro",
+        "physical_state": {
+            "location_type": "inside_vehicle",
+            "vehicle_motion": "unknown",
+            "mary_position": "unknown",
+            "arrival_state": "unknown",
+        },
+    }
+
+    markers = derive_physical_markers(scene)
+
+    assert "carro_em_movimento" not in markers
+    assert "mary_passageira_instalada" not in markers
+
+
+def test_structured_physical_state_is_the_only_source_of_vehicle_markers():
+    scene = {
+        "event": "texto qualquer sem palavras de movimento",
+        "physical_state": {
+            "location_type": "inside_vehicle",
+            "vehicle_motion": "moving",
+            "mary_position": "passenger_seat",
+            "arrival_state": "en_route",
+        },
+    }
+
+    markers = derive_physical_markers(scene)
+
+    assert "carro_em_movimento" in markers
+    assert "mary_passageira_instalada" in markers
