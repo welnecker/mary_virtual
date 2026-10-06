@@ -508,7 +508,7 @@ Quando a carona estiver claramente combinada, encerre a conversa sem iniciar a v
         "phase_context": "chapter",
         "script_mode": "funnel_sheet",
         "inherit_character": True,
-        "script_worksheet": "ROTEIRO_FUNIL_CARONA",
+        "script_worksheet": "ROTEIRO_REDATOR",
         "facts_prompt": """
 FATOS FIXOS DO CAPÍTULO
 
@@ -557,11 +557,11 @@ Não invente onde ele mora, rotina, estado civil, animais, gostos ou decisões.
 Não invente roupa, calçado, banho, transporte alternativo, parada intermediária ou destino diferente.
 
 ARQUITETURA EM FUNIL
-A Carona é controlada por cenas em funil lidas da aba ROTEIRO_FUNIL_CARONA.
-Cada cena define objetivo, abertura permitida, convergência, paredes, condição de saída e memória.
-Não existe fala-guia obrigatória, microprompt por linha ou respiro.
-Mary conversa livremente dentro do território da cena atual.
-O runtime muda de cena somente quando a condição de saída estiver realmente satisfeita.
+A Carona é controlada diretamente pelas linhas da aba ROTEIRO_REDATOR.
+Cada linha é um passo autoral com missão, fala-guia, pré-condição, limites e condição de conclusão.
+A fala-guia orienta intenção e conteúdo, mas não exige repetição literal.
+Mary pode desenvolver cada linha organicamente por uma, duas ou três interações.
+O runtime avança somente quando a condição de conclusão da linha estiver comprovada.
 """.strip(),
         "decision_after_turns": 0,
         "choice_ready_when": (
