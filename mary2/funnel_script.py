@@ -208,6 +208,7 @@ def ensure_funnel_state(narrative: dict, rows: list[dict]) -> dict:
             "scene_id": scene_ids[0] if scene_ids else "",
             "scene_turn": 0,
             "completed_scene_ids": [],
+            "completed_steps": [],
             "markers": [],
             "step_complete": False,
             "step_evidence": [],
@@ -260,6 +261,8 @@ def ensure_funnel_state(narrative: dict, rows: list[dict]) -> dict:
         state.get("completed_scene_ids", []),
         limit=64,
     )
+    if not isinstance(state.get("completed_steps"), list):
+        state["completed_steps"] = []
     state["markers"] = []
     state["step_complete"] = bool(state.get("step_complete", False))
     if not isinstance(state.get("step_evidence"), list):
@@ -427,6 +430,25 @@ def _step_evidence_text(state: dict) -> str:
     return "\n".join(lines) if lines else "- (nenhuma evidência acumulada ainda)"
 
 
+def _completed_steps_text(state: dict) -> str:
+    items = state.get("completed_steps", []) if isinstance(state, dict) else []
+    if not isinstance(items, list) or not items:
+        return "- (nenhum passo anterior concluído)"
+    lines: list[str] = []
+    for item in items[-12:]:
+        if not isinstance(item, dict):
+            continue
+        order = _clean(item.get("order"))
+        mission = _clean(item.get("mission"))
+        completion = _clean(item.get("completion"))
+        summary = _clean(item.get("summary"))
+        label = f"PASSO {order}" if order else "PASSO ANTERIOR"
+        detail = summary or completion or mission
+        if detail:
+            lines.append(f"- {label}: {detail}")
+    return "\n".join(lines) if lines else "- (nenhum passo anterior concluído)"
+
+
 def build_funnel_prompt(
     *,
     facts_prompt: str,
@@ -499,6 +521,11 @@ def build_funnel_prompt(
                 else "- (nenhuma registrada)"
             ),
             "",
+            "PASSOS ANTERIORES JÁ CONCLUÍDOS — NÃO REINVESTIGAR",
+            _completed_steps_text(state),
+            "Use fatos já obtidos naturalmente, mas não volte a perguntar para descobrir novamente "
+            "um objetivo que já foi encerrado.",
+            "",
             "TERRITÓRIO LIBERADO NESTA LINHA",
             _clean(row.get("released_fact")) or _clean(row.get("opening_allowed")) or "(nenhum adicional)",
             "",
@@ -564,9 +591,13 @@ CONCLUSÃO DO PASSO:
 - Decida step_complete SOMENTE pela CONDIÇÃO DE CONCLUSÃO recebida.
 - Considere cumulativamente prior_step_evidence + user_text atual + mary_text atual + physical_state atual.
 - Não exija palavras idênticas às da condição; avalie equivalência semântica.
-- Se a condição estiver parcialmente cumprida, step_complete=false e liste objetivamente o que falta em missing.
+- REGRA OBRIGATÓRIA DE EVIDÊNCIA PARCIAL: toda parte da condição de conclusão já comprovada neste turno DEVE aparecer em completion_evidence, mesmo quando step_complete=false.
+- Nunca devolva completion_evidence=[] se alguma parte objetiva da condição já foi satisfeita.
+- Se uma parte já estiver em prior_step_evidence, preserve-a como satisfeita; não volte a colocá-la em missing.
+- missing deve conter SOMENTE partes ainda não comprovadas.
+- Se a condição estiver parcialmente cumprida, step_complete=false e liste objetivamente apenas o que falta em missing.
 - Se estiver totalmente cumprida, step_complete=true e missing=[].
-- completion_evidence deve conter apenas evidências que sustentam a conclusão ou avanço real.
+- completion_evidence deve conter evidências que sustentam a conclusão ou avanço real.
 - Cada evidência deve ser {"source":"user|mary|physical|prior","detail":"...","quote":"..."}.
 - Para source=user, quote deve ser trecho literal da fala atual do usuário quando a evidência for nova neste turno.
 - Para source=mary, quote deve ser trecho literal da resposta atual de Mary quando a evidência for nova neste turno.
@@ -580,8 +611,10 @@ TIPO DE CONCLUSÃO:
 - MIXED: combine apenas as fontes realmente exigidas pela condição.
 
 PROGRESSO:
-- mission_progress_ok=true quando Mary reagiu de forma pertinente e conduziu o passo em direção à condição, mesmo que o usuário ainda precise responder.
-- mission_progress_ok=false quando Mary ficou apenas em assunto incidental ou se afastou da missão sem violar necessariamente uma parede.
+- mission_progress_ok=true somente quando a resposta de Mary avança a MISSÃO ATUAL ou busca diretamente uma informação ainda necessária à condição atual.
+- completed_steps contém objetivos já encerrados. Retomar, repetir ou reinvestigar um objetivo listado em completed_steps NÃO conta como progresso no passo atual.
+- Se Mary pergunta novamente algo já resolvido em completed_steps, mission_progress_ok=false, mesmo que a pergunta seja natural ou relacionada ao contexto.
+- mission_progress_ok=false quando Mary ficou apenas em assunto incidental, repetiu objetivo encerrado ou se afastou da missão sem violar necessariamente uma parede.
 
 FATOS DO USUÁRIO:
 - user_facts contém apenas afirmações factuais realmente ditas pelo usuário.
@@ -795,6 +828,11 @@ def evaluate_funnel_turn(
         "prior_missing": (
             state.get("step_missing", [])
             if isinstance(state.get("step_missing"), list)
+            else []
+        ),
+        "completed_steps": (
+            state.get("completed_steps", [])
+            if isinstance(state.get("completed_steps"), list)
             else []
         ),
         "known_facts": (
@@ -1022,6 +1060,21 @@ def apply_funnel_evaluation(
             list(state.get("completed_scene_ids", [])) + [current_id],
             limit=64,
         )
+        completed_steps = (
+            state.get("completed_steps", [])
+            if isinstance(state.get("completed_steps"), list)
+            else []
+        )
+        completed_steps.append(
+            {
+                "order": int(row.get("order", 0) or 0),
+                "scene_id": current_id,
+                "mission": _clean(row.get("mission")) or _clean(row.get("objective")),
+                "completion": _clean(row.get("completion_criterion")),
+                "summary": _clean(evaluation.get("summary")),
+            }
+        )
+        state["completed_steps"] = completed_steps[-24:]
 
         consolidated = _merge_fact_dicts(
             memory.get("consolidated", []),
