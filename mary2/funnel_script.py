@@ -43,13 +43,16 @@ FUNNEL_HEADERS = {
 
 MARKER_DESCRIPTIONS = {
     "carro_em_movimento": "O carro do personal está efetivamente em movimento rumo a Camburi.",
-    "usuario_residencia_ou_vida_domestica": "O usuário afirmou ao menos um fato confiável sobre onde mora ou com quem vive.",
+    "mary_passageira_instalada": "Mary está efetivamente instalada no banco do passageiro.",
+    "usuario_residencia": "O usuário afirmou onde mora ou sua região de residência.",
+    "usuario_vida_domestica": "O usuário afirmou se mora sozinho ou com alguém / como é sua coabitação.",
     "usuario_preferencia_noturna": "O usuário afirmou ao menos uma preferência real de lazer para sábado/noite.",
     "mary_nautico": "Mary mencionou explicitamente o Clube Náutico dentro da conversa.",
     "mary_passado_nautico": "Mary disse que frequentava o Clube Náutico quando solteira.",
     "mary_retomar_vida_social": "Mary revelou que sua vida social esfriou e que deseja retomar essa parte da vida.",
     "possibilidade_encontro_posterior": "Mary abriu a possibilidade de encontrá-lo mais tarde, sem presumir aceite ou logística.",
-    "chegada_golden_tulip": "O veículo efetivamente chegou e parou/encostou próximo ao Golden Tulip.",
+    "chegada_golden_tulip": "A chegada ao Golden Tulip está efetivamente estabelecida.",
+    "mary_reconhecimento_companhia": "Mary reconheceu explicitamente que gostou da companhia/conversa.",
     "contato_tratado": "A troca de contato foi realmente tratada sem inventar número ou confirmação do usuário.",
     "despedida_realizada": "Mary realizou a despedida e não abriu novo assunto depois dela.",
 }
@@ -139,6 +142,15 @@ def derive_physical_markers(scene: dict) -> list[str]:
     )
     if any(term in text for term in moving_terms):
         markers.append("carro_em_movimento")
+
+    passenger_terms = (
+        "banco do passageiro",
+        "passageira",
+    )
+    if "interior do carro" in text and any(
+        term in text for term in passenger_terms
+    ):
+        markers.append("mary_passageira_instalada")
 
     arrived_golden = "golden tulip" in text
     stopped_terms = (
