@@ -715,8 +715,8 @@ def _funnel_script_rows(*, persistence: dict, chapter: dict) -> list[dict]:
         )
 
     worksheet = str(
-        chapter.get("script_worksheet", "ROTEIRO_FUNIL_CARONA")
-        or "ROTEIRO_FUNIL_CARONA"
+        chapter.get("script_worksheet", "ROTEIRO_REDATOR")
+        or "ROTEIRO_REDATOR"
     ).strip()
 
     rows = load_funnel_rows(
