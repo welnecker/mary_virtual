@@ -2259,6 +2259,10 @@ if user_text:
                 scene["show_caption"] = True
                 scene["scene_caption"] = opening_caption
 
+        if script_mode == "direct_sheet" and int(direct_row.get("order", 0) or 0) > 1:
+            scene["show_caption"] = False
+            scene["scene_caption"] = ""
+
         scene_text = json.dumps(scene, ensure_ascii=False)
         if script_mode == "direct_sheet":
             # O Redator recebe diretamente a linha autoral da planilha.
