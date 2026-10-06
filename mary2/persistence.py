@@ -145,6 +145,7 @@ FUNNEL_AUDIT_HEADERS = [
     "achieved_markers_json",
     "pending_markers_json",
     "exit_ready",
+    "physical_state_json",
 ]
 
 FUNNEL_REJECTION_HEADERS = [
@@ -1010,6 +1011,7 @@ def save_funnel_audit(
             _audit_cell(progress.get("achieved_markers", [])),
             _audit_cell(progress.get("pending_markers", [])),
             bool(progress.get("exit_ready", False)),
+            _audit_cell(progress.get("physical_state", {})),
         ],
         value_input_option="RAW",
     )
