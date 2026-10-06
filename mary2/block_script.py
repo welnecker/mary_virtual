@@ -249,6 +249,13 @@ def build_block_prompt(
     state: dict,
     scene: dict | None = None,
 ) -> str:
+    """Usa o Prompt do bloco da planilha como contrato autoral principal.
+
+    O runtime acrescenta apenas metadados dinâmicos que a fórmula da planilha
+    não pode conhecer: bloco/turno/estágio, memória dinâmica confirmada e
+    proteções de espera/dependência. Se a coluna estiver vazia, reconstrói um
+    prompt de compatibilidade a partir das colunas individuais.
+    """
     stage = block_stage(row, state)
     next_turn = int(state.get("block_turn", 0) or 0) + 1
     depends = bool(row.get("depends_on_user", False))
@@ -256,84 +263,121 @@ def build_block_prompt(
     target_max = max(target_min, _int(row.get("target_max"), 3))
     hard_max = max(target_max, _int(row.get("max_turns"), 5))
 
-    if stage == "desenvolvimento_livre":
-        rhythm = (
-            "Viva o bloco atual sem pressa. Reaja primeiro ao usuário e use o território "
-            "livre como paleta de improviso; não tente usar todos os itens."
+    sheet_prompt = _clean(row.get("prompt_preview"))
+
+    if not sheet_prompt:
+        sheet_prompt = (
+            "BLOCO ATUAL\n"
+            f"{_clean(row.get('objective')) or '(não informado)'}\n\n"
+            "TERRITÓRIO LIVRE\n"
+            f"{_clean(row.get('free_territory')) or '(reaja naturalmente ao momento atual)'}\n\n"
+            "MEMÓRIA PERMANENTE DE MARY\n"
+            f"{_clean(row.get('permanent_memory')) or 'Use o perfil permanente já fornecido no prompt principal.'}\n\n"
+            "MEMÓRIA RECENTE AUTORAL\n"
+            f"{_clean(row.get('authorial_recent_memory')) or '(nenhuma adicional)'}\n\n"
+            "MEMÓRIA DINÂMICA NECESSÁRIA\n"
+            f"{_clean(row.get('dynamic_requirement')) or '(nenhuma)'}\n\n"
+            "TOM / ATITUDE\n"
+            f"{_clean(row.get('tone')) or '(voz natural de Mary)'}\n\n"
+            "ATMOSFERA\n"
+            f"{_clean(row.get('atmosphere')) or '(seguir o momento atual)'}\n\n"
+            "AÇÃO FÍSICA PERMITIDA\n"
+            f"{_clean(row.get('physical_action')) or '(nenhuma instrução adicional)'}\n\n"
+            "LIMITES ESPECÍFICOS\n"
+            f"{_clean(row.get('specific_limits')) or '(nenhum adicional)'}\n\n"
+            "CONVERGÊNCIA\n"
+            f"{_clean(row.get('convergence')) or '(nenhuma próxima passagem informada)'}\n\n"
+            "JANELA DO BLOCO\n"
+            f"Interações alvo: {target_min}–{target_max}. Máximo: {hard_max}.\n"
+            + (
+                "Este bloco depende de resposta do usuário antes de avançar."
+                if depends
+                else "Este bloco não depende de resposta obrigatória do usuário."
+            )
+            + "\n\nREGRA\n"
+            "Desenvolva o bloco atual com naturalidade. Prepare a convergência, "
+            "mas não a execute antes da troca de bloco pelo runtime. "
+            "Não invente fatos nem controle ações do usuário."
         )
-    elif stage == "aproximando_convergencia":
-        rhythm = (
-            "Continue natural, mas comece a orientar o clima da conversa para a convergência. "
-            "Prepare a passagem; não execute ainda o próximo bloco."
+
+    runtime_rules = [
+        "════════════════════════════════════════════════════════════",
+        "ESTADO DINÂMICO DO RUNTIME",
+        "════════════════════════════════════════════════════════════",
+        f"BLOCO={_clean(row.get('block_id'))}",
+        f"ORDEM={int(row.get('order', 0) or 0)}",
+        f"INTERAÇÃO_NESTE_BLOCO={next_turn}",
+        f"ESTÁGIO={stage}",
+        "",
+        "MEMÓRIA DINÂMICA CONFIRMADA NESTA RUN",
+        _dynamic_memory_text(state),
+        "",
+        "REGRAS DE EXECUÇÃO DO RUNTIME",
+        "- O texto acima, vindo da coluna Prompt do bloco, é o contrato autoral principal deste bloco.",
+        "- MEMÓRIA RECENTE AUTORAL contém fatos já ocorridos: não contradiga, amplie nem substitua esses fatos por passado inventado.",
+        "- TERRITÓRIO LIVRE libera improviso de fala, humor e atitude; não autoriza criar fatos novos.",
+        "- Responda primeiro ao que o usuário realmente disse.",
+        "- Não invente fatos, lembranças, decisões, ações, roupas, histórico ou intenções do usuário.",
+        "- [PENSAMENTO] é subtexto emocional do momento, não fato novo.",
+        "- A convergência prepara a passagem; o runtime é quem troca o bloco.",
+    ]
+
+    if depends:
+        runtime_rules.extend(
+            [
+                "",
+                "DEPENDÊNCIA DA RESPOSTA DO USUÁRIO",
+                _clean(row.get("dynamic_requirement"))
+                or "Este bloco precisa de uma resposta concreta do usuário antes de avançar.",
+                "Não invente a resposta nem a coloque na boca do usuário.",
+            ]
+        )
+
+    if stage == "aguardando_proximo_bloco":
+        runtime_rules.extend(
+            [
+                "",
+                "AGUARDANDO PRÓXIMO BLOCO",
+                "A planilha ainda não possui um próximo bloco preenchido.",
+                "Responda somente ao estímulo atual usando fatos já estabelecidos.",
+                "Não abra assunto novo de roteiro e não crie passado, vestimenta, rotina, relação ou circunstância não presentes nas fontes autoritativas.",
+            ]
         )
     elif stage in {"convergencia", "convergencia_direta"}:
-        rhythm = (
-            "Feche organicamente este bloco. A resposta deve deixar a cena pronta para a "
-            "convergência indicada, sem executar o conteúdo do próximo bloco."
+        runtime_rules.extend(
+            [
+                "",
+                "RITMO DESTE TURNO",
+                "Feche organicamente o bloco atual e deixe a cena pronta para a convergência, sem executar conteúdo do próximo bloco.",
+            ]
+        )
+    elif stage == "aproximando_convergencia":
+        runtime_rules.extend(
+            [
+                "",
+                "RITMO DESTE TURNO",
+                "Continue natural e comece a orientar o momento para a convergência sem antecipar o próximo bloco.",
+            ]
         )
     else:
-        rhythm = (
-            "A planilha ainda não possui um próximo bloco. Continue apenas reagindo ao momento "
-            "presente sem abrir novo assunto de roteiro."
+        runtime_rules.extend(
+            [
+                "",
+                "RITMO DESTE TURNO",
+                "Desenvolva o bloco sem pressa e sem transformar os itens do território livre em checklist.",
+            ]
         )
 
-    dependency_rule = ""
-    if depends:
-        dependency_rule = (
-            "\n\nDEPENDÊNCIA DA RESPOSTA DO USUÁRIO\n"
-            + (
-                _clean(row.get("dynamic_requirement"))
-                or "Este bloco precisa de uma resposta concreta do usuário antes de avançar."
-            )
-            + "\nO runtime decide quando essa informação foi realmente fornecida. "
-              "Não invente a resposta nem a coloque na boca do usuário."
+    if _clean(facts_prompt):
+        runtime_rules.extend(
+            [
+                "",
+                "CONTEXTO FIXO DO CAPÍTULO",
+                _clean(facts_prompt),
+            ]
         )
 
-    return (
-        "════════════════════════════════════════════════════════════\n"
-        "BLOCO DRAMÁTICO ATUAL\n"
-        "════════════════════════════════════════════════════════════\n"
-        f"BLOCO={_clean(row.get('block_id'))}\n"
-        f"ORDEM={int(row.get('order', 0) or 0)}\n"
-        f"INTERAÇÃO_NESTE_BLOCO={next_turn}\n"
-        f"ESTÁGIO={stage}\n\n"
-        "OBJETIVO ATUAL\n"
-        f"{_clean(row.get('objective')) or '(não informado)'}\n\n"
-        "TERRITÓRIO LIVRE\n"
-        f"{_clean(row.get('free_territory')) or '(reaja naturalmente ao momento atual)'}\n"
-        "Os itens acima são possibilidades de improviso, não uma checklist.\n\n"
-        "MEMÓRIA PERMANENTE DE MARY\n"
-        f"{_clean(row.get('permanent_memory')) or 'Use o perfil permanente já fornecido no prompt principal.'}\n\n"
-        "MEMÓRIA RECENTE AUTORAL\n"
-        f"{_clean(row.get('authorial_recent_memory')) or '(nenhuma adicional)'}\n\n"
-        "MEMÓRIA DINÂMICA CONFIRMADA NESTA RUN\n"
-        f"{_dynamic_memory_text(state)}\n\n"
-        "TOM / ATITUDE\n"
-        f"{_clean(row.get('tone')) or '(voz natural de Mary)'}\n\n"
-        "ATMOSFERA\n"
-        f"{_clean(row.get('atmosphere')) or '(seguir o momento atual)'}\n\n"
-        "AÇÃO FÍSICA PERMITIDA\n"
-        f"{_clean(row.get('physical_action')) or '(nenhuma instrução adicional)'}\n\n"
-        "LIMITES ESPECÍFICOS\n"
-        f"{_clean(row.get('specific_limits')) or '(nenhum adicional)'}\n\n"
-        "CONVERGÊNCIA\n"
-        f"{_clean(row.get('convergence')) or '(nenhuma próxima passagem informada)'}\n"
-        "Convergência é direção futura: prepare a cena, mas não execute o próximo bloco antes "
-        "da troca feita pelo runtime.\n\n"
-        "RITMO DESTE TURNO\n"
-        f"{rhythm}\n"
-        f"Faixa autoral: {target_min}–{target_max} interações; limite de convergência: {hard_max}."
-        f"{dependency_rule}\n\n"
-        "REGRAS UNIVERSAIS DESTE BLOCO\n"
-        "- Responda primeiro ao que o usuário realmente disse.\n"
-        "- Não invente fatos, lembranças, decisões ou ações do usuário.\n"
-        "- [PENSAMENTO] é subtexto emocional do momento, não fato novo e não resumo burocrático.\n"
-        "- Use memória recente para ganhar profundidade e continuidade, não para repetir fatos mecanicamente.\n"
-        "- Não transforme o objetivo atual em pergunta ou frase repetida a cada interação.\n\n"
-        "CONTEXTO FIXO DO CAPÍTULO\n"
-        f"{_clean(facts_prompt) or '(nenhum adicional)'}"
-    )
-
+    return sheet_prompt + "\n\n" + "\n".join(runtime_rules)
 
 _DEPENDENCY_PROMPT = """Você é um verificador mínimo de passagem de bloco em um roleplay.
 Sua única tarefa é decidir se a FALA ATUAL DO USUÁRIO forneceu a informação necessária
