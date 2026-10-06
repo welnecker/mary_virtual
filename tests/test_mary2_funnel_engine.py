@@ -17,7 +17,7 @@ ROWS = [
         "min_turns": 2,
         "ideal_turns": 3,
         "max_turns": 4,
-        "exit_markers": "carro_em_movimento",
+        "exit_markers": "carro_em_movimento; mary_passageira_instalada",
         "mission": "Colocar a carona em movimento.",
     },
     {
@@ -47,6 +47,7 @@ def evaluation(*, markers=None, stance=None, facts=None):
 def moving_scene():
     return {
         "location": "interior do carro do personal, em movimento",
+        "proximity": "sentada no banco do passageiro",
         "event": "O carro segue pela estrada rumo a Camburi.",
     }
 
@@ -170,3 +171,35 @@ def test_migrate_state_preserves_funnel_runtime_state():
         migrated["narrative"]["funnel_script"]
         == original["narrative"]["funnel_script"]
     )
+
+
+def test_second_funnel_requires_all_three_deliveries():
+    state = ensure_funnel_state({}, ROWS)
+    state["scene_index"] = 1
+    state["scene_id"] = "conversa"
+    row = ROWS[1]
+
+    partial = apply_funnel_evaluation(
+        rows=ROWS,
+        state=state,
+        row=row,
+        evaluation=evaluation(
+            markers=["usuario_residencia", "usuario_vida_domestica"]
+        ),
+        scene=moving_scene(),
+    )
+
+    assert partial["advanced"] is False
+    assert "usuario_preferencia_noturna" in partial["pending_markers"]
+
+    complete = apply_funnel_evaluation(
+        rows=ROWS,
+        state=state,
+        row=row,
+        evaluation=evaluation(
+            markers=["usuario_preferencia_noturna"]
+        ),
+        scene=moving_scene(),
+    )
+
+    assert complete["advanced"] is True
