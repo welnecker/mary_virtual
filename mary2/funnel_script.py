@@ -571,6 +571,51 @@ def _extract_json(raw: str) -> dict:
     return data
 
 
+def _normalize_user_facts(items: Any, user_text: str) -> list[dict]:
+    source_text = _clean(user_text)
+    source_fold = source_text.casefold()
+    result: list[dict] = []
+
+    for item in items if isinstance(items, list) else []:
+        if not isinstance(item, dict):
+            continue
+        fact = _clean(item.get("fact"))
+        category = _clean(item.get("category"))
+        modality = _clean(item.get("modality"))
+        quote = _clean(item.get("source_quote"))
+
+        if not fact or not quote:
+            continue
+        if quote.casefold() not in source_fold:
+            continue
+
+        result.append(
+            {
+                "category": category or "outro",
+                "fact": fact,
+                "modality": modality or "confirmado",
+                "source_quote": quote,
+            }
+        )
+
+    return result[:12]
+
+
+def _normalize_user_stance(value: Any, user_text: str) -> dict:
+    if not isinstance(value, dict):
+        return {}
+    stance = _clean(value.get("value"))
+    quote = _clean(value.get("source_quote"))
+    if not stance or not quote:
+        return {}
+    if quote.casefold() not in _clean(user_text).casefold():
+        return {}
+    return {
+        "value": stance,
+        "source_quote": quote,
+    }
+
+
 def evaluate_funnel_turn(
     *,
     api_key: str,
@@ -582,18 +627,31 @@ def evaluate_funnel_turn(
     user_text: str,
     mary_text: str,
 ) -> dict:
+    required = required_markers(row)
+    physical = set(derive_physical_markers(scene))
+    semantic_allowed = [
+        marker
+        for marker in required
+        if marker not in {"carro_em_movimento", "chegada_golden_tulip"}
+    ]
+
     payload = {
         "scene_id": _clean(row.get("scene_id")),
         "scene_turn": int(state.get("scene_turn", 0) or 0) + 1,
+        "stage": funnel_stage(row, state),
         "objective": _clean(row.get("objective")),
         "opening_allowed": _clean(row.get("opening_allowed")),
         "convergence": _clean(row.get("convergence")),
         "forbidden": _clean(row.get("forbidden")),
-        "exit_condition": _clean(row.get("exit_condition")),
         "fixed_facts": _clean(row.get("fixed_facts")),
         "memory_policy": _clean(row.get("memory_policy")),
-        "memory_before": deepcopy(state.get("memory", {})),
-        "scene_now": deepcopy(scene),
+        "allowed_semantic_markers": {
+            marker: MARKER_DESCRIPTIONS.get(marker, marker)
+            for marker in semantic_allowed
+        },
+        "physical_markers": sorted(physical),
+        "already_achieved_markers": achieved_markers(state, scene),
+        "pending_markers": pending_markers(row, state, scene),
         "user_text": _clean(user_text),
         "mary_text": _clean(mary_text),
     }
@@ -606,10 +664,7 @@ def evaluate_funnel_turn(
             {"role": "system", "content": _EVALUATOR_PROMPT},
             {
                 "role": "user",
-                "content": json.dumps(
-                    payload,
-                    ensure_ascii=False,
-                ),
+                "content": json.dumps(payload, ensure_ascii=False),
             },
         ],
         temperature=0.0,
@@ -617,40 +672,30 @@ def evaluate_funnel_turn(
     )
     data = _extract_json(raw)
 
+    semantic_markers = [
+        marker
+        for marker in _unique_text(data.get("semantic_markers", []), limit=16)
+        if marker in semantic_allowed
+    ]
+
     return {
         "boundary_ok": bool(data.get("boundary_ok", True)),
-        "violations": _unique_text(
-            data.get("violations", []),
-            limit=12,
-        ),
-        "exit_condition_met": bool(
-            data.get("exit_condition_met", False)
-        ),
-        "user_facts": _unique_text(
+        "violations": _unique_text(data.get("violations", []), limit=12),
+        "semantic_markers": semantic_markers,
+        "physical_markers": sorted(physical),
+        "user_facts": _normalize_user_facts(
             data.get("user_facts", []),
-            limit=12,
-        ),
-        "mary_facts": _unique_text(
-            data.get("mary_facts", []),
-            limit=12,
+            user_text,
         ),
         "consumed_topics": _unique_text(
             data.get("consumed_topics", []),
             limit=12,
         ),
-        "consolidated_memory_candidates": _unique_text(
-            data.get(
-                "consolidated_memory_candidates",
-                [],
-            ),
-            limit=12,
+        "user_stance": _normalize_user_stance(
+            data.get("user_stance", {}),
+            user_text,
         ),
-        "user_stance": _clean(
-            data.get("user_stance")
-        ),
-        "summary": _clean(
-            data.get("summary")
-        ),
+        "summary": _clean(data.get("summary")),
         "raw": raw,
     }
 
