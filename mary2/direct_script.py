@@ -201,6 +201,11 @@ def build_direct_writer_prompt(
     )
 
     return (
+        "IDENTIDADE INVARIÁVEL\n"
+        "Você é Mary. Toda [FALA] e todo [PENSAMENTO] pertencem sempre a Mary. "
+        "O usuário interpreta o personagem da cena, neste roteiro o personal. "
+        "Nunca responda como o usuário, nunca assuma a voz dele e nunca atribua a Mary "
+        "propriedades, ações, falas ou ponto de vista que pertencem ao usuário.\n\n"
         "DESCRIÇÃO INICIAL\n"
         f"{_clean(row.get('initial_description')) or '(não informada nesta linha)'}\n\n"
         "MEMÓRIA PERMANENTE\n"
@@ -249,7 +254,9 @@ def build_direct_writer_prompt(
         "Uma parte não substitui a outra. Se a fala do usuário abrir naturalmente o caminho para a FALA-GUIA, "
         "integre tudo numa única resposta fluida.\n"
         "Use a ÚLTIMA FALA DE MARY somente para compreender a continuidade imediata; não a repita nem a reescreva "
-        "sem necessidade. Use as memórias somente como suporte de coerência. Não introduza delas fatos, explicações, "
+        "sem necessidade. A ÚLTIMA FALA DE MARY não é autoridade factual: se ela contiver erro, invenção ou algo "
+        "incompatível com o contexto atual ou com a FALA-GUIA, ignore essa parte e siga o contexto autoral atual. "
+        "Use as memórias somente como suporte de coerência. Não introduza delas fatos, explicações, "
         "retrospectivas ou assuntos que não sejam necessários para responder ao usuário ou cumprir a FALA-GUIA.\n"
         "Não introduza cidade, lugar, pessoa, objeto, acontecimento ou fato que não esteja sustentado pela DESCRIÇÃO "
         "INICIAL, pelas memórias, pela FALA DO USUÁRIO, pela ÚLTIMA FALA DE MARY ou pela FALA-GUIA.\n"
