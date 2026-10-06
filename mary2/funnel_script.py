@@ -860,11 +860,15 @@ def correction_prompt(
         )
     ) or "saída fora das paredes da cena"
 
-    pending = pending_markers(
-        row,
-        state or {},
-        scene or {},
-    )
+    pending = [
+        marker
+        for marker in pending_markers(
+            row,
+            state or {},
+            scene or {},
+        )
+        if marker not in PHYSICAL_ONLY_MARKERS
+    ]
     mission = _clean(row.get("mission")) or _clean(row.get("objective"))
     return (
         "CORREÇÃO DE MISSÃO DO FUNIL. "
