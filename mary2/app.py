@@ -57,6 +57,7 @@ from persistence import (
     save_checkpoint,
     save_director_audit,
     save_funnel_audit,
+    save_funnel_rejection,
     save_model_audit,
     save_turn,
     update_run_snapshot,
@@ -2158,6 +2159,7 @@ if user_text:
                 model_audit[
                     "funnel_evaluation_initial"
                 ] = deepcopy(funnel_evaluation)
+                initial_funnel_mary_text = answer
 
                 if not bool(
                     funnel_evaluation.get(
@@ -2227,6 +2229,48 @@ if user_text:
                         True,
                     )
                 ):
+                    if persistence:
+                        try:
+                            save_funnel_rejection(
+                                service_account_info=persistence["service_account_info"],
+                                spreadsheet_id=persistence["spreadsheet_id"],
+                                spreadsheet_title=persistence["spreadsheet_title"],
+                                owner_email=persistence["owner_email"],
+                                run_id=str(st.session_state.run_id or ""),
+                                chapter_id=_chapter_id(),
+                                row=funnel_row,
+                                state=funnel_state or {},
+                                user_text=dialogue_text,
+                                initial_mary_text=initial_funnel_mary_text,
+                                initial_evaluation=model_audit.get(
+                                    "funnel_evaluation_initial",
+                                    {},
+                                ),
+                                retry_mary_text=answer,
+                                retry_evaluation=funnel_evaluation,
+                                branch_id=str(
+                                    narrative_state.get("branch_id", "main")
+                                    or "main"
+                                ),
+                                chapter_instance_id=str(
+                                    narrative_state.get(
+                                        "chapter_instance_id",
+                                        "",
+                                    )
+                                    or ""
+                                ),
+                                chapter_turn=int(
+                                    narrative_state.get(
+                                        "chapter_turns",
+                                        0,
+                                    )
+                                    or 0
+                                ),
+                            )
+                        except Exception as rejection_audit_exc:
+                            st.session_state.audit_error = str(
+                                rejection_audit_exc
+                            )
                     raise OpenRouterError(
                         "A resposta de Mary ultrapassou as paredes do funil após correção."
                     )
