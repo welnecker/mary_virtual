@@ -1810,7 +1810,30 @@ if user_text:
         hybrid_continuity = ""
         hybrid_closing_convergence = ""
 
-        if script_mode == "hybrid_phase_sheet":
+        funnel_rows: list[dict] = []
+        funnel_state: dict | None = None
+        funnel_row: dict = {}
+        funnel_evaluation: dict = {}
+        funnel_progress: dict = {}
+
+        if script_mode == "funnel_sheet":
+            funnel_rows = _funnel_script_rows(
+                persistence=persistence,
+                chapter=chapter_config,
+            )
+            funnel_state = ensure_funnel_state(
+                narrative_state,
+                funnel_rows,
+            )
+            funnel_row = current_funnel_row(
+                funnel_rows,
+                funnel_state,
+            )
+            current_phase = {
+                "id": str(funnel_row.get("scene_id", "") or ""),
+                "goal": str(funnel_row.get("objective", "") or ""),
+            }
+        elif script_mode == "hybrid_phase_sheet":
             hybrid_rows = _hybrid_script_rows(
                 persistence=persistence,
                 chapter=chapter_config,
@@ -1865,10 +1888,16 @@ if user_text:
             scene_for_director["mary_immediate_goal"] = ""
             scene_for_director["mary_action"] = ""
             scene_for_director["event"] = ""
-            if script_mode != "hybrid_phase_sheet":
+            if script_mode not in {"hybrid_phase_sheet", "funnel_sheet"}:
                 scene_for_director["return_anchor"] = ""
 
-        if script_mode == "hybrid_phase_sheet":
+        if script_mode == "funnel_sheet":
+            current_chapter_prompt = build_funnel_prompt(
+                facts_prompt=str(chapter_config.get("facts_prompt", "") or ""),
+                row=funnel_row,
+                state=funnel_state or {},
+            )
+        elif script_mode == "hybrid_phase_sheet":
             current_chapter_prompt = build_carona_prompt(
                 facts_prompt=str(chapter_config.get("facts_prompt", "") or ""),
                 phase=current_phase,
@@ -1906,7 +1935,7 @@ if user_text:
             chapter_text=current_chapter_prompt,
             conditional_transition=(
                 False
-                if script_mode == "hybrid_phase_sheet"
+                if script_mode in {"hybrid_phase_sheet", "funnel_sheet"}
                 else (
                     str(chapter_config.get("transition", "")) == "auto_condition"
                     or (
@@ -1918,7 +1947,7 @@ if user_text:
             ),
             advance_when=(
                 ""
-                if script_mode == "hybrid_phase_sheet"
+                if script_mode in {"hybrid_phase_sheet", "funnel_sheet"}
                 else (
                     str(chapter_config.get("advance_when", "") or "")
                     if str(chapter_config.get("transition", "")) == "auto_condition"
