@@ -23,6 +23,11 @@ ROWS = [
         "recent_memory": "Mary acabou de conhecer o personal na academia.",
         "instant_memory": "Mary está ao lado do carro do personal.",
         "permanent_memory": "Mary viveu uma separação recente.",
+        "initial_description": (
+            "Mary e o personal acabaram de sair da academia. "
+            "O carro pertence ao personal. O personal dirige e Mary é passageira. "
+            "Qualquer resposta inicial do usuário corresponde ao início da carona."
+        ),
     },
     {
         "order": 2,
@@ -38,6 +43,9 @@ ROWS = [
         "recent_memory": "Mary acabou de conhecer o personal na academia.",
         "instant_memory": "Estão dentro do carro e prontos para sair.",
         "permanent_memory": "",
+        "initial_description": (
+            "Mary e o personal estão no carro dele, seguindo para Camburi."
+        ),
     },
 ]
 
@@ -49,7 +57,10 @@ def test_writer_prompt_is_direct_and_contains_only_authorial_fields():
         character_name="Personal",
     )
 
-    assert prompt.startswith("MEMÓRIA PERMANENTE\n")
+    assert prompt.startswith("DESCRIÇÃO INICIAL\n")
+    assert "O carro pertence ao personal." in prompt
+    assert "Qualquer resposta inicial do usuário corresponde ao início da carona." in prompt
+    assert prompt.index("DESCRIÇÃO INICIAL") < prompt.index("MEMÓRIA PERMANENTE")
     assert "MEMÓRIA RECENTE PARA ROTEIRO" in prompt
     assert "MEMÓRIA INSTANTÂNEA" in prompt
     assert "FALA DO USUÁRIO\nVamos, Mary..." in prompt
