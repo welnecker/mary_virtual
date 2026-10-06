@@ -237,3 +237,140 @@ def _memory_text(state: dict) -> str:
             sections.append("- (nenhum)")
 
     return "\n".join(sections)
+
+
+def build_funnel_prompt(
+    *,
+    facts_prompt: str,
+    row: dict,
+    state: dict,
+) -> str:
+    stage = funnel_stage(row, state)
+    next_turn = int(state.get("scene_turn", 0) or 0) + 1
+    min_turns = int(row.get("min_turns", 1) or 1)
+    ideal_turns = int(
+        row.get("ideal_turns", min_turns) or min_turns
+    )
+    max_turns = int(
+        row.get("max_turns", ideal_turns) or ideal_turns
+    )
+
+    stage_rule = {
+        "abertura": (
+            "Há liberdade para reagir e explorar a ABERTURA PERMITIDA. "
+            "Não force a conclusão antes que a conversa tenha respirado."
+        ),
+        "desenvolvimento": (
+            "Reaja livremente, mas comece a favorecer a CONVERGÊNCIA. "
+            "Evite abrir temas que não ajudam esta cena."
+        ),
+        "convergencia": (
+            "A conversa já deve estreitar. Priorize CONVERGÊNCIA e pendências; "
+            "não reabra assuntos consumidos nem crie novos ramos."
+        ),
+        "fechamento": (
+            "O limite narrativo foi alcançado. Responda ao usuário e trabalhe "
+            "somente para satisfazer a CONDIÇÃO DE SAÍDA, sem controlar decisões "
+            "ou ações dele. Não abra nenhum assunto novo."
+        ),
+    }[stage]
+
+    return "\n".join(
+        [
+            _clean(facts_prompt),
+            "",
+            "CONTRATO DA CENA EM FUNIL — PRIORIDADE NARRATIVA",
+            "O roteiro controla o território; Mary escolhe como caminhar dentro dele.",
+            "Não existe fala-guia obrigatória, microprompt por linha ou respiro.",
+            "Mary deve reagir de verdade à fala atual do usuário, com personalidade e iniciativa local.",
+            "Liberdade de expressão NÃO autoriza criar fatos, planos, decisões ou direções fora deste contrato.",
+            "",
+            f"CENA_ID={_clean(row.get('scene_id'))}",
+            f"ORDEM_DA_CENA={int(row.get('order', 0) or 0)}",
+            f"TURNO_DA_CENA={next_turn}",
+            f"FAIXA=min:{min_turns} ideal:{ideal_turns} max:{max_turns}",
+            f"POSIÇÃO_NO_FUNIL={stage}",
+            "",
+            "OBJETIVO DA CENA",
+            _clean(row.get("objective")) or "(não informado)",
+            "",
+            "ABERTURA PERMITIDA",
+            _clean(row.get("opening_allowed")) or "(nenhuma)",
+            "",
+            "CONVERGÊNCIA",
+            _clean(row.get("convergence")) or "(nenhuma)",
+            "",
+            "PAREDES — NÃO PODE",
+            _clean(row.get("forbidden")) or "(nenhuma)",
+            "",
+            "CONDIÇÃO DE SAÍDA",
+            _clean(row.get("exit_condition")) or "(não informada)",
+            "",
+            "SAÍDA PREVISTA",
+            _clean(row.get("next_scene")) or "(não informada)",
+            "",
+            "ATMOSFERA / ATITUDE",
+            _clean(row.get("atmosphere")) or "(livre)",
+            "",
+            "VESTIMENTA",
+            _clean(row.get("wardrobe")) or "(usar continuidade atual)",
+            "",
+            "FATOS FIXOS DA CENA",
+            _clean(row.get("fixed_facts")) or "(nenhum adicional)",
+            "",
+            "POLÍTICA DE MEMÓRIA",
+            _clean(row.get("memory_policy"))
+            or "(consolidar apenas fatos consequentes)",
+            "",
+            _memory_text(state),
+            "",
+            "DINÂMICA DESTE TURNO",
+            stage_rule,
+            "Use fatos lembrados para evitar repetição e contradição, nunca como inspiração automática de assunto.",
+            "Preserve modalidade: talvez não é sim; hipótese não é fato; brincadeira não é confirmação.",
+            "Não repita perguntas já respondidas apenas para preencher turno.",
+            "A resposta pode ser curta. Profundidade vem da pertinência, não do comprimento.",
+        ]
+    ).strip()
+
+
+_EVALUATOR_PROMPT = """
+Você é o VALIDADOR DE FRONTEIRAS de uma cena narrativa em funil.
+Avalie somente o turno recebido. Não reescreva a fala.
+
+Retorne SOMENTE JSON válido com estas chaves:
+boundary_ok, violations, exit_condition_met, user_facts, mary_facts,
+consumed_topics, consolidated_memory_candidates, user_stance, summary.
+
+REGRAS:
+- boundary_ok=false apenas para violação real das paredes, fatos fixos ou autoria do usuário.
+- Não penalize estilo ou reação natural dentro do território permitido.
+- exit_condition_met=true somente se a condição de saída estiver realmente estabelecida por cena atual + fala do usuário + fala de Mary.
+- Não transforme sugestão de Mary em ação ou decisão já realizada pelo usuário.
+- user_facts contém apenas fatos afirmados pelo usuário neste turno; preserve modalidade.
+- mary_facts contém apenas fatos estabelecidos por Mary em voz alta neste turno.
+- consumed_topics ajuda a impedir repetição.
+- consolidated_memory_candidates contém somente fatos com provável consequência futura.
+- user_stance deve ser curto: interessado, recusou, talvez/incerto, aceitou, não respondeu etc.
+- summary é uma frase curta descrevendo o avanço real.
+""".strip()
+
+
+def _extract_json(raw: str) -> dict:
+    text = _clean(raw)
+    text = text.replace("``json", "").replace("``", "").strip()
+
+    try:
+        data = json.loads(text)
+    except Exception:
+        start = text.find("{")
+        end = text.rfind("}")
+        if start < 0 or end < start:
+            raise
+        data = json.loads(text[start : end + 1])
+
+    if not isinstance(data, dict):
+        raise ValueError(
+            "validador do funil não retornou objeto JSON"
+        )
+    return data
