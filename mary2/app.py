@@ -2163,10 +2163,18 @@ if user_text:
                 ] = deepcopy(funnel_evaluation)
                 initial_funnel_mary_text = answer
 
-                if not bool(
-                    funnel_evaluation.get(
-                        "boundary_ok",
-                        True,
+                if (
+                    not bool(
+                        funnel_evaluation.get(
+                            "boundary_ok",
+                            True,
+                        )
+                    )
+                    or not bool(
+                        funnel_evaluation.get(
+                            "mission_progress_ok",
+                            True,
+                        )
                     )
                 ):
                     funnel_correction_prompt = correction_prompt(
