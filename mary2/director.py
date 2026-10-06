@@ -114,6 +114,27 @@ Não trate pedido, hipótese ou intenção futura como ação já concluída.
 Movimento entre cômodos não significa automaticamente ruptura emocional.
 Cansaço, sono, banho, trabalho ou silêncio não significam automaticamente rejeição.
 
+
+ESTADO FÍSICO ESTRUTURADO
+physical_state é a fonte de verdade operacional para o runtime.
+NÃO derive estado físico por palavras-chave em event, location ou mary_action.
+Atualize physical_state somente quando houver evidência física suficiente neste turno ou na cena atual.
+Preserve o valor anterior quando nada físico mudou.
+
+Use apenas estes valores:
+- location_type: outside_vehicle | inside_vehicle | near_destination | at_destination | other | unknown
+- vehicle_motion: parked | starting | moving | stopped | unknown
+- mary_position: outside_vehicle | entering_vehicle | passenger_seat | exiting_vehicle | other | unknown
+- arrival_state: not_started | en_route | approaching | arrived | unknown
+
+Regras:
+- Mary sentada como passageira => mary_position=passenger_seat e location_type=inside_vehicle.
+- Veículo efetivamente transitando => vehicle_motion=moving e arrival_state=en_route, salvo se já approaching/arrived.
+- "vamos", "podemos ir" ou intenção futura NÃO significam veículo em movimento.
+- Trânsito, avenida, semáforo, tempo estimado de chegada ou paisagem vistos durante o trajeto podem sustentar vehicle_motion=moving quando o contexto atual já mostra deslocamento real.
+- Chegada física ao destino => arrival_state=arrived; se o veículo estiver parado, vehicle_motion=stopped.
+- event continua sendo descrição humana para auditoria; physical_state é o estado canônico para lógica.
+
 PROGRESSÃO
 Uma cena pode avançar entre opening, pressure, turning_point e resolution.
 Não encerre ou mude de cena apenas por contagem de turnos.
@@ -173,6 +194,12 @@ A primeira resposta deve começar com { e a última deve terminar com }.
   },
   "return_anchor": "",
   "event": "",
+  "physical_state": {
+    "location_type": "unknown",
+    "vehicle_motion": "unknown",
+    "mary_position": "unknown",
+    "arrival_state": "unknown"
+  },
   "scene_changed": false,
   "arc_phase": "opening",
   "resolution_type": "none",
@@ -273,7 +300,8 @@ def direct_scene(
           "Se houver gancho aberto, resolva a lacuna de forma jogável. "
           "Se MODO FUNIL=SIM, cuide somente do estado físico: não derive objetivo psicológico "
           "de Mary a partir de falas anteriores e não transforme assunto inventado por Mary em direção "
-          "da cena; deixe mary_immediate_goal vazio. "
+          "da cena; deixe mary_immediate_goal vazio. Atualize physical_state de forma estruturada e "
+          "trate-o como fonte canônica do estado físico; event é apenas descrição humana. "
           "Se o personagem não falou, Mary pode tomar uma iniciativa física concreta coerente. "
           "Quando TRANSIÇÃO CONDICIONAL=SIM, avalie a condição objetiva e preencha microstep_complete."
     )
@@ -360,6 +388,11 @@ def direct_scene(
             data.get("return_anchor", current_scene.get("return_anchor", "")) or ""
         ).strip(),
         "event": str(data.get("event", "") or "").strip(),
+        "physical_state": (
+            data.get("physical_state")
+            if isinstance(data.get("physical_state"), dict)
+            else current_scene.get("physical_state", {})
+        ),
         "scene_changed": bool(data.get("scene_changed", role_changed or start_new_scene)),
         "arc_phase": arc_phase,
         "resolution_type": resolution_type,
@@ -402,6 +435,33 @@ def direct_scene(
 
     if user_role == "PERSONAGEM_DA_CENA" and not bool(temporary.get("active")):
         scene["user_role"] = "JANIO"
+
+
+    physical_state = scene.get("physical_state")
+    if not isinstance(physical_state, dict):
+        physical_state = {}
+
+    current_physical_state = current_scene.get("physical_state", {})
+    if not isinstance(current_physical_state, dict):
+        current_physical_state = {}
+
+    allowed_physical = {
+        "location_type": {"outside_vehicle", "inside_vehicle", "near_destination", "at_destination", "other", "unknown"},
+        "vehicle_motion": {"parked", "starting", "moving", "stopped", "unknown"},
+        "mary_position": {"outside_vehicle", "entering_vehicle", "passenger_seat", "exiting_vehicle", "other", "unknown"},
+        "arrival_state": {"not_started", "en_route", "approaching", "arrived", "unknown"},
+    }
+    normalized_physical: dict[str, str] = {}
+    for key, allowed in allowed_physical.items():
+        value = str(
+            physical_state.get(
+                key,
+                current_physical_state.get(key, "unknown"),
+            )
+            or "unknown"
+        ).strip().lower()
+        normalized_physical[key] = value if value in allowed else "unknown"
+    scene["physical_state"] = normalized_physical
 
     # Metadados privados de auditoria. O app remove este bloco antes de enviar
     # a CENA ATUAL para a LLM principal e antes de persistir scene_state.
