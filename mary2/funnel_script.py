@@ -257,9 +257,9 @@ def ensure_funnel_state(narrative: dict, rows: list[dict]) -> dict:
         if _clean(row.get("scene_id"))
     ]
     state = narrative.get("funnel_script")
-    if not isinstance(state, dict) or state.get("engine") != "carona_funnel_v1":
+    if not isinstance(state, dict) or state.get("engine") != "carona_funnel_v2":
         state = {
-            "engine": "carona_funnel_v1",
+            "engine": "carona_funnel_v2",
             "scene_index": 0,
             "scene_id": scene_ids[0] if scene_ids else "",
             "scene_turn": 0,
@@ -349,29 +349,53 @@ def funnel_stage(row: dict, state: dict) -> str:
     return "fechamento"
 
 
+def _fact_text(item: Any) -> str:
+    if isinstance(item, dict):
+        fact = _clean(item.get("fact"))
+        modality = _clean(item.get("modality"))
+        category = _clean(item.get("category"))
+        parts = [part for part in (category, modality) if part]
+        suffix = f" [{'/'.join(parts)}]" if parts else ""
+        return fact + suffix if fact else ""
+    return _clean(item)
+
+
 def _memory_text(state: dict) -> str:
     memory = (
         state.get("memory", {})
         if isinstance(state, dict)
         else {}
     )
-    sections: list[str] = []
 
-    for key, title in (
-        ("user_facts", "FATOS DO USUÁRIO NESTA CENA"),
-        ("mary_facts", "FATOS JÁ ESTABELECIDOS POR MARY"),
-        ("consumed_topics", "ASSUNTOS JÁ CONSUMIDOS"),
-        ("consolidated", "MEMÓRIA CONSOLIDADA DE CENAS ANTERIORES"),
-    ):
-        items = _unique_text(
-            memory.get(key, [])
-            if isinstance(memory, dict)
-            else []
-        )
-        sections.append(title)
-        sections.extend(f"- {item}" for item in items)
-        if not items:
-            sections.append("- (nenhum)")
+    user_facts = [
+        _fact_text(item)
+        for item in memory.get("user_facts", [])
+        if _fact_text(item)
+    ]
+    consumed = _unique_text(
+        memory.get("consumed_topics", []),
+        limit=24,
+    )
+    consolidated = [
+        _fact_text(item)
+        for item in memory.get("consolidated", [])
+        if _fact_text(item)
+    ]
+
+    sections = ["FATOS CONFIRMADOS DO USUÁRIO NESTA CENA"]
+    sections.extend(f"- {item}" for item in user_facts)
+    if not user_facts:
+        sections.append("- (nenhum)")
+
+    sections.append("ASSUNTOS JÁ CONSUMIDOS")
+    sections.extend(f"- {item}" for item in consumed)
+    if not consumed:
+        sections.append("- (nenhum)")
+
+    sections.append("MEMÓRIA CONSOLIDADA DE CENAS ANTERIORES")
+    sections.extend(f"- {item}" for item in consolidated)
+    if not consolidated:
+        sections.append("- (nenhum)")
 
     return "\n".join(sections)
 
@@ -381,6 +405,7 @@ def build_funnel_prompt(
     facts_prompt: str,
     row: dict,
     state: dict,
+    scene: dict | None = None,
 ) -> str:
     stage = funnel_stage(row, state)
     next_turn = int(state.get("scene_turn", 0) or 0) + 1
@@ -459,6 +484,15 @@ def build_funnel_prompt(
             _clean(row.get("memory_policy"))
             or "(consolidar apenas fatos consequentes)",
             "",
+            "MARCADORES OBRIGATÓRIOS PARA SAÍDA",
+            marker_summary(required_markers(row)),
+            "",
+            "MARCADORES JÁ COMPROVADOS",
+            marker_summary(achieved_markers(state, scene or {})),
+            "",
+            "PENDÊNCIAS REAIS DA CENA",
+            marker_summary(pending_markers(row, state, scene or {})),
+            "",
             _memory_text(state),
             "",
             "DINÂMICA DESTE TURNO",
@@ -472,24 +506,47 @@ def build_funnel_prompt(
 
 
 _EVALUATOR_PROMPT = """
-Você é o VALIDADOR DE FRONTEIRAS de uma cena narrativa em funil.
-Avalie somente o turno recebido. Não reescreva a fala.
+Você é o FISCAL DE FRONTEIRAS E EXTRATOR DE EVIDÊNCIAS de uma cena narrativa em funil.
+Você NÃO decide se a cena terminou. O runtime decide isso por marcadores obrigatórios.
+Avalie somente o turno atual e retorne SOMENTE JSON válido.
 
-Retorne SOMENTE JSON válido com estas chaves:
-boundary_ok, violations, exit_condition_met, user_facts, mary_facts,
-consumed_topics, consolidated_memory_candidates, user_stance, summary.
+Formato:
+{
+  "boundary_ok": true,
+  "violations": [],
+  "semantic_markers": [],
+  "user_facts": [],
+  "consumed_topics": [],
+  "user_stance": {},
+  "summary": ""
+}
 
-REGRAS:
-- boundary_ok=false apenas para violação real das paredes, fatos fixos ou autoria do usuário.
-- Não penalize estilo ou reação natural dentro do território permitido.
-- exit_condition_met=true somente se a condição de saída estiver realmente estabelecida por cena atual + fala do usuário + fala de Mary.
-- Não transforme sugestão de Mary em ação ou decisão já realizada pelo usuário.
-- user_facts contém apenas fatos afirmados pelo usuário neste turno; preserve modalidade.
-- mary_facts contém apenas fatos estabelecidos por Mary em voz alta neste turno.
-- consumed_topics ajuda a impedir repetição.
-- consolidated_memory_candidates contém somente fatos com provável consequência futura.
-- user_stance deve ser curto: interessado, recusou, talvez/incerto, aceitou, não respondeu etc.
-- summary é uma frase curta descrevendo o avanço real.
+REGRAS DE FRONTEIRA:
+- boundary_ok=false se Mary abrir assunto fora de ABERTURA PERMITIDA/CONVERGÊNCIA, violar NÃO PODE, inventar fato/decisão/ação do usuário ou antecipar território de cena futura.
+- Em convergência/fechamento, abrir um assunto novo que não ajuda uma pendência é violação.
+- Não aprove uma resposta só porque ela soa natural; confira o território autorizado.
+
+MARCADORES:
+- semantic_markers pode conter SOMENTE IDs listados em allowed_semantic_markers.
+- Marque um ID somente quando houver evidência explícita no texto atual de Mary ou do usuário.
+- Não marque evento físico que pertence a physical_markers; esses vêm do runtime.
+
+FATOS DO USUÁRIO:
+- user_facts contém SOMENTE afirmações factuais do usuário, nunca perguntas, convites, comandos, brincadeiras ou falas sociais.
+- Cada item deve ser objeto com: category, fact, modality, source_quote.
+- source_quote deve ser trecho literal da fala atual do usuário que sustenta o fato.
+- modality deve preservar confirmado, talvez/incerto, negado, hipotético ou brincadeira.
+- Se não houver fato real, retorne [].
+
+POSIÇÃO DO USUÁRIO:
+- user_stance só deve existir quando a fala atual expressar posição relevante sobre uma proposta/possibilidade da cena.
+- Formato: {"value":"aceitou|recusou|talvez/incerto|não respondeu", "source_quote":"trecho literal"}.
+- Caso contrário, retorne {}.
+
+MEMÓRIA:
+- consumed_topics serve apenas para impedir repetição.
+- Não transforme algo inventado por Mary em fato estrutural.
+- summary descreve em uma frase o avanço real do turno.
 """.strip()
 
 
