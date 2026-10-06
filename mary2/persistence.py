@@ -292,6 +292,9 @@ def _validate_worksheet(book, title: str, headers: list[str]):
         else:
             ws = book.add_worksheet(title=title, rows=1000, cols=max(len(headers), 10))
 
+    if int(getattr(ws, "col_count", 0) or 0) < len(headers):
+        ws.resize(cols=len(headers))
+
     existing = ws.row_values(1)
     if not existing:
         ws.append_row(headers, value_input_option="RAW")
