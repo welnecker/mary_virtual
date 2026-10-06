@@ -229,22 +229,3 @@ def build_direct_writer_prompt(
         "[FALA] fala de Mary em primeira pessoa\n"
         "[PENSAMENTO] uma frase curta em primeira pessoa."
     )
-
-
-def build_direct_director_context(*, row: dict, user_text: str) -> str:
-    """Contexto mínimo para o Diretor cuidar só do estado físico."""
-    if not row:
-        return (
-            "ROTEIRO DIRETO CONCLUÍDO. Atualize somente o estado físico a partir da fala "
-            "atual do usuário; não crie nova etapa narrativa."
-        )
-    return (
-        "ROTEIRO DIRETO — ESTADO FÍSICO\n"
-        f"PRÉ-CONDIÇÃO: {_clean(row.get('precondition')) or '(nenhuma)'}\n"
-        f"MEMÓRIA INSTANTÂNEA: {_clean(row.get('instant_memory')) or '(nenhuma)'}\n"
-        f"VESTIMENTA ATUAL: {_clean(row.get('wardrobe')) or '(não informada)'}\n"
-        f"AÇÃO FÍSICA / ENCENAÇÃO: {_clean(row.get('physical_action')) or '(nenhuma)'}\n"
-        f"FALA ATUAL DO USUÁRIO: {_clean(user_text) or '(sem fala verbal)'}\n"
-        "Atualize somente a realidade física coerente. Não escreva fala de Mary, "
-        "não invente intenção do usuário e não antecipe linhas futuras."
-    )
