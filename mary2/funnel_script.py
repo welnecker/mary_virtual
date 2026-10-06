@@ -265,6 +265,7 @@ def ensure_funnel_state(narrative: dict, rows: list[dict]) -> dict:
             "scene_turn": 0,
             "completed_scene_ids": [],
             "markers": [],
+            "user_stance": {},
             "memory": {
                 "user_facts": [],
                 "mary_facts": [],
@@ -316,6 +317,8 @@ def ensure_funnel_state(narrative: dict, rows: list[dict]) -> dict:
         state.get("markers", []),
         limit=32,
     )
+    if not isinstance(state.get("user_stance"), dict):
+        state["user_stance"] = {}
     state["completed"] = bool(state.get("completed", False))
     return state
 
@@ -788,6 +791,13 @@ def apply_funnel_evaluation(
         limit=32,
     )
 
+    current_stance = evaluation.get("user_stance", {})
+    if (
+        isinstance(current_stance, dict)
+        and _clean(current_stance.get("value"))
+    ):
+        state["user_stance"] = deepcopy(current_stance)
+
     state["scene_turn"] = int(state.get("scene_turn", 0) or 0) + 1
     state["last_evaluation"] = deepcopy(evaluation)
     state["last_advance_reason"] = ""
@@ -824,7 +834,7 @@ def apply_funnel_evaluation(
             limit=40,
         )
 
-        stance = evaluation.get("user_stance", {})
+        stance = state.get("user_stance", {})
         if isinstance(stance, dict) and _clean(stance.get("value")):
             consolidated = _merge_fact_dicts(
                 consolidated,
@@ -857,6 +867,7 @@ def apply_funnel_evaluation(
             state["scene_id"] = _clean(rows[next_index].get("scene_id"))
             state["scene_turn"] = 0
             state["markers"] = []
+            state["user_stance"] = {}
             state["last_advance_reason"] = (
                 "todos os marcadores obrigatórios foram comprovados"
             )
