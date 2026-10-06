@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import html
 import json
 import logging
 import re
@@ -73,7 +74,7 @@ st.set_page_config(page_title="Mary Core 2", page_icon="🖤", layout="centered"
 
 _LOG = logging.getLogger(__name__)
 
-BUILD_ID = "2026-10-06-generic-script-v6-progress-memory"
+BUILD_ID = "2026-10-06-generic-script-v6-thought-ui"
 
 DEFAULT_MODELS = [
     "google/gemini-2.5-flash-lite",
@@ -118,6 +119,40 @@ def _mary_display_text(text: str) -> str:
         paragraphs.append(" ".join(current))
 
     return "\n\n".join(paragraphs)
+
+
+def _render_scene_action(text: str) -> None:
+    value = str(text or "").strip()
+    if not value:
+        return
+    st.markdown(
+        (
+            '<div style="margin:0.45rem 0 0.8rem; padding:0.68rem 0.85rem; '
+            'border-radius:0.7rem; background:rgba(127,127,127,0.08); '
+            'font-weight:650; line-height:1.5;">'
+            + html.escape(value)
+            + "</div>"
+        ),
+        unsafe_allow_html=True,
+    )
+
+
+def _render_mary_thought(text: str) -> None:
+    value = str(text or "").strip()
+    if not value:
+        return
+    st.markdown(
+        (
+            '<div style="margin:0.1rem 0 0.8rem; padding:0.78rem 0.95rem; '
+            'border-radius:0.9rem; background:rgba(127,127,127,0.07); '
+            'font-size:1rem; line-height:1.55;">'
+            '<span style="font-size:1.08rem; margin-right:0.35rem;">💭</span>'
+            '<span style="font-style:italic; opacity:0.92;">'
+            + html.escape(value)
+            + "</span></div>"
+        ),
+        unsafe_allow_html=True,
+    )
 
 
 def reset_local_story() -> None:
@@ -1696,10 +1731,10 @@ for record in st.session_state.turn_records:
                 st.caption("Janio")
             st.markdown(record["user_text"])
     if record.get("mary_action"):
-        st.markdown(f"*{record['mary_action']}*")
+        _render_scene_action(record["mary_action"])
     with st.chat_message("assistant"):
         if record.get("mary_intent"):
-            st.caption("💭 " + str(record["mary_intent"]))
+            _render_mary_thought(record["mary_intent"])
         st.markdown(_mary_display_text(record["mary_text"]))
 
 
@@ -2157,6 +2192,7 @@ if user_text:
                     scene=scene,
                     user_text=dialogue_text,
                     mary_text=answer,
+                    mary_thought=mary_intent,
                 )
                 model_audit[
                     "funnel_evaluation_initial"
@@ -2228,6 +2264,7 @@ if user_text:
                         scene=scene,
                         user_text=dialogue_text,
                         mary_text=answer,
+                        mary_thought=mary_intent,
                     )
 
                 model_audit[
