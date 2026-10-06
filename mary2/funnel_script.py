@@ -639,6 +639,8 @@ def _normalize_user_facts(items: Any, user_text: str) -> list[dict]:
             continue
         if quote.casefold() not in source_fold:
             continue
+        if "?" in quote:
+            continue
 
         result.append(
             {
@@ -694,6 +696,9 @@ def evaluate_funnel_turn(
         "scene_id": _clean(row.get("scene_id")),
         "scene_turn": int(state.get("scene_turn", 0) or 0) + 1,
         "stage": funnel_stage(row, state),
+        "mission": _clean(row.get("mission")) or _clean(row.get("objective")),
+        "deliverables": _clean(row.get("deliverables")),
+        "completion_criterion": _clean(row.get("completion_criterion")),
         "objective": _clean(row.get("objective")),
         "opening_allowed": _clean(row.get("opening_allowed")),
         "convergence": _clean(row.get("convergence")),
@@ -798,14 +803,20 @@ def correction_prompt(
         )
     ) or "saída fora das paredes da cena"
 
+    pending = required_markers(row)
+    mission = _clean(row.get("mission")) or _clean(row.get("objective"))
     return (
-        "CORREÇÃO DE FRONTEIRA DO FUNIL. "
+        "CORREÇÃO DE MISSÃO DO FUNIL. "
         "Reescreva somente a resposta de Mary. "
-        "Mantenha a reação humana à fala atual, mas elimine estas violações: "
+        "Elimine estas violações: "
         + violations
-        + ". Permaneça dentro de ABERTURA/CONVERGÊNCIA e PAREDES da cena "
-        + _clean(row.get("scene_id"))
-        + ". Não invente ação, decisão, aceite, logística ou fato do usuário. "
+        + ". MISSÃO OBRIGATÓRIA: "
+        + mission
+        + ". ENTREGAS DO FUNIL: "
+        + marker_summary(pending).replace("\n", " | ")
+        + ". Reaja à fala atual do usuário, mas faça esta resposta avançar "
+        "a próxima entrega ainda pendente em vez de permanecer no assunto incidental. "
+        "Não invente ação, decisão, aceite, logística ou fato do usuário. "
         "Use exatamente [FALA] e depois [PENSAMENTO]."
     )
 
@@ -894,10 +905,8 @@ def apply_funnel_evaluation(
         if marker not in set(achieved)
     ]
 
-    min_turns = int(row.get("min_turns", 1) or 1)
     can_advance = (
         bool(evaluation.get("boundary_ok", True))
-        and int(state["scene_turn"]) >= min_turns
         and not missing
     )
 
@@ -943,7 +952,7 @@ def apply_funnel_evaluation(
             state["completed"] = True
             state["scene_id"] = ""
             state["last_advance_reason"] = (
-                "todos os marcadores obrigatórios foram comprovados; funil concluído"
+                "missão cumprida; todas as entregas obrigatórias foram comprovadas; funil concluído"
             )
             advanced_to = "FIM"
         else:
@@ -953,7 +962,7 @@ def apply_funnel_evaluation(
             state["markers"] = []
             state["user_stance"] = {}
             state["last_advance_reason"] = (
-                "todos os marcadores obrigatórios foram comprovados"
+                "missão cumprida; todas as entregas obrigatórias foram comprovadas"
             )
             advanced_to = state["scene_id"]
 
