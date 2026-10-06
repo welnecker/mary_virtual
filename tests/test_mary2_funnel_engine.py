@@ -2,8 +2,10 @@ from copy import deepcopy
 
 from mary2.funnel_script import (
     apply_funnel_evaluation,
+    derive_physical_markers,
     ensure_funnel_state,
     funnel_stage,
+    _normalize_user_facts,
 )
 from mary2.state import migrate_state
 
@@ -15,6 +17,7 @@ ROWS = [
         "min_turns": 2,
         "ideal_turns": 3,
         "max_turns": 4,
+        "exit_markers": "carro_em_movimento",
     },
     {
         "order": 2,
@@ -22,27 +25,32 @@ ROWS = [
         "min_turns": 1,
         "ideal_turns": 2,
         "max_turns": 3,
+        "exit_markers": "usuario_residencia_ou_vida_domestica; usuario_preferencia_noturna",
     },
 ]
 
 
-def evaluation(*, exit_met=False, stance=""):
+def evaluation(*, markers=None, stance=None, facts=None):
     return {
         "boundary_ok": True,
         "violations": [],
-        "exit_condition_met": exit_met,
-        "user_facts": ["O usuário mora em Jardim da Penha."],
-        "mary_facts": ["Mary entrou no carro."],
-        "consumed_topics": ["moradia"],
-        "consolidated_memory_candidates": [
-            "O usuário mora em Jardim da Penha."
-        ],
-        "user_stance": stance,
+        "semantic_markers": list(markers or []),
+        "physical_markers": [],
+        "user_facts": list(facts or []),
+        "consumed_topics": [],
+        "user_stance": dict(stance or {}),
         "summary": "A conversa avançou.",
     }
 
 
-def test_funnel_drops_legacy_hybrid_state_and_starts_first_scene():
+def moving_scene():
+    return {
+        "location": "interior do carro do personal, em movimento",
+        "event": "O carro segue pela estrada rumo a Camburi.",
+    }
+
+
+def test_funnel_drops_legacy_hybrid_state_and_starts_v2():
     narrative = {
         "hybrid_script": {
             "completed_orders": [1, 2],
@@ -53,62 +61,88 @@ def test_funnel_drops_legacy_hybrid_state_and_starts_first_scene():
     state = ensure_funnel_state(narrative, ROWS)
 
     assert "hybrid_script" not in narrative
-    assert narrative["funnel_script"] is state
+    assert state["engine"] == "carona_funnel_v2"
     assert state["scene_id"] == "entrada"
-    assert state["scene_turn"] == 0
-    assert state["completed"] is False
+    assert state["markers"] == []
 
 
-def test_exit_condition_does_not_advance_before_minimum_turns():
-    narrative = {}
-    state = ensure_funnel_state(narrative, ROWS)
-    row = ROWS[0]
+def test_physical_scene_state_proves_vehicle_movement():
+    assert "carro_em_movimento" in derive_physical_markers(
+        moving_scene()
+    )
+
+
+def test_required_physical_marker_does_not_advance_before_minimum():
+    state = ensure_funnel_state({}, ROWS)
 
     result = apply_funnel_evaluation(
         rows=ROWS,
         state=state,
-        row=row,
-        evaluation=evaluation(exit_met=True),
+        row=ROWS[0],
+        evaluation=evaluation(),
+        scene=moving_scene(),
     )
 
+    assert result["exit_ready"] is True
     assert result["advanced"] is False
-    assert state["scene_id"] == "entrada"
     assert state["scene_turn"] == 1
 
 
-def test_funnel_advances_at_minimum_when_exit_is_really_met():
-    narrative = {}
-    state = ensure_funnel_state(narrative, ROWS)
-    row = ROWS[0]
+def test_runtime_advances_without_llm_exit_decision_when_marker_is_proven():
+    state = ensure_funnel_state({}, ROWS)
 
     apply_funnel_evaluation(
         rows=ROWS,
         state=state,
-        row=row,
-        evaluation=evaluation(exit_met=False),
+        row=ROWS[0],
+        evaluation=evaluation(),
+        scene=moving_scene(),
     )
     result = apply_funnel_evaluation(
         rows=ROWS,
         state=state,
-        row=row,
-        evaluation=evaluation(
-            exit_met=True,
-            stance="talvez/incerto",
-        ),
+        row=ROWS[0],
+        evaluation=evaluation(),
+        scene=moving_scene(),
     )
 
     assert result["advanced"] is True
     assert result["advanced_to"] == "conversa"
     assert state["scene_id"] == "conversa"
     assert state["scene_turn"] == 0
-    assert state["memory"]["user_facts"] == []
-    assert state["memory"]["mary_facts"] == []
-    assert state["memory"]["consumed_topics"] == []
-    assert "O usuário mora em Jardim da Penha." in state["memory"]["consolidated"]
-    assert any(
-        "talvez/incerto" in item
-        for item in state["memory"]["consolidated"]
+    assert state["markers"] == []
+
+
+def test_question_or_invitation_is_not_accepted_as_user_fact_without_literal_evidence():
+    raw = [
+        {
+            "category": "moradia",
+            "fact": "O usuário mora sozinho.",
+            "modality": "confirmado",
+            "source_quote": "moro sozinho",
+        }
+    ]
+
+    assert _normalize_user_facts(raw, "Vamos nessa?") == []
+
+
+def test_user_fact_requires_literal_support_and_preserves_modality():
+    raw = [
+        {
+            "category": "lazer_noturno",
+            "fact": "Talvez o usuário vá ao clube.",
+            "modality": "talvez/incerto",
+            "source_quote": "talvez eu apareça",
+        }
+    ]
+
+    normalized = _normalize_user_facts(
+        raw,
+        "Bom... talvez eu apareça mais tarde.",
     )
+
+    assert normalized[0]["modality"] == "talvez/incerto"
+    assert normalized[0]["source_quote"] == "talvez eu apareça"
 
 
 def test_stage_tightens_with_turn_budget():
@@ -128,16 +162,21 @@ def test_migrate_state_preserves_funnel_runtime_state():
             "chapter_id": "carona_camburi",
             "chapter_turns": 5,
             "funnel_script": {
-                "engine": "carona_funnel_v1",
+                "engine": "carona_funnel_v2",
                 "scene_index": 1,
                 "scene_id": "conversa",
                 "scene_turn": 2,
                 "completed_scene_ids": ["entrada"],
+                "markers": ["usuario_residencia_ou_vida_domestica"],
+                "user_stance": {
+                    "value": "talvez/incerto",
+                    "source_quote": "talvez",
+                },
                 "memory": {
-                    "user_facts": ["mora sozinho"],
+                    "user_facts": [],
                     "mary_facts": [],
                     "consumed_topics": ["moradia"],
-                    "consolidated": ["mora em Jardim da Penha"],
+                    "consolidated": [],
                 },
                 "completed": False,
             },
@@ -148,4 +187,7 @@ def test_migrate_state_preserves_funnel_runtime_state():
 
     migrated = migrate_state(deepcopy(original))
 
-    assert migrated["narrative"]["funnel_script"] == original["narrative"]["funnel_script"]
+    assert (
+        migrated["narrative"]["funnel_script"]
+        == original["narrative"]["funnel_script"]
+    )
