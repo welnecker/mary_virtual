@@ -4,11 +4,11 @@ import re
 
 
 _THOUGHT_RE = re.compile(
-    r"\[(?:PENSAMENTO|INTEN(?:C|Ç)(?:A|Ã)O)\]\s*(.*?)(?=\n\s*\[FALA\]|$)",
+    r"\[(?:PENSAMENTO|INTEN(?:C|Ç)(?:A|Ã)O)\]\s*(.*?)(?=\s*\[FALA\]|$)",
     flags=re.I | re.S,
 )
 _SPEECH_RE = re.compile(
-    r"\[FALA\]\s*(.*?)(?=\n\s*\[(?:PENSAMENTO|INTEN(?:C|Ç)(?:A|Ã)O)\]|$)",
+    r"\[FALA\]\s*(.*?)(?=\s*\[(?:PENSAMENTO|INTEN(?:C|Ç)(?:A|Ã)O)\]|$)",
     flags=re.I | re.S,
 )
 
@@ -25,8 +25,19 @@ def parse_mary_response(text: str) -> tuple[str, str]:
     intent = thought_match.group(1).strip() if thought_match else ""
     speech = speech_match.group(1).strip() if speech_match else value
 
-    # Nunca deixa tags de protocolo vazarem para a interface.
-    speech = re.sub(r"^\s*\[(?:PENSAMENTO|INTEN(?:C|Ç)(?:A|Ã)O|FALA)\]\s*", "", speech, flags=re.I)
+    # Nunca deixa tags de protocolo ou pensamento vazarem para a interface.
+    speech = re.sub(
+        r"\s*\[(?:PENSAMENTO|INTEN(?:C|Ç)(?:A|Ã)O)\].*$",
+        "",
+        speech,
+        flags=re.I | re.S,
+    )
+    speech = re.sub(
+        r"^\s*\[(?:PENSAMENTO|INTEN(?:C|Ç)(?:A|Ã)O|FALA)\]\s*",
+        "",
+        speech,
+        flags=re.I,
+    )
     intent = re.sub(r"\s+", " ", intent).strip()
 
     # Intenção é um balão curto: uma frase, sem parágrafo.
