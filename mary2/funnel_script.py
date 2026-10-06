@@ -358,7 +358,7 @@ REGRAS:
 
 def _extract_json(raw: str) -> dict:
     text = _clean(raw)
-    text = text.replace("``json", "").replace("``", "").strip()
+    fence = chr(96) * 3\n    text = text.replace(fence + "json", "").replace(fence, "").strip()
 
     try:
         data = json.loads(text)
