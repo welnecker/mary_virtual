@@ -336,3 +336,80 @@ def test_memory_text_labels_fact_owner_explicitly():
     assert "FATOS DE MARY" in text
     assert "residencia: Jardim da Penha" in text
     assert "residencia: Camburi" in text
+
+
+def test_existing_run_rebuilds_completed_step_history():
+    narrative = {
+        "funnel_script": {
+            "engine": "generic_script_v6",
+            "scene_index": 1,
+            "scene_id": "roteiro_step_02",
+            "scene_turn": 0,
+            "completed_scene_ids": ["roteiro_step_01"],
+            "completed_steps": [],
+            "markers": [],
+            "step_complete": False,
+            "step_evidence": [],
+            "step_missing": [],
+            "user_stance": {},
+            "memory": {
+                "user_facts": [],
+                "mary_facts": [],
+                "consumed_topics": [],
+                "consolidated": [],
+            },
+            "last_evaluation": {},
+            "last_advance_reason": "",
+            "completed": False,
+        }
+    }
+
+    state = ensure_funnel_state(narrative, ROWS)
+
+    assert len(state["completed_steps"]) == 1
+    assert state["completed_steps"][0]["scene_id"] == "roteiro_step_01"
+    assert "Descobrir onde o usuário mora" in state["completed_steps"][0]["mission"]
+
+
+def test_partial_evidence_survives_until_step_completion():
+    state = ensure_funnel_state({}, ROWS)
+
+    partial = apply_funnel_evaluation(
+        rows=ROWS,
+        state=state,
+        row=ROWS[0],
+        evaluation=evaluation(
+            complete=False,
+            evidence=[
+                {
+                    "source": "mary",
+                    "detail": "Mary já fez a pergunta necessária.",
+                    "quote": "Onde você mora?",
+                }
+            ],
+            missing=["resposta do usuário"],
+        ),
+        scene=moving_scene(),
+    )
+
+    assert partial["advanced"] is False
+    assert state["step_evidence"][0]["detail"] == "Mary já fez a pergunta necessária."
+
+    complete = apply_funnel_evaluation(
+        rows=ROWS,
+        state=state,
+        row=ROWS[0],
+        evaluation=evaluation(
+            complete=True,
+            evidence=[
+                {
+                    "source": "user",
+                    "detail": "O usuário informou sua residência.",
+                    "quote": "Moro em Jardim da Penha.",
+                }
+            ],
+        ),
+        scene=moving_scene(),
+    )
+
+    assert complete["advanced"] is True
