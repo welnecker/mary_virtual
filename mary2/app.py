@@ -73,7 +73,7 @@ st.set_page_config(page_title="Mary Core 2", page_icon="🖤", layout="centered"
 
 _LOG = logging.getLogger(__name__)
 
-BUILD_ID = "2026-10-06-generic-script-v6-redator"
+BUILD_ID = "2026-10-06-generic-script-v6-subject-memory"
 
 DEFAULT_MODELS = [
     "google/gemini-2.5-flash-lite",
