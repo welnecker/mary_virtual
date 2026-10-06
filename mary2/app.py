@@ -3009,7 +3009,7 @@ if user_text:
                             funnel_audit_exc
                         )
 
-                if director_audit:
+                if director_audit and script_mode != "direct_sheet":
                     try:
                         save_director_audit(
                             service_account_info=persistence["service_account_info"],
