@@ -30,6 +30,15 @@ from hybrid_script import (
     register_user_reply,
     select_carona_line,
 )
+from block_script import (
+    apply_block_turn,
+    block_ready_for_choice,
+    build_block_prompt,
+    current_block_row,
+    ensure_block_state,
+    evaluate_block_dependency,
+    load_block_rows,
+)
 from funnel_script import (
     apply_funnel_evaluation,
     build_funnel_prompt,
@@ -57,6 +66,7 @@ from persistence import (
     new_branch_id,
     new_chapter_instance_id,
     save_branch,
+    save_block_audit,
     save_checkpoint,
     save_director_audit,
     save_funnel_audit,
@@ -74,7 +84,7 @@ st.set_page_config(page_title="Mary Core 2", page_icon="🖤", layout="centered"
 
 _LOG = logging.getLogger(__name__)
 
-BUILD_ID = "2026-10-06-generic-script-v6-thought-ui"
+BUILD_ID = "2026-10-06-block-script-v1"
 
 DEFAULT_MODELS = [
     "google/gemini-2.5-flash-lite",
@@ -741,6 +751,30 @@ def _hybrid_script_rows(*, persistence: dict, chapter: dict) -> list[dict]:
             f"Nenhuma linha do roteiro {script_name!r} foi encontrada em {worksheet!r}."
         )
     return rows
+
+def _block_script_rows(*, persistence: dict, chapter: dict) -> list[dict]:
+    """Carrega os blocos dramáticos da planilha autoral nova."""
+    if not persistence:
+        raise PersistenceError(
+            "O roteiro em blocos requer a planilha de persistência configurada."
+        )
+
+    worksheet = str(
+        chapter.get("script_worksheet", "ROTEIRO_BLOCOS_TESTE")
+        or "ROTEIRO_BLOCOS_TESTE"
+    ).strip()
+
+    rows = load_block_rows(
+        service_account_info=persistence["service_account_info"],
+        spreadsheet_id=persistence["spreadsheet_id"],
+        worksheet_name=worksheet,
+    )
+    if not rows:
+        raise PersistenceError(
+            f"Nenhum bloco de roteiro foi encontrado em {worksheet!r}."
+        )
+    return rows
+
 
 def _funnel_script_rows(*, persistence: dict, chapter: dict) -> list[dict]:
     """Carrega as cenas do funil atual diretamente da planilha."""
@@ -1851,13 +1885,36 @@ if user_text:
         hybrid_continuity = ""
         hybrid_closing_convergence = ""
 
+        block_rows: list[dict] = []
+        block_state: dict | None = None
+        block_row: dict = {}
+        block_dependency: dict = {}
+        block_progress: dict = {}
+
         funnel_rows: list[dict] = []
         funnel_state: dict | None = None
         funnel_row: dict = {}
         funnel_evaluation: dict = {}
         funnel_progress: dict = {}
 
-        if script_mode == "funnel_sheet":
+        if script_mode == "block_sheet":
+            block_rows = _block_script_rows(
+                persistence=persistence,
+                chapter=chapter_config,
+            )
+            block_state = ensure_block_state(
+                narrative_state,
+                block_rows,
+            )
+            block_row = current_block_row(
+                block_rows,
+                block_state,
+            )
+            current_phase = {
+                "id": str(block_row.get("block_id", "") or ""),
+                "goal": str(block_row.get("objective", "") or ""),
+            }
+        elif script_mode == "funnel_sheet":
             funnel_rows = _funnel_script_rows(
                 persistence=persistence,
                 chapter=chapter_config,
@@ -1929,10 +1986,17 @@ if user_text:
             scene_for_director["mary_immediate_goal"] = ""
             scene_for_director["mary_action"] = ""
             scene_for_director["event"] = ""
-            if script_mode not in {"hybrid_phase_sheet", "funnel_sheet"}:
+            if script_mode not in {"hybrid_phase_sheet", "funnel_sheet", "block_sheet"}:
                 scene_for_director["return_anchor"] = ""
 
-        if script_mode == "funnel_sheet":
+        if script_mode == "block_sheet":
+            current_chapter_prompt = build_block_prompt(
+                facts_prompt=str(chapter_config.get("facts_prompt", "") or ""),
+                row=block_row,
+                state=block_state or {},
+                scene=scene_for_director,
+            )
+        elif script_mode == "funnel_sheet":
             current_chapter_prompt = build_funnel_prompt(
                 facts_prompt=str(chapter_config.get("facts_prompt", "") or ""),
                 row=funnel_row,
@@ -1962,14 +2026,17 @@ if user_text:
                 turn_number=current_turn_number,
             )
 
-        director_context_messages = (
-            compact_context_messages(
+        if script_mode == "block_sheet":
+            # No motor de blocos, a memória recente autoral substitui o histórico bruto.
+            # O Diretor recebe somente a fala atual para não canonizar erros antigos.
+            director_context_messages = phase_messages[-1:] if user_spoke else []
+        elif script_mode == "funnel_sheet":
+            director_context_messages = compact_context_messages(
                 phase_messages,
                 limit=8,
             )
-            if script_mode == "funnel_sheet"
-            else phase_messages
-        )
+        else:
+            director_context_messages = phase_messages
 
         scene = direct_scene(
             api_key=api_key,
@@ -1984,10 +2051,10 @@ if user_text:
             scene_direction=scene_direction,
             user_spoke=user_spoke,
             chapter_text=current_chapter_prompt,
-            funnel_mode=(script_mode == "funnel_sheet"),
+            funnel_mode=(script_mode in {"funnel_sheet", "block_sheet"}),
             conditional_transition=(
                 False
-                if script_mode in {"hybrid_phase_sheet", "funnel_sheet"}
+                if script_mode in {"hybrid_phase_sheet", "funnel_sheet", "block_sheet"}
                 else (
                     str(chapter_config.get("transition", "")) == "auto_condition"
                     or (
@@ -1999,7 +2066,7 @@ if user_text:
             ),
             advance_when=(
                 ""
-                if script_mode in {"hybrid_phase_sheet", "funnel_sheet"}
+                if script_mode in {"hybrid_phase_sheet", "funnel_sheet", "block_sheet"}
                 else (
                     str(chapter_config.get("advance_when", "") or "")
                     if str(chapter_config.get("transition", "")) == "auto_condition"
@@ -2101,14 +2168,16 @@ if user_text:
             handoff_text=_handoff_text(st.session_state.story_state),
         )
 
-        context_messages = (
-            compact_context_messages(
+        if script_mode == "block_sheet":
+            # O bloco traz memória recente autoral explícita; não reenvia o histórico bruto.
+            context_messages = phase_messages[-1:] if user_spoke else []
+        elif script_mode == "funnel_sheet":
+            context_messages = compact_context_messages(
                 phase_messages,
                 limit=8,
             )
-            if script_mode == "funnel_sheet"
-            else phase_messages[-24:]
-        )
+        else:
+            context_messages = phase_messages[-24:]
         llm_messages = [
             {"role": "system", "content": system_prompt},
             *context_messages,
@@ -2351,6 +2420,42 @@ if user_text:
         model_audit["final_mary_text"] = answer
 
         if (
+            script_mode == "block_sheet"
+            and block_state is not None
+            and block_row
+        ):
+            block_dependency = evaluate_block_dependency(
+                api_key=api_key,
+                model=director_model,
+                fallback_model=fallback,
+                row=block_row,
+                user_text=dialogue_text,
+            )
+            block_progress = apply_block_turn(
+                rows=block_rows,
+                state=block_state,
+                row=block_row,
+                dependency=block_dependency,
+                scene=scene,
+            )
+            _LOG.info(
+                "BLOCK_AUDIT block=%s turn=%s stage=%s depends=%s dependency_ok=%s advanced=%s next=%s holding=%s",
+                str(block_row.get("block_id", "") or ""),
+                int(
+                    block_progress.get("state_after", {}).get(
+                        "block_turn",
+                        0,
+                    )
+                    or 0
+                ),
+                str(block_progress.get("stage", "") or ""),
+                bool(block_row.get("depends_on_user", False)),
+                bool(block_progress.get("dependency_satisfied", False)),
+                bool(block_progress.get("advanced", False)),
+                str(block_progress.get("advanced_to", "") or ""),
+                bool(block_progress.get("holding_for_next_block", False)),
+            )
+        elif (
             script_mode == "funnel_sheet"
             and funnel_state is not None
             and funnel_row
@@ -2394,7 +2499,10 @@ if user_text:
 
         active_chapter = get_chapter(_chapter_id())
 
-        if script_mode == "funnel_sheet" and funnel_state is not None:
+        if script_mode == "block_sheet" and block_state is not None:
+            if block_ready_for_choice(block_state):
+                narrative["choice_ready"] = True
+        elif script_mode == "funnel_sheet" and funnel_state is not None:
             if funnel_ready_for_choice(funnel_state):
                 narrative["choice_ready"] = True
         elif script_mode == "hybrid_phase_sheet" and hybrid_state is not None:
@@ -2507,6 +2615,50 @@ if user_text:
                     )
                 except Exception as model_audit_exc:
                     st.session_state.audit_error = str(model_audit_exc)
+
+                if (
+                    script_mode == "block_sheet"
+                    and block_row
+                    and block_progress
+                ):
+                    try:
+                        save_block_audit(
+                            service_account_info=persistence["service_account_info"],
+                            spreadsheet_id=info["spreadsheet_id"],
+                            spreadsheet_title=persistence["spreadsheet_title"],
+                            owner_email=persistence["owner_email"],
+                            run_id=st.session_state.run_id,
+                            seq=saved_seq,
+                            chapter_id=_chapter_id(),
+                            user_text=dialogue_text,
+                            mary_text=answer,
+                            mary_thought=mary_intent,
+                            row=block_row,
+                            dependency=block_dependency,
+                            progress=block_progress,
+                            branch_id=str(
+                                narrative.get("branch_id", "main")
+                                or "main"
+                            ),
+                            chapter_instance_id=str(
+                                narrative.get(
+                                    "chapter_instance_id",
+                                    "",
+                                )
+                                or ""
+                            ),
+                            chapter_turn=int(
+                                narrative.get(
+                                    "chapter_turns",
+                                    0,
+                                )
+                                or 0
+                            ),
+                        )
+                    except Exception as block_audit_exc:
+                        st.session_state.audit_error = str(
+                            block_audit_exc
+                        )
 
                 if (
                     script_mode == "funnel_sheet"
