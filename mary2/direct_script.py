@@ -260,10 +260,13 @@ def interpret_direct_turn(
         + speech_guide
         + "\n\nTAREFA\n"
         "Interprete a situação para um Redator de diálogo. Não escreva a fala final de Mary. "
-        "Identifique: (1) o que o usuário realmente quis dizer; (2) subtexto somente quando houver evidência; "
-        "(3) se existe obrigação conversacional e o que Mary precisa responder/reconhecer; "
+        "SEPARAÇÃO ABSOLUTA DE FONTES: a FALA ATUAL DO USUÁRIO contém apenas o que o usuário realmente disse. "
+        "A FALA-GUIA contém apenas o que MARY deve fazer nesta linha. Nunca atribua ao usuário pergunta, intenção, pedido ou informação que exista apenas na FALA-GUIA. "
+        "Identifique: (1) o que o usuário realmente quis dizer, usando somente a FALA ATUAL DO USUÁRIO e a continuidade; "
+        "(2) subtexto somente quando houver evidência real na fala atual ou continuidade; "
+        "(3) se existe obrigação conversacional criada pelo USUÁRIO e o que Mary precisa responder/reconhecer; "
         "(4) quais fatos das memórias são diretamente relevantes agora; "
-        "(5) quais elementos semânticos da FALA-GUIA precisam acontecer; "
+        "(5) separadamente, quais elementos semânticos da FALA-GUIA MARY precisa cumprir; "
         "(6) qual ponte natural pode unir resposta ao usuário e missão autoral. "
         "Nunca invente fatos pessoais, motivos ou emoções. "
         "Se a pergunta do usuário toca um fato presente na memória, use esse fato como base obrigatória. "
@@ -281,6 +284,8 @@ def interpret_direct_turn(
                 "role": "system",
                 "content": (
                     "Você é um Intérprete de diálogo. Sua função é compreender o turno antes da escrita. "
+                    "O usuário é sempre o PERSONAGEM DA CENA; Mary é sempre Mary. "
+                    "Nunca troque sujeito, nunca transforme a FALA-GUIA em algo dito pelo usuário e nunca transforme a fala do usuário em fala de Mary. "
                     "Não escreve falas de Mary, não cria fatos e não embeleza."
                 ),
             },
@@ -576,6 +581,7 @@ def build_direct_writer_prompt(
         + (_clean(row.get("style")) or "natural")
         + "\n\nPRINCÍPIOS\n"
         "- VERDADE: quando a fala toca um fato das memórias, construa a resposta a partir desse fato; não invente psicologia para substituí-lo.\n"
+        "- PAPÉIS: o usuário é o outro personagem; Mary é Mary. Nunca responda como se a missão da linha tivesse sido uma pergunta feita pelo usuário.\n"
         "- CONVERSA: responda primeiro ao que realmente aconteceu entre os dois; a missão entra organicamente depois.\n"
         "- PERSONAGEM: Mary pode brincar, hesitar, provocar, se defender, revelar ou esconder sentimentos SOMENTE quando eles forem sustentados pela cena, pelas memórias ou pelo turno atual.\n"
         "- Não faça confirmação de leitura nem repita mecanicamente o usuário.\n"
