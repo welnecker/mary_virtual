@@ -266,14 +266,13 @@ def interpret_direct_turn(
         "(2) subtexto somente quando houver evidência real na fala atual ou continuidade; "
         "(3) se existe obrigação conversacional criada pelo USUÁRIO e o que Mary precisa responder/reconhecer; "
         "(4) quais fatos das memórias são diretamente relevantes agora; "
-        "(5) separadamente, quais elementos semânticos da FALA-GUIA MARY precisa cumprir; "
-        "(6) qual ponte natural pode unir resposta ao usuário e missão autoral. "
+        "(5) qual ponte natural pode unir a resposta ao usuário à missão autoral, sem reescrever nem resumir a FALA-GUIA. "
         "Nunca invente fatos pessoais, motivos ou emoções. "
         "Se a pergunta do usuário toca um fato presente na memória, use esse fato como base obrigatória. "
         "Retorne apenas JSON: "
         '{"sentido_usuario":"", "subtexto":"", '
         '"obrigacao_conversacional":{"existe":true,"requisito":""}, '
-        '"fatos_relevantes":[""], "elementos_guia":[""], "ponte_natural":""}.'
+        '"fatos_relevantes":[""], "ponte_natural":""}.'
     )
     raw = chat(
         api_key=api_key,
@@ -317,10 +316,6 @@ def interpret_direct_turn(
     facts = parsed.get("fatos_relevantes", [])
     if not isinstance(facts, list):
         facts = []
-    guide_elements = parsed.get("elementos_guia", [])
-    if not isinstance(guide_elements, list):
-        guide_elements = []
-
     return {
         "user_meaning": _clean(parsed.get("sentido_usuario")),
         "subtext": _clean(parsed.get("subtexto")),
@@ -329,7 +324,7 @@ def interpret_direct_turn(
             "requirement": _clean(obligation.get("requisito")),
         },
         "relevant_facts": [_clean(x) for x in facts if _clean(x)],
-        "guide_requirements": [_clean(x) for x in guide_elements if _clean(x)],
+        "guide_requirements": [],
         "natural_bridge": _clean(parsed.get("ponte_natural")),
         "raw_response": raw,
         "input_payload": payload,
@@ -342,6 +337,7 @@ def validate_direct_line_completion(
     api_key: str,
     model: str,
     fallback_model: str | None,
+    row: dict,
     interpretation: dict,
     mary_text: str,
 ) -> dict:
@@ -349,22 +345,21 @@ def validate_direct_line_completion(
     user_obligation = interpretation.get("user_obligation", {}) if isinstance(interpretation, dict) else {}
     if not isinstance(user_obligation, dict):
         user_obligation = {}
-    guide_requirements = interpretation.get("guide_requirements", []) if isinstance(interpretation, dict) else []
-    if not isinstance(guide_requirements, list):
-        guide_requirements = []
+    speech_guide = _clean(row.get("speech_guide"))
     obligation_text = _clean(user_obligation.get("requirement"))
     obligation_exists = bool(user_obligation.get("exists", False))
 
     payload = (
         "OBRIGAÇÃO CONVERSACIONAL\n"
         + (obligation_text if obligation_exists else "(nenhuma)")
-        + "\n\nREQUISITOS DA MISSÃO AUTORAL\n"
-        + ("\n".join(f"- {item}" for item in guide_requirements if _clean(item)) or "(nenhum)")
+        + "\n\nFALA-GUIA ORIGINAL\n"
+        + (speech_guide or "(nenhuma)")
         + "\n\nRESPOSTA DE MARY\n"
         + _clean(mary_text)
         + "\n\nTAREFA\n"
-        "Valide APENAS a RESPOSTA DE MARY contra as obrigações acima. "
-        "Você não possui acesso à fala original do usuário nem à fala-guia original. "
+        "Valide APENAS a RESPOSTA DE MARY contra a obrigação conversacional e a FALA-GUIA ORIGINAL. "
+        "Decomponha a FALA-GUIA ORIGINAL em todos os atos semânticos essenciais, preservando sujeito, ação e destinatário. "
+        "Você não possui acesso à fala original do usuário. "
         "Para cada requisito, cite como evidência somente trecho que esteja literalmente presente na RESPOSTA DE MARY. "
         "Se não houver evidência na resposta, marque como não atendido. "
         "Não avalie estilo ou qualidade literária. "
@@ -443,7 +438,7 @@ def validate_direct_line_completion(
     }
 
     all_guide_found = (
-        True if not guide_requirements
+        True if not speech_guide
         else bool(normalized_elements) and all(bool(item.get("found")) for item in normalized_elements)
     )
     fulfilled = (
@@ -550,10 +545,6 @@ def build_direct_writer_prompt(
     facts = interpretation.get("relevant_facts", []) if isinstance(interpretation, dict) else []
     if not isinstance(facts, list):
         facts = []
-    guide_requirements = interpretation.get("guide_requirements", []) if isinstance(interpretation, dict) else []
-    if not isinstance(guide_requirements, list):
-        guide_requirements = []
-
     return (
         "VOCÊ É MARY.\n"
         "Escreva como uma mulher real dentro desta situação, não como narradora nem como assistente.\n\n"
@@ -576,7 +567,7 @@ def build_direct_writer_prompt(
         + "Fatos relevantes agora: " + ("; ".join(_clean(x) for x in facts if _clean(x)) or "(nenhum)") + "\n"
         + "Ponte natural possível: " + (_clean(interpretation.get("natural_bridge")) or "(livre)") + "\n\n"
         + "MISSÃO DESTA INTERAÇÃO\n"
-        + ("; ".join(_clean(x) for x in guide_requirements if _clean(x)) or speech_guide)
+        + speech_guide
         + "\n\nTOM\n"
         + (_clean(row.get("style")) or "natural")
         + "\n\nPRINCÍPIOS\n"
