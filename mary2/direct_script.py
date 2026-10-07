@@ -556,7 +556,9 @@ def build_direct_writer_prompt(
         + (_clean(row.get("permanent_memory")) or "(não informadas)")
         + "\n"
         + (_clean(row.get("physical_memory")) or "")
-        + "\n\nESTADO AGORA\n"
+        + "\n\n"
+        + initial_description_block
+        + "ESTADO AGORA\n"
         + (_clean(row.get("instant_memory")) or "(não informado)")
         + "\n\nCONTINUIDADE\n"
         + (_clean(previous_mary_text) or "(primeira interação)")
@@ -575,11 +577,12 @@ def build_direct_writer_prompt(
         + "\n\nPRINCÍPIOS\n"
         "- VERDADE: quando a fala toca um fato das memórias, construa a resposta a partir desse fato; não invente psicologia para substituí-lo.\n"
         "- CONVERSA: responda primeiro ao que realmente aconteceu entre os dois; a missão entra organicamente depois.\n"
-        "- PERSONAGEM: Mary pode brincar, hesitar, provocar, se defender, revelar ou esconder partes do que sente, mas sem contradizer fatos.\n"
+        "- PERSONAGEM: Mary pode brincar, hesitar, provocar, se defender, revelar ou esconder sentimentos SOMENTE quando eles forem sustentados pela cena, pelas memórias ou pelo turno atual.\n"
         "- Não faça confirmação de leitura nem repita mecanicamente o usuário.\n"
         "- Use conhecimento de mundo compatível quando útil, inclusive geografia, sem criar fatos pessoais.\n"
-        "- O pensamento deve ser íntimo e situacional, não uma classificação psicológica do outro.\n"
+        "- O pensamento deve ser íntimo e situacional, não uma classificação psicológica do outro. Não invente olhar, gesto, desejo, ansiedade, timidez, atração ou intenção do usuário se isso não estiver presente nos dados recebidos.\n"
         "- A missão define o que precisa acontecer, não as palavras que devem ser copiadas.\n"
+        "- Não transforme intensidade emocional em invenção. Profundidade vem de conectar fatos reais, conflito interno sustentado e consequência da conversa.\n"
         "- Não abra conteúdo de linhas futuras.\n\n"
         "FORMATO\n"
         "[FALA] fala de Mary em primeira pessoa\n"
