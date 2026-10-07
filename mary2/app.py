@@ -98,7 +98,7 @@ st.set_page_config(page_title="Mary Core 2", page_icon="🖤", layout="centered"
 
 _LOG = logging.getLogger(__name__)
 
-BUILD_ID = "2026-10-07-direct-sheet-v6.6"
+BUILD_ID = "2026-10-07-direct-sheet-v6.7"
 
 DEFAULT_MODELS = [
     "google/gemini-2.5-flash-lite",
@@ -2431,7 +2431,7 @@ if user_text:
                     },
                 }
 
-                if not bool(direct_validation.get("fulfilled", False)):
+                if (not bool(direct_validation.get("fulfilled", False))) and (not str(direct_validation.get("parse_error", "") or "").strip()):
                     retry_messages = [
                         *llm_messages,
                         {
@@ -2516,7 +2516,7 @@ if user_text:
                         },
                     }
 
-                if not bool(direct_validation.get("fulfilled", False)):
+                if (not bool(direct_validation.get("fulfilled", False))) and (not str(direct_validation.get("parse_error", "") or "").strip()):
                     raise OpenRouterError(
                         "O Diretor reprovou a resposta de Mary: a fala-guia da linha não foi satisfeita."
                     )
