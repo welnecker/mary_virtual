@@ -127,11 +127,38 @@ def ensure_direct_state(narrative: dict, rows: list[dict]) -> dict:
 
     if not isinstance(state.get("completed_orders"), list):
         state["completed_orders"] = []
-    state["index"] = max(0, int(state.get("index", 0) or 0))
+
+    completed = sorted({
+        int(value)
+        for value in state.get("completed_orders", [])
+        if str(value).strip()
+    })
+    state["completed_orders"] = completed
+
+    index = max(0, int(state.get("index", 0) or 0))
+    while (
+        index < len(rows)
+        and int(rows[index].get("order", 0) or 0) in completed
+    ):
+        index += 1
+
+    state["index"] = min(index, len(rows))
     state["awaiting_reply_order"] = max(
         0, int(state.get("awaiting_reply_order", 0) or 0)
     )
-    state["completed"] = bool(state.get("completed", False))
+
+    if state["index"] >= len(rows):
+        state["current_order"] = 0
+        state["completed"] = True
+    else:
+        current_order = int(rows[state["index"]].get("order", 0) or 0)
+        if current_order in completed:
+            raise RuntimeError(
+                "direct_script inválido: tentativa de regressão para linha já concluída"
+            )
+        state["current_order"] = current_order
+        state["completed"] = bool(state.get("completed", False)) and not rows
+
     return state
 
 
