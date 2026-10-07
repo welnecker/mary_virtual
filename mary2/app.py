@@ -25,6 +25,7 @@ from direct_script import (
     direct_line_correction_prompt,
     direct_script_ready_for_choice,
     ensure_direct_state,
+    interpret_direct_turn,
     load_direct_script_rows,
     mark_direct_line_emitted,
     register_direct_user_reply,
@@ -97,7 +98,7 @@ st.set_page_config(page_title="Mary Core 2", page_icon="🖤", layout="centered"
 
 _LOG = logging.getLogger(__name__)
 
-BUILD_ID = "2026-10-07-direct-sheet-v5"
+BUILD_ID = "2026-10-07-direct-sheet-v6"
 
 DEFAULT_MODELS = [
     "google/gemini-2.5-flash-lite",
@@ -2056,6 +2057,7 @@ if user_text:
             if script_mode not in {"direct_sheet", "hybrid_phase_sheet", "funnel_sheet", "block_sheet"}:
                 scene_for_director["return_anchor"] = ""
 
+        direct_interpretation = {}
         if script_mode == "direct_sheet":
             previous_mary_text = next(
                 (
@@ -2066,9 +2068,18 @@ if user_text:
                 ),
                 "",
             )
+            direct_interpretation = interpret_direct_turn(
+                api_key=api_key,
+                model=director_model,
+                fallback_model=fallback,
+                row=direct_row,
+                user_text=dialogue_text,
+                previous_mary_text=previous_mary_text,
+            )
             current_chapter_prompt = build_direct_writer_prompt(
                 row=direct_row,
                 user_text=dialogue_text,
+                interpretation=direct_interpretation,
                 previous_mary_text=previous_mary_text,
                 character_name=str(
                     scene_for_director.get("temporary_character", {}).get("name", "") or ""
@@ -2369,8 +2380,7 @@ if user_text:
                     api_key=api_key,
                     model=director_model,
                     fallback_model=fallback,
-                    row=direct_row,
-                    user_text=dialogue_text,
+                    interpretation=direct_interpretation,
                     mary_text=answer,
                 )
                 if persistence:
