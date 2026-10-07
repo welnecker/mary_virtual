@@ -73,20 +73,30 @@ def analyze_user_understanding(
         + (str(previous_mary_text or "").strip() or "(nenhuma)")
         + "\n\nFALA ATUAL DO USUÁRIO\n"
         + (str(user_text or "").strip() or "(sem fala verbal)")
-        + "\n\nTAREFA\n"
+        + "\n\nHIERARQUIA DE VERDADE\n"
+        "1. MEMÓRIA PERMANENTE-GLOBAL\n"
+        "2. MEMÓRIA FÍSICA-GLOBAL\n"
+        "3. ESTADO OBJETIVO ATUAL / MEMÓRIA INSTANTÂNEA-LOCAL\n"
+        "4. DESCRIÇÃO INICIAL DA CENA\n"
+        "5. CONTEXTO RECENTE REAL E FALAS ANTERIORES\n"
+        "Se uma fala anterior de Mary contradizer qualquer fonte autoritativa acima, trate a fala anterior como erro de continuidade. "
+        "Não a transforme em fato consolidado e não a use para reinterpretar a realidade.\n"
+        + "\nTAREFA\n"
         "Compreenda SOMENTE a fala atual do usuário à luz do passado e do presente já estabelecidos. "
         "Você não conhece a fala-guia, a missão da linha nem qualquer acontecimento futuro. "
         "Não escreva a resposta de Mary e não tente avançar o roteiro. "
         "Não invente intenção escondida. Não converta gentileza, humor, atenção ou disponibilidade em atração, interesse romântico/sexual ou intenção futura sem evidência explícita. Se houver ambiguidade real, declare-a. "
-        "Preserve rigorosamente sujeito e posse: não transfira para o usuário fatos de Mary nem para Mary fatos do usuário. "
+        "Preserve rigorosamente sujeito, posse, posição e papel: não transfira para o usuário fatos de Mary nem para Mary fatos do usuário. "
+        "Quando a fala atual reagir a um erro anterior de Mary, reconheça que existe conflito com a memória autoritativa e baseie a compreensão na memória, não no erro. "
         "Use as memórias apenas para resolver referências e fatos já estabelecidos. "
         "Informe: significado literal/contextual; referência; intenção conversacional; reação emocional observável; "
         "subtexto somente quando sustentado; ambiguidade; confiança de 0 a 1; ponto incerto; "
-        "tipo de reação adequada de Mary; se a fala cria uma obrigação conversacional direta para Mary; "
+        "tipo de reação adequada de Mary; se há conflito factual entre fala anterior e memória autoritativa; qual é a correção factual; "
+        "se a fala cria uma obrigação conversacional direta para Mary; "
         "qual é essa obrigação; e quais fatos fornecidos são diretamente relevantes. "
         "Retorne somente JSON com as chaves: "
         "literal_meaning, reference, intent, emotional_reaction, subtext, ambiguity, confidence, "
-        "unclear_point, expected_mary_reaction, requires_response, response_requirement, relevant_facts."
+        "unclear_point, expected_mary_reaction, factual_conflict, factual_correction, requires_response, response_requirement, relevant_facts."
     )
 
     raw = chat(
@@ -158,6 +168,8 @@ def analyze_user_understanding(
         "confidence": parsed.get("confidence", ""),
         "unclear_point": str(parsed.get("unclear_point", "") or "").strip(),
         "expected_mary_reaction": str(parsed.get("expected_mary_reaction", "") or "").strip(),
+        "factual_conflict": bool(parsed.get("factual_conflict", False)),
+        "factual_correction": str(parsed.get("factual_correction", "") or "").strip(),
         "relevant_facts": [
             str(value or "").strip() for value in relevant_facts if str(value or "").strip()
         ],
