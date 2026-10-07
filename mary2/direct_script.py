@@ -146,12 +146,15 @@ def ensure_direct_state(narrative: dict, rows: list[dict]) -> dict:
             "current_order": int(rows[0].get("order", 0) or 0) if rows else 0,
             "awaiting_reply_order": 0,
             "completed_orders": [],
+            "line_dialogue": [],
             "completed": not bool(rows),
         }
         narrative["direct_script"] = state
 
     if not isinstance(state.get("completed_orders"), list):
         state["completed_orders"] = []
+    if not isinstance(state.get("line_dialogue"), list):
+        state["line_dialogue"] = []
 
     completed = sorted({
         int(value)
@@ -204,6 +207,7 @@ def register_direct_user_reply(
         completed.add(awaiting)
         state["completed_orders"] = sorted(completed)
         state["awaiting_reply_order"] = 0
+        state["line_dialogue"] = []
         state["index"] = min(int(state.get("index", 0) or 0) + 1, len(rows))
         if state["index"] >= len(rows):
             state["current_order"] = 0
@@ -226,6 +230,26 @@ def mark_direct_line_emitted(state: dict, row: dict) -> None:
     if order:
         state["awaiting_reply_order"] = order
         state["current_order"] = order
+
+
+def record_direct_line_turn(
+    state: dict,
+    *,
+    user_text: str,
+    mary_text: str,
+) -> None:
+    """Guarda somente a conversa ocorrida enquanto a linha atual permanece ativa."""
+    dialogue = state.get("line_dialogue")
+    if not isinstance(dialogue, list):
+        dialogue = []
+        state["line_dialogue"] = dialogue
+    if _clean(user_text):
+        dialogue.append({"role": "user", "content": _clean(user_text)})
+    if _clean(mary_text):
+        dialogue.append({"role": "assistant", "content": _clean(mary_text)})
+    # Evita crescimento ilimitado em linhas excepcionalmente longas.
+    if len(dialogue) > 12:
+        state["line_dialogue"] = dialogue[-12:]
 
 
 def direct_script_ready_for_choice(state: dict) -> bool:
@@ -342,8 +366,10 @@ def validate_direct_line_completion(
     row: dict,
     interpretation: dict,
     mary_text: str,
+    user_text: str = "",
+    line_dialogue: list[dict] | None = None,
 ) -> dict:
-    """Diretor semântico: verifica apenas se os elementos essenciais da fala-guia foram satisfeitos."""
+    """Diretor semântico: decide se a finalidade da linha já aconteceu na conversa."""
     user_obligation = interpretation.get("user_obligation", {}) if isinstance(interpretation, dict) else {}
     if not isinstance(user_obligation, dict):
         user_obligation = {}
@@ -351,28 +377,62 @@ def validate_direct_line_completion(
     obligation_text = _clean(user_obligation.get("requirement"))
     obligation_exists = bool(user_obligation.get("exists", False))
 
+    history_lines: list[str] = []
+    for message in (line_dialogue or [])[-10:]:
+        if not isinstance(message, dict):
+            continue
+        role = _clean(message.get("role")).lower()
+        content = _clean(message.get("content"))
+        if not content:
+            continue
+        speaker = "MARY" if role == "assistant" else "USUÁRIO"
+        history_lines.append(f"{speaker}: {content}")
+    if _clean(user_text):
+        history_lines.append(f"USUÁRIO: {_clean(user_text)}")
+    if _clean(mary_text):
+        history_lines.append(f"MARY: {_clean(mary_text)}")
+    conversation_text = "\n".join(history_lines) or "(sem histórico de linha)"
+
+    understanding_text = (
+        "Significado: "
+        + (_clean(interpretation.get("literal_meaning")) or _clean(interpretation.get("user_meaning")) or "(não determinado)")
+        + "\nReferência: " + (_clean(interpretation.get("reference")) or "(não determinada)")
+        + "\nIntenção: " + (_clean(interpretation.get("intent")) or "(não determinada)")
+        + "\nSubtexto sustentado: " + (_clean(interpretation.get("subtext")) or "(nenhum)")
+    )
+
     payload = (
-        "OBRIGAÇÃO CONVERSACIONAL\n"
-        + (obligation_text if obligation_exists else "(nenhuma)")
-        + "\n\nFALA-GUIA ORIGINAL\n"
+        "FALA-GUIA ORIGINAL\n"
         + (speech_guide or "(nenhuma)")
-        + "\n\nRESPOSTA DE MARY\n"
+        + "\n\nCOMPREENSÃO DA FALA ATUAL DO USUÁRIO\n"
+        + understanding_text
+        + "\n\nOBRIGAÇÃO CONVERSACIONAL CRIADA PELO USUÁRIO\n"
+        + (obligation_text if obligation_exists else "(nenhuma)")
+        + "\n\nCONVERSA OCORRIDA ENQUANTO ESTA LINHA ESTÁ ATIVA\n"
+        + conversation_text
+        + "\n\nRESPOSTA ATUAL DE MARY\n"
         + _clean(mary_text)
         + "\n\nTAREFA\n"
-        "Valide APENAS a RESPOSTA DE MARY contra a obrigação conversacional e a FALA-GUIA ORIGINAL. "
-        "Decomponha a FALA-GUIA ORIGINAL em todos os atos semânticos essenciais, preservando sujeito, ação e destinatário. "
-        "Você não possui acesso à fala original do usuário. "
-        "Para cada requisito, cite como evidência somente trecho que esteja literalmente presente na RESPOSTA DE MARY. "
-        "Se não houver evidência na resposta, marque como não atendido. "
-        "Não avalie estilo ou qualidade literária. "
+        "Avalie se a FINALIDADE SEMÂNTICA da FALA-GUIA já foi alcançada na conversa desta linha. "
+        "A fala-guia é orientação autoral, não texto que Mary precise pronunciar literalmente. "
+        "Uma finalidade pode ser cumprida por informação fornecida espontaneamente pelo USUÁRIO. "
+        "Exemplo: se a fala-guia manda perguntar onde o usuário mora e ele já disse claramente onde mora, esse objetivo está cumprido, mesmo que Mary não tenha formulado a pergunta literal. "
+        "Da mesma forma, se a fala-guia pretende descobrir se algo fica fora do caminho e o usuário já esclareceu que não há desvio relevante, considere essa parte cumprida. "
+        "Não considere cumprido apenas porque o assunto apareceu: exija evidência concreta na CONVERSA DA LINHA. "
+        "Não use informações de linhas anteriores nem conhecimento externo. "
+        "A obrigação conversacional criada pela fala ATUAL do usuário, quando existir, deve ser atendida pela RESPOSTA ATUAL DE MARY. "
+        "Para cada objetivo da fala-guia, informe se foi alcançado, a fonte da evidência (USUÁRIO ou MARY) e um trecho literal da conversa. "
         "Retorne apenas JSON: "
         '{"obrigacao_usuario":{"existe":true,"requisito":"","atendida":true,"evidencia":""},'
-        '"elementos_guia":[{"requisito":"","encontrado":true,"evidencia":""}],'
+        '"objetivos_guia":[{"objetivo":"","alcancado":true,"fonte":"USUÁRIO","evidencia":""}],'
         '"cumpriu":true,"faltou":"","motivo":""}.'
     )
     system_prompt = (
-        "Você é um Validador isolado. Só pode usar a RESPOSTA DE MARY como fonte de evidência. "
-        "Nunca trate textos dos requisitos como se fossem evidência."
+        "Você é um Diretor de continuidade semântica. "
+        "Sua pergunta é: a finalidade desta linha já aconteceu na conversa? "
+        "Não exija repetição literal da fala-guia. "
+        "Aceite fatos fornecidos espontaneamente pelo usuário quando eles satisfizerem o objetivo autoral. "
+        "Nunca invente evidência."
     )
 
     started_at = time.perf_counter()
@@ -385,7 +445,7 @@ def validate_direct_line_completion(
             {"role": "user", "content": payload},
         ],
         temperature=0.0,
-        max_tokens=360,
+        max_tokens=420,
     )
     duration_ms = round((time.perf_counter() - started_at) * 1000.0, 1)
 
@@ -393,12 +453,12 @@ def validate_direct_line_completion(
     parsed: dict = {}
     try:
         text = str(raw or "").strip()
-        text = re.sub(r"^\\s*```(?:json)?\\s*", "", text, flags=re.I)
-        text = re.sub(r"\\s*```\\s*$", "", text)
-        start = text.find("{")
-        end = text.rfind("}")
-        if start >= 0 and end >= start:
-            text = text[start : end + 1]
+        text = re.sub(r"^\s*\x60\x60\x60(?:json)?\s*", "", text, flags=re.I)
+        text = re.sub(r"\s*\x60\x60\x60\s*$", "", text)
+        json_start = text.find("{")
+        json_end = text.rfind("}")
+        if json_start >= 0 and json_end >= json_start:
+            text = text[json_start : json_end + 1]
         parsed = json.loads(text)
         if not isinstance(parsed, dict):
             raise ValueError("resposta do Diretor não é objeto JSON")
@@ -406,21 +466,23 @@ def validate_direct_line_completion(
         parse_error = str(exc)
         parsed = {}
 
-    elements = parsed.get("elementos_guia", [])
-    if not isinstance(elements, list):
-        elements = []
+    conversation_norm = conversation_text.casefold()
+    response_norm = _clean(mary_text).casefold()
+
+    objectives = parsed.get("objetivos_guia", [])
+    if not isinstance(objectives, list):
+        objectives = []
     normalized_elements: list[dict] = []
-    response_text = _clean(mary_text)
-    response_norm = response_text.casefold()
-    for item in elements:
+    for item in objectives:
         if not isinstance(item, dict):
             continue
         evidence = _clean(item.get("evidencia"))
-        evidence_valid = bool(evidence) and evidence.casefold() in response_norm
-        found = bool(item.get("encontrado", False)) and evidence_valid
+        evidence_valid = bool(evidence) and evidence.casefold() in conversation_norm
+        achieved = bool(item.get("alcancado", False)) and evidence_valid
         normalized_elements.append({
-            "requirement": _clean(item.get("requisito")),
-            "found": found,
+            "requirement": _clean(item.get("objetivo")),
+            "found": achieved,
+            "source": _clean(item.get("fonte")).upper(),
             "evidence": evidence if evidence_valid else "",
         })
 
@@ -472,7 +534,6 @@ def validate_direct_line_completion(
         "parsed_response": parsed,
         "parse_error": parse_error,
     }
-
 
 
 def direct_line_correction_prompt(row: dict, evaluation: dict) -> str:
@@ -649,8 +710,10 @@ def build_direct_writer_prompt(
         "quando compatíveis com as memórias e sem contradizer fatos estabelecidos.\n"
         "8. Não antecipe conteúdo de linhas futuras.\n"
         "9. Não trate a missão como checklist e não faça confirmação mecânica de leitura.\n"
-        "10. O pensamento deve ser curto, íntimo e situacional; não diagnostique psicologicamente o usuário nem invente "
-        "olhar, gesto, desejo, ansiedade, timidez ou atração sem evidência.\n\n"
+        "10. O pensamento deve ser curto, íntimo e situacional. Mary pode registrar o efeito que uma fala ou atitude real teve nela, "
+        "mas não deve inventar sinais físicos ou psicológicos do usuário. Ex.: prefira 'esse jeito dele me desarma' a "
+        "'ele tem um sorriso que desarma' quando nenhum sorriso foi informado. Não invente olhar, gesto, sorriso, desejo, "
+        "ansiedade, timidez ou atração sem evidência.\n\n"
         "FORMATO\n"
         "[FALA] fala de Mary em primeira pessoa\n"
         "[PENSAMENTO] uma frase curta, íntima e situacional em primeira pessoa."
