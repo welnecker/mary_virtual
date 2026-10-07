@@ -25,7 +25,6 @@ from direct_script import (
     direct_line_correction_prompt,
     direct_script_ready_for_choice,
     ensure_direct_state,
-    interpret_direct_turn,
     load_direct_script_rows,
     mark_direct_line_emitted,
     register_direct_user_reply,
@@ -102,7 +101,7 @@ st.set_page_config(page_title="Mary Core 2", page_icon="🖤", layout="centered"
 
 _LOG = logging.getLogger(__name__)
 
-BUILD_ID = "2026-10-07-direct-sheet-v6.9"
+BUILD_ID = "2026-10-07-direct-sheet-v6.10"
 
 DEFAULT_MODELS = [
     "google/gemini-2.5-flash-lite",
@@ -2072,26 +2071,24 @@ if user_text:
                 ),
                 "",
             )
-            direct_interpretation = interpret_direct_turn(
+            # Uma única chamada de compreensão: recebe somente passado/presente
+            # já estabelecidos. Nunca recebe a fala-guia nem roteiro futuro.
+            direct_interpretation = analyze_user_understanding(
                 api_key=api_key,
                 model=director_model,
                 fallback_model=fallback,
-                row=direct_row,
                 user_text=dialogue_text,
                 previous_mary_text=previous_mary_text,
+                recent_messages=messages_before_turn,
+                instant_memory=str(direct_row.get("instant_memory", "") or ""),
+                permanent_memory=str(direct_row.get("permanent_memory", "") or ""),
+                physical_memory=str(direct_row.get("physical_memory", "") or ""),
+                initial_description=str(direct_row.get("initial_description", "") or ""),
             )
 
-            # Observabilidade independente: pergunta ao modelo o que ele entendeu
-            # da fala do usuário sem receber a fala-guia. O resultado não altera
-            # a redação nem a progressão; serve apenas para diagnóstico.
-            understanding_audit = analyze_user_understanding(
-                api_key=api_key,
-                model=director_model,
-                fallback_model=fallback,
-                user_text=dialogue_text,
-                previous_mary_text=previous_mary_text,
-                instant_memory=str(direct_row.get("instant_memory", "") or ""),
-            )
+            # A mesma compreensão operacional é persistida para auditoria.
+            # Assim o log mostra exatamente o que o Redator recebeu.
+            understanding_audit = direct_interpretation
             if persistence:
                 try:
                     save_user_understanding_audit(
@@ -2443,7 +2440,7 @@ if user_text:
                             status=(
                                 "APPROVED"
                                 if bool(direct_validation.get("fulfilled", False))
-                                else "REJECTED_RETRY"
+                                else "PENDING_SAME_LINE"
                             ),
                         )
                     except Exception as director_validation_audit_exc:
