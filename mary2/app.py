@@ -98,7 +98,7 @@ st.set_page_config(page_title="Mary Core 2", page_icon="🖤", layout="centered"
 
 _LOG = logging.getLogger(__name__)
 
-BUILD_ID = "2026-10-07-direct-sheet-v6.7"
+BUILD_ID = "2026-10-07-direct-sheet-v6.8"
 
 DEFAULT_MODELS = [
     "google/gemini-2.5-flash-lite",
@@ -2431,95 +2431,11 @@ if user_text:
                     },
                 }
 
-                if (not bool(direct_validation.get("fulfilled", False))) and (not str(direct_validation.get("parse_error", "") or "").strip()):
-                    retry_messages = [
-                        *llm_messages,
-                        {
-                            "role": "system",
-                            "content": direct_line_correction_prompt(
-                                direct_row,
-                                direct_validation,
-                            ),
-                        },
-                    ]
-                    model_audit["retry_used"] = True
-                    model_audit["retry_messages"] = deepcopy(retry_messages)
-                    raw_answer = chat(
-                        api_key=api_key,
-                        model=model,
-                        fallback_model=fallback,
-                        messages=retry_messages,
-                        temperature=max(0.2, min(float(temperature), 0.7)),
-                    )
-                    model_audit["retry_raw_response"] = raw_answer
-                    mary_intent, mary_speech_raw = parse_mary_response(raw_answer)
-                    narration_leak = looks_like_action_narration(mary_speech_raw)
-                    answer = sanitize_mary_output(mary_speech_raw)
-                    if not answer or narration_leak:
-                        raise OpenRouterError(
-                            "A correção da linha direta não produziu fala verbal limpa."
-                        )
-
-                    direct_validation = validate_direct_line_completion(
-                        api_key=api_key,
-                        model=director_model,
-                        fallback_model=fallback,
-                        row=direct_row,
-                        interpretation=direct_interpretation,
-                        mary_text=answer,
-                    )
-                    if persistence:
-                        try:
-                            save_director_validation_audit(
-                                service_account_info=persistence["service_account_info"],
-                                spreadsheet_id=persistence["spreadsheet_id"],
-                                spreadsheet_title=persistence["spreadsheet_title"],
-                                owner_email=persistence["owner_email"],
-                                run_id=str(st.session_state.run_id or ""),
-                                seq_candidate=int(st.session_state.run_last_seq or 0) + 1,
-                                chapter_id=_chapter_id(),
-                                chapter_instance_id=str(
-                                    narrative_state.get("chapter_instance_id", "") or ""
-                                ),
-                                chapter_turn=current_turn_number,
-                                row=direct_row,
-                                user_text=dialogue_text,
-                                attempt=2,
-                                mary_text=answer,
-                                evaluation=direct_validation,
-                                status=(
-                                    "APPROVED_RETRY"
-                                    if bool(direct_validation.get("fulfilled", False))
-                                    else "REJECTED_FINAL"
-                                ),
-                            )
-                        except Exception as director_validation_audit_exc:
-                            st.session_state.audit_error = str(
-                                director_validation_audit_exc
-                            )
-                    director_audit = {
-                        "model": direct_validation.get("model", director_model),
-                        "duration_ms": direct_validation.get("duration_ms", ""),
-                        "conditional_transition": False,
-                        "advance_when": "",
-                        "scene_before": {},
-                        "input_payload": direct_validation.get("input_payload", ""),
-                        "raw_response": direct_validation.get("raw_response", ""),
-                        "parsed_response": direct_validation.get("parsed_response", {}),
-                        "parse_error": direct_validation.get("parse_error", ""),
-                        "scene_after": {
-                            "validation_mode": "direct_line_completion",
-                            "fulfilled": bool(direct_validation.get("fulfilled", False)),
-                            "missing": str(direct_validation.get("missing", "") or ""),
-                            "reason": str(direct_validation.get("reason", "") or ""),
-                            "retry": True,
-                        },
-                    }
-
-                if (not bool(direct_validation.get("fulfilled", False))) and (not str(direct_validation.get("parse_error", "") or "").strip()):
-                    raise OpenRouterError(
-                        "O Diretor reprovou a resposta de Mary: a fala-guia da linha não foi satisfeita."
-                    )
+                if not bool(direct_validation.get("fulfilled", False)):
+                    # A linha direta pode levar mais de uma interação.
+                    # Preserve a fala atual de Mary e mantenha a mesma missão ativa.
+                    # O próximo turno continua na mesma linha até a validação semântica fechar.
+                    director_audit.setdefault("scene_after", {})["pending_same_line"] = True
 
             if (
                 script_mode == "funnel_sheet"
@@ -2698,12 +2614,18 @@ if user_text:
             and direct_state is not None
             and direct_row
         ):
-            mark_direct_line_emitted(direct_state, direct_row)
+            direct_fulfilled = bool(
+                isinstance(director_audit, dict)
+                and director_audit.get("scene_after", {}).get("fulfilled", False)
+            )
+            if direct_fulfilled:
+                mark_direct_line_emitted(direct_state, direct_row)
             _LOG.info(
-                "DIRECT_SCRIPT_AUDIT order=%s type=%s completion=%s awaiting=%s",
+                "DIRECT_SCRIPT_AUDIT order=%s type=%s completion=%s fulfilled=%s awaiting=%s",
                 int(direct_row.get("order", 0) or 0),
                 str(direct_row.get("type", "") or ""),
                 str(direct_row.get("completion_type", "") or ""),
+                direct_fulfilled,
                 int(direct_state.get("awaiting_reply_order", 0) or 0),
             )
         elif (
