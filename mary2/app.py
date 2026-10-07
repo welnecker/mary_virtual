@@ -66,6 +66,10 @@ from funnel_script import (
 )
 from openrouter_client import OpenRouterError, chat
 from output_filter import looks_like_action_narration, parse_mary_response, sanitize_mary_output
+from user_understanding_audit import (
+    analyze_user_understanding,
+    save_user_understanding_audit,
+)
 from persistence import (
     PersistenceError,
     create_run,
@@ -98,7 +102,7 @@ st.set_page_config(page_title="Mary Core 2", page_icon="🖤", layout="centered"
 
 _LOG = logging.getLogger(__name__)
 
-BUILD_ID = "2026-10-07-direct-sheet-v6.8"
+BUILD_ID = "2026-10-07-direct-sheet-v6.9"
 
 DEFAULT_MODELS = [
     "google/gemini-2.5-flash-lite",
@@ -2076,6 +2080,39 @@ if user_text:
                 user_text=dialogue_text,
                 previous_mary_text=previous_mary_text,
             )
+
+            # Observabilidade independente: pergunta ao modelo o que ele entendeu
+            # da fala do usuário sem receber a fala-guia. O resultado não altera
+            # a redação nem a progressão; serve apenas para diagnóstico.
+            understanding_audit = analyze_user_understanding(
+                api_key=api_key,
+                model=director_model,
+                fallback_model=fallback,
+                user_text=dialogue_text,
+                previous_mary_text=previous_mary_text,
+                instant_memory=str(direct_row.get("instant_memory", "") or ""),
+            )
+            if persistence:
+                try:
+                    save_user_understanding_audit(
+                        service_account_info=persistence["service_account_info"],
+                        spreadsheet_id=persistence["spreadsheet_id"],
+                        spreadsheet_title=persistence["spreadsheet_title"],
+                        owner_email=persistence["owner_email"],
+                        run_id=str(st.session_state.run_id or ""),
+                        chapter_id=_chapter_id(),
+                        chapter_instance_id=str(
+                            narrative_state.get("chapter_instance_id", "") or ""
+                        ),
+                        chapter_turn=current_turn_number,
+                        row=direct_row,
+                        user_text=dialogue_text,
+                        previous_mary_text=previous_mary_text,
+                        audit=understanding_audit,
+                    )
+                except Exception as understanding_audit_exc:
+                    st.session_state.audit_error = str(understanding_audit_exc)
+
             current_chapter_prompt = build_direct_writer_prompt(
                 row=direct_row,
                 user_text=dialogue_text,
