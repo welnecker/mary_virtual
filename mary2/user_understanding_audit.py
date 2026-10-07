@@ -158,6 +158,14 @@ def analyze_user_understanding(
         }
     response_requirement = str(parsed.get("response_requirement", "") or "").strip()
 
+    raw_factual_conflict = parsed.get("factual_conflict", False)
+    if isinstance(raw_factual_conflict, bool):
+        factual_conflict = raw_factual_conflict
+    else:
+        factual_conflict = str(raw_factual_conflict or "").strip().casefold() in {
+            "true", "sim", "yes", "1"
+        }
+
     result = {
         "literal_meaning": str(parsed.get("literal_meaning", "") or "").strip(),
         "reference": str(parsed.get("reference", "") or "").strip(),
@@ -168,7 +176,7 @@ def analyze_user_understanding(
         "confidence": parsed.get("confidence", ""),
         "unclear_point": str(parsed.get("unclear_point", "") or "").strip(),
         "expected_mary_reaction": str(parsed.get("expected_mary_reaction", "") or "").strip(),
-        "factual_conflict": bool(parsed.get("factual_conflict", False)),
+        "factual_conflict": factual_conflict,
         "factual_correction": str(parsed.get("factual_correction", "") or "").strip(),
         "relevant_facts": [
             str(value or "").strip() for value in relevant_facts if str(value or "").strip()
