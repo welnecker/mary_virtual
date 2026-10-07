@@ -97,7 +97,7 @@ st.set_page_config(page_title="Mary Core 2", page_icon="🖤", layout="centered"
 
 _LOG = logging.getLogger(__name__)
 
-BUILD_ID = "2026-10-06-direct-sheet-v1"
+BUILD_ID = "2026-10-07-direct-sheet-v2"
 
 DEFAULT_MODELS = [
     "google/gemini-2.5-flash-lite",
@@ -2129,9 +2129,8 @@ if user_text:
             director_context_messages = phase_messages
 
         if script_mode == "direct_sheet":
-            # No roteiro direto não existe Diretor. A planilha já fornece
-            # memória instantânea, vestimenta e encenação; o runtime preserva
-            # apenas o estado existente e o Redator interpreta a linha autoral.
+            # No roteiro direto, a planilha fornece o estado local e as memórias
+            # autorais; o runtime preserva a sequência e o Redator interpreta a linha.
             scene = deepcopy(scene_for_director)
             scene["mary_immediate_goal"] = ""
             scene["mary_action"] = ""
