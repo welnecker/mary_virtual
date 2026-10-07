@@ -18,6 +18,7 @@ from chapters import (
     get_chapter,
 )
 from director import direct_scene
+from direct_semantic_director import validate_direct_semantic_turn
 from input_router import parse_user_input
 from direct_script import (
     build_direct_writer_prompt,
@@ -29,7 +30,6 @@ from direct_script import (
     mark_direct_line_emitted,
     record_direct_line_turn,
     register_direct_user_reply,
-    validate_direct_line_completion,
 )
 from hybrid_script import (
     build_carona_prompt,
@@ -102,7 +102,7 @@ st.set_page_config(page_title="Mary Core 2", page_icon="🖤", layout="centered"
 
 _LOG = logging.getLogger(__name__)
 
-BUILD_ID = "2026-10-07-direct-sheet-v6.11"
+BUILD_ID = "2026-10-07-direct-sheet-v6.12"
 
 DEFAULT_MODELS = [
     "google/gemini-2.5-flash-lite",
@@ -2305,7 +2305,7 @@ if user_text:
                 scene["show_caption"] = True
                 scene["scene_caption"] = opening_caption
 
-        if script_mode == "direct_sheet" and int(direct_row.get("order", 0) or 0) > 1:
+        if script_mode == "direct_sheet" and current_turn_number > 1:
             scene["show_caption"] = False
             scene["scene_caption"] = ""
 
@@ -2339,6 +2339,24 @@ if user_text:
             context_messages = phase_messages[-24:]
         llm_messages = [
             {"role": "system", "content": system_prompt},
+            *(
+                [
+                    {
+                        "role": "system",
+                        "content": (
+                            "HIERARQUIA FACTUAL OBRIGATÓRIA: memórias permanentes, físicas, "
+                            "instantâneas e a descrição inicial são fontes autoritativas. "
+                            "Falas anteriores servem para continuidade, mas não podem sobrescrever "
+                            "um fato autoritativo. Se houver conflito, preserve a memória e trate a "
+                            "fala anterior como lapso de continuidade. Se o usuário apontar o lapso, "
+                            "Mary pode corrigi-lo naturalmente. Nunca troque proprietário, "
+                            "motorista/passageiro, residência, relacionamento, posição física ou sujeito."
+                        ),
+                    }
+                ]
+                if script_mode == "direct_sheet"
+                else []
+            ),
             *context_messages,
         ]
         model_audit = {
@@ -2411,7 +2429,7 @@ if user_text:
                 and direct_state is not None
                 and direct_row
             ):
-                direct_validation = validate_direct_line_completion(
+                direct_validation = validate_direct_semantic_turn(
                     api_key=api_key,
                     model=director_model,
                     fallback_model=fallback,
@@ -2421,6 +2439,71 @@ if user_text:
                     user_text=dialogue_text,
                     line_dialogue=list(direct_state.get("line_dialogue", []) or []),
                 )
+
+                hard_contradiction = direct_validation.get("hard_contradiction", {})
+                if (
+                    isinstance(hard_contradiction, dict)
+                    and bool(hard_contradiction.get("exists", False))
+                ):
+                    model_audit["direct_validation_before_factual_correction"] = deepcopy(
+                        direct_validation
+                    )
+                    factual_retry_messages = [
+                        *llm_messages,
+                        {
+                            "role": "system",
+                            "content": (
+                                "CORREÇÃO FACTUAL OBRIGATÓRIA. A resposta anterior contradisse "
+                                "uma fonte autoritativa. Reescreva somente o necessário para restaurar "
+                                "a verdade factual e preservar a reação natural ao usuário. "
+                                "NÃO force a fala-guia se ela ainda não couber naturalmente. "
+                                "Se o usuário percebeu ou questionou o erro, Mary pode reconhecer "
+                                "o lapso de forma breve e humana. "
+                                "Fato autoritativo: "
+                                + str(hard_contradiction.get("authoritative_fact", "") or "")
+                                + ". Trecho contraditório: "
+                                + str(hard_contradiction.get("mary_excerpt", "") or "")
+                                + ". Correção: "
+                                + str(hard_contradiction.get("correction", "") or "")
+                                + ". Use exatamente [FALA] e [PENSAMENTO]."
+                            ),
+                        },
+                    ]
+                    raw_answer = chat(
+                        api_key=api_key,
+                        model=model,
+                        fallback_model=fallback,
+                        messages=factual_retry_messages,
+                        temperature=max(0.2, min(float(temperature), 0.7)),
+                    )
+                    model_audit["retry_used"] = True
+                    model_audit["retry_messages"] = deepcopy(factual_retry_messages)
+                    model_audit["retry_raw_response"] = raw_answer
+                    mary_intent, mary_speech_raw = parse_mary_response(raw_answer)
+                    narration_leak = looks_like_action_narration(mary_speech_raw)
+                    answer = sanitize_mary_output(mary_speech_raw)
+                    if not answer or narration_leak:
+                        raise OpenRouterError(
+                            "A correção factual não produziu fala verbal limpa de Mary."
+                        )
+                    direct_validation = validate_direct_semantic_turn(
+                        api_key=api_key,
+                        model=director_model,
+                        fallback_model=fallback,
+                        row=direct_row,
+                        interpretation=direct_interpretation,
+                        mary_text=answer,
+                        user_text=dialogue_text,
+                        line_dialogue=list(direct_state.get("line_dialogue", []) or []),
+                    )
+                    if bool(
+                        (direct_validation.get("hard_contradiction", {}) or {}).get(
+                            "exists", False
+                        )
+                    ):
+                        raise OpenRouterError(
+                            "A resposta de Mary manteve contradição factual após correção."
+                        )
                 if persistence:
                     try:
                         save_director_validation_audit(
