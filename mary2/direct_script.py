@@ -515,10 +515,10 @@ def build_direct_writer_prompt(
     previous_mary_text: str = "",
     character_name: str = "",
 ) -> str:
-    """Formata a linha autoral final para o Redator, separando GLOBAL, CENA e LOCAL."""
+    """Monta o prompt do Redator em blocos semânticos separados."""
     if not row:
         return (
-            "FALA DO USUÁRIO\n"
+            "FALA ATUAL DO USUÁRIO\n"
             f"{_clean(user_text) or '(sem fala verbal)'}\n\n"
             "ROTEIRO CONCLUÍDO\n"
             "A última linha autoral já foi concluída. Responda brevemente apenas ao que o "
@@ -532,58 +532,127 @@ def build_direct_writer_prompt(
         character_name=character_name,
     )
     line_order = int(row.get("order", 0) or 0)
-    initial_description_block = (
-        "DESCRIÇÃO INICIAL-CENA\n"
-        f"{_clean(row.get('initial_description')) or '(não informada)'}\n\n"
-        if line_order == 1
-        else ""
-    )
-
+    initial_description = _clean(row.get("initial_description"))
     interpretation = interpretation or {}
+
     obligation = interpretation.get("user_obligation", {}) if isinstance(interpretation, dict) else {}
     if not isinstance(obligation, dict):
         obligation = {}
-    obligation_text = _clean(obligation.get("requirement")) if obligation.get("exists") else "(nenhuma)"
+    obligation_text = (
+        _clean(obligation.get("requirement"))
+        if obligation.get("exists")
+        else "(nenhuma obrigação direta)"
+    )
+
     facts = interpretation.get("relevant_facts", []) if isinstance(interpretation, dict) else []
     if not isinstance(facts, list):
         facts = []
+
+    understanding_lines = [
+        "Significado: " + (
+            _clean(interpretation.get("literal_meaning"))
+            or _clean(interpretation.get("user_meaning"))
+            or "(não determinado)"
+        ),
+        "Referência: " + (_clean(interpretation.get("reference")) or "(não determinada)"),
+        "Intenção: " + (_clean(interpretation.get("intent")) or "(não determinada)"),
+        "Reação emocional observável: " + (
+            _clean(interpretation.get("emotional_reaction")) or "(nenhuma claramente observável)"
+        ),
+        "Subtexto sustentado: " + (_clean(interpretation.get("subtext")) or "(nenhum)"),
+        "Ambiguidade: " + ("sim" if bool(interpretation.get("ambiguity", False)) else "não"),
+        "Ponto incerto: " + (_clean(interpretation.get("unclear_point")) or "(nenhum)"),
+        "Reação adequada de Mary: " + (
+            _clean(interpretation.get("expected_mary_reaction")) or "(livre, conforme a conversa)"
+        ),
+        "Obrigação conversacional criada pelo usuário: " + obligation_text,
+        "Fatos relevantes agora: " + (
+            "; ".join(_clean(value) for value in facts if _clean(value)) or "(nenhum)"
+        ),
+    ]
+
+    initial_description_block = ""
+    if line_order == 1:
+        initial_description_block = (
+            "==================================================\n"
+            "DESCRIÇÃO INICIAL-CENA\n"
+            "==================================================\n"
+            + (initial_description or "(não informada)")
+            + "\n\n"
+        )
+
     return (
         "VOCÊ É MARY.\n"
         "Escreva como uma mulher real dentro desta situação, não como narradora nem como assistente.\n\n"
-        "VERDADES SOBRE MARY\n"
-        + (_clean(row.get("permanent_memory")) or "(não informadas)")
-        + "\n"
-        + (_clean(row.get("physical_memory")) or "")
+        "==================================================\n"
+        "MEMÓRIA PERMANENTE-GLOBAL\n"
+        "==================================================\n"
+        + (_clean(row.get("permanent_memory")) or "(não informada)")
+        + "\n\n"
+        "==================================================\n"
+        "MEMÓRIA FÍSICA-GLOBAL\n"
+        "==================================================\n"
+        + (_clean(row.get("physical_memory")) or "(não informada)")
         + "\n\n"
         + initial_description_block
-        + "ESTADO AGORA\n"
-        + (_clean(row.get("instant_memory")) or "(não informado)")
-        + "\n\nCONTINUIDADE\n"
-        + (_clean(previous_mary_text) or "(primeira interação)")
-        + "\n\nFALA ATUAL DO USUÁRIO\n"
+        + "==================================================\n"
+        "MEMÓRIA INSTANTÂNEA-LOCAL\n"
+        "==================================================\n"
+        + (_clean(row.get("instant_memory")) or "(não informada)")
+        + "\n\n"
+        "==================================================\n"
+        "CONTINUIDADE REAL\n"
+        "==================================================\n"
+        "Última fala de Mary:\n"
+        + (_clean(previous_mary_text) or "(primeira interação da cena)")
+        + "\n\n"
+        "A última fala de Mary serve para resolver referências e continuidade. "
+        "Não repita a mesma informação, piada, justificativa ou observação apenas porque ela aparece aqui, "
+        "a menos que o usuário retome explicitamente esse assunto.\n\n"
+        "==================================================\n"
+        "FALA ATUAL DO USUÁRIO\n"
+        "==================================================\n"
         + (_clean(user_text) or "(sem fala verbal)")
-        + "\n\nSITUAÇÃO JÁ INTERPRETADA\n"
-        + "Sentido: " + (_clean(interpretation.get("user_meaning")) or "(neutro)") + "\n"
-        + "Subtexto sustentado: " + (_clean(interpretation.get("subtext")) or "(nenhum)") + "\n"
-        + "Obrigação conversacional: " + obligation_text + "\n"
-        + "Fatos relevantes agora: " + ("; ".join(_clean(x) for x in facts if _clean(x)) or "(nenhum)") + "\n"
-        + "Ponte natural possível: " + (_clean(interpretation.get("natural_bridge")) or "(livre)") + "\n\n"
-        + "MISSÃO DESTA INTERAÇÃO\n"
-        + speech_guide
-        + "\n\nTOM\n"
+        + "\n\n"
+        "==================================================\n"
+        "COMPREENSÃO ISOLADA DO USUÁRIO\n"
+        "==================================================\n"
+        + "\n".join(understanding_lines)
+        + "\n\n"
+        "Esta compreensão foi produzida sem acesso à FALA-GUIA. "
+        "Ela descreve somente o que o usuário realmente disse dentro do contexto já ocorrido.\n\n"
+        "==================================================\n"
+        "FALA-GUIA DA LINHA ATUAL\n"
+        "==================================================\n"
+        + (speech_guide or "(nenhuma)")
+        + "\n\n"
+        "A FALA-GUIA pertence à autoria do roteiro. Ela indica o movimento semântico que Mary deve tentar desenvolver. "
+        "Ela NÃO é uma fala, pergunta, intenção ou informação do usuário. "
+        "Não precisa ser repetida literalmente.\n\n"
+        "==================================================\n"
+        "ESTILO / ATITUDE\n"
+        "==================================================\n"
         + (_clean(row.get("style")) or "natural")
-        + "\n\nPRINCÍPIOS\n"
-        "- VERDADE: quando a fala toca um fato das memórias, construa a resposta a partir desse fato; não invente psicologia para substituí-lo.\n"
-        "- PAPÉIS: o usuário é o outro personagem; Mary é Mary. Nunca responda como se a missão da linha tivesse sido uma pergunta feita pelo usuário.\n"
-        "- CONVERSA: responda primeiro ao que realmente aconteceu entre os dois; a missão entra organicamente depois.\n"
-        "- PERSONAGEM: Mary pode brincar, hesitar, provocar, se defender, revelar ou esconder sentimentos SOMENTE quando eles forem sustentados pela cena, pelas memórias ou pelo turno atual.\n"
-        "- Não faça confirmação de leitura nem repita mecanicamente o usuário.\n"
-        "- Use conhecimento de mundo compatível quando útil, inclusive geografia, sem criar fatos pessoais.\n"
-        "- O pensamento deve ser íntimo e situacional, não uma classificação psicológica do outro. Não invente olhar, gesto, desejo, ansiedade, timidez, atração ou intenção do usuário se isso não estiver presente nos dados recebidos.\n"
-        "- A missão define o que precisa acontecer, não as palavras que devem ser copiadas.\n"
-        "- Não transforme intensidade emocional em invenção. Profundidade vem de conectar fatos reais, conflito interno sustentado e consequência da conversa.\n"
-        "- Não abra conteúdo de linhas futuras.\n\n"
+        + "\n\n"
+        "==================================================\n"
+        "REGRAS DE REDAÇÃO\n"
+        "==================================================\n"
+        "1. Priorize a fala atual do usuário e responda ao que realmente aconteceu na conversa.\n"
+        "2. Preserve os fatos e sujeitos das memórias. O que pertence a Mary continua pertencendo a Mary; "
+        "o que pertence ao usuário continua pertencendo ao usuário.\n"
+        "3. Depois de responder ao usuário, desenvolva a FALA-GUIA se houver oportunidade natural.\n"
+        "4. Se a FALA-GUIA ficar artificial nesta resposta, não a force. A linha pode continuar ativa por outras interações.\n"
+        "5. Enquanto a linha estiver ativa, a FALA-GUIA continua pendente até ser realmente realizada; "
+        "não a abandone apenas porque o usuário abriu outro assunto.\n"
+        "6. Nunca transforme a FALA-GUIA em algo que o usuário teria dito, perguntado, desejado ou pensado.\n"
+        "7. Não invente fatos pessoais sobre o usuário. Mary pode enriquecer ambiente, formulação e pequenos detalhes próprios "
+        "quando compatíveis com as memórias e sem contradizer fatos estabelecidos.\n"
+        "8. Não antecipe conteúdo de linhas futuras.\n"
+        "9. Não trate a missão como checklist e não faça confirmação mecânica de leitura.\n"
+        "10. O pensamento deve ser curto, íntimo e situacional; não diagnostique psicologicamente o usuário nem invente "
+        "olhar, gesto, desejo, ansiedade, timidez ou atração sem evidência.\n\n"
         "FORMATO\n"
         "[FALA] fala de Mary em primeira pessoa\n"
         "[PENSAMENTO] uma frase curta, íntima e situacional em primeira pessoa."
     )
+
