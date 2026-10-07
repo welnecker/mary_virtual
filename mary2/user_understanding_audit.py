@@ -38,28 +38,55 @@ def analyze_user_understanding(
     model: str,
     fallback_model: str | None,
     user_text: str,
-    previous_mary_text: str,
+    previous_mary_text: str = "",
+    recent_messages: list[dict] | None = None,
     instant_memory: str = "",
+    permanent_memory: str = "",
+    physical_memory: str = "",
+    initial_description: str = "",
 ) -> dict:
-    """Auditoria independente: interpreta a fala do usuário sem receber a fala-guia."""
+    """Compreende a fala do usuário sem receber fala-guia ou roteiro futuro."""
+    recent_lines: list[str] = []
+    for message in (recent_messages or [])[-6:]:
+        if not isinstance(message, dict):
+            continue
+        role = str(message.get("role", "") or "").strip().lower()
+        content = str(message.get("content", "") or "").strip()
+        if not content:
+            continue
+        speaker = "MARY" if role == "assistant" else "USUÁRIO"
+        recent_lines.append(f"{speaker}: {content}")
+    recent_context = "\n".join(recent_lines).strip()
+
     payload = (
-        "ULTIMA FALA DE MARY\n"
-        + (str(previous_mary_text or "").strip() or "(nenhuma)")
+        "CONTEXTO ESTÁVEL SOBRE MARY\n"
+        + (str(permanent_memory or "").strip() or "(não informado)")
+        + "\n\nCONTEXTO FÍSICO ESTÁVEL\n"
+        + (str(physical_memory or "").strip() or "(não informado)")
+        + "\n\nDESCRIÇÃO INICIAL DA CENA\n"
+        + (str(initial_description or "").strip() or "(não informada)")
         + "\n\nESTADO OBJETIVO ATUAL\n"
-        + (str(instant_memory or "").strip() or "(nao informado)")
-        + "\n\nFALA ATUAL DO USUARIO\n"
+        + (str(instant_memory or "").strip() or "(não informado)")
+        + "\n\nCONTEXTO RECENTE REAL\n"
+        + (recent_context or "(nenhuma interação anterior relevante)")
+        + "\n\nÚLTIMA FALA DE MARY\n"
+        + (str(previous_mary_text or "").strip() or "(nenhuma)")
+        + "\n\nFALA ATUAL DO USUÁRIO\n"
         + (str(user_text or "").strip() or "(sem fala verbal)")
         + "\n\nTAREFA\n"
-        "Explique somente o que voce entendeu da fala atual do usuario no contexto imediato. "
-        "Nao escreva a resposta de Mary. Nao use roteiro futuro e nao invente motivo oculto. "
-        "Se houver ambiguidade real, declare-a em vez de escolher uma interpretacao. "
-        "Informe: significado literal; a que a fala se refere; intencao conversacional; "
-        "reacao emocional observavel, se houver; subtexto apenas quando sustentado; "
-        "se ha ambiguidade; confianca de 0 a 1; o que ficou incerto; "
-        "e qual tipo de reacao de Mary seria adequado. "
-        "Retorne somente um objeto JSON com as chaves: "
-        "literal_meaning, reference, intent, emotional_reaction, subtext, ambiguity, "
-        "confidence, unclear_point, expected_mary_reaction."
+        "Compreenda SOMENTE a fala atual do usuário à luz do passado e do presente já estabelecidos. "
+        "Você não conhece a fala-guia, a missão da linha nem qualquer acontecimento futuro. "
+        "Não escreva a resposta de Mary e não tente avançar o roteiro. "
+        "Não invente intenção escondida. Se houver ambiguidade real, declare-a. "
+        "Preserve rigorosamente sujeito e posse: não transfira para o usuário fatos de Mary nem para Mary fatos do usuário. "
+        "Use as memórias apenas para resolver referências e fatos já estabelecidos. "
+        "Informe: significado literal/contextual; referência; intenção conversacional; reação emocional observável; "
+        "subtexto somente quando sustentado; ambiguidade; confiança de 0 a 1; ponto incerto; "
+        "tipo de reação adequada de Mary; se a fala cria uma obrigação conversacional direta para Mary; "
+        "qual é essa obrigação; e quais fatos fornecidos são diretamente relevantes. "
+        "Retorne somente JSON com as chaves: "
+        "literal_meaning, reference, intent, emotional_reaction, subtext, ambiguity, confidence, "
+        "unclear_point, expected_mary_reaction, requires_response, response_requirement, relevant_facts."
     )
 
     raw = chat(
@@ -70,35 +97,42 @@ def analyze_user_understanding(
             {
                 "role": "system",
                 "content": (
-                    "Voce e um auditor de compreensao conversacional. "
-                    "Seu trabalho e dizer o que a fala do usuario significa, sem escrever por Mary. "
-                    "Quando nao souber, declare a incerteza."
+                    "Você é o módulo de compreensão conversacional. "
+                    "Seu trabalho é entender o que o usuário realmente disse dentro do contexto já ocorrido. "
+                    "Você nunca recebe nem tenta adivinhar o roteiro futuro. "
+                    "Não escreve por Mary, não inventa fatos e não troca sujeitos."
                 ),
             },
             {"role": "user", "content": payload},
         ],
         temperature=0.0,
-        max_tokens=320,
+        max_tokens=420,
     )
 
     parsed: dict = {}
     parse_error = ""
     try:
         text = str(raw or "").strip()
-        text = re.sub(r"^\s*```(?:json)?\s*", "", text, flags=re.I)
-        text = re.sub(r"\s*```\s*$", "", text)
-        start = text.find("{")
-        end = text.rfind("}")
-        if start >= 0 and end >= start:
-            text = text[start : end + 1]
+        text = re.sub(r"^\s*\x60\x60\x60(?:json)?\s*", "", text, flags=re.I)
+        text = re.sub(r"\s*\x60\x60\x60\s*$", "", text)
+        json_start = text.find("{")
+        json_end = text.rfind("}")
+        if json_start >= 0 and json_end >= json_start:
+            text = text[json_start : json_end + 1]
         parsed = json.loads(text)
         if not isinstance(parsed, dict):
-            raise ValueError("audit response is not a JSON object")
+            raise ValueError("understanding response is not a JSON object")
     except Exception as exc:
         parse_error = str(exc)
         parsed = {}
 
-    return {
+    relevant_facts = parsed.get("relevant_facts", [])
+    if not isinstance(relevant_facts, list):
+        relevant_facts = []
+    requires_response = bool(parsed.get("requires_response", False))
+    response_requirement = str(parsed.get("response_requirement", "") or "").strip()
+
+    result = {
         "literal_meaning": str(parsed.get("literal_meaning", "") or "").strip(),
         "reference": str(parsed.get("reference", "") or "").strip(),
         "intent": str(parsed.get("intent", "") or "").strip(),
@@ -108,9 +142,22 @@ def analyze_user_understanding(
         "confidence": parsed.get("confidence", ""),
         "unclear_point": str(parsed.get("unclear_point", "") or "").strip(),
         "expected_mary_reaction": str(parsed.get("expected_mary_reaction", "") or "").strip(),
+        "relevant_facts": [
+            str(value or "").strip() for value in relevant_facts if str(value or "").strip()
+        ],
+        "user_obligation": {
+            "exists": requires_response,
+            "requirement": response_requirement,
+        },
+        # Compatibilidade com o Redator e o Diretor atuais.
+        "user_meaning": str(parsed.get("literal_meaning", "") or "").strip(),
+        "natural_bridge": "",
+        "guide_requirements": [],
         "raw_response": raw,
+        "input_payload": payload,
         "parse_error": parse_error,
     }
+    return result
 
 
 def save_user_understanding_audit(
