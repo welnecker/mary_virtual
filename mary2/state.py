@@ -94,6 +94,10 @@ def migrate_state(state: dict | None) -> dict:
             current["narrative"]["funnel_script"] = deepcopy(
                 narrative.get("funnel_script")
             )
+        if isinstance(narrative.get("direct_script"), dict):
+            current["narrative"]["direct_script"] = deepcopy(
+                narrative.get("direct_script")
+            )
         if "choice_ready" in narrative:
             current["narrative"]["choice_ready"] = bool(
                 narrative.get("choice_ready", False)
