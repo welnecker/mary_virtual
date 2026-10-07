@@ -111,6 +111,25 @@ def test_initial_description_is_only_sent_on_first_line():
     assert "Mary e o personal estão no carro dele, seguindo para Camburi." not in second
 
 
+def test_direct_state_never_regresses_to_completed_line():
+    narrative = {
+        "direct_script": {
+            "engine": "direct_sheet_v1",
+            "index": 0,
+            "current_order": 1,
+            "awaiting_reply_order": 0,
+            "completed_orders": [1],
+            "completed": False,
+        }
+    }
+
+    state = ensure_direct_state(narrative, ROWS)
+
+    assert state["index"] == 1
+    assert state["current_order"] == 2
+    assert current_direct_row(ROWS, state)["order"] == 2
+
+
 def test_next_user_reply_advances_directly_without_breath_turn():
     state = ensure_direct_state({}, ROWS)
     assert current_direct_row(ROWS, state)["order"] == 1
