@@ -263,10 +263,11 @@ def interpret_direct_turn(
         "SEPARAÇÃO ABSOLUTA DE FONTES: a FALA ATUAL DO USUÁRIO contém apenas o que o usuário realmente disse. "
         "A FALA-GUIA contém apenas o que MARY deve fazer nesta linha. Nunca atribua ao usuário pergunta, intenção, pedido ou informação que exista apenas na FALA-GUIA. "
         "Identifique: (1) o que o usuário realmente quis dizer, usando somente a FALA ATUAL DO USUÁRIO e a continuidade; "
+        "se a fala for apenas uma exclamação curta, palavrão, reação vaga ou frase ambígua sem referente claro, NÃO force uma interpretação temática: marque o sentido como reação vaga e o subtexto como vazio; "
         "(2) subtexto somente quando houver evidência real na fala atual ou continuidade; "
         "(3) se existe obrigação conversacional criada pelo USUÁRIO e o que Mary precisa responder/reconhecer; "
         "(4) quais fatos das memórias são diretamente relevantes agora; "
-        "(5) qual ponte natural pode unir a resposta ao usuário à missão autoral, sem reescrever nem resumir a FALA-GUIA. "
+        "(5) qual ponte natural pode unir a resposta ao usuário à missão autoral, mas somente se essa ponte puder ser feita sem atribuir ao usuário algo que ele não disse. Se não houver ponte segura, deixe vazio. "
         "Nunca invente fatos pessoais, motivos ou emoções. "
         "Se a pergunta do usuário toca um fato presente na memória, use esse fato como base obrigatória. "
         "Retorne apenas JSON: "
@@ -285,6 +286,7 @@ def interpret_direct_turn(
                     "Você é um Intérprete de diálogo. Sua função é compreender o turno antes da escrita. "
                     "O usuário é sempre o PERSONAGEM DA CENA; Mary é sempre Mary. "
                     "Nunca troque sujeito, nunca transforme a FALA-GUIA em algo dito pelo usuário e nunca transforme a fala do usuário em fala de Mary. "
+                    "Não use a FALA-GUIA para adivinhar o significado de uma fala vaga do usuário. "
                     "Não escreve falas de Mary, não cria fatos e não embeleza."
                 ),
             },
