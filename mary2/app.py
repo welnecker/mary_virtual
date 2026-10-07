@@ -2454,6 +2454,7 @@ if user_text:
                         model=director_model,
                         fallback_model=fallback,
                         row=direct_row,
+                        user_text=dialogue_text,
                         mary_text=answer,
                     )
                     if persistence:
