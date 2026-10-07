@@ -98,7 +98,7 @@ st.set_page_config(page_title="Mary Core 2", page_icon="🖤", layout="centered"
 
 _LOG = logging.getLogger(__name__)
 
-BUILD_ID = "2026-10-07-direct-sheet-v6"
+BUILD_ID = "2026-10-07-direct-sheet-v6.1"
 
 DEFAULT_MODELS = [
     "google/gemini-2.5-flash-lite",
@@ -2463,8 +2463,7 @@ if user_text:
                         api_key=api_key,
                         model=director_model,
                         fallback_model=fallback,
-                        row=direct_row,
-                        user_text=dialogue_text,
+                        interpretation=direct_interpretation,
                         mary_text=answer,
                     )
                     if persistence:
