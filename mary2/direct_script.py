@@ -189,18 +189,24 @@ def validate_direct_line_completion(
     row: dict,
     mary_text: str,
 ) -> dict:
-    """Diretor mínimo: verifica apenas se a missão autoral da linha foi satisfeita."""
+    """Diretor semântico: verifica apenas se os elementos essenciais da fala-guia foram satisfeitos."""
     speech_guide = _clean(row.get("speech_guide"))
     if not speech_guide:
         return {
             "fulfilled": True,
             "missing": "",
             "reason": "linha sem fala-guia",
+            "elements": [],
             "model": model,
             "duration_ms": 0.0,
             "input_payload": "",
             "raw_response": "",
-            "parsed_response": {"cumpriu": True, "faltou": "", "motivo": "linha sem fala-guia"},
+            "parsed_response": {
+                "elementos": [],
+                "cumpriu": True,
+                "faltou": "",
+                "motivo": "linha sem fala-guia",
+            },
             "parse_error": "",
         }
 
@@ -210,17 +216,30 @@ def validate_direct_line_completion(
         + "\n\nRESPOSTA DE MARY\n"
         + _clean(mary_text)
         + "\n\n"
-        "Verifique SOMENTE se a resposta de Mary satisfez o conteúdo essencial da FALA-GUIA. "
-        "Não avalie estilo, profundidade, simpatia, resposta ao usuário ou qualidade literária. "
-        "A fala pode ser reinterpretada com outras palavras, desde que preserve e realize a missão essencial. "
-        "Se algum elemento essencial da FALA-GUIA estiver ausente, CUMPRIU deve ser false. "
+        "TAREFA DE VALIDAÇÃO\n"
+        "1. Decomponha mentalmente a FALA-GUIA em elementos semânticos essenciais distintos. "
+        "Considere quem pratica a ação, sobre quem/que ela recai e qual intenção verbal precisa ocorrer. "
+        "Perguntas diferentes, pedidos diferentes e afirmações essenciais diferentes contam como elementos separados. "
+        "2. Para cada elemento, procure evidência semântica real na RESPOSTA DE MARY. Não exija as mesmas palavras. "
+        "3. Um assunto apenas mencionado NÃO satisfaz uma ação específica. Exemplo: falar de um clube não equivale "
+        "a pedir que alguém a leve ao clube. "
+        "4. Preserve sujeito e papéis. Se a fala-guia pede que Mary pergunte onde o usuário mora, uma resposta sobre "
+        "onde Mary mora NÃO satisfaz esse elemento. "
+        "5. Avalie atos de fala, não execução física. Se a fala-guia diz 'anota meu número', basta Mary pedir ao outro "
+        "personagem que registre o contato; não exija que Mary anote algo fisicamente. "
+        "6. Nunca exija dado concreto que a FALA-GUIA não fornece. Se não há número, endereço ou valor explícito, "
+        "não reprove por ausência desse dado. "
+        "7. Não avalie estilo, profundidade, simpatia, resposta ao usuário, personalidade ou qualidade literária. "
+        "8. CUMPRIU só pode ser true quando TODOS os elementos essenciais estiverem presentes. "
         "Retorne apenas JSON no formato: "
-        '{"cumpriu": true, "faltou": "", "motivo": "curto"}.'
+        '{"elementos":[{"requisito":"texto curto","encontrado":true,"evidencia":"trecho curto"}],'
+        '"cumpriu":true,"faltou":"","motivo":"curto"}.'
     )
     system_prompt = (
         "Você é um Diretor validador estritamente limitado. "
         "Não escreve cenas, não inventa fatos, não altera o roteiro e não sugere novos rumos. "
-        "Sua única tarefa é decidir se a resposta de Mary cumpriu a FALA-GUIA fornecida."
+        "Sua única função é validar semanticamente se Mary cumpriu todos os elementos essenciais da FALA-GUIA, "
+        "preservando sujeito, ação e intenção."
     )
 
     started_at = time.perf_counter()
@@ -233,7 +252,7 @@ def validate_direct_line_completion(
             {"role": "user", "content": payload},
         ],
         temperature=0.0,
-        max_tokens=180,
+        max_tokens=360,
     )
     duration_ms = round((time.perf_counter() - started_at) * 1000.0, 1)
 
@@ -254,14 +273,47 @@ def validate_direct_line_completion(
         parse_error = str(exc)
         parsed = {}
 
-    fulfilled = bool(parsed.get("cumpriu", False)) if not parse_error else False
+    elements = parsed.get("elementos", [])
+    if not isinstance(elements, list):
+        elements = []
+
+    normalized_elements: list[dict] = []
+    for item in elements:
+        if not isinstance(item, dict):
+            continue
+        normalized_elements.append(
+            {
+                "requirement": _clean(item.get("requisito")),
+                "found": bool(item.get("encontrado", False)),
+                "evidence": _clean(item.get("evidencia")),
+            }
+        )
+
+    all_elements_found = bool(normalized_elements) and all(
+        bool(item.get("found", False)) for item in normalized_elements
+    )
+    claimed_fulfilled = bool(parsed.get("cumpriu", False))
+    fulfilled = (
+        claimed_fulfilled and all_elements_found
+        if not parse_error
+        else False
+    )
+
+    missing_requirements = [
+        item.get("requirement", "")
+        for item in normalized_elements
+        if not bool(item.get("found", False)) and item.get("requirement")
+    ]
     missing = _clean(parsed.get("faltou"))
+    if not missing and missing_requirements:
+        missing = "; ".join(missing_requirements)
     reason = _clean(parsed.get("motivo"))
 
     return {
         "fulfilled": fulfilled,
         "missing": missing,
         "reason": reason,
+        "elements": normalized_elements,
         "model": model,
         "duration_ms": duration_ms,
         "input_payload": payload,
@@ -272,18 +324,28 @@ def validate_direct_line_completion(
 
 
 def direct_line_correction_prompt(row: dict, evaluation: dict) -> str:
-    """Instrução curta para refazer a mesma linha sem dar autoria ao Diretor."""
+    """Corrige só a lacuna apontada, preservando personalidade, continuidade e espontaneidade."""
     guide = _clean(row.get("speech_guide"))
     missing = _clean(evaluation.get("missing"))
-    detail = missing or "o conteúdo essencial da FALA-GUIA"
+    elements = evaluation.get("elements", [])
+    unmet = [
+        _clean(item.get("requirement"))
+        for item in elements
+        if isinstance(item, dict)
+        and not bool(item.get("found", False))
+        and _clean(item.get("requirement"))
+    ]
+    detail = "; ".join(unmet) or missing or "o conteúdo essencial da FALA-GUIA"
     return (
-        "CORREÇÃO DA MESMA LINHA: sua resposta anterior não cumpriu integralmente a missão autoral. "
-        f"Faltou: {detail}. "
+        "CORREÇÃO CIRÚRGICA DA MESMA LINHA. Preserve personalidade, continuidade e espontaneidade. "
+        "A primeira resposta pode conter partes naturais e válidas: não reinicie tudo do zero e não reescreva "
+        "o que já funciona sem necessidade. Faça a menor alteração necessária para acrescentar os elementos ausentes. "
+        f"Elementos ainda não satisfeitos: {detail}. "
         f"A FALA-GUIA continua sendo: {guide}. "
-        "Responda novamente à fala atual do usuário com naturalidade, mas desta vez cumpra obrigatoriamente "
-        "o conteúdo essencial da FALA-GUIA. Não repita nem parafraseie mecanicamente a fala do usuário para demonstrar "
-        "compreensão; reaja ao significado dela. Não explique a correção e mantenha exatamente o formato "
-        "[FALA] seguido de [PENSAMENTO]."
+        "Reaja ao significado da fala atual do usuário sem repeti-la ou parafraseá-la mecanicamente. "
+        "Não copie literalmente a FALA-GUIA se puder cumprir a mesma intenção com naturalidade. "
+        "Não invente fatos, dados, ações ou informações para compensar a falha. "
+        "Não explique a correção. Mantenha exatamente o formato [FALA] seguido de [PENSAMENTO]."
     )
 
 
