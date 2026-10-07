@@ -79,7 +79,9 @@ def validate_direct_semantic_turn(
         + _clean(mary_text)
         + "\n\nTAREFA\n"
         "Faça duas validações independentes. "
-        "A) FINALIDADE DA LINHA: determine se os objetivos semânticos da FALA-GUIA já aconteceram na conversa. "
+        "A) FINALIDADE DA LINHA: primeiro decomponha EXCLUSIVAMENTE a FALA-GUIA ORIGINAL em seus objetivos semânticos. "
+        "Não use a fala atual do usuário, a compreensão atual ou a resposta de Mary para inventar novos objetivos da linha. "
+        "Depois determine se esses objetivos da FALA-GUIA já aconteceram na conversa. "
         "Uma informação fornecida espontaneamente pelo USUÁRIO pode cumprir um objetivo sem Mary precisar repetir a pergunta. "
         "Exija evidência literal na CONVERSA DA LINHA. "
         "B) CONSISTÊNCIA FACTUAL: verifique se a RESPOSTA ATUAL DE MARY contradiz algum fato explícito das FONTES AUTORITATIVAS. "
@@ -105,6 +107,7 @@ def validate_direct_semantic_turn(
                 "content": (
                     "Você é um Diretor de continuidade semântica. "
                     "Valide finalidade da linha e verdade factual. "
+                    "Os objetivos da linha vêm somente da FALA-GUIA ORIGINAL. "
                     "Não exija repetição literal da fala-guia. "
                     "Nunca invente evidência."
                 ),
