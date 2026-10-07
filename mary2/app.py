@@ -102,7 +102,7 @@ st.set_page_config(page_title="Mary Core 2", page_icon="🖤", layout="centered"
 
 _LOG = logging.getLogger(__name__)
 
-BUILD_ID = "2026-10-07-direct-sheet-v6.12"
+BUILD_ID = "2026-10-07-direct-sheet-v6.13"
 
 DEFAULT_MODELS = [
     "google/gemini-2.5-flash-lite",
@@ -770,6 +770,22 @@ def _direct_script_rows(*, persistence: dict, chapter: dict) -> list[dict]:
         raise PersistenceError(
             f"Nenhuma linha do roteiro {script_name!r} foi encontrada em {worksheet!r}."
         )
+
+    # DESCRIÇÃO INICIAL-CENA é contexto de CENA: autorada uma vez, mas válida
+    # durante todas as linhas desta cena até que outro contexto de cena a substitua.
+    scene_description = next(
+        (
+            str(row.get("initial_description", "") or "").strip()
+            for row in rows
+            if str(row.get("initial_description", "") or "").strip()
+        ),
+        "",
+    )
+    if scene_description:
+        for row in rows:
+            if not str(row.get("initial_description", "") or "").strip():
+                row["initial_description"] = scene_description
+
     return rows
 
 
