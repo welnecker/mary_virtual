@@ -77,7 +77,7 @@ def analyze_user_understanding(
         "Compreenda SOMENTE a fala atual do usuário à luz do passado e do presente já estabelecidos. "
         "Você não conhece a fala-guia, a missão da linha nem qualquer acontecimento futuro. "
         "Não escreva a resposta de Mary e não tente avançar o roteiro. "
-        "Não invente intenção escondida. Se houver ambiguidade real, declare-a. "
+        "Não invente intenção escondida. Não converta gentileza, humor, atenção ou disponibilidade em atração, interesse romântico/sexual ou intenção futura sem evidência explícita. Se houver ambiguidade real, declare-a. "
         "Preserve rigorosamente sujeito e posse: não transfira para o usuário fatos de Mary nem para Mary fatos do usuário. "
         "Use as memórias apenas para resolver referências e fatos já estabelecidos. "
         "Informe: significado literal/contextual; referência; intenção conversacional; reação emocional observável; "
@@ -129,7 +129,23 @@ def analyze_user_understanding(
     relevant_facts = parsed.get("relevant_facts", [])
     if not isinstance(relevant_facts, list):
         relevant_facts = []
-    requires_response = bool(parsed.get("requires_response", False))
+
+    raw_ambiguity = parsed.get("ambiguity", False)
+    if isinstance(raw_ambiguity, bool):
+        ambiguity = raw_ambiguity
+    else:
+        ambiguity_text = str(raw_ambiguity or "").strip().casefold()
+        ambiguity = ambiguity_text in {
+            "true", "sim", "yes", "1", "ambíguo", "ambiguo", "há ambiguidade", "ha ambiguidade"
+        }
+
+    raw_requires_response = parsed.get("requires_response", False)
+    if isinstance(raw_requires_response, bool):
+        requires_response = raw_requires_response
+    else:
+        requires_response = str(raw_requires_response or "").strip().casefold() in {
+            "true", "sim", "yes", "1"
+        }
     response_requirement = str(parsed.get("response_requirement", "") or "").strip()
 
     result = {
@@ -138,7 +154,7 @@ def analyze_user_understanding(
         "intent": str(parsed.get("intent", "") or "").strip(),
         "emotional_reaction": str(parsed.get("emotional_reaction", "") or "").strip(),
         "subtext": str(parsed.get("subtext", "") or "").strip(),
-        "ambiguity": bool(parsed.get("ambiguity", False)),
+        "ambiguity": ambiguity,
         "confidence": parsed.get("confidence", ""),
         "unclear_point": str(parsed.get("unclear_point", "") or "").strip(),
         "expected_mary_reaction": str(parsed.get("expected_mary_reaction", "") or "").strip(),
