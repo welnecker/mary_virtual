@@ -287,11 +287,13 @@ def validate_direct_line_completion(
         "B) FALA-GUIA: decomponha a FALA-GUIA em elementos semânticos essenciais e verifique se Mary os cumpriu, "
         "preservando sujeito, ação, destinatário e intenção. Um assunto apenas mencionado não satisfaz uma ação específica. "
         "Não exija palavras literais.\n"
-        "REGRAS: não avalie estilo, simpatia ou qualidade literária. Não invente fatos. "
+        "REGRAS: não avalie estilo, simpatia ou qualidade literária. Não invente fatos pessoais. "
+        "Verifique também PRESERVAÇÃO DE SUJEITO: se Mary ecoar ou reformular informação do usuário, ela deve manter corretamente quem é o sujeito do fato. "
         "A resposta só é aprovada quando a obrigação do usuário, se existir, estiver atendida E todos os elementos essenciais "
         "da FALA-GUIA estiverem presentes.\n"
         "Retorne apenas JSON no formato: "
         '{"obrigacao_usuario":{"existe":true,"requisito":"texto curto","atendida":true,"evidencia":"trecho curto"},'
+        '"sujeito_preservado":true,'
         '"elementos_guia":[{"requisito":"texto curto","encontrado":true,"evidencia":"trecho curto"}],'
         '"cumpriu":true,"faltou":"","motivo":"curto"}.'
     )
@@ -366,9 +368,10 @@ def validate_direct_line_completion(
         not user_obligation["exists"]
         or user_obligation["satisfied"]
     )
+    subject_preserved = bool(parsed.get("sujeito_preservado", True))
     claimed_fulfilled = bool(parsed.get("cumpriu", False))
     fulfilled = (
-        claimed_fulfilled and all_elements_found and user_obligation_ok
+        claimed_fulfilled and all_elements_found and user_obligation_ok and subject_preserved
         if not parse_error
         else False
     )
@@ -382,6 +385,8 @@ def validate_direct_line_completion(
     if user_obligation["exists"] and not user_obligation["satisfied"]:
         user_missing = user_obligation["requirement"] or "responder à obrigação explícita do usuário"
         missing_requirements.insert(0, user_missing)
+    if not subject_preserved:
+        missing_requirements.insert(0, "preservar corretamente o sujeito dos fatos trazidos pelo usuário")
     if not missing and missing_requirements:
         missing = "; ".join(missing_requirements)
     reason = _clean(parsed.get("motivo"))
@@ -392,6 +397,7 @@ def validate_direct_line_completion(
         "reason": reason,
         "elements": normalized_elements,
         "user_obligation": user_obligation,
+        "subject_preserved": subject_preserved,
         "model": model,
         "duration_ms": duration_ms,
         "input_payload": payload,
@@ -525,10 +531,14 @@ def build_direct_writer_prompt(
 
         "REGRAS DE REDAÇÃO\n"
         "- Personalidade + continuidade + espontaneidade.\n"
-        "- Reaja primeiro à fala atual do usuário. Se ela criar uma obrigação explícita, satisfaça-a de forma clara antes de avançar.\n"
-        "- Depois faça a missão autoral caber naturalmente na mesma resposta, sem apagar ou substituir a resposta ao usuário.\n"
-        "- Não complete lacunas com conhecimento de mundo: se cidade, pessoa, relação, comportamento, atributo ou dado não estiver nos blocos, permaneça genérico.\n"
+        "- Compreenda primeiro a fala atual do usuário, mas não faça confirmação de leitura. Não ecoe, repita ou reformule mecanicamente o que ele acabou de dizer.\n"
+        "- Se a fala criar uma obrigação explícita, responda-a de forma clara. Caso contrário, reaja pela consequência, pelo subtexto ou pelo efeito prático da fala.\n"
+        "- Depois faça a missão autoral caber naturalmente na mesma resposta, sem transformar o turno em três etapas rígidas de reação + explicação + fala-guia.\n"
+        "- Quando possível, una reação e missão autoral em uma única fala curta e natural.\n"
+        "- Use conhecimento de mundo compatível quando ele ajudar a interpretar a situação, inclusive geografia, cultura e relações espaciais plausíveis. "
+        "Esse conhecimento pode contextualizar fatos já presentes, mas nunca criar novo fato pessoal sobre Mary ou sobre o usuário, nem contradizer as memórias.\n"
         "- O [PENSAMENTO] deve nascer de algo realmente presente na interação atual; não invente suspeitas ou preocupações apenas para preencher o bloco.\n"
+        "- Preserve rigorosamente o sujeito de cada informação. Um fato dito pelo usuário sobre ELE não pode reaparecer na boca de Mary como se fosse sobre ELA.\n"
         "- Não trate a FALA-GUIA como uma resposta pré-escrita. Preserve o sentido e escreva Mary de forma natural.\n"
         "- Não invente fatos, passado, relações, lugares, objetos, motivos ou informações ausentes dos blocos acima.\n"
         "- Não transforme Mary em dona do carro, motorista, moradora de outro lugar ou autora de uma ação do usuário.\n"
