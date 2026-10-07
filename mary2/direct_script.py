@@ -239,6 +239,7 @@ def validate_direct_line_completion(
     model: str,
     fallback_model: str | None,
     row: dict,
+    user_text: str,
     mary_text: str,
 ) -> dict:
     """Diretor semântico: verifica apenas se os elementos essenciais da fala-guia foram satisfeitos."""
@@ -263,35 +264,42 @@ def validate_direct_line_completion(
         }
 
     payload = (
-        "FALA-GUIA DA LINHA\n"
+        "FALA ATUAL DO USUÁRIO\n"
+        + _clean(user_text)
+        + "\n\nMEMÓRIA PERMANENTE-GLOBAL\n"
+        + (_clean(row.get("permanent_memory")) or "(não informada)")
+        + "\n\nMEMÓRIA FÍSICA-GLOBAL\n"
+        + (_clean(row.get("physical_memory")) or "(não informada)")
+        + "\n\nMEMÓRIA INSTANTÂNEA-LOCAL\n"
+        + (_clean(row.get("instant_memory")) or "(não informada)")
+        + "\n\nFALA-GUIA DA LINHA\n"
         + speech_guide
         + "\n\nRESPOSTA DE MARY\n"
         + _clean(mary_text)
-        + "\n\n"
-        "TAREFA DE VALIDAÇÃO\n"
-        "1. Decomponha mentalmente a FALA-GUIA em elementos semânticos essenciais distintos. "
-        "Considere quem pratica a ação, sobre quem/que ela recai e qual intenção verbal precisa ocorrer. "
-        "Perguntas diferentes, pedidos diferentes e afirmações essenciais diferentes contam como elementos separados. "
-        "2. Para cada elemento, procure evidência semântica real na RESPOSTA DE MARY. Não exija as mesmas palavras. "
-        "3. Um assunto apenas mencionado NÃO satisfaz uma ação específica. Exemplo: falar de um clube não equivale "
-        "a pedir que alguém a leve ao clube. "
-        "4. Preserve sujeito e papéis. Se a fala-guia pede que Mary pergunte onde o usuário mora, uma resposta sobre "
-        "onde Mary mora NÃO satisfaz esse elemento. "
-        "5. Avalie atos de fala, não execução física. Se a fala-guia diz 'anota meu número', basta Mary pedir ao outro "
-        "personagem que registre o contato; não exija que Mary anote algo fisicamente. "
-        "6. Nunca exija dado concreto que a FALA-GUIA não fornece. Se não há número, endereço ou valor explícito, "
-        "não reprove por ausência desse dado. "
-        "7. Não avalie estilo, profundidade, simpatia, resposta ao usuário, personalidade ou qualidade literária. "
-        "8. CUMPRIU só pode ser true quando TODOS os elementos essenciais estiverem presentes. "
+        + "\n\nTAREFA DE VALIDAÇÃO\n"
+        "Faça DUAS validações independentes.\n"
+        "A) OBRIGAÇÃO DO USUÁRIO: identifique se a FALA ATUAL DO USUÁRIO contém pergunta direta, "
+        "pedido explícito, correção factual ou solicitação de esclarecimento que exija resposta de Mary agora. "
+        "Comentários, risadas, concordâncias, despedidas simples e reações sem pergunta não criam obrigação factual por si só. "
+        "Se houver obrigação sobre Mary e a resposta estiver disponível nas memórias fornecidas, Mary deve respondê-la explicitamente. "
+        "Se a informação não estiver disponível nas memórias, não exija invenção: aceite uma resposta honesta de desconhecimento ou limite. "
+        "Se o usuário corrigir um fato sobre ELE MESMO, Mary deve respeitar a correção e não contradizê-la.\n"
+        "B) FALA-GUIA: decomponha a FALA-GUIA em elementos semânticos essenciais e verifique se Mary os cumpriu, "
+        "preservando sujeito, ação, destinatário e intenção. Um assunto apenas mencionado não satisfaz uma ação específica. "
+        "Não exija palavras literais.\n"
+        "REGRAS: não avalie estilo, simpatia ou qualidade literária. Não invente fatos. "
+        "A resposta só é aprovada quando a obrigação do usuário, se existir, estiver atendida E todos os elementos essenciais "
+        "da FALA-GUIA estiverem presentes.\n"
         "Retorne apenas JSON no formato: "
-        '{"elementos":[{"requisito":"texto curto","encontrado":true,"evidencia":"trecho curto"}],'
+        '{"obrigacao_usuario":{"existe":true,"requisito":"texto curto","atendida":true,"evidencia":"trecho curto"},'
+        '"elementos_guia":[{"requisito":"texto curto","encontrado":true,"evidencia":"trecho curto"}],'
         '"cumpriu":true,"faltou":"","motivo":"curto"}.'
     )
     system_prompt = (
         "Você é um Diretor validador estritamente limitado. "
         "Não escreve cenas, não inventa fatos, não altera o roteiro e não sugere novos rumos. "
-        "Sua única função é validar semanticamente se Mary cumpriu todos os elementos essenciais da FALA-GUIA, "
-        "preservando sujeito, ação e intenção."
+        "Valide apenas duas obrigações do turno: responder ao que o usuário explicitamente exige agora, quando aplicável, "
+        "e cumprir semanticamente a FALA-GUIA. Preserve sujeito, ação, intenção e fatos das memórias."
     )
 
     started_at = time.perf_counter()
@@ -325,9 +333,19 @@ def validate_direct_line_completion(
         parse_error = str(exc)
         parsed = {}
 
-    elements = parsed.get("elementos", [])
+    elements = parsed.get("elementos_guia", parsed.get("elementos", []))
     if not isinstance(elements, list):
         elements = []
+
+    user_obligation_raw = parsed.get("obrigacao_usuario", {})
+    if not isinstance(user_obligation_raw, dict):
+        user_obligation_raw = {}
+    user_obligation = {
+        "exists": bool(user_obligation_raw.get("existe", False)),
+        "requirement": _clean(user_obligation_raw.get("requisito")),
+        "satisfied": bool(user_obligation_raw.get("atendida", False)),
+        "evidence": _clean(user_obligation_raw.get("evidencia")),
+    }
 
     normalized_elements: list[dict] = []
     for item in elements:
@@ -344,9 +362,13 @@ def validate_direct_line_completion(
     all_elements_found = bool(normalized_elements) and all(
         bool(item.get("found", False)) for item in normalized_elements
     )
+    user_obligation_ok = (
+        not user_obligation["exists"]
+        or user_obligation["satisfied"]
+    )
     claimed_fulfilled = bool(parsed.get("cumpriu", False))
     fulfilled = (
-        claimed_fulfilled and all_elements_found
+        claimed_fulfilled and all_elements_found and user_obligation_ok
         if not parse_error
         else False
     )
@@ -357,6 +379,9 @@ def validate_direct_line_completion(
         if not bool(item.get("found", False)) and item.get("requirement")
     ]
     missing = _clean(parsed.get("faltou"))
+    if user_obligation["exists"] and not user_obligation["satisfied"]:
+        user_missing = user_obligation["requirement"] or "responder à obrigação explícita do usuário"
+        missing_requirements.insert(0, user_missing)
     if not missing and missing_requirements:
         missing = "; ".join(missing_requirements)
     reason = _clean(parsed.get("motivo"))
@@ -366,6 +391,7 @@ def validate_direct_line_completion(
         "missing": missing,
         "reason": reason,
         "elements": normalized_elements,
+        "user_obligation": user_obligation,
         "model": model,
         "duration_ms": duration_ms,
         "input_payload": payload,
@@ -380,6 +406,7 @@ def direct_line_correction_prompt(row: dict, evaluation: dict) -> str:
     guide = _clean(row.get("speech_guide"))
     missing = _clean(evaluation.get("missing"))
     elements = evaluation.get("elements", [])
+    user_obligation = evaluation.get("user_obligation", {})
     unmet = [
         _clean(item.get("requirement"))
         for item in elements
@@ -387,13 +414,18 @@ def direct_line_correction_prompt(row: dict, evaluation: dict) -> str:
         and not bool(item.get("found", False))
         and _clean(item.get("requirement"))
     ]
-    detail = "; ".join(unmet) or missing or "o conteúdo essencial da FALA-GUIA"
+    if isinstance(user_obligation, dict) and bool(user_obligation.get("exists", False)) and not bool(user_obligation.get("satisfied", False)):
+        user_requirement = _clean(user_obligation.get("requirement")) or "responder diretamente à fala atual do usuário"
+        unmet.insert(0, user_requirement)
+    detail = "; ".join(unmet) or missing or "as obrigações do turno"
     return (
         "CORREÇÃO CIRÚRGICA DA MESMA LINHA. Preserve personalidade, continuidade e espontaneidade. "
         "A primeira resposta pode conter partes naturais e válidas: não reinicie tudo do zero e não reescreva "
         "o que já funciona sem necessidade. Faça a menor alteração necessária para acrescentar os elementos ausentes. "
         f"Elementos ainda não satisfeitos: {detail}. "
         f"A FALA-GUIA continua sendo: {guide}. "
+        "Se a lacuna for uma obrigação explícita trazida pelo usuário, responda primeiro a ela usando as memórias autoritativas disponíveis. "
+        "Depois preserve e cumpra a FALA-GUIA na mesma resposta, de modo natural. "
         "Reaja ao significado da fala atual do usuário sem repeti-la ou parafraseá-la mecanicamente. "
         "Não copie literalmente a FALA-GUIA se puder cumprir a mesma intenção com naturalidade. "
         "Não invente fatos, dados, ações ou informações para compensar a falha. "
@@ -476,8 +508,11 @@ def build_direct_writer_prompt(
         "5. ÚLTIMA FALA DE MARY existe apenas para continuidade e resolução de referências. Não reutilize, "
         "complete, reescreva ou repita essa fala mecanicamente. Se houver erro antigo nela, não o perpetue.\n"
         "6. FALA ATUAL DO USUÁRIO deve ser compreendida antes de qualquer desenvolvimento do roteiro. Interprete "
-        "quem falou, a que fala anterior ele está reagindo, intenção, subtexto, humor e direção da ação. Responda "
-        "ao significado; não repita nem parafraseie a fala apenas para mostrar compreensão.\n"
+        "quem falou, a que fala anterior ele está reagindo, intenção, subtexto, humor e direção da ação. Se houver "
+        "pergunta direta, pedido explícito, correção factual ou solicitação de esclarecimento, isso cria uma OBRIGAÇÃO "
+        "DO TURNO e deve ser respondido antes de avançar a missão autoral. Consulte primeiro as memórias autoritativas. "
+        "Não ignore uma pergunta factual sobre Mary para cumprir a FALA-GUIA. Responda ao significado; não repita nem "
+        "parafraseie a fala apenas para mostrar compreensão.\n"
         "7. FALA-GUIA é a obrigação semântica da linha. Preserve sujeito, ação, destinatário e intenção. "
         "Ela não precisa ser copiada literalmente e não autoriza trocar os papéis.\n"
         "8. ESTILO / ATITUDE define somente a maneira de Mary se expressar nesta passagem. Não cria fatos, "
@@ -490,7 +525,10 @@ def build_direct_writer_prompt(
 
         "REGRAS DE REDAÇÃO\n"
         "- Personalidade + continuidade + espontaneidade.\n"
-        "- Reaja primeiro à fala atual do usuário; depois faça a missão autoral caber naturalmente na mesma resposta.\n"
+        "- Reaja primeiro à fala atual do usuário. Se ela criar uma obrigação explícita, satisfaça-a de forma clara antes de avançar.\n"
+        "- Depois faça a missão autoral caber naturalmente na mesma resposta, sem apagar ou substituir a resposta ao usuário.\n"
+        "- Não complete lacunas com conhecimento de mundo: se cidade, pessoa, relação, comportamento, atributo ou dado não estiver nos blocos, permaneça genérico.\n"
+        "- O [PENSAMENTO] deve nascer de algo realmente presente na interação atual; não invente suspeitas ou preocupações apenas para preencher o bloco.\n"
         "- Não trate a FALA-GUIA como uma resposta pré-escrita. Preserve o sentido e escreva Mary de forma natural.\n"
         "- Não invente fatos, passado, relações, lugares, objetos, motivos ou informações ausentes dos blocos acima.\n"
         "- Não transforme Mary em dona do carro, motorista, moradora de outro lugar ou autora de uma ação do usuário.\n"
