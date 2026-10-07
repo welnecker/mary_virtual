@@ -233,78 +233,144 @@ def direct_script_ready_for_choice(state: dict) -> bool:
 
 
 
-def validate_direct_line_completion(
+
+def interpret_direct_turn(
     *,
     api_key: str,
     model: str,
     fallback_model: str | None,
     row: dict,
     user_text: str,
-    mary_text: str,
+    previous_mary_text: str = "",
 ) -> dict:
-    """Diretor semântico: verifica apenas se os elementos essenciais da fala-guia foram satisfeitos."""
+    """Intérprete: transforma a fala atual em situação compreendida antes da redação."""
     speech_guide = _clean(row.get("speech_guide"))
-    if not speech_guide:
-        return {
-            "fulfilled": True,
-            "missing": "",
-            "reason": "linha sem fala-guia",
-            "elements": [],
-            "model": model,
-            "duration_ms": 0.0,
-            "input_payload": "",
-            "raw_response": "",
-            "parsed_response": {
-                "elementos": [],
-                "cumpriu": True,
-                "faltou": "",
-                "motivo": "linha sem fala-guia",
-            },
-            "parse_error": "",
-        }
-
     payload = (
-        "FALA ATUAL DO USUÁRIO\n"
-        + _clean(user_text)
-        + "\n\nMEMÓRIA PERMANENTE-GLOBAL\n"
+        "MEMÓRIA PERMANENTE-GLOBAL\n"
         + (_clean(row.get("permanent_memory")) or "(não informada)")
         + "\n\nMEMÓRIA FÍSICA-GLOBAL\n"
         + (_clean(row.get("physical_memory")) or "(não informada)")
         + "\n\nMEMÓRIA INSTANTÂNEA-LOCAL\n"
         + (_clean(row.get("instant_memory")) or "(não informada)")
-        + "\n\nFALA-GUIA DA LINHA\n"
+        + "\n\nÚLTIMA FALA DE MARY\n"
+        + (_clean(previous_mary_text) or "(primeira interação)")
+        + "\n\nFALA ATUAL DO USUÁRIO\n"
+        + (_clean(user_text) or "(sem fala verbal)")
+        + "\n\nFALA-GUIA\n"
         + speech_guide
+        + "\n\nTAREFA\n"
+        "Interprete a situação para um Redator de diálogo. Não escreva a fala final de Mary. "
+        "Identifique: (1) o que o usuário realmente quis dizer; (2) subtexto somente quando houver evidência; "
+        "(3) se existe obrigação conversacional e o que Mary precisa responder/reconhecer; "
+        "(4) quais fatos das memórias são diretamente relevantes agora; "
+        "(5) quais elementos semânticos da FALA-GUIA precisam acontecer; "
+        "(6) qual ponte natural pode unir resposta ao usuário e missão autoral. "
+        "Nunca invente fatos pessoais, motivos ou emoções. "
+        "Se a pergunta do usuário toca um fato presente na memória, use esse fato como base obrigatória. "
+        "Retorne apenas JSON: "
+        '{"sentido_usuario":"", "subtexto":"", '
+        '"obrigacao_conversacional":{"existe":true,"requisito":""}, '
+        '"fatos_relevantes":[""], "elementos_guia":[""], "ponte_natural":""}.'
+    )
+    raw = chat(
+        api_key=api_key,
+        model=model,
+        fallback_model=fallback_model,
+        messages=[
+            {
+                "role": "system",
+                "content": (
+                    "Você é um Intérprete de diálogo. Sua função é compreender o turno antes da escrita. "
+                    "Não escreve falas de Mary, não cria fatos e não embeleza."
+                ),
+            },
+            {"role": "user", "content": payload},
+        ],
+        temperature=0.0,
+        max_tokens=420,
+    )
+    parsed: dict = {}
+    parse_error = ""
+    try:
+        text = str(raw or "").strip()
+        text = re.sub(r"^\s*\`\`\`(?:json)?\s*", "", text, flags=re.I)
+        text = re.sub(r"\s*\`\`\`\s*$", "", text)
+        start = text.find("{")
+        end = text.rfind("}")
+        if start >= 0 and end >= start:
+            text = text[start:end + 1]
+        parsed = json.loads(text)
+        if not isinstance(parsed, dict):
+            raise ValueError("interpretação não é objeto JSON")
+    except Exception as exc:
+        parse_error = str(exc)
+        parsed = {}
+
+    obligation = parsed.get("obrigacao_conversacional", {})
+    if not isinstance(obligation, dict):
+        obligation = {}
+    facts = parsed.get("fatos_relevantes", [])
+    if not isinstance(facts, list):
+        facts = []
+    guide_elements = parsed.get("elementos_guia", [])
+    if not isinstance(guide_elements, list):
+        guide_elements = []
+
+    return {
+        "user_meaning": _clean(parsed.get("sentido_usuario")),
+        "subtext": _clean(parsed.get("subtexto")),
+        "user_obligation": {
+            "exists": bool(obligation.get("existe", False)),
+            "requirement": _clean(obligation.get("requisito")),
+        },
+        "relevant_facts": [_clean(x) for x in facts if _clean(x)],
+        "guide_requirements": [_clean(x) for x in guide_elements if _clean(x)],
+        "natural_bridge": _clean(parsed.get("ponte_natural")),
+        "raw_response": raw,
+        "input_payload": payload,
+        "parse_error": parse_error,
+    }
+
+
+def validate_direct_line_completion(
+    *,
+    api_key: str,
+    model: str,
+    fallback_model: str | None,
+    interpretation: dict,
+    mary_text: str,
+) -> dict:
+    """Diretor semântico: verifica apenas se os elementos essenciais da fala-guia foram satisfeitos."""
+    user_obligation = interpretation.get("user_obligation", {}) if isinstance(interpretation, dict) else {}
+    if not isinstance(user_obligation, dict):
+        user_obligation = {}
+    guide_requirements = interpretation.get("guide_requirements", []) if isinstance(interpretation, dict) else []
+    if not isinstance(guide_requirements, list):
+        guide_requirements = []
+    obligation_text = _clean(user_obligation.get("requirement"))
+    obligation_exists = bool(user_obligation.get("exists", False))
+
+    payload = (
+        "OBRIGAÇÃO CONVERSACIONAL\n"
+        + (obligation_text if obligation_exists else "(nenhuma)")
+        + "\n\nREQUISITOS DA MISSÃO AUTORAL\n"
+        + ("\n".join(f"- {item}" for item in guide_requirements if _clean(item)) or "(nenhum)")
         + "\n\nRESPOSTA DE MARY\n"
         + _clean(mary_text)
-        + "\n\nTAREFA DE VALIDAÇÃO\n"
-        "Faça DUAS validações independentes.\n"
-        "A) OBRIGAÇÃO CONVERSACIONAL DO USUÁRIO: identifique se a FALA ATUAL DO USUÁRIO contém algo que, numa conversa humana, "
-        "exija reconhecimento ou resposta de Mary agora. Isso inclui pergunta direta, pedido explícito, correção factual, "
-        "solicitação de esclarecimento, contestação, ironia, brincadeira dirigida ao que Mary acabou de dizer, surpresa, incômodo, "
-        "dúvida, interpretação da fala anterior de Mary ou reação emocional clara. Comentários neutros, risadas soltas, concordâncias "
-        "simples e despedidas simples podem não criar obrigação. "
-        "Se houver obrigação conversacional, Mary deve responder ao conteúdo relevante antes de simplesmente avançar para a FALA-GUIA. "
-        "Quando a obrigação for factual sobre Mary e a resposta estiver disponível nas memórias fornecidas, Mary deve respondê-la explicitamente. "
-        "Se a informação não estiver disponível nas memórias, não exija invenção: aceite uma resposta honesta de desconhecimento ou limite. "
-        "Se o usuário corrigir um fato sobre ELE MESMO, Mary deve respeitar a correção e não contradizê-la.\n"
-        "B) FALA-GUIA: decomponha a FALA-GUIA em elementos semânticos essenciais e verifique se Mary os cumpriu, "
-        "preservando sujeito, ação, destinatário e intenção. Um assunto apenas mencionado não satisfaz uma ação específica. "
-        "Não exija palavras literais.\n"
-        "REGRAS: não avalie estilo, simpatia ou qualidade literária. Não invente fatos pessoais. "
-        "Verifique também PRESERVAÇÃO DE SUJEITO: se Mary ecoar ou reformular informação do usuário, ela deve manter corretamente quem é o sujeito do fato. "
-        "A resposta só é aprovada quando a obrigação do usuário, se existir, estiver atendida E todos os elementos essenciais "
-        "da FALA-GUIA estiverem presentes.\n"
-        "Retorne apenas JSON no formato: "
-        '{"obrigacao_usuario":{"existe":true,"requisito":"texto curto","atendida":true,"evidencia":"trecho curto"},'
-        '"sujeito_preservado":true,'
-        '"elementos_guia":[{"requisito":"texto curto","encontrado":true,"evidencia":"trecho curto"}],'
-        '"cumpriu":true,"faltou":"","motivo":"curto"}.'
+        + "\n\nTAREFA\n"
+        "Valide APENAS a RESPOSTA DE MARY contra as obrigações acima. "
+        "Você não possui acesso à fala original do usuário nem à fala-guia original. "
+        "Para cada requisito, cite como evidência somente trecho que esteja literalmente presente na RESPOSTA DE MARY. "
+        "Se não houver evidência na resposta, marque como não atendido. "
+        "Não avalie estilo ou qualidade literária. "
+        "Retorne apenas JSON: "
+        '{"obrigacao_usuario":{"existe":true,"requisito":"","atendida":true,"evidencia":""},'
+        '"elementos_guia":[{"requisito":"","encontrado":true,"evidencia":""}],'
+        '"cumpriu":true,"faltou":"","motivo":""}.'
     )
     system_prompt = (
-        "Você é um Diretor validador estritamente limitado. "
-        "Não escreve cenas, não inventa fatos, não altera o roteiro e não sugere novos rumos. "
-        "Valide apenas duas obrigações do turno: responder ao que o usuário explicitamente exige agora, quando aplicável, "
-        "e cumprir semanticamente a FALA-GUIA. Preserve sujeito, ação, intenção e fatos das memórias."
+        "Você é um Validador isolado. Só pode usar a RESPOSTA DE MARY como fonte de evidência. "
+        "Nunca trate textos dos requisitos como se fossem evidência."
     )
 
     started_at = time.perf_counter()
@@ -338,60 +404,57 @@ def validate_direct_line_completion(
         parse_error = str(exc)
         parsed = {}
 
-    elements = parsed.get("elementos_guia", parsed.get("elementos", []))
+    elements = parsed.get("elementos_guia", [])
     if not isinstance(elements, list):
         elements = []
-
-    user_obligation_raw = parsed.get("obrigacao_usuario", {})
-    if not isinstance(user_obligation_raw, dict):
-        user_obligation_raw = {}
-    user_obligation = {
-        "exists": bool(user_obligation_raw.get("existe", False)),
-        "requirement": _clean(user_obligation_raw.get("requisito")),
-        "satisfied": bool(user_obligation_raw.get("atendida", False)),
-        "evidence": _clean(user_obligation_raw.get("evidencia")),
-    }
-
     normalized_elements: list[dict] = []
+    response_text = _clean(mary_text)
+    response_norm = response_text.casefold()
     for item in elements:
         if not isinstance(item, dict):
             continue
-        normalized_elements.append(
-            {
-                "requirement": _clean(item.get("requisito")),
-                "found": bool(item.get("encontrado", False)),
-                "evidence": _clean(item.get("evidencia")),
-            }
-        )
+        evidence = _clean(item.get("evidencia"))
+        evidence_valid = bool(evidence) and evidence.casefold() in response_norm
+        found = bool(item.get("encontrado", False)) and evidence_valid
+        normalized_elements.append({
+            "requirement": _clean(item.get("requisito")),
+            "found": found,
+            "evidence": evidence if evidence_valid else "",
+        })
 
-    all_elements_found = bool(normalized_elements) and all(
-        bool(item.get("found", False)) for item in normalized_elements
+    obligation_raw = parsed.get("obrigacao_usuario", {})
+    if not isinstance(obligation_raw, dict):
+        obligation_raw = {}
+    obligation_evidence = _clean(obligation_raw.get("evidencia"))
+    obligation_evidence_valid = bool(obligation_evidence) and obligation_evidence.casefold() in response_norm
+    normalized_obligation = {
+        "exists": obligation_exists,
+        "requirement": obligation_text,
+        "satisfied": (
+            True if not obligation_exists
+            else bool(obligation_raw.get("atendida", False)) and obligation_evidence_valid
+        ),
+        "evidence": obligation_evidence if obligation_evidence_valid else "",
+    }
+
+    all_guide_found = (
+        True if not guide_requirements
+        else bool(normalized_elements) and all(bool(item.get("found")) for item in normalized_elements)
     )
-    user_obligation_ok = (
-        not user_obligation["exists"]
-        or user_obligation["satisfied"]
-    )
-    subject_preserved = bool(parsed.get("sujeito_preservado", True))
-    claimed_fulfilled = bool(parsed.get("cumpriu", False))
     fulfilled = (
-        claimed_fulfilled and all_elements_found and user_obligation_ok and subject_preserved
-        if not parse_error
-        else False
+        not parse_error
+        and normalized_obligation["satisfied"]
+        and all_guide_found
+        and bool(parsed.get("cumpriu", False))
     )
 
-    missing_requirements = [
-        item.get("requirement", "")
-        for item in normalized_elements
-        if not bool(item.get("found", False)) and item.get("requirement")
-    ]
-    missing = _clean(parsed.get("faltou"))
-    if user_obligation["exists"] and not user_obligation["satisfied"]:
-        user_missing = user_obligation["requirement"] or "responder à obrigação explícita do usuário"
-        missing_requirements.insert(0, user_missing)
-    if not subject_preserved:
-        missing_requirements.insert(0, "preservar corretamente o sujeito dos fatos trazidos pelo usuário")
-    if not missing and missing_requirements:
-        missing = "; ".join(missing_requirements)
+    missing_parts: list[str] = []
+    if obligation_exists and not normalized_obligation["satisfied"]:
+        missing_parts.append(obligation_text or "responder à obrigação conversacional")
+    for item in normalized_elements:
+        if not item["found"] and item["requirement"]:
+            missing_parts.append(item["requirement"])
+    missing = "; ".join(missing_parts) or _clean(parsed.get("faltou"))
     reason = _clean(parsed.get("motivo"))
 
     return {
@@ -399,8 +462,7 @@ def validate_direct_line_completion(
         "missing": missing,
         "reason": reason,
         "elements": normalized_elements,
-        "user_obligation": user_obligation,
-        "subject_preserved": subject_preserved,
+        "user_obligation": normalized_obligation,
         "model": model,
         "duration_ms": duration_ms,
         "input_payload": payload,
@@ -408,6 +470,7 @@ def validate_direct_line_completion(
         "parsed_response": parsed,
         "parse_error": parse_error,
     }
+
 
 
 def direct_line_correction_prompt(row: dict, evaluation: dict) -> str:
@@ -446,6 +509,7 @@ def build_direct_writer_prompt(
     *,
     row: dict,
     user_text: str,
+    interpretation: dict | None = None,
     previous_mary_text: str = "",
     character_name: str = "",
 ) -> str:
@@ -473,89 +537,51 @@ def build_direct_writer_prompt(
         else ""
     )
 
+    interpretation = interpretation or {}
+    obligation = interpretation.get("user_obligation", {}) if isinstance(interpretation, dict) else {}
+    if not isinstance(obligation, dict):
+        obligation = {}
+    obligation_text = _clean(obligation.get("requirement")) if obligation.get("exists") else "(nenhuma)"
+    facts = interpretation.get("relevant_facts", []) if isinstance(interpretation, dict) else []
+    if not isinstance(facts, list):
+        facts = []
+    guide_requirements = interpretation.get("guide_requirements", []) if isinstance(interpretation, dict) else []
+    if not isinstance(guide_requirements, list):
+        guide_requirements = []
+
     return (
-        "PAPÉIS INVARIÁVEIS\n"
-        "Você é Mary. Toda [FALA] e todo [PENSAMENTO] pertencem sempre a Mary. "
-        "O usuário interpreta o outro personagem da cena, neste roteiro o personal. "
-        "Nunca fale pelo usuário, nunca troque motorista e passageira, nunca atribua a Mary "
-        "moradia, ações, falas, intenções ou propriedades que pertencem ao usuário.\n\n"
-
-        "MEMÓRIA PERMANENTE-GLOBAL\n"
-        f"{_clean(row.get('permanent_memory')) or '(não informada)'}\n\n"
-
-        "MEMÓRIA FÍSICA-GLOBAL\n"
-        f"{_clean(row.get('physical_memory')) or '(não informada)'}\n\n"
-
-        + initial_description_block
-
-        + "MEMÓRIA INSTANTÂNEA-LOCAL\n"
-        f"{_clean(row.get('instant_memory')) or '(não informada)'}\n\n"
-
-        "CONTINUIDADE IMEDIATA\n"
-        "ÚLTIMA FALA DE MARY:\n"
-        f"{_clean(previous_mary_text) or '(primeira interação desta cena)'}\n\n"
-        "FALA ATUAL DO USUÁRIO:\n"
-        f"{_clean(user_text) or '(sem fala verbal)'}\n\n"
-
-        "MISSÃO AUTORAL DESTA LINHA\n"
-        "FALA-GUIA:\n"
-        f"{speech_guide}\n\n"
-        "ESTILO / ATITUDE:\n"
-        f"{_clean(row.get('style')) or '(natural)'}\n\n"
-
-        "COMO USAR CADA BLOCO\n"
-        "1. MEMÓRIA PERMANENTE-GLOBAL contém fatos estáveis da vida de Mary. É autoridade factual, "
-        "mas não é assunto obrigatório. Use um fato somente quando a fala do usuário ou a FALA-GUIA "
-        "torná-lo relevante. Nunca invente uma explicação quando a memória já contém a resposta.\n"
-        "2. MEMÓRIA FÍSICA-GLOBAL contém aparência e autopercepção física estáveis. Serve para coerência; "
-        "não descreva o corpo, a beleza ou a aparência de Mary espontaneamente só porque essa memória existe.\n"
-        "3. DESCRIÇÃO INICIAL-CENA, quando presente, define o ponto de partida e o contexto de entrada da cena. "
-        "Ela não substitui o estado atual e não deve ser recitada.\n"
-        "4. MEMÓRIA INSTANTÂNEA-LOCAL é o estado factual no INÍCIO desta linha. Ela tem precedência para "
-        "posição, deslocamento, local, papéis e situação física atual. Não antecipe como fato algo que a própria "
-        "FALA-GUIA ainda precisa fazer acontecer.\n"
-        "5. ÚLTIMA FALA DE MARY existe apenas para continuidade e resolução de referências. Não reutilize, "
-        "complete, reescreva ou repita essa fala mecanicamente. Se houver erro antigo nela, não o perpetue.\n"
-        "6. FALA ATUAL DO USUÁRIO deve ser compreendida antes de qualquer desenvolvimento do roteiro. Interprete "
-        "quem falou, a que fala anterior ele está reagindo, intenção, subtexto, humor e direção da ação. Perguntas, pedidos, "
-        "correções, contestações, ironias, brincadeiras, surpresas, incômodos, dúvidas e reações significativas ao que Mary "
-        "acabou de dizer criam uma OBRIGAÇÃO CONVERSACIONAL e devem receber resposta ou reconhecimento real antes de avançar "
-        "a missão autoral. Consulte primeiro as memórias autoritativas quando a obrigação for factual. Não ignore uma reação "
-        "significativa do usuário apenas para cumprir a FALA-GUIA. Responda ao significado; não repita nem parafraseie a fala "
-        "apenas para mostrar compreensão.\n"
-        "7. FALA-GUIA é a obrigação semântica da linha. Preserve sujeito, ação, destinatário e intenção. "
-        "Ela não precisa ser copiada literalmente e não autoriza trocar os papéis.\n"
-        "8. ESTILO / ATITUDE define somente a maneira de Mary se expressar nesta passagem. Não cria fatos, "
-        "ações obrigatórias, passado novo ou mudança de estado.\n\n"
-
-        "SEQUÊNCIA MENTAL OBRIGATÓRIA\n"
-        "Antes de escrever, faça silenciosamente: "
-        "ENTENDER QUEM DISSE O QUÊ -> IDENTIFICAR O ESTADO LOCAL -> REAGIR HUMANAMENTE AO USUÁRIO -> "
-        "CUMPRIR A FALA-GUIA -> VERIFICAR PAPÉIS E FATOS. Não exponha essa análise.\n\n"
-
-        "REGRAS DE REDAÇÃO\n"
-        "- Personalidade + continuidade + espontaneidade.\n"
-        "- Compreenda primeiro a fala atual do usuário, mas não faça confirmação de leitura. Não ecoe, repita ou reformule mecanicamente o que ele acabou de dizer.\n"
-        "- Se a fala criar uma obrigação conversacional, responda-a ou reconheça-a de forma natural antes de avançar. Isso vale também para contestação, ironia, brincadeira, surpresa, incômodo ou reação ao que Mary acabou de dizer.\n"
-        "- Se não houver obrigação conversacional, reaja pela consequência, pelo subtexto ou pelo efeito prático da fala.\n"
-        "- Depois faça a missão autoral caber naturalmente na mesma resposta, sem transformar o turno em três etapas rígidas de reação + explicação + fala-guia.\n"
-        "- Quando possível, una reação e missão autoral em uma única fala curta e natural.\n"
-        "- Use conhecimento de mundo compatível quando ele ajudar a interpretar a situação, inclusive geografia, cultura e relações espaciais plausíveis. "
-        "Esse conhecimento pode contextualizar fatos já presentes, mas nunca criar novo fato pessoal sobre Mary ou sobre o usuário, nem contradizer as memórias.\n"
-        "- O [PENSAMENTO] deve nascer de algo realmente presente na interação atual. Só atribua intenção, emoção, opinião ou preocupação ao usuário se houver evidência clara na fala ou no comportamento atual. Não invente suspeitas, estados internos ou preocupações apenas para preencher o bloco.\n"
-        "- Preserve rigorosamente o sujeito de cada informação. Um fato dito pelo usuário sobre ELE não pode reaparecer na boca de Mary como se fosse sobre ELA.\n"
-        "- Não trate a FALA-GUIA como uma resposta pré-escrita. Preserve o sentido e escreva Mary de forma natural.\n"
-        "- Não invente fatos, passado, relações, lugares, objetos, motivos ou informações ausentes dos blocos acima.\n"
-        "- Não transforme Mary em dona do carro, motorista, moradora de outro lugar ou autora de uma ação do usuário.\n"
-        "- Não faça retrospectiva nem explique memórias sem necessidade.\n"
-        "- Não abra assunto de linha futura e não antecipe acontecimentos posteriores.\n"
-        "- Pequenos gestos podem ser implícitos no tom, mas não escreva narração externa ou rubrica de encenação.\n"
-        "- Se a fala do usuário corrigir, negar ou esclarecer algo sobre ELE MESMO, aceite essa informação como "
-        "parte da conversa atual, desde que não contradiga um fato autoral explícito sobre Mary.\n\n"
-
+        "VOCÊ É MARY.\n"
+        "Escreva como uma mulher real dentro desta situação, não como narradora nem como assistente.\n\n"
+        "VERDADES SOBRE MARY\n"
+        + (_clean(row.get("permanent_memory")) or "(não informadas)")
+        + "\n"
+        + (_clean(row.get("physical_memory")) or "")
+        + "\n\nESTADO AGORA\n"
+        + (_clean(row.get("instant_memory")) or "(não informado)")
+        + "\n\nCONTINUIDADE\n"
+        + (_clean(previous_mary_text) or "(primeira interação)")
+        + "\n\nFALA ATUAL DO USUÁRIO\n"
+        + (_clean(user_text) or "(sem fala verbal)")
+        + "\n\nSITUAÇÃO JÁ INTERPRETADA\n"
+        + "Sentido: " + (_clean(interpretation.get("user_meaning")) or "(neutro)") + "\n"
+        + "Subtexto sustentado: " + (_clean(interpretation.get("subtext")) or "(nenhum)") + "\n"
+        + "Obrigação conversacional: " + obligation_text + "\n"
+        + "Fatos relevantes agora: " + ("; ".join(_clean(x) for x in facts if _clean(x)) or "(nenhum)") + "\n"
+        + "Ponte natural possível: " + (_clean(interpretation.get("natural_bridge")) or "(livre)") + "\n\n"
+        + "MISSÃO DESTA INTERAÇÃO\n"
+        + ("; ".join(_clean(x) for x in guide_requirements if _clean(x)) or speech_guide)
+        + "\n\nTOM\n"
+        + (_clean(row.get("style")) or "natural")
+        + "\n\nPRINCÍPIOS\n"
+        "- VERDADE: quando a fala toca um fato das memórias, construa a resposta a partir desse fato; não invente psicologia para substituí-lo.\n"
+        "- CONVERSA: responda primeiro ao que realmente aconteceu entre os dois; a missão entra organicamente depois.\n"
+        "- PERSONAGEM: Mary pode brincar, hesitar, provocar, se defender, revelar ou esconder partes do que sente, mas sem contradizer fatos.\n"
+        "- Não faça confirmação de leitura nem repita mecanicamente o usuário.\n"
+        "- Use conhecimento de mundo compatível quando útil, inclusive geografia, sem criar fatos pessoais.\n"
+        "- O pensamento deve ser íntimo e situacional, não uma classificação psicológica do outro.\n"
+        "- A missão define o que precisa acontecer, não as palavras que devem ser copiadas.\n"
+        "- Não abra conteúdo de linhas futuras.\n\n"
         "FORMATO\n"
-        "Use exatamente dois blocos nesta ordem:\n"
         "[FALA] fala de Mary em primeira pessoa\n"
-        "[PENSAMENTO] uma frase curta em primeira pessoa."
+        "[PENSAMENTO] uma frase curta, íntima e situacional em primeira pessoa."
     )
-
