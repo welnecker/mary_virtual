@@ -27,6 +27,7 @@ from direct_script import (
     ensure_direct_state,
     load_direct_script_rows,
     mark_direct_line_emitted,
+    record_direct_line_turn,
     register_direct_user_reply,
     validate_direct_line_completion,
 )
@@ -101,7 +102,7 @@ st.set_page_config(page_title="Mary Core 2", page_icon="🖤", layout="centered"
 
 _LOG = logging.getLogger(__name__)
 
-BUILD_ID = "2026-10-07-direct-sheet-v6.10"
+BUILD_ID = "2026-10-07-direct-sheet-v6.11"
 
 DEFAULT_MODELS = [
     "google/gemini-2.5-flash-lite",
@@ -2417,6 +2418,8 @@ if user_text:
                     row=direct_row,
                     interpretation=direct_interpretation,
                     mary_text=answer,
+                    user_text=dialogue_text,
+                    line_dialogue=list(direct_state.get("line_dialogue", []) or []),
                 )
                 if persistence:
                     try:
@@ -2470,6 +2473,14 @@ if user_text:
                     # Preserve a fala atual de Mary e mantenha a mesma missão ativa.
                     # O próximo turno continua na mesma linha até a validação semântica fechar.
                     director_audit.setdefault("scene_after", {})["pending_same_line"] = True
+
+                # Guarda a conversa específica desta linha para que o Diretor possa
+                # reconhecer objetivos já satisfeitos pelo próprio usuário em turnos seguintes.
+                record_direct_line_turn(
+                    direct_state,
+                    user_text=dialogue_text,
+                    mary_text=answer,
+                )
 
             if (
                 script_mode == "funnel_sheet"
