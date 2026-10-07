@@ -97,7 +97,7 @@ st.set_page_config(page_title="Mary Core 2", page_icon="🖤", layout="centered"
 
 _LOG = logging.getLogger(__name__)
 
-BUILD_ID = "2026-10-07-direct-sheet-v3"
+BUILD_ID = "2026-10-07-direct-sheet-v4"
 
 DEFAULT_MODELS = [
     "google/gemini-2.5-flash-lite",
