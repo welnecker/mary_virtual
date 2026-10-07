@@ -138,7 +138,7 @@ def test_last_line_completes_after_following_user_reply():
 
 def test_director_validator_only_checks_guide_completion(monkeypatch):
     def fake_chat(**kwargs):
-        return '{"cumpriu": false, "faltou": "perguntar onde mora", "motivo": "a pergunta da fala-guia não apareceu"}'
+        return '{"elementos":[{"requisito":"perguntar onde o usuário mora","encontrado":false,"evidencia":""},{"requisito":"perguntar se Camburi fica fora do caminho do usuário","encontrado":false,"evidencia":""}],"cumpriu":false,"faltou":"perguntar onde mora","motivo":"a pergunta da fala-guia não apareceu"}'
 
     monkeypatch.setattr("mary2.direct_script.chat", fake_chat)
 
@@ -160,7 +160,7 @@ def test_director_validator_only_checks_guide_completion(monkeypatch):
 
 def test_director_validator_accepts_rephrased_guide(monkeypatch):
     def fake_chat(**kwargs):
-        return '{"cumpriu": true, "faltou": "", "motivo": "a missão essencial foi realizada"}'
+        return '{"elementos":[{"requisito":"perguntar onde o usuário mora","encontrado":true,"evidencia":"você mora onde?"},{"requisito":"perguntar se Camburi fica fora do caminho do usuário","encontrado":true,"evidencia":"Camburi desvia muito do seu caminho?"}],"cumpriu":true,"faltou":"","motivo":"a missão essencial foi realizada"}'
 
     monkeypatch.setattr("mary2.direct_script.chat", fake_chat)
 
@@ -189,7 +189,61 @@ def test_direct_line_correction_prompt_keeps_same_mission():
         },
     )
 
-    assert "CORREÇÃO DA MESMA LINHA" in prompt
+    assert "CORREÇÃO CIRÚRGICA DA MESMA LINHA" in prompt
     assert "perguntar onde mora e se Camburi fica fora do caminho" in prompt
     assert "A FALA-GUIA continua sendo" in prompt
-    assert "Não repita nem parafraseie mecanicamente a fala do usuário" in prompt
+    assert "Preserve personalidade, continuidade e espontaneidade" in prompt
+    assert "Faça a menor alteração necessária" in prompt
+    assert "Não invente fatos, dados, ações ou informações" in prompt
+
+
+
+def test_director_prompt_preserves_subject_action_and_intention(monkeypatch):
+    captured = {}
+
+    def fake_chat(**kwargs):
+        captured["messages"] = kwargs["messages"]
+        return '{"elementos":[{"requisito":"Mary pedir ao usuário que a leve ao Clube Náutico","encontrado":false,"evidencia":""},{"requisito":"Mary indicar que será uma companhia divertida","encontrado":false,"evidencia":""}],"cumpriu":false,"faltou":"pedido para levá-la e promessa de companhia divertida","motivo":"o clube foi mencionado, mas os atos de fala não ocorreram"}'
+
+    monkeypatch.setattr("mary2.direct_script.chat", fake_chat)
+
+    result = validate_direct_line_completion(
+        api_key="test",
+        model="director-test",
+        fallback_model=None,
+        row={
+            "speech_guide": "O que me diz de me levar pra balada no Clube Náutico? Eu prometo que vou ser bem divertida..."
+        },
+        mary_text="Quem sabe a gente não encontra algo por lá hoje? Seria divertido.",
+    )
+
+    payload = captured["messages"][1]["content"]
+    assert "Um assunto apenas mencionado NÃO satisfaz uma ação específica" in payload
+    assert "Preserve sujeito e papéis" in payload
+    assert result["fulfilled"] is False
+    assert len(result["elements"]) == 2
+
+
+def test_director_prompt_does_not_demand_missing_concrete_data(monkeypatch):
+    captured = {}
+
+    def fake_chat(**kwargs):
+        captured["messages"] = kwargs["messages"]
+        return '{"elementos":[{"requisito":"Mary mencionar que a bateria morreu","encontrado":true,"evidencia":"minha bateria morreu"},{"requisito":"Mary pedir ao outro personagem que registre o contato","encontrado":true,"evidencia":"anota meu número"}],"cumpriu":true,"faltou":"","motivo":"os atos de fala essenciais foram realizados"}'
+
+    monkeypatch.setattr("mary2.direct_script.chat", fake_chat)
+
+    result = validate_direct_line_completion(
+        api_key="test",
+        model="director-test",
+        fallback_model=None,
+        row={
+            "speech_guide": "droga...lembrei que minha bateria morreu. Anota meu número pra gente não perder contato."
+        },
+        mary_text="Droga, minha bateria morreu. Anota meu número pra gente não perder contato.",
+    )
+
+    payload = captured["messages"][1]["content"]
+    assert "não exija que Mary anote algo fisicamente" in payload
+    assert "Nunca exija dado concreto" in payload
+    assert result["fulfilled"] is True
