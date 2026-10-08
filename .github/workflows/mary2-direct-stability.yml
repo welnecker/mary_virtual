@@ -1,0 +1,34 @@
+name: Mary2 Direct Stability
+
+on:
+  push:
+    branches:
+      - agent/carona-funnel-engine
+    paths:
+      - "mary2/**"
+      - "tests/test_mary2_user_understanding_audit.py"
+      - "tests/test_mary2_direct_semantic_director.py"
+      - ".github/workflows/mary2-direct-stability.yml"
+  workflow_dispatch:
+
+jobs:
+  direct-stability:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install focused dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install pytest
+          pip install -r mary2/requirements.txt
+
+      - name: Run direct stability tests
+        run: |
+          pytest -q             tests/test_mary2_user_understanding_audit.py             tests/test_mary2_direct_semantic_director.py
