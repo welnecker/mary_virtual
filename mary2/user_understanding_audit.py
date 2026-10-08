@@ -47,7 +47,7 @@ def analyze_user_understanding(
 ) -> dict:
     """Compreende a fala do usuário sem receber fala-guia ou roteiro futuro."""
     recent_lines: list[str] = []
-    for message in (recent_messages or [])[-6:]:
+    for message in (recent_messages or [])[-14:]:
         if not isinstance(message, dict):
             continue
         role = str(message.get("role", "") or "").strip().lower()
@@ -99,14 +99,13 @@ def analyze_user_understanding(
         "Só atribua atividade ao local quando o usuário, a memória ou a cena a estabelecerem explicitamente. "
         "ANCORAGEM RELACIONAL: quando o papel já conhecido do interlocutor estiver diretamente ligado à fala atual ou ao acontecimento recente, "
         "a reação adequada de Mary deve usar essa relação concreta. Evite sugerir resposta social genérica e não trate o interlocutor como se estivesse sendo conhecido agora. "
-        "Informe: significado literal/contextual; referência; intenção conversacional; reação emocional observável; "
-        "subtexto somente quando sustentado; ambiguidade; confiança de 0 a 1; ponto incerto; "
-        "tipo de reação adequada de Mary; se há conflito factual entre fala anterior e memória autoritativa; qual é a correção factual; "
-        "se a fala cria uma obrigação conversacional direta para Mary; "
-        "qual é essa obrigação; e quais fatos fornecidos são diretamente relevantes. "
-        "Retorne somente JSON com as chaves: "
-        "literal_meaning, reference, intent, emotional_reaction, subtext, ambiguity, confidence, "
-        "unclear_point, expected_mary_reaction, factual_conflict, factual_correction, requires_response, response_requirement, relevant_facts."
+        "Justificativas improvisadas de Mary após um erro — por exemplo dizer que está distraída, confusa ou com a cabeça longe — "
+        "não são traços psicológicos autoritativos e não devem ser consolidadas como verdade sobre Mary sem apoio nas memórias. "
+        "Retorne somente JSON curto com estas seis chaves: "
+        "{\"meaning\":\"\",\"reference\":\"\",\"obligation\":\"\",\"relevant_facts\":[],\"conflict\":\"\",\"reaction\":\"\"}. "
+        "obligation deve ser uma frase curta apenas quando a fala atual exige resposta, esclarecimento ou reconhecimento direto; caso contrário, vazio. "
+        "conflict deve conter somente a correção factual necessária quando houver conflito com fonte autoritativa; caso contrário, vazio. "
+        "reaction descreve de forma curta o tipo de reação adequada de Mary, sem escrever a fala final."
     )
 
     raw = chat(
@@ -128,7 +127,7 @@ def analyze_user_understanding(
             {"role": "user", "content": payload},
         ],
         temperature=0.0,
-        max_tokens=420,
+        max_tokens=520,
     )
 
     def _parse_understanding(value: str) -> tuple[dict, str]:
@@ -157,14 +156,15 @@ def analyze_user_understanding(
                 {
                     "role": "system",
                     "content": (
-                        "Repita a mesma compreensão e retorne SOMENTE JSON válido, curto e completo. "
-                        "Não escreva por Mary. Não invente fatos, intenções ou atividades."
+                        "Retorne SOMENTE JSON válido e completo no formato mínimo: "
+                        "{\"meaning\":\"\",\"reference\":\"\",\"obligation\":\"\",\"relevant_facts\":[],\"conflict\":\"\",\"reaction\":\"\"}. "
+                        "Preserve apenas fatos sustentados pelo contexto. Não escreva por Mary e não invente fatos, intenções ou atividades."
                     ),
                 },
                 {"role": "user", "content": payload},
             ],
             temperature=0.0,
-            max_tokens=420,
+            max_tokens=520,
         )
         repaired, repair_error = _parse_understanding(repair_raw)
         if not repair_error:
@@ -174,62 +174,80 @@ def analyze_user_understanding(
         else:
             parse_error = parse_error + " | retry: " + repair_error
 
+    fallback_used = False
+    if parse_error:
+        # Falha dupla de JSON nunca pode apagar a compreensão do turno.
+        # O fallback é deliberadamente conservador: preserva a fala literal
+        # e só cria obrigação quando há pergunta explícita ou pedido de clareza.
+        fallback_used = True
+        user_value = str(user_text or "").strip()
+        normalized_user = user_value.casefold()
+        repair_markers = (
+            "não entendi",
+            "nao entendi",
+            "explique",
+            "esclareça",
+            "esclareca",
+            "você está confusa",
+            "voce esta confusa",
+            "você está confundindo",
+            "voce esta confundindo",
+        )
+        obligation = (
+            "Responder diretamente e esclarecer a fala atual do usuário."
+            if "?" in user_value or any(marker in normalized_user for marker in repair_markers)
+            else ""
+        )
+        parsed = {
+            "meaning": user_value,
+            "reference": "",
+            "obligation": obligation,
+            "relevant_facts": [],
+            "conflict": "",
+            "reaction": (
+                "Responder de forma simples, factual e sem inventar continuidade."
+                if user_value
+                else ""
+            ),
+        }
+
     relevant_facts = parsed.get("relevant_facts", [])
     if not isinstance(relevant_facts, list):
         relevant_facts = []
 
-    raw_ambiguity = parsed.get("ambiguity", False)
-    if isinstance(raw_ambiguity, bool):
-        ambiguity = raw_ambiguity
-    else:
-        ambiguity_text = str(raw_ambiguity or "").strip().casefold()
-        ambiguity = ambiguity_text in {
-            "true", "sim", "yes", "1", "ambíguo", "ambiguo", "há ambiguidade", "ha ambiguidade"
-        }
-
-    raw_requires_response = parsed.get("requires_response", False)
-    if isinstance(raw_requires_response, bool):
-        requires_response = raw_requires_response
-    else:
-        requires_response = str(raw_requires_response or "").strip().casefold() in {
-            "true", "sim", "yes", "1"
-        }
-    response_requirement = str(parsed.get("response_requirement", "") or "").strip()
-
-    raw_factual_conflict = parsed.get("factual_conflict", False)
-    if isinstance(raw_factual_conflict, bool):
-        factual_conflict = raw_factual_conflict
-    else:
-        factual_conflict = str(raw_factual_conflict or "").strip().casefold() in {
-            "true", "sim", "yes", "1"
-        }
+    meaning = str(parsed.get("meaning", "") or "").strip()
+    reference = str(parsed.get("reference", "") or "").strip()
+    obligation = str(parsed.get("obligation", "") or "").strip()
+    conflict = str(parsed.get("conflict", "") or "").strip()
+    reaction = str(parsed.get("reaction", "") or "").strip()
 
     result = {
-        "literal_meaning": str(parsed.get("literal_meaning", "") or "").strip(),
-        "reference": str(parsed.get("reference", "") or "").strip(),
-        "intent": str(parsed.get("intent", "") or "").strip(),
-        "emotional_reaction": str(parsed.get("emotional_reaction", "") or "").strip(),
-        "subtext": str(parsed.get("subtext", "") or "").strip(),
-        "ambiguity": ambiguity,
-        "confidence": parsed.get("confidence", ""),
-        "unclear_point": str(parsed.get("unclear_point", "") or "").strip(),
-        "expected_mary_reaction": str(parsed.get("expected_mary_reaction", "") or "").strip(),
-        "factual_conflict": factual_conflict,
-        "factual_correction": str(parsed.get("factual_correction", "") or "").strip(),
+        "literal_meaning": meaning,
+        "reference": reference,
+        "intent": "",
+        "emotional_reaction": "",
+        "subtext": "",
+        "ambiguity": False,
+        "confidence": "",
+        "unclear_point": "",
+        "expected_mary_reaction": reaction,
+        "factual_conflict": bool(conflict),
+        "factual_correction": conflict,
         "relevant_facts": [
             str(value or "").strip() for value in relevant_facts if str(value or "").strip()
         ],
         "user_obligation": {
-            "exists": requires_response,
-            "requirement": response_requirement,
+            "exists": bool(obligation),
+            "requirement": obligation,
         },
         # Compatibilidade com o Redator e o Diretor atuais.
-        "user_meaning": str(parsed.get("literal_meaning", "") or "").strip(),
+        "user_meaning": meaning,
         "natural_bridge": "",
         "guide_requirements": [],
         "raw_response": raw,
         "input_payload": payload,
         "parse_error": parse_error,
+        "fallback_used": fallback_used,
     }
     return result
 
