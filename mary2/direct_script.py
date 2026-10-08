@@ -574,6 +574,8 @@ def build_direct_writer_prompt(
     user_text: str,
     interpretation: dict | None = None,
     previous_mary_text: str = "",
+    previous_conversation_state: dict | None = None,
+    active_interlocutor: str = "",
     character_name: str = "",
 ) -> str:
     """Monta o prompt do Redator em blocos semânticos separados."""
@@ -613,6 +615,12 @@ def build_direct_writer_prompt(
         recent_user_facts = []
 
     understanding_lines = [
+        "Relação com o movimento anterior: " + (
+            _clean(interpretation.get("relation_to_previous")) or "(não determinada)"
+        ),
+        "Movimento atual do usuário: " + (
+            _clean(interpretation.get("move")) or "(não determinado)"
+        ),
         "Significado: " + (
             _clean(interpretation.get("literal_meaning"))
             or _clean(interpretation.get("user_meaning"))
@@ -664,17 +672,31 @@ def build_direct_writer_prompt(
         + "\n\n"
         + initial_description_block
         + "==================================================\n"
+        "INTERLOCUTOR ATIVO\n"
+        "==================================================\n"
+        + (_clean(active_interlocutor) or "(não especificado)")
+        + "\n\n"
+        "==================================================\n"
+        "ESTADO CONVERSACIONAL ANTERIOR\n"
+        "==================================================\n"
+        + (
+            json.dumps(previous_conversation_state, ensure_ascii=False)
+            if isinstance(previous_conversation_state, dict) and previous_conversation_state
+            else "(nenhum movimento anterior interpretado)"
+        )
+        + "\n\n"
+        "==================================================\n"
         "MEMÓRIA INSTANTÂNEA-LOCAL\n"
         "==================================================\n"
         + (_clean(row.get("instant_memory")) or "(não informada)")
         + "\n\n"
         "==================================================\n"
-        "CONTINUIDADE REAL\n"
+        "EVIDÊNCIA LITERAL DO TURNO ANTERIOR\n"
         "==================================================\n"
         "Última fala de Mary:\n"
         + (_clean(previous_mary_text) or "(primeira interação da cena)")
         + "\n\n"
-        "A última fala de Mary serve para resolver referências e continuidade. "
+        "A última fala de Mary é evidência literal secundária. O ESTADO CONVERSACIONAL ANTERIOR carrega a interpretação do movimento criado por Mary. "
         "Não repita a mesma informação, piada, justificativa ou observação apenas porque ela aparece aqui, "
         "a menos que o usuário retome explicitamente esse assunto.\n\n"
         "==================================================\n"
@@ -688,7 +710,7 @@ def build_direct_writer_prompt(
         + "\n".join(understanding_lines)
         + "\n\n"
         "Esta compreensão foi produzida sem acesso à FALA-GUIA. "
-        "Ela descreve somente o que o usuário realmente disse dentro do contexto já ocorrido.\n\n"
+        "Ela descreve o que o usuário realmente fez conversacionalmente à luz do movimento anterior já interpretado.\n\n"
         "==================================================\n"
         "FALA-GUIA DA LINHA ATUAL\n"
         "==================================================\n"
