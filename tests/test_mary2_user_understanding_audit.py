@@ -1,15 +1,28 @@
 from mary2 import user_understanding_audit as understanding
 
 
+def _response(**overrides):
+    base = {
+        "relation_to_previous": "",
+        "move": "",
+        "meaning": "entendi",
+        "reference": "",
+        "obligation": "",
+        "state_changes": [],
+        "conflict": "",
+        "reaction": "responder naturalmente",
+    }
+    base.update(overrides)
+    import json
+    return json.dumps(base, ensure_ascii=False)
+
+
 def test_understanding_uses_fourteen_recent_messages(monkeypatch):
     captured = {}
 
     def fake_chat(**kwargs):
         captured.update(kwargs)
-        return (
-            '{"meaning":"entendi","reference":"","obligation":"","relevant_facts":[],'
-            '"conflict":"","reaction":"responder naturalmente"}'
-        )
+        return _response()
 
     monkeypatch.setattr(understanding, "chat", fake_chat)
     recent = [
@@ -61,42 +74,14 @@ def test_double_invalid_json_never_returns_empty_understanding(monkeypatch):
     assert result["expected_mary_reaction"]
 
 
-def test_understanding_contract_is_compact_and_rejects_error_excuses_as_character(monkeypatch):
+def test_understanding_consumes_interpreted_previous_move(monkeypatch):
     captured = {}
 
     def fake_chat(**kwargs):
         captured.update(kwargs)
-        return (
-            '{"meaning":"corrige um erro anterior","reference":"fala anterior de Mary",'
-            '"obligation":"esclarecer o erro","relevant_facts":[],'
-            '"conflict":"","reaction":"corrigir de forma factual"}'
-        )
-
-    monkeypatch.setattr(understanding, "chat", fake_chat)
-
-    understanding.analyze_user_understanding(
-        api_key="test",
-        model="director-test",
-        fallback_model=None,
-        user_text="Você está confusa.",
-        previous_mary_text="Minha cabeça voou.",
-    )
-
-    payload = captured["messages"][1]["content"]
-    assert '"meaning"' in payload
-    assert '"obligation"' in payload
-    assert '"reaction"' in payload
-    assert "literal_meaning, reference, intent" not in payload
-    assert "não são traços psicológicos autoritativos" in payload
-    assert captured["max_tokens"] == 520
-
-
-def test_relevant_facts_must_be_literal_user_excerpts(monkeypatch):
-    def fake_chat(**kwargs):
-        return (
-            '{"meaning":"informa residência","reference":"","obligation":"",'
-            '"relevant_facts":["moro em Camburi","ele também mora em Camburi"],'
-            '"conflict":"","reaction":"reconhecer o fato"}'
+        return _response(
+            relation_to_previous="devolve a provocação anterior",
+            move="provocação de volta seguida de continuação da ação",
         )
 
     monkeypatch.setattr(understanding, "chat", fake_chat)
@@ -105,10 +90,62 @@ def test_relevant_facts_must_be_literal_user_excerpts(monkeypatch):
         api_key="test",
         model="director-test",
         fallback_model=None,
-        user_text="Eu moro em Camburi também.",
-        recent_user_facts=["meu carro é preto"],
+        user_text="Tudo bem, então vamos.",
+        previous_conversation_state={
+            "speaker": "MARY",
+            "move": "provocacao_bem_humorada",
+            "topic": "um favor",
+            "meaning": "Mary brincou sobre o favor.",
+            "open_thread": "o interlocutor pode devolver a brincadeira",
+        },
     )
 
-    assert result["relevant_facts"] == ["moro em Camburi"]
-    assert result["recent_user_facts"] == ["meu carro é preto", "moro em Camburi"]
-    assert "ele também mora em Camburi" not in result["recent_user_facts"]
+    payload = captured["messages"][1]["content"]
+    assert "ESTADO CONVERSACIONAL ANTERIOR" in payload
+    assert "provocacao_bem_humorada" in payload
+    assert "use-o para determinar COMO a fala atual do usuário se relaciona" in payload
+    assert result["relation_to_previous"] == "devolve a provocação anterior"
+    assert result["move"] == "provocação de volta seguida de continuação da ação"
+
+
+def test_questions_and_banter_are_not_promoted_to_persistent_facts(monkeypatch):
+    def fake_chat(**kwargs):
+        return _response(
+            meaning="o usuário brinca e faz uma pergunta",
+            state_changes=[],
+        )
+
+    monkeypatch.setattr(understanding, "chat", fake_chat)
+
+    result = understanding.analyze_user_understanding(
+        api_key="test",
+        model="director-test",
+        fallback_model=None,
+        user_text="Vai me abandonar aqui? rs",
+        recent_user_facts=["fato anterior válido"],
+    )
+
+    assert result["state_changes"] == []
+    assert result["relevant_facts"] == []
+    assert result["recent_user_facts"] == ["fato anterior válido"]
+
+
+def test_explicit_state_change_is_returned_but_not_auto_promoted(monkeypatch):
+    def fake_chat(**kwargs):
+        return _response(
+            meaning="o usuário informa onde mora",
+            state_changes=["O usuário mora em Camburi"],
+        )
+
+    monkeypatch.setattr(understanding, "chat", fake_chat)
+
+    result = understanding.analyze_user_understanding(
+        api_key="test",
+        model="director-test",
+        fallback_model=None,
+        user_text="Eu moro em Camburi.",
+        recent_user_facts=["fato anterior válido"],
+    )
+
+    assert result["state_changes"] == ["O usuário mora em Camburi"]
+    assert result["recent_user_facts"] == ["fato anterior válido"]
