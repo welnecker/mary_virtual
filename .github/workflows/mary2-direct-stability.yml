@@ -35,6 +35,8 @@ jobs:
           python -m py_compile mary2/app.py mary2/direct_script.py mary2/user_understanding_audit.py mary2/direct_semantic_director.py mary2/conversation_state.py
 
       - name: Run direct stability tests
+        env:
+          PYTHONPATH: ".:mary2"
         run: |
           pytest -q \
             tests/test_mary2_user_understanding_audit.py \
