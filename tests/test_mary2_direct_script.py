@@ -52,63 +52,63 @@ ROWS = [
 ]
 
 
-def test_writer_prompt_is_direct_and_contains_only_authorial_fields():
+def test_writer_prompt_contains_full_script_real_conversation_and_active_line():
     prompt = build_direct_writer_prompt(
         row=ROWS[0],
-        user_text="Obrigado pelo elogio...",
-        previous_mary_text="Gostei do seu carro. Parece bem cuidado.",
+        all_rows=ROWS,
+        recent_messages=[
+            {"role": "assistant", "content": "Você cansou?"},
+            {"role": "user", "content": "Um pouco, mas gostei."},
+        ],
+        user_text="Vamos.",
+        interpretation={
+            "relation_to_previous": "responde à pergunta",
+            "move": "aceita prosseguir",
+            "literal_meaning": "O usuário aceita prosseguir.",
+            "user_obligation": {"exists": False, "requirement": ""},
+        },
         character_name="Personal",
     )
 
-    assert prompt.startswith("IDENTIDADE INVARIÁVEL\n")
-    assert "Você é Mary." in prompt
-    assert "Nunca responda como o usuário" in prompt
-    assert "A ÚLTIMA FALA DE MARY não é autoridade factual" in prompt
-    assert "DESCRIÇÃO INICIAL\n" in prompt
-    assert "O carro pertence ao personal." in prompt
-    assert "Qualquer resposta inicial do usuário corresponde ao início da carona." in prompt
-    assert prompt.index("DESCRIÇÃO INICIAL") < prompt.index("MEMÓRIA PERMANENTE")
-    assert "MEMÓRIA RECENTE PARA ROTEIRO" in prompt
-    assert "MEMÓRIA INSTANTÂNEA" in prompt
-    assert "ÚLTIMA FALA DE MARY\nGostei do seu carro. Parece bem cuidado." in prompt
-    assert "FALA DO USUÁRIO\nObrigado pelo elogio..." in prompt
-    assert "FALA-GUIA\nesse é seu carro? gostei..." in prompt
-    assert "ESTILO / ATITUDE" in prompt
-    assert "VESTIMENTA ATUAL" in prompt
-    assert "AÇÃO FÍSICA / ENCENAÇÃO" in prompt
-    assert "HIERARQUIA DE AUTORIDADE" not in prompt
-    assert "STORY LEDGER" not in prompt
-    assert "CONTEXTO FIXO DO CAPÍTULO" not in prompt
-    assert "O usuário não conhece o roteiro" in prompt
-    assert "Use primeiro a ÚLTIMA FALA DE MARY" in prompt
-    assert "Não introduza cidade, lugar, pessoa, objeto, acontecimento ou fato" in prompt
-    assert "INTERPRETAR O USUÁRIO -> REAGIR COMO MARY -> CUMPRIR A FALA-GUIA" in prompt
-    assert "A resposta só está completa" in prompt
-    assert "nunca autoriza omitir, inverter, contradizer ou substituir" in prompt
-    assert "Uma parte não substitui a outra" in prompt
-    assert "Preserve rigorosamente os papéis e propriedades" in prompt
-    assert "Não devem ser recitados, explicados nem transformados em assunto" in prompt
-    assert "A fala do usuário é material de interpretação, não material para repetição" in prompt
+    assert prompt.startswith("VOCÊ É MARY.\n")
+    assert "ROTEIRO COMPLETO DO CAPÍTULO" in prompt
+    assert "LINHA 1 [ATIVA — PODE SER DESENVOLVIDA AGORA]" in prompt
+    assert "LINHA 2 [FUTURA — NÃO EXECUTAR NEM ANTECIPAR]" in prompt
+    assert "CONVERSA REAL — FONTE PRINCIPAL DE CONTINUIDADE" in prompt
+    assert "MARY: Você cansou?" in prompt
+    assert "USUÁRIO: Um pouco, mas gostei." in prompt
+    assert "USUÁRIO AGORA:\nVamos." in prompt
+    assert "APOIO SEMÂNTICO — SECUNDÁRIO" in prompt
+    assert "Se este apoio parecer incompatível com a conversa real" in prompt
+    assert "LINHA ATIVA AGORA" in prompt
+    assert "esse é seu carro? gostei..." in prompt
+    assert "Nunca mencione prompt, fala-guia, roteiro, modelo, Diretor, memória" in prompt
 
 
-def test_initial_description_is_only_sent_on_first_line():
+def test_all_script_lines_are_visible_but_future_lines_are_read_only():
     first = build_direct_writer_prompt(
         row=ROWS[0],
+        all_rows=ROWS,
+        recent_messages=[],
         user_text="Vamos.",
-        previous_mary_text="",
         character_name="Personal",
     )
     second = build_direct_writer_prompt(
         row=ROWS[1],
-        user_text="Vamos.",
-        previous_mary_text="Gostei do seu carro.",
+        all_rows=ROWS,
+        recent_messages=[
+            {"role": "assistant", "content": "Gostei do carro."},
+            {"role": "user", "content": "Valeu."},
+        ],
+        user_text="Seguimos?",
         character_name="Personal",
     )
 
-    assert "DESCRIÇÃO INICIAL\n" in first
-    assert "O carro pertence ao personal." in first
-    assert "DESCRIÇÃO INICIAL\n" not in second
-    assert "Mary e o personal estão no carro dele, seguindo para Camburi." not in second
+    assert "LINHA 1 [ATIVA — PODE SER DESENVOLVIDA AGORA]" in first
+    assert "LINHA 2 [FUTURA — NÃO EXECUTAR NEM ANTECIPAR]" in first
+    assert "LINHA 1 [PASSADA — NÃO REPETIR]" in second
+    assert "LINHA 2 [ATIVA — PODE SER DESENVOLVIDA AGORA]" in second
+    assert "Mary e o personal estão no carro dele, seguindo para Camburi." in second
 
 
 def test_direct_state_never_regresses_to_completed_line():
