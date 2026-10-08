@@ -136,3 +136,40 @@ def test_grounded_recent_user_fact_can_fulfill_future_line(monkeypatch):
     assert result["fulfilled"] is True
     assert result["elements"][0]["source"] == "USUÁRIO"
     assert result["elements"][0]["evidence"] == "moro em Camburi"
+
+
+def test_director_rejects_conversational_role_inversion(monkeypatch):
+    def fake_chat(**kwargs):
+        return (
+            '{"obrigacao_usuario":{"existe":false,"requisito":"","atendida":true,"evidencia":""},'
+            '"coerencia_conversacional":{"ok":false,"problema":"resposta inverteu destinatario",'
+            '"trecho_mary":"voce primeiro","correcao":"Mary deve responder como destinataria"},'
+            '"objetivos_guia":[],'
+            '"contradicao_dura":{"existe":false,"fato_autoritativo":"","trecho_mary":"","correcao":""},'
+            '"cumpriu":false,"faltou":"","motivo":"inversao conversacional"}'
+        )
+
+    monkeypatch.setattr(director, "chat", fake_chat)
+
+    interpretation = {
+        "relation_to_previous": "continua o movimento anterior",
+        "move": "instrui Mary a prosseguir",
+        "literal_meaning": "O usuario instrui Mary a prosseguir.",
+        "user_obligation": {"exists": False, "requirement": ""},
+        "recent_user_facts": [],
+    }
+
+    result = director.validate_direct_semantic_turn(
+        api_key="test",
+        model="director-test",
+        fallback_model=None,
+        row={**_row(), "speech_guide": ""},
+        interpretation=interpretation,
+        mary_text="voce primeiro",
+        user_text="pode ir",
+        line_dialogue=[],
+    )
+
+    assert result["conversation_consistency"]["ok"] is False
+    assert result["conversation_consistency"]["issue"]
+    assert result["fulfilled"] is False
