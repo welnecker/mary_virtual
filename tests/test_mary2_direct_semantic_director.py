@@ -105,3 +105,34 @@ def test_director_prompt_treats_identity_and_role_as_hard_facts(monkeypatch):
     payload = captured["messages"][1]["content"]
     assert "troca de identidade, papel, profissão, função" in payload
     assert "Pronomes e possessivos da FALA-GUIA são lidos da perspectiva de Mary" in payload
+
+
+def test_grounded_recent_user_fact_can_fulfill_future_line(monkeypatch):
+    def fake_chat(**kwargs):
+        return (
+            '{"obrigacao_usuario":{"existe":false,"requisito":"","atendida":true,"evidencia":""},'
+            '"objetivos_guia":[{"objetivo":"descobrir onde mora","alcancado":true,'
+            '"fonte":"MARY","evidencia":"moro em Camburi"}],'
+            '"contradicao_dura":{"existe":false,"fato_autoritativo":"","trecho_mary":"","correcao":""},'
+            '"cumpriu":true,"faltou":"","motivo":""}'
+        )
+
+    monkeypatch.setattr(director, "chat", fake_chat)
+
+    interpretation = _interpretation()
+    interpretation["recent_user_facts"] = ["moro em Camburi"]
+
+    result = director.validate_direct_semantic_turn(
+        api_key="test",
+        model="director-test",
+        fallback_model=None,
+        row=_row(),
+        interpretation=interpretation,
+        mary_text="Então estamos indo para o mesmo bairro.",
+        user_text="",
+        line_dialogue=[],
+    )
+
+    assert result["fulfilled"] is True
+    assert result["elements"][0]["source"] == "USUÁRIO"
+    assert result["elements"][0]["evidence"] == "moro em Camburi"
