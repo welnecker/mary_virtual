@@ -82,7 +82,11 @@ def validate_direct_semantic_turn(
     )
 
     understanding = (
-        "Significado: "
+        "Relação com o movimento anterior: "
+        + (_clean(interpretation.get("relation_to_previous")) or "(não determinada)")
+        + "\nMovimento atual do usuário: "
+        + (_clean(interpretation.get("move")) or "(não determinado)")
+        + "\nSignificado: "
         + (_clean(interpretation.get("literal_meaning")) or _clean(interpretation.get("user_meaning")) or "(não determinado)")
         + "\nReferência: " + (_clean(interpretation.get("reference")) or "(não determinada)")
         + "\nIntenção: " + (_clean(interpretation.get("intent")) or "(não determinada)")
@@ -105,7 +109,7 @@ def validate_direct_semantic_turn(
         + "\n\nRESPOSTA ATUAL DE MARY\n"
         + _clean(mary_text)
         + "\n\nTAREFA\n"
-        "Faça duas validações independentes. "
+        "Faça três validações independentes. "
         "A) FINALIDADE DA LINHA: primeiro decomponha EXCLUSIVAMENTE a FALA-GUIA ORIGINAL nos ATOS CONVERSACIONAIS que Mary deve realizar. "
         "Exemplos de atos: perguntar, contar, admitir, propor, convidar, prometer, provocar, esclarecer, pedir. "
         "Não converta um ato conversacional em resultado futuro. Exemplo: 'me levar para a balada' dentro de um convite significa Mary FORMULAR O CONVITE; "
@@ -117,13 +121,17 @@ def validate_direct_semantic_turn(
         "Os FATOS/DECISÕES RECENTES DO USUÁRIO são trechos literais previamente aterrados no texto real do usuário e também podem cumprir a finalidade quando responderem diretamente ao objetivo. "
         "Pronomes e possessivos da FALA-GUIA são lidos da perspectiva de Mary: 'me' refere-se a Mary; 'me levar' significa o interlocutor levar Mary, salvo contexto explícito contrário. "
         "Exija evidência literal na CONVERSA DA LINHA ou nos FATOS/DECISÕES RECENTES DO USUÁRIO aterrados. "
-        "B) CONSISTÊNCIA FACTUAL: verifique se a RESPOSTA ATUAL DE MARY contradiz algum fato explícito das FONTES AUTORITATIVAS. "
+        "B) COERÊNCIA CONVERSACIONAL: compare a COMPREENSÃO DA FALA ATUAL com a RESPOSTA ATUAL DE MARY. "
+        "Verifique se Mary respeitou quem iniciou cada ação, quem é alvo de vocativos, perguntas, provocações, aceitações, recusas e correções, e se respondeu ao movimento atual sem inverter sujeito, destinatário, posse ou iniciativa. "
+        "Não exija que Mary repita as palavras do usuário; valide o sentido e a relação causal com o movimento anterior. "
+        "C) CONSISTÊNCIA FACTUAL: verifique se a RESPOSTA ATUAL DE MARY contradiz algum fato explícito das FONTES AUTORITATIVAS. "
         "As fontes autoritativas vencem falas anteriores de Mary. "
         "Contradição dura inclui troca de identidade, papel, profissão, função, proprietário, motorista/passageiro, residência, relacionamento, posição física ou outro fato objetivo explícito. "
         "Não marque contradição por estilo, opinião, criatividade compatível ou missão incompleta. "
         "A obrigação conversacional atual, quando existir, deve ser atendida pela RESPOSTA ATUAL DE MARY. "
         "Retorne somente JSON com: "
         "{\"obrigacao_usuario\":{\"existe\":true,\"requisito\":\"\",\"atendida\":true,\"evidencia\":\"\"},"
+        "\"coerencia_conversacional\":{\"ok\":true,\"problema\":\"\",\"trecho_mary\":\"\",\"correcao\":\"\"},"
         "\"objetivos_guia\":[{\"objetivo\":\"\",\"alcancado\":true,\"fonte\":\"USUÁRIO\",\"evidencia\":\"\"}],"
         "\"contradicao_dura\":{\"existe\":false,\"fato_autoritativo\":\"\",\"trecho_mary\":\"\",\"correcao\":\"\"},"
         "\"cumpriu\":true,\"faltou\":\"\",\"motivo\":\"\"}."
@@ -139,7 +147,7 @@ def validate_direct_semantic_turn(
                 "role": "system",
                 "content": (
                     "Você é um Diretor de continuidade semântica. "
-                    "Valide finalidade da linha e verdade factual. "
+                    "Valide finalidade da linha, coerência com o movimento atual do usuário e verdade factual. "
                     "Os objetivos da linha vêm somente da FALA-GUIA ORIGINAL e devem ser entendidos como atos conversacionais de Mary, não como resultados futuros. "
                     "Não exija repetição literal da fala-guia. "
                     "Nunca invente evidência."
@@ -210,6 +218,16 @@ def validate_direct_semantic_turn(
         "evidence": obligation_evidence if obligation_evidence_valid else "",
     }
 
+    coherence_raw = parsed.get("coerencia_conversacional", {})
+    if not isinstance(coherence_raw, dict):
+        coherence_raw = {}
+    conversation_consistency = {
+        "ok": bool(coherence_raw.get("ok", True)),
+        "issue": _clean(coherence_raw.get("problema")),
+        "mary_excerpt": _clean(coherence_raw.get("trecho_mary")),
+        "correction": _clean(coherence_raw.get("correcao")),
+    }
+
     contradiction_raw = parsed.get("contradicao_dura", {})
     if not isinstance(contradiction_raw, dict):
         contradiction_raw = {}
@@ -230,6 +248,7 @@ def validate_direct_semantic_turn(
     fulfilled = (
         not parse_error
         and not hard_contradiction["exists"]
+        and conversation_consistency["ok"]
         and normalized_obligation["satisfied"]
         and all_objectives
         and bool(parsed.get("cumpriu", False))
@@ -249,6 +268,7 @@ def validate_direct_semantic_turn(
         "elements": normalized_objectives,
         "user_obligation": normalized_obligation,
         "hard_contradiction": hard_contradiction,
+        "conversation_consistency": conversation_consistency,
         "model": model,
         "duration_ms": duration_ms,
         "input_payload": payload,
