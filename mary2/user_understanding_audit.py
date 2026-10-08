@@ -94,6 +94,9 @@ def analyze_user_understanding(
         "PRINCÍPIO DA ENTIDADE MÍNIMA: resolva pronomes, possessivos e referências ('meu', 'seu', 'dele', 'ela', 'isso', 'aquele') "
         "contra entidades já existentes sempre que isso produzir leitura coerente. Não crie uma segunda pessoa, objeto, lugar ou evento "
         "quando a entidade já estabelecida explica a fala. Só introduza nova entidade quando o usuário ou a memória a distinguirem explicitamente. "
+        "REFERÊNCIA GEOGRÁFICA NÃO CRIA PROGRAMA: um lugar citado como trajeto, ponto de passagem, direção, bairro, referência espacial "
+        "ou estimativa de tempo não se torna automaticamente destino final, parada, atividade, convite ou plano de lazer. "
+        "Só atribua atividade ao local quando o usuário, a memória ou a cena a estabelecerem explicitamente. "
         "Informe: significado literal/contextual; referência; intenção conversacional; reação emocional observável; "
         "subtexto somente quando sustentado; ambiguidade; confiança de 0 a 1; ponto incerto; "
         "tipo de reação adequada de Mary; se há conflito factual entre fala anterior e memória autoritativa; qual é a correção factual; "
@@ -125,22 +128,48 @@ def analyze_user_understanding(
         max_tokens=420,
     )
 
-    parsed: dict = {}
-    parse_error = ""
-    try:
-        text = str(raw or "").strip()
-        text = re.sub(r"^\s*\x60\x60\x60(?:json)?\s*", "", text, flags=re.I)
-        text = re.sub(r"\s*\x60\x60\x60\s*$", "", text)
-        json_start = text.find("{")
-        json_end = text.rfind("}")
-        if json_start >= 0 and json_end >= json_start:
-            text = text[json_start : json_end + 1]
-        parsed = json.loads(text)
-        if not isinstance(parsed, dict):
-            raise ValueError("understanding response is not a JSON object")
-    except Exception as exc:
-        parse_error = str(exc)
-        parsed = {}
+    def _parse_understanding(value: str) -> tuple[dict, str]:
+        try:
+            text = str(value or "").strip()
+            text = re.sub(r"^\s*\x60\x60\x60(?:json)?\s*", "", text, flags=re.I)
+            text = re.sub(r"\s*\x60\x60\x60\s*$", "", text)
+            json_start = text.find("{")
+            json_end = text.rfind("}")
+            if json_start >= 0 and json_end >= json_start:
+                text = text[json_start : json_end + 1]
+            parsed_value = json.loads(text)
+            if not isinstance(parsed_value, dict):
+                raise ValueError("understanding response is not a JSON object")
+            return parsed_value, ""
+        except Exception as exc:
+            return {}, str(exc)
+
+    parsed, parse_error = _parse_understanding(raw)
+    if parse_error:
+        repair_raw = chat(
+            api_key=api_key,
+            model=model,
+            fallback_model=fallback_model,
+            messages=[
+                {
+                    "role": "system",
+                    "content": (
+                        "Repita a mesma compreensão e retorne SOMENTE JSON válido, curto e completo. "
+                        "Não escreva por Mary. Não invente fatos, intenções ou atividades."
+                    ),
+                },
+                {"role": "user", "content": payload},
+            ],
+            temperature=0.0,
+            max_tokens=420,
+        )
+        repaired, repair_error = _parse_understanding(repair_raw)
+        if not repair_error:
+            raw = repair_raw
+            parsed = repaired
+            parse_error = ""
+        else:
+            parse_error = parse_error + " | retry: " + repair_error
 
     relevant_facts = parsed.get("relevant_facts", [])
     if not isinstance(relevant_facts, list):
