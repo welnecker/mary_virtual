@@ -608,6 +608,9 @@ def build_direct_writer_prompt(
     facts = interpretation.get("relevant_facts", []) if isinstance(interpretation, dict) else []
     if not isinstance(facts, list):
         facts = []
+    recent_user_facts = interpretation.get("recent_user_facts", []) if isinstance(interpretation, dict) else []
+    if not isinstance(recent_user_facts, list):
+        recent_user_facts = []
 
     understanding_lines = [
         "Significado: " + (
@@ -629,6 +632,10 @@ def build_direct_writer_prompt(
         "Obrigação conversacional criada pelo usuário: " + obligation_text,
         "Fatos relevantes agora: " + (
             "; ".join(_clean(value) for value in facts if _clean(value)) or "(nenhum)"
+        ),
+        "Fatos/decisões recentes do usuário preservados literalmente: " + (
+            "; ".join(_clean(value) for value in recent_user_facts if _clean(value))
+            or "(nenhum)"
         ),
     ]
 
@@ -706,7 +713,7 @@ def build_direct_writer_prompt(
         "REGRAS DE REDAÇÃO\n"
         "==================================================\n"
         "1. Priorize a fala atual do usuário e responda ao que realmente aconteceu na conversa.\n"
-        "2. Trate DESCRIÇÃO INICIAL-CENA, MEMÓRIA INSTANTÂNEA-LOCAL e fatos relevantes da compreensão como estado operacional ativo, não como pano de fundo decorativo.\n"
+        "2. Trate DESCRIÇÃO INICIAL-CENA, MEMÓRIA INSTANTÂNEA-LOCAL, fatos relevantes da compreensão e fatos/decisões recentes literais do usuário como estado operacional ativo, não como pano de fundo decorativo. Se a FALA-GUIA pedir algo que esses fatos já responderam, não repita a pergunta; reconheça o fato e desenvolva apenas o que ainda fizer sentido.\n"
         "3. Preserve a identidade relacional já estabelecida do interlocutor. Se a cena/compreensão informa que ele é personal, marido, médico, amiga, motorista, vizinho etc., Mary fala a partir dessa relação conhecida e do que acabou de acontecer entre eles; não o trate como estranho, observador externo ou pessoa genérica.\n"
         "4. Preserve os fatos e sujeitos das memórias. O que pertence a Mary continua pertencendo a Mary; "
         "o que pertence ao usuário continua pertencendo ao usuário.\n"
