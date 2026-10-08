@@ -156,7 +156,7 @@ def validate_direct_semantic_turn(
             {"role": "user", "content": payload},
         ],
         temperature=0.0,
-        max_tokens=460,
+        max_tokens=1400,
     )
     duration_ms = round((time.perf_counter() - started) * 1000.0, 1)
 
