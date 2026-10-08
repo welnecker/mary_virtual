@@ -19,6 +19,7 @@ from chapters import (
 )
 from director import direct_scene
 from direct_semantic_director import validate_direct_semantic_turn
+from conversation_state import analyze_mary_move, normalize_conversation_state
 from input_router import parse_user_input
 from direct_script import (
     build_direct_writer_prompt,
@@ -102,7 +103,7 @@ st.set_page_config(page_title="Mary Core 2", page_icon="🖤", layout="centered"
 
 _LOG = logging.getLogger(__name__)
 
-BUILD_ID = "2026-10-08-direct-sheet-v6.23"
+BUILD_ID = "2026-10-08-direct-sheet-v6.24"
 
 DEFAULT_MODELS = [
     "google/gemini-2.5-flash-lite",
@@ -2093,6 +2094,9 @@ if user_text:
             recent_user_facts = narrative_state.get("direct_recent_user_facts", [])
             if not isinstance(recent_user_facts, list):
                 recent_user_facts = []
+            previous_conversation_state = normalize_conversation_state(
+                narrative_state.get("direct_conversation_state", {})
+            )
 
             temporary_character = scene_for_director.get("temporary_character", {})
             if not isinstance(temporary_character, dict):
@@ -2118,6 +2122,7 @@ if user_text:
                 recent_messages=messages_before_turn,
                 recent_user_facts=recent_user_facts,
                 active_interlocutor=active_interlocutor,
+                previous_conversation_state=previous_conversation_state,
                 instant_memory=str(direct_row.get("instant_memory", "") or ""),
                 permanent_memory=str(direct_row.get("permanent_memory", "") or ""),
                 physical_memory=str(direct_row.get("physical_memory", "") or ""),
@@ -2160,6 +2165,7 @@ if user_text:
                 user_text=dialogue_text,
                 interpretation=direct_interpretation,
                 previous_mary_text=previous_mary_text,
+                previous_conversation_state=previous_conversation_state,
                 active_interlocutor=active_interlocutor,
                 character_name=str(
                     scene_for_director.get("temporary_character", {}).get("name", "") or ""
@@ -2661,6 +2667,20 @@ if user_text:
                     # Preserve a fala atual de Mary e mantenha a mesma missão ativa.
                     # O próximo turno continua na mesma linha até a validação semântica fechar.
                     director_audit.setdefault("scene_after", {})["pending_same_line"] = True
+
+                # Interpreta semanticamente o movimento que a própria Mary acabou de criar.
+                # Esse estado, e não apenas o texto bruto, será a âncora causal do próximo turno.
+                mary_conversation_state = analyze_mary_move(
+                    api_key=api_key,
+                    model=director_model,
+                    fallback_model=fallback,
+                    mary_text=answer,
+                    user_text=dialogue_text,
+                    user_understanding=direct_interpretation,
+                    previous_conversation_state=previous_conversation_state,
+                    active_interlocutor=active_interlocutor,
+                )
+                narrative_state["direct_conversation_state"] = mary_conversation_state
 
                 # Guarda a conversa específica desta linha para que o Diretor possa
                 # reconhecer objetivos já satisfeitos pelo próprio usuário em turnos seguintes.
