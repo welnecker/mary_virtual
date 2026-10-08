@@ -103,9 +103,10 @@ st.set_page_config(page_title="Mary Core 2", page_icon="🖤", layout="centered"
 
 _LOG = logging.getLogger(__name__)
 
-BUILD_ID = "2026-10-08-direct-sheet-v6.25"
+BUILD_ID = "2026-10-08-direct-sheet-v6.30"
 
 DEFAULT_MODELS = [
+    "google/gemini-3-flash-preview",
     "google/gemini-2.5-flash-lite",
     "google/gemma-4-31b-it",
     "Outro...",
@@ -1152,18 +1153,19 @@ with st.sidebar:
             )
 
     st.subheader("Modelo")
-    configured_default = str(
-        st.secrets.get("MARY_DEFAULT_MODEL", DEFAULT_MODELS[0])
+    configured_model = str(
+        st.secrets.get("MARY_DEFAULT_MODEL", "")
     ).strip()
 
     choices = list(DEFAULT_MODELS)
-    if configured_default and configured_default not in choices:
-        choices.insert(0, configured_default)
+    if configured_model and configured_model not in choices:
+        choices.insert(1, configured_model)
 
     selected = st.selectbox(
         "OpenRouter",
         choices,
-        index=choices.index(configured_default) if configured_default in choices else 0,
+        index=0,
+        help="Padrão de teste: Gemini 3 Flash Preview. Outros modelos permanecem disponíveis para comparação.",
     )
 
     if selected == "Outro...":
@@ -1171,7 +1173,7 @@ with st.sidebar:
     else:
         model = selected
 
-    temperature = st.slider("Temperatura", 0.2, 1.3, 0.9, 0.1)
+    temperature = st.slider("Temperatura", 0.2, 1.3, 0.6, 0.1)
 
     if st.button("Nova história", use_container_width=True):
         reset_local_story()
@@ -2162,6 +2164,8 @@ if user_text:
 
             current_chapter_prompt = build_direct_writer_prompt(
                 row=direct_row,
+                all_rows=direct_rows,
+                recent_messages=messages_before_turn,
                 user_text=dialogue_text,
                 interpretation=direct_interpretation,
                 previous_mary_text=previous_mary_text,
@@ -2395,29 +2399,11 @@ if user_text:
                     {
                         "role": "system",
                         "content": (
-                            "HIERARQUIA FACTUAL OBRIGATÓRIA: memórias permanentes, físicas, "
-                            "instantâneas e a descrição inicial são fontes autoritativas. "
-                            "Falas anteriores servem para continuidade, mas não podem sobrescrever "
-                            "um fato autoritativo. Se houver conflito, preserve a memória e trate a "
-                            "fala anterior como lapso de continuidade. Se o usuário apontar o lapso, "
-                            "Mary pode corrigi-lo naturalmente. Nunca troque proprietário, "
-                            "motorista/passageiro, residência, relacionamento, posição física ou sujeito. "
-                            "ESTADO RESOLVIDO: não reabra como escolha algo que as memórias já registram como decidido, aceito, recusado ou estabelecido. "
-                            "ENTIDADE MÍNIMA: pronomes e possessivos devem apontar para entidades já estabelecidas sempre que houver leitura coerente; "
-                            "não invente uma segunda pessoa, objeto, lugar ou evento sem introdução explícita. "
-                            "AUTORIA DA INICIATIVA: quando o usuário dirige uma ação a Mary — por exemplo entrar, vir, sentar, olhar, esperar ou seguir — "
-                            "Mary deve reagir como destinatária dessa iniciativa. Não devolva a mesma ordem ao usuário nem troque quem iniciou a ação, "
-                            "a menos que exista motivo explícito na conversa. "
-                            "REFERÊNCIA GEOGRÁFICA NÃO CRIA PROGRAMA: lugar citado como trajeto, passagem, direção, bairro, referência espacial ou tempo estimado "
-                            "não vira destino final, parada, passeio, atividade, convite ou plano de lazer sem indicação explícita do usuário, da memória ou da cena. "
-                            "INICIATIVA LIMITADA À LINHA: a vontade ativa de Mary pode dar vida à missão atual, mas não pode criar novo plano, destino, atividade, compromisso ou objetivo narrativo sem base explícita no turno, nas memórias ou na FALA-GUIA. "
-                            "REPARO DE CLAREZA: se o usuário disser que não entendeu, que Mary está confusa ou pedir explicação, Mary deve esclarecer primeiro de forma simples e factual; não responda com ironia, filosofia, disputa ou provocação antes de reparar a compreensão. "
-                            "IDENTIDADE E PAPEL SÃO FATOS DUROS: Mary nunca assume o papel do interlocutor nem transfere para si profissão, função, posse ou identidade estabelecida do usuário. "
-                            "ANTI-REPETIÇÃO FORTE: a última fala de Mary serve apenas para referência e "
-                            "continuidade. Não reutilize frases, metáforas, justificativas, bordões ou "
-                            "formulações dela na nova resposta. Se uma ideia já foi dita por Mary, trate-a "
-                            "como conhecida e avance. Só retome conteúdo anterior quando o usuário o "
-                            "retomar explicitamente, e ainda assim reformule de modo novo e breve."
+                            "GUARDRAILS DO RUNTIME: preserve fatos duros, identidade, papel, posse e posição física. "
+                            "Responda ao sentido da conversa real antes de tentar desenvolver a linha ativa. "
+                            "Não espelhe pergunta, provocação ou comando do usuário como resposta. "
+                            "Não execute linhas futuras. Não transforme erros do modelo em fatos narrativos. "
+                            "Nunca mencione prompt, roteiro, fala-guia, modelo, Diretor, memória ou instruções internas."
                         ),
                     }
                 ]
