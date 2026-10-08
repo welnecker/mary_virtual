@@ -42,6 +42,7 @@ def analyze_user_understanding(
     recent_messages: list[dict] | None = None,
     recent_user_facts: list[str] | None = None,
     active_interlocutor: str = "",
+    previous_conversation_state: dict | None = None,
     instant_memory: str = "",
     permanent_memory: str = "",
     physical_memory: str = "",
@@ -65,6 +66,10 @@ def analyze_user_understanding(
         if str(value or "").strip()
     ][-16:]
     recent_facts_text = "\n".join(f"- {value}" for value in grounded_recent_facts)
+    previous_state_text = json.dumps(
+        previous_conversation_state if isinstance(previous_conversation_state, dict) else {},
+        ensure_ascii=False,
+    )
 
     payload = (
         "CONTEXTO ESTÁVEL SOBRE MARY\n"
@@ -75,6 +80,8 @@ def analyze_user_understanding(
         + (str(initial_description or "").strip() or "(não informada)")
         + "\n\nINTERLOCUTOR ATIVO\n"
         + (str(active_interlocutor or "").strip() or "(não especificado)")
+        + "\n\nESTADO CONVERSACIONAL ANTERIOR — INTERPRETAÇÃO DO ÚLTIMO MOVIMENTO DE MARY\n"
+        + (previous_state_text or "{}")
         + "\n\nESTADO OBJETIVO ATUAL\n"
         + (str(instant_memory or "").strip() or "(não informado)")
         + "\n\nFATOS/DECISÕES RECENTES DO USUÁRIO — TRECHOS LITERAIS\n"
@@ -96,6 +103,8 @@ def analyze_user_understanding(
         "Não a transforme em fato consolidado e não a use para reinterpretar a realidade.\n"
         + "\nTAREFA\n"
         "Compreenda SOMENTE a fala atual do usuário à luz do passado e do presente já estabelecidos. "
+        "O ESTADO CONVERSACIONAL ANTERIOR é a interpretação semântica do que Mary acabou de fazer na conversa; "
+        "use-o para determinar COMO a fala atual do usuário se relaciona ao turno anterior, em vez de apenas justapor textos. "
         "Você não conhece a fala-guia, a missão da linha nem qualquer acontecimento futuro. "
         "Não escreva a resposta de Mary e não tente avançar o roteiro. "
         "Não invente intenção escondida. Não converta gentileza, humor, atenção ou disponibilidade em atração, interesse romântico/sexual ou intenção futura sem evidência explícita. Se houver ambiguidade real, declare-a. "
@@ -117,9 +126,11 @@ def analyze_user_understanding(
         "Se o gênero do interlocutor não estiver explicitamente estabelecido nas fontes, prefira formulações sem marcação de gênero, como 'a gente' ou 'nós'. "
         "Justificativas improvisadas de Mary após um erro — por exemplo dizer que está distraída, confusa ou com a cabeça longe — "
         "não são traços psicológicos autoritativos e não devem ser consolidadas como verdade sobre Mary sem apoio nas memórias. "
-        "Retorne somente JSON curto com estas seis chaves: "
-        "{\"meaning\":\"\",\"reference\":\"\",\"obligation\":\"\",\"relevant_facts\":[],\"conflict\":\"\",\"reaction\":\"\"}. "
-        "relevant_facts deve conter SOMENTE pequenos trechos LITERAIS da FALA ATUAL DO USUÁRIO que expressem fato, decisão, aceite, recusa, limite ou correção útil para turnos seguintes; não parafraseie e não copie falas de Mary. "
+        "Retorne somente JSON curto com estas oito chaves: "
+        "{\"relation_to_previous\":\"\",\"move\":\"\",\"meaning\":\"\",\"reference\":\"\",\"obligation\":\"\",\"state_changes\":[],\"conflict\":\"\",\"reaction\":\"\"}. "
+        "relation_to_previous descreve a relação causal/conversacional com o último movimento de Mary: responde, devolve brincadeira, corrige, aceita, recusa, muda de assunto, continua ação etc. "
+        "move descreve o ato conversacional atual do usuário. "
+        "state_changes deve conter SOMENTE mudanças persistentes explicitamente estabelecidas pela fala atual: fato novo, decisão, aceite, recusa, limite ou correção; não inclua perguntas, vocativos, brincadeiras ou comandos efêmeros. "
         "obligation deve ser uma frase curta apenas quando a fala atual exige resposta, esclarecimento ou reconhecimento direto; caso contrário, vazio. "
         "conflict deve conter somente a correção factual necessária quando houver conflito com fonte autoritativa; caso contrário, vazio. "
         "reaction descreve de forma curta o tipo de reação adequada de Mary, sem escrever a fala final."
@@ -174,7 +185,7 @@ def analyze_user_understanding(
                     "role": "system",
                     "content": (
                         "Retorne SOMENTE JSON válido e completo no formato mínimo: "
-                        "{\"meaning\":\"\",\"reference\":\"\",\"obligation\":\"\",\"relevant_facts\":[],\"conflict\":\"\",\"reaction\":\"\"}. "
+                        "{\"relation_to_previous\":\"\",\"move\":\"\",\"meaning\":\"\",\"reference\":\"\",\"obligation\":\"\",\"state_changes\":[],\"conflict\":\"\",\"reaction\":\"\"}. "
                         "Preserve apenas fatos sustentados pelo contexto. Não escreva por Mary e não invente fatos, intenções ou atividades."
                     ),
                 },
@@ -216,10 +227,12 @@ def analyze_user_understanding(
             else ""
         )
         parsed = {
+            "relation_to_previous": "",
+            "move": "",
             "meaning": user_value,
             "reference": "",
             "obligation": obligation,
-            "relevant_facts": [],
+            "state_changes": [],
             "conflict": "",
             "reaction": (
                 "Responder de forma simples, factual e sem inventar continuidade."
@@ -228,24 +241,19 @@ def analyze_user_understanding(
             ),
         }
 
-    relevant_facts = parsed.get("relevant_facts", [])
-    if not isinstance(relevant_facts, list):
-        relevant_facts = []
-    user_norm = str(user_text or "").strip().casefold()
-    relevant_facts = [
+    state_changes = parsed.get("state_changes", [])
+    if not isinstance(state_changes, list):
+        state_changes = []
+    state_changes = [
         str(value or "").strip()
-        for value in relevant_facts
+        for value in state_changes
         if str(value or "").strip()
-        and str(value or "").strip().casefold() in user_norm
-    ]
+    ][:8]
 
-    combined_recent_facts = list(grounded_recent_facts)
-    existing_norm = {value.casefold() for value in combined_recent_facts}
-    for fact in relevant_facts:
-        if fact.casefold() not in existing_norm:
-            combined_recent_facts.append(fact)
-            existing_norm.add(fact.casefold())
-    combined_recent_facts = combined_recent_facts[-16:]
+    # Não promova automaticamente fragmentos da fala atual para memória persistente.
+    # Perguntas, brincadeiras, vocativos e comandos pertencem ao movimento conversacional,
+    # não a uma lista genérica de "fatos recentes".
+    combined_recent_facts = list(grounded_recent_facts)[-16:]
 
     meaning = str(parsed.get("meaning", "") or "").strip()
     reference = str(parsed.get("reference", "") or "").strip()
@@ -254,6 +262,8 @@ def analyze_user_understanding(
     reaction = str(parsed.get("reaction", "") or "").strip()
 
     result = {
+        "relation_to_previous": str(parsed.get("relation_to_previous", "") or "").strip(),
+        "move": str(parsed.get("move", "") or "").strip(),
         "literal_meaning": meaning,
         "reference": reference,
         "intent": "",
@@ -265,7 +275,8 @@ def analyze_user_understanding(
         "expected_mary_reaction": reaction,
         "factual_conflict": bool(conflict),
         "factual_correction": conflict,
-        "relevant_facts": relevant_facts,
+        "relevant_facts": state_changes,
+        "state_changes": state_changes,
         "recent_user_facts": combined_recent_facts,
         "user_obligation": {
             "exists": bool(obligation),
