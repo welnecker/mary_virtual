@@ -102,7 +102,7 @@ st.set_page_config(page_title="Mary Core 2", page_icon="🖤", layout="centered"
 
 _LOG = logging.getLogger(__name__)
 
-BUILD_ID = "2026-10-08-direct-sheet-v6.15"
+BUILD_ID = "2026-10-08-direct-sheet-v6.16"
 
 DEFAULT_MODELS = [
     "google/gemini-2.5-flash-lite",
@@ -2463,6 +2463,20 @@ if user_text:
                     user_text=dialogue_text,
                     line_dialogue=list(direct_state.get("line_dialogue", []) or []),
                 )
+
+                if str(direct_validation.get("parse_error", "") or "").strip():
+                    # Falha técnica do Diretor não deve prolongar artificialmente a linha.
+                    # Repete somente a validação; a fala de Mary não é regenerada.
+                    direct_validation = validate_direct_semantic_turn(
+                        api_key=api_key,
+                        model=director_model,
+                        fallback_model=fallback,
+                        row=direct_row,
+                        interpretation=direct_interpretation,
+                        mary_text=answer,
+                        user_text=dialogue_text,
+                        line_dialogue=list(direct_state.get("line_dialogue", []) or []),
+                    )
 
                 hard_contradiction = direct_validation.get("hard_contradiction", {})
                 if (
