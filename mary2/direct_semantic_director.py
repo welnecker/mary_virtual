@@ -116,7 +116,7 @@ def validate_direct_semantic_turn(
         "Uma informação fornecida espontaneamente pelo USUÁRIO pode cumprir um objetivo sem Mary precisar repetir a pergunta. "
         "Os FATOS/DECISÕES RECENTES DO USUÁRIO são trechos literais previamente aterrados no texto real do usuário e também podem cumprir a finalidade quando responderem diretamente ao objetivo. "
         "Pronomes e possessivos da FALA-GUIA são lidos da perspectiva de Mary: 'me' refere-se a Mary; 'me levar' significa o interlocutor levar Mary, salvo contexto explícito contrário. "
-        "Exija evidência literal na CONVERSA DA LINHA. "
+        "Exija evidência literal na CONVERSA DA LINHA ou nos FATOS/DECISÕES RECENTES DO USUÁRIO aterrados. "
         "B) CONSISTÊNCIA FACTUAL: verifique se a RESPOSTA ATUAL DE MARY contradiz algum fato explícito das FONTES AUTORITATIVAS. "
         "As fontes autoritativas vencem falas anteriores de Mary. "
         "Contradição dura inclui troca de identidade, papel, profissão, função, proprietário, motorista/passageiro, residência, relacionamento, posição física ou outro fato objetivo explícito. "
