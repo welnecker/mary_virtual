@@ -102,7 +102,7 @@ st.set_page_config(page_title="Mary Core 2", page_icon="🖤", layout="centered"
 
 _LOG = logging.getLogger(__name__)
 
-BUILD_ID = "2026-10-08-direct-sheet-v6.21"
+BUILD_ID = "2026-10-08-direct-sheet-v6.22"
 
 DEFAULT_MODELS = [
     "google/gemini-2.5-flash-lite",
@@ -2090,6 +2090,10 @@ if user_text:
             )
             # Uma única chamada de compreensão: recebe somente passado/presente
             # já estabelecidos. Nunca recebe a fala-guia nem roteiro futuro.
+            recent_user_facts = narrative_state.get("direct_recent_user_facts", [])
+            if not isinstance(recent_user_facts, list):
+                recent_user_facts = []
+
             direct_interpretation = analyze_user_understanding(
                 api_key=api_key,
                 model=director_model,
@@ -2097,11 +2101,19 @@ if user_text:
                 user_text=dialogue_text,
                 previous_mary_text=previous_mary_text,
                 recent_messages=messages_before_turn,
+                recent_user_facts=recent_user_facts,
                 instant_memory=str(direct_row.get("instant_memory", "") or ""),
                 permanent_memory=str(direct_row.get("permanent_memory", "") or ""),
                 physical_memory=str(direct_row.get("physical_memory", "") or ""),
                 initial_description=str(direct_row.get("initial_description", "") or ""),
             )
+            grounded_facts = direct_interpretation.get("recent_user_facts", [])
+            if isinstance(grounded_facts, list):
+                narrative_state["direct_recent_user_facts"] = [
+                    str(value or "").strip()
+                    for value in grounded_facts[-16:]
+                    if str(value or "").strip()
+                ]
 
             # A mesma compreensão operacional é persistida para auditoria.
             # Assim o log mostra exatamente o que o Redator recebeu.
