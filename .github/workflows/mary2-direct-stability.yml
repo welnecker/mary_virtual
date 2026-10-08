@@ -8,6 +8,7 @@ on:
       - "mary2/**"
       - "tests/test_mary2_user_understanding_audit.py"
       - "tests/test_mary2_direct_semantic_director.py"
+      - "tests/test_mary2_direct_script.py"
       - "tests/test_mary2_conversation_state.py"
       - ".github/workflows/mary2-direct-stability.yml"
   workflow_dispatch:
@@ -39,6 +40,7 @@ jobs:
           PYTHONPATH: ".:mary2"
         run: |
           pytest -q \
+            tests/test_mary2_direct_script.py \
             tests/test_mary2_user_understanding_audit.py \
             tests/test_mary2_direct_semantic_director.py \
             tests/test_mary2_conversation_state.py
