@@ -89,3 +89,26 @@ def test_understanding_contract_is_compact_and_rejects_error_excuses_as_characte
     assert "literal_meaning, reference, intent" not in payload
     assert "não são traços psicológicos autoritativos" in payload
     assert captured["max_tokens"] == 520
+
+
+def test_relevant_facts_must_be_literal_user_excerpts(monkeypatch):
+    def fake_chat(**kwargs):
+        return (
+            '{"meaning":"informa residência","reference":"","obligation":"",'
+            '"relevant_facts":["moro em Camburi","ele também mora em Camburi"],'
+            '"conflict":"","reaction":"reconhecer o fato"}'
+        )
+
+    monkeypatch.setattr(understanding, "chat", fake_chat)
+
+    result = understanding.analyze_user_understanding(
+        api_key="test",
+        model="director-test",
+        fallback_model=None,
+        user_text="Eu moro em Camburi também.",
+        recent_user_facts=["meu carro é preto"],
+    )
+
+    assert result["relevant_facts"] == ["moro em Camburi"]
+    assert result["recent_user_facts"] == ["meu carro é preto", "moro em Camburi"]
+    assert "ele também mora em Camburi" not in result["recent_user_facts"]
