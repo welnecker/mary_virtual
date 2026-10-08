@@ -89,6 +89,11 @@ def analyze_user_understanding(
         "Preserve rigorosamente sujeito, posse, posição e papel: não transfira para o usuário fatos de Mary nem para Mary fatos do usuário. "
         "Quando a fala atual reagir a um erro anterior de Mary, reconheça que existe conflito com a memória autoritativa e baseie a compreensão na memória, não no erro. "
         "Use as memórias apenas para resolver referências e fatos já estabelecidos. "
+        "ESTADO JÁ RESOLVIDO: se uma decisão, acordo, posse, destino, relação ou condição já estiver estabelecida nas fontes autoritativas, "
+        "não a reabra como escolha pendente só porque a fala atual toca nesse assunto. Interprete apenas o novo movimento conversacional. "
+        "PRINCÍPIO DA ENTIDADE MÍNIMA: resolva pronomes, possessivos e referências ('meu', 'seu', 'dele', 'ela', 'isso', 'aquele') "
+        "contra entidades já existentes sempre que isso produzir leitura coerente. Não crie uma segunda pessoa, objeto, lugar ou evento "
+        "quando a entidade já estabelecida explica a fala. Só introduza nova entidade quando o usuário ou a memória a distinguirem explicitamente. "
         "Informe: significado literal/contextual; referência; intenção conversacional; reação emocional observável; "
         "subtexto somente quando sustentado; ambiguidade; confiança de 0 a 1; ponto incerto; "
         "tipo de reação adequada de Mary; se há conflito factual entre fala anterior e memória autoritativa; qual é a correção factual; "
@@ -110,7 +115,8 @@ def analyze_user_understanding(
                     "Você é o módulo de compreensão conversacional. "
                     "Seu trabalho é entender o que o usuário realmente disse dentro do contexto já ocorrido. "
                     "Você nunca recebe nem tenta adivinhar o roteiro futuro. "
-                    "Não escreve por Mary, não inventa fatos e não troca sujeitos."
+                    "Não escreve por Mary, não inventa fatos e não troca sujeitos. "
+                    "Não reabra decisões já resolvidas e preserve a menor quantidade de entidades compatível com os fatos."
                 ),
             },
             {"role": "user", "content": payload},
