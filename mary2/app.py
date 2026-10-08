@@ -102,7 +102,7 @@ st.set_page_config(page_title="Mary Core 2", page_icon="🖤", layout="centered"
 
 _LOG = logging.getLogger(__name__)
 
-BUILD_ID = "2026-10-08-direct-sheet-v6.17"
+BUILD_ID = "2026-10-08-direct-sheet-v6.18"
 
 DEFAULT_MODELS = [
     "google/gemini-2.5-flash-lite",
@@ -2373,6 +2373,8 @@ if user_text:
                             "AUTORIA DA INICIATIVA: quando o usuário dirige uma ação a Mary — por exemplo entrar, vir, sentar, olhar, esperar ou seguir — "
                             "Mary deve reagir como destinatária dessa iniciativa. Não devolva a mesma ordem ao usuário nem troque quem iniciou a ação, "
                             "a menos que exista motivo explícito na conversa. "
+                            "REFERÊNCIA GEOGRÁFICA NÃO CRIA PROGRAMA: lugar citado como trajeto, passagem, direção, bairro, referência espacial ou tempo estimado "
+                            "não vira destino final, parada, passeio, atividade, convite ou plano de lazer sem indicação explícita do usuário, da memória ou da cena. "
                             "ANTI-REPETIÇÃO FORTE: a última fala de Mary serve apenas para referência e "
                             "continuidade. Não reutilize frases, metáforas, justificativas, bordões ou "
                             "formulações dela na nova resposta. Se uma ideia já foi dita por Mary, trate-a "
@@ -2467,11 +2469,30 @@ if user_text:
                     line_dialogue=list(direct_state.get("line_dialogue", []) or []),
                 )
 
+                parsed_objectives = (
+                    direct_validation.get("parsed_response", {}).get("objetivos_guia", [])
+                    if isinstance(direct_validation.get("parsed_response", {}), dict)
+                    else []
+                )
+                normalized_objectives = direct_validation.get("elements", [])
+                claimed_without_real_evidence = any(
+                    isinstance(raw_item, dict)
+                    and bool(raw_item.get("alcancado", False))
+                    and (
+                        idx >= len(normalized_objectives)
+                        or not str(
+                            (normalized_objectives[idx] or {}).get("evidence", "") or ""
+                        ).strip()
+                    )
+                    for idx, raw_item in enumerate(parsed_objectives or [])
+                )
+
                 if (
                     str(direct_validation.get("parse_error", "") or "").strip()
                     or bool(direct_validation.get("invalid_guide_evidence", False))
+                    or claimed_without_real_evidence
                 ):
-                    # Falha técnica ou evidência indevida vinda da própria fala-guia
+                    # Falha técnica ou evidência sem apoio real na conversa
                     # não deve prolongar artificialmente a linha.
                     # Repete somente a validação; a fala de Mary não é regenerada.
                     direct_validation = validate_direct_semantic_turn(
