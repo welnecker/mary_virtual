@@ -40,6 +40,7 @@ def analyze_user_understanding(
     user_text: str,
     previous_mary_text: str = "",
     recent_messages: list[dict] | None = None,
+    recent_user_facts: list[str] | None = None,
     instant_memory: str = "",
     permanent_memory: str = "",
     physical_memory: str = "",
@@ -57,6 +58,12 @@ def analyze_user_understanding(
         speaker = "MARY" if role == "assistant" else "USUÁRIO"
         recent_lines.append(f"{speaker}: {content}")
     recent_context = "\n".join(recent_lines).strip()
+    grounded_recent_facts = [
+        str(value or "").strip()
+        for value in (recent_user_facts or [])
+        if str(value or "").strip()
+    ][-16:]
+    recent_facts_text = "\n".join(f"- {value}" for value in grounded_recent_facts)
 
     payload = (
         "CONTEXTO ESTÁVEL SOBRE MARY\n"
@@ -67,6 +74,8 @@ def analyze_user_understanding(
         + (str(initial_description or "").strip() or "(não informada)")
         + "\n\nESTADO OBJETIVO ATUAL\n"
         + (str(instant_memory or "").strip() or "(não informado)")
+        + "\n\nFATOS/DECISÕES RECENTES DO USUÁRIO — TRECHOS LITERAIS\n"
+        + (recent_facts_text or "(nenhum fato estruturado)")
         + "\n\nCONTEXTO RECENTE REAL\n"
         + (recent_context or "(nenhuma interação anterior relevante)")
         + "\n\nÚLTIMA FALA DE MARY\n"
@@ -78,7 +87,8 @@ def analyze_user_understanding(
         "2. MEMÓRIA FÍSICA-GLOBAL\n"
         "3. ESTADO OBJETIVO ATUAL / MEMÓRIA INSTANTÂNEA-LOCAL\n"
         "4. DESCRIÇÃO INICIAL DA CENA\n"
-        "5. CONTEXTO RECENTE REAL E FALAS ANTERIORES\n"
+        "5. FATOS/DECISÕES RECENTES DO USUÁRIO — trechos literais; os mais recentes vencem conflitos anteriores\n"
+        "6. CONTEXTO RECENTE REAL E FALAS ANTERIORES\n"
         "Se uma fala anterior de Mary contradizer qualquer fonte autoritativa acima, trate a fala anterior como erro de continuidade. "
         "Não a transforme em fato consolidado e não a use para reinterpretar a realidade.\n"
         + "\nTAREFA\n"
@@ -103,6 +113,7 @@ def analyze_user_understanding(
         "não são traços psicológicos autoritativos e não devem ser consolidadas como verdade sobre Mary sem apoio nas memórias. "
         "Retorne somente JSON curto com estas seis chaves: "
         "{\"meaning\":\"\",\"reference\":\"\",\"obligation\":\"\",\"relevant_facts\":[],\"conflict\":\"\",\"reaction\":\"\"}. "
+        "relevant_facts deve conter SOMENTE pequenos trechos LITERAIS da FALA ATUAL DO USUÁRIO que expressem fato, decisão, aceite, recusa, limite ou correção útil para turnos seguintes; não parafraseie e não copie falas de Mary. "
         "obligation deve ser uma frase curta apenas quando a fala atual exige resposta, esclarecimento ou reconhecimento direto; caso contrário, vazio. "
         "conflict deve conter somente a correção factual necessária quando houver conflito com fonte autoritativa; caso contrário, vazio. "
         "reaction descreve de forma curta o tipo de reação adequada de Mary, sem escrever a fala final."
@@ -214,6 +225,21 @@ def analyze_user_understanding(
     relevant_facts = parsed.get("relevant_facts", [])
     if not isinstance(relevant_facts, list):
         relevant_facts = []
+    user_norm = str(user_text or "").strip().casefold()
+    relevant_facts = [
+        str(value or "").strip()
+        for value in relevant_facts
+        if str(value or "").strip()
+        and str(value or "").strip().casefold() in user_norm
+    ]
+
+    combined_recent_facts = list(grounded_recent_facts)
+    existing_norm = {value.casefold() for value in combined_recent_facts}
+    for fact in relevant_facts:
+        if fact.casefold() not in existing_norm:
+            combined_recent_facts.append(fact)
+            existing_norm.add(fact.casefold())
+    combined_recent_facts = combined_recent_facts[-16:]
 
     meaning = str(parsed.get("meaning", "") or "").strip()
     reference = str(parsed.get("reference", "") or "").strip()
@@ -233,9 +259,8 @@ def analyze_user_understanding(
         "expected_mary_reaction": reaction,
         "factual_conflict": bool(conflict),
         "factual_correction": conflict,
-        "relevant_facts": [
-            str(value or "").strip() for value in relevant_facts if str(value or "").strip()
-        ],
+        "relevant_facts": relevant_facts,
+        "recent_user_facts": combined_recent_facts,
         "user_obligation": {
             "exists": bool(obligation),
             "requirement": obligation,
