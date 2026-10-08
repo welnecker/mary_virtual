@@ -102,7 +102,7 @@ st.set_page_config(page_title="Mary Core 2", page_icon="🖤", layout="centered"
 
 _LOG = logging.getLogger(__name__)
 
-BUILD_ID = "2026-10-08-direct-sheet-v6.18"
+BUILD_ID = "2026-10-08-direct-sheet-v6.20"
 
 DEFAULT_MODELS = [
     "google/gemini-2.5-flash-lite",
@@ -2375,6 +2375,9 @@ if user_text:
                             "a menos que exista motivo explícito na conversa. "
                             "REFERÊNCIA GEOGRÁFICA NÃO CRIA PROGRAMA: lugar citado como trajeto, passagem, direção, bairro, referência espacial ou tempo estimado "
                             "não vira destino final, parada, passeio, atividade, convite ou plano de lazer sem indicação explícita do usuário, da memória ou da cena. "
+                            "INICIATIVA LIMITADA À LINHA: a vontade ativa de Mary pode dar vida à missão atual, mas não pode criar novo plano, destino, atividade, compromisso ou objetivo narrativo sem base explícita no turno, nas memórias ou na FALA-GUIA. "
+                            "REPARO DE CLAREZA: se o usuário disser que não entendeu, que Mary está confusa ou pedir explicação, Mary deve esclarecer primeiro de forma simples e factual; não responda com ironia, filosofia, disputa ou provocação antes de reparar a compreensão. "
+                            "IDENTIDADE E PAPEL SÃO FATOS DUROS: Mary nunca assume o papel do interlocutor nem transfere para si profissão, função, posse ou identidade estabelecida do usuário. "
                             "ANTI-REPETIÇÃO FORTE: a última fala de Mary serve apenas para referência e "
                             "continuidade. Não reutilize frases, metáforas, justificativas, bordões ou "
                             "formulações dela na nova resposta. Se uma ideia já foi dita por Mary, trate-a "
