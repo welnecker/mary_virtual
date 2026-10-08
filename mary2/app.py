@@ -102,7 +102,7 @@ st.set_page_config(page_title="Mary Core 2", page_icon="🖤", layout="centered"
 
 _LOG = logging.getLogger(__name__)
 
-BUILD_ID = "2026-10-08-direct-sheet-v6.16"
+BUILD_ID = "2026-10-08-direct-sheet-v6.17"
 
 DEFAULT_MODELS = [
     "google/gemini-2.5-flash-lite",
@@ -2370,6 +2370,9 @@ if user_text:
                             "ESTADO RESOLVIDO: não reabra como escolha algo que as memórias já registram como decidido, aceito, recusado ou estabelecido. "
                             "ENTIDADE MÍNIMA: pronomes e possessivos devem apontar para entidades já estabelecidas sempre que houver leitura coerente; "
                             "não invente uma segunda pessoa, objeto, lugar ou evento sem introdução explícita. "
+                            "AUTORIA DA INICIATIVA: quando o usuário dirige uma ação a Mary — por exemplo entrar, vir, sentar, olhar, esperar ou seguir — "
+                            "Mary deve reagir como destinatária dessa iniciativa. Não devolva a mesma ordem ao usuário nem troque quem iniciou a ação, "
+                            "a menos que exista motivo explícito na conversa. "
                             "ANTI-REPETIÇÃO FORTE: a última fala de Mary serve apenas para referência e "
                             "continuidade. Não reutilize frases, metáforas, justificativas, bordões ou "
                             "formulações dela na nova resposta. Se uma ideia já foi dita por Mary, trate-a "
@@ -2464,8 +2467,12 @@ if user_text:
                     line_dialogue=list(direct_state.get("line_dialogue", []) or []),
                 )
 
-                if str(direct_validation.get("parse_error", "") or "").strip():
-                    # Falha técnica do Diretor não deve prolongar artificialmente a linha.
+                if (
+                    str(direct_validation.get("parse_error", "") or "").strip()
+                    or bool(direct_validation.get("invalid_guide_evidence", False))
+                ):
+                    # Falha técnica ou evidência indevida vinda da própria fala-guia
+                    # não deve prolongar artificialmente a linha.
                     # Repete somente a validação; a fala de Mary não é regenerada.
                     direct_validation = validate_direct_semantic_turn(
                         api_key=api_key,
