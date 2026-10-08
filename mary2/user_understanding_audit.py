@@ -41,6 +41,7 @@ def analyze_user_understanding(
     previous_mary_text: str = "",
     recent_messages: list[dict] | None = None,
     recent_user_facts: list[str] | None = None,
+    active_interlocutor: str = "",
     instant_memory: str = "",
     permanent_memory: str = "",
     physical_memory: str = "",
@@ -72,6 +73,8 @@ def analyze_user_understanding(
         + (str(physical_memory or "").strip() or "(não informado)")
         + "\n\nDESCRIÇÃO INICIAL DA CENA\n"
         + (str(initial_description or "").strip() or "(não informada)")
+        + "\n\nINTERLOCUTOR ATIVO\n"
+        + (str(active_interlocutor or "").strip() or "(não especificado)")
         + "\n\nESTADO OBJETIVO ATUAL\n"
         + (str(instant_memory or "").strip() or "(não informado)")
         + "\n\nFATOS/DECISÕES RECENTES DO USUÁRIO — TRECHOS LITERAIS\n"
@@ -109,6 +112,9 @@ def analyze_user_understanding(
         "Só atribua atividade ao local quando o usuário, a memória ou a cena a estabelecerem explicitamente. "
         "ANCORAGEM RELACIONAL: quando o papel já conhecido do interlocutor estiver diretamente ligado à fala atual ou ao acontecimento recente, "
         "a reação adequada de Mary deve usar essa relação concreta. Evite sugerir resposta social genérica e não trate o interlocutor como se estivesse sendo conhecido agora. "
+        "VOCATIVO NÃO MUDA IDENTIDADE: adjetivo, apelido ou vocativo que o usuário dirige a Mary descreve Mary naquele ato de fala, não o usuário. "
+        "Não devolva automaticamente ao usuário o mesmo adjetivo/apelido e nunca use isso para inferir gênero, papel ou identidade dele. "
+        "Se o gênero do interlocutor não estiver explicitamente estabelecido nas fontes, prefira formulações sem marcação de gênero, como 'a gente' ou 'nós'. "
         "Justificativas improvisadas de Mary após um erro — por exemplo dizer que está distraída, confusa ou com a cabeça longe — "
         "não são traços psicológicos autoritativos e não devem ser consolidadas como verdade sobre Mary sem apoio nas memórias. "
         "Retorne somente JSON curto com estas seis chaves: "
