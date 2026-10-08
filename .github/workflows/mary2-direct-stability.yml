@@ -8,6 +8,7 @@ on:
       - "mary2/**"
       - "tests/test_mary2_user_understanding_audit.py"
       - "tests/test_mary2_direct_semantic_director.py"
+      - "tests/test_mary2_conversation_state.py"
       - ".github/workflows/mary2-direct-stability.yml"
   workflow_dispatch:
 
@@ -29,6 +30,13 @@ jobs:
           pip install pytest
           pip install -r mary2/requirements.txt
 
+      - name: Compile direct pipeline
+        run: |
+          python -m py_compile mary2/app.py mary2/direct_script.py mary2/user_understanding_audit.py mary2/direct_semantic_director.py mary2/conversation_state.py
+
       - name: Run direct stability tests
         run: |
-          pytest -q             tests/test_mary2_user_understanding_audit.py             tests/test_mary2_direct_semantic_director.py
+          pytest -q \
+            tests/test_mary2_user_understanding_audit.py \
+            tests/test_mary2_direct_semantic_director.py \
+            tests/test_mary2_conversation_state.py
