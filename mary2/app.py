@@ -103,7 +103,7 @@ st.set_page_config(page_title="Mary Core 2", page_icon="🖤", layout="centered"
 
 _LOG = logging.getLogger(__name__)
 
-BUILD_ID = "2026-10-08-direct-sheet-v6.24"
+BUILD_ID = "2026-10-08-direct-sheet-v6.25"
 
 DEFAULT_MODELS = [
     "google/gemini-2.5-flash-lite",
@@ -2550,6 +2550,72 @@ if user_text:
                     raise OpenRouterError(
                         "O Diretor semântico não devolveu validação estruturada após duas tentativas."
                     )
+
+                conversation_consistency = direct_validation.get(
+                    "conversation_consistency", {}
+                )
+                if (
+                    isinstance(conversation_consistency, dict)
+                    and not bool(conversation_consistency.get("ok", True))
+                ):
+                    model_audit["direct_validation_before_conversation_correction"] = deepcopy(
+                        direct_validation
+                    )
+                    conversation_retry_messages = [
+                        *llm_messages,
+                        {
+                            "role": "system",
+                            "content": (
+                                "CORREÇÃO DE CONTINUIDADE OBRIGATÓRIA. A resposta anterior não respeitou "
+                                "o movimento conversacional compreendido do usuário. Reescreva a resposta "
+                                "preservando sujeito, destinatário, autoria da iniciativa, vocativos, posse "
+                                "e a relação causal com o turno anterior. Não explique o erro e não invente "
+                                "uma justificativa narrativa para ele. NÃO force a fala-guia se ela ainda "
+                                "não couber naturalmente. Problema: "
+                                + str(conversation_consistency.get("issue", "") or "")
+                                + ". Trecho problemático: "
+                                + str(conversation_consistency.get("mary_excerpt", "") or "")
+                                + ". Correção semântica esperada: "
+                                + str(conversation_consistency.get("correction", "") or "")
+                                + ". Use exatamente [FALA] e [PENSAMENTO]."
+                            ),
+                        },
+                    ]
+                    raw_answer = chat(
+                        api_key=api_key,
+                        model=model,
+                        fallback_model=fallback,
+                        messages=conversation_retry_messages,
+                        temperature=max(0.2, min(float(temperature), 0.7)),
+                    )
+                    model_audit["retry_used"] = True
+                    model_audit["retry_messages"] = deepcopy(conversation_retry_messages)
+                    model_audit["retry_raw_response"] = raw_answer
+                    mary_intent, mary_speech_raw = parse_mary_response(raw_answer)
+                    narration_leak = looks_like_action_narration(mary_speech_raw)
+                    answer = sanitize_mary_output(mary_speech_raw)
+                    if not answer or narration_leak:
+                        raise OpenRouterError(
+                            "A correção de continuidade não produziu fala verbal limpa de Mary."
+                        )
+                    direct_validation = validate_direct_semantic_turn(
+                        api_key=api_key,
+                        model=director_model,
+                        fallback_model=fallback,
+                        row=direct_row,
+                        interpretation=direct_interpretation,
+                        mary_text=answer,
+                        user_text=dialogue_text,
+                        line_dialogue=list(direct_state.get("line_dialogue", []) or []),
+                    )
+                    if not bool(
+                        (direct_validation.get("conversation_consistency", {}) or {}).get(
+                            "ok", True
+                        )
+                    ):
+                        raise OpenRouterError(
+                            "A resposta de Mary manteve incoerência conversacional após correção."
+                        )
 
                 hard_contradiction = direct_validation.get("hard_contradiction", {})
                 if (
