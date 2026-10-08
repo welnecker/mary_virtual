@@ -41,8 +41,17 @@ def validate_direct_semantic_turn(
     obligation_text = _clean(obligation.get("requirement"))
     speech_guide = _clean(row.get("speech_guide"))
 
+    recent_user_facts = interpretation.get("recent_user_facts", []) if isinstance(interpretation, dict) else []
+    if not isinstance(recent_user_facts, list):
+        recent_user_facts = []
+    grounded_recent_facts = [
+        _clean(value) for value in recent_user_facts if _clean(value)
+    ][-16:]
+
     history: list[str] = []
-    conversation_entries: list[tuple[str, str]] = []
+    conversation_entries: list[tuple[str, str]] = [
+        ("USUÁRIO", value) for value in grounded_recent_facts
+    ]
     for message in (line_dialogue or [])[-10:]:
         if not isinstance(message, dict):
             continue
@@ -89,6 +98,8 @@ def validate_direct_semantic_turn(
         + understanding
         + "\n\nOBRIGAÇÃO CONVERSACIONAL ATUAL\n"
         + (obligation_text if obligation_exists else "(nenhuma)")
+        + "\n\nFATOS/DECISÕES RECENTES DO USUÁRIO — TRECHOS LITERAIS ATERRADOS\n"
+        + ("\n".join(f"- {value}" for value in grounded_recent_facts) or "(nenhum)")
         + "\n\nCONVERSA DA LINHA ATIVA\n"
         + conversation
         + "\n\nRESPOSTA ATUAL DE MARY\n"
@@ -103,6 +114,7 @@ def validate_direct_semantic_turn(
         "Não use a fala atual do usuário, a compreensão atual ou a resposta de Mary para inventar novos objetivos da linha. "
         "Depois determine se esses atos da FALA-GUIA já foram realizados na conversa. "
         "Uma informação fornecida espontaneamente pelo USUÁRIO pode cumprir um objetivo sem Mary precisar repetir a pergunta. "
+        "Os FATOS/DECISÕES RECENTES DO USUÁRIO são trechos literais previamente aterrados no texto real do usuário e também podem cumprir a finalidade quando responderem diretamente ao objetivo. "
         "Pronomes e possessivos da FALA-GUIA são lidos da perspectiva de Mary: 'me' refere-se a Mary; 'me levar' significa o interlocutor levar Mary, salvo contexto explícito contrário. "
         "Exija evidência literal na CONVERSA DA LINHA. "
         "B) CONSISTÊNCIA FACTUAL: verifique se a RESPOSTA ATUAL DE MARY contradiz algum fato explícito das FONTES AUTORITATIVAS. "
