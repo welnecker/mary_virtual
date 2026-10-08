@@ -102,7 +102,7 @@ st.set_page_config(page_title="Mary Core 2", page_icon="🖤", layout="centered"
 
 _LOG = logging.getLogger(__name__)
 
-BUILD_ID = "2026-10-08-direct-sheet-v6.20"
+BUILD_ID = "2026-10-08-direct-sheet-v6.21"
 
 DEFAULT_MODELS = [
     "google/gemini-2.5-flash-lite",
@@ -2507,6 +2507,13 @@ if user_text:
                         mary_text=answer,
                         user_text=dialogue_text,
                         line_dialogue=list(direct_state.get("line_dialogue", []) or []),
+                    )
+
+                if str(direct_validation.get("parse_error", "") or "").strip():
+                    # Falha técnica do Diretor não vira estado narrativo.
+                    # O bloco try externo restaura integralmente o turno.
+                    raise OpenRouterError(
+                        "O Diretor semântico não devolveu validação estruturada após duas tentativas."
                     )
 
                 hard_contradiction = direct_validation.get("hard_contradiction", {})
