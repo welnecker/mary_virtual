@@ -11,6 +11,17 @@ def _clean(value) -> str:
     return str(value or "").strip()
 
 
+def _evidence_source(evidence: str, entries: list[tuple[str, str]]) -> str:
+    """Determina a autoria pela conversa real, nunca pelo rótulo produzido pelo LLM."""
+    needle = _clean(evidence).casefold()
+    if not needle:
+        return ""
+    for source, content in entries:
+        if needle in _clean(content).casefold():
+            return source
+    return ""
+
+
 def validate_direct_semantic_turn(
     *,
     api_key: str,
@@ -31,6 +42,7 @@ def validate_direct_semantic_turn(
     speech_guide = _clean(row.get("speech_guide"))
 
     history: list[str] = []
+    conversation_entries: list[tuple[str, str]] = []
     for message in (line_dialogue or [])[-10:]:
         if not isinstance(message, dict):
             continue
@@ -38,10 +50,14 @@ def validate_direct_semantic_turn(
         content = _clean(message.get("content"))
         if not content:
             continue
-        history.append(("MARY" if role == "assistant" else "USUÁRIO") + ": " + content)
+        source = "MARY" if role == "assistant" else "USUÁRIO"
+        conversation_entries.append((source, content))
+        history.append(source + ": " + content)
     if _clean(user_text):
+        conversation_entries.append(("USUÁRIO", _clean(user_text)))
         history.append("USUÁRIO: " + _clean(user_text))
     if _clean(mary_text):
+        conversation_entries.append(("MARY", _clean(mary_text)))
         history.append("MARY: " + _clean(mary_text))
     conversation = "\n".join(history) or "(sem histórico da linha)"
 
@@ -87,10 +103,11 @@ def validate_direct_semantic_turn(
         "Não use a fala atual do usuário, a compreensão atual ou a resposta de Mary para inventar novos objetivos da linha. "
         "Depois determine se esses atos da FALA-GUIA já foram realizados na conversa. "
         "Uma informação fornecida espontaneamente pelo USUÁRIO pode cumprir um objetivo sem Mary precisar repetir a pergunta. "
+        "Pronomes e possessivos da FALA-GUIA são lidos da perspectiva de Mary: 'me' refere-se a Mary; 'me levar' significa o interlocutor levar Mary, salvo contexto explícito contrário. "
         "Exija evidência literal na CONVERSA DA LINHA. "
         "B) CONSISTÊNCIA FACTUAL: verifique se a RESPOSTA ATUAL DE MARY contradiz algum fato explícito das FONTES AUTORITATIVAS. "
         "As fontes autoritativas vencem falas anteriores de Mary. "
-        "Contradição dura inclui troca de proprietário, motorista/passageiro, residência, relacionamento, posição física ou outro fato objetivo explícito. "
+        "Contradição dura inclui troca de identidade, papel, profissão, função, proprietário, motorista/passageiro, residência, relacionamento, posição física ou outro fato objetivo explícito. "
         "Não marque contradição por estilo, opinião, criatividade compatível ou missão incompleta. "
         "A obrigação conversacional atual, quando existir, deve ser atendida pela RESPOSTA ATUAL DE MARY. "
         "Retorne somente JSON com: "
@@ -151,18 +168,16 @@ def validate_direct_semantic_turn(
         if not isinstance(item, dict):
             continue
         evidence = _clean(item.get("evidencia"))
-        source = _clean(item.get("fonte")).upper()
-        source_is_guide = "FALA-GUIA" in source or "FALA GUIA" in source
-        valid = (
-            bool(evidence)
-            and evidence.casefold() in conversation_norm
-            and not source_is_guide
-        )
+        claimed_source = _clean(item.get("fonte")).upper()
+        source = _evidence_source(evidence, conversation_entries)
+        source_is_guide = "FALA-GUIA" in claimed_source or "FALA GUIA" in claimed_source
+        valid = bool(evidence) and bool(source)
         normalized_objectives.append(
             {
                 "requirement": _clean(item.get("objetivo")),
                 "found": bool(item.get("alcancado", False)) and valid,
                 "source": source,
+                "claimed_source": claimed_source,
                 "evidence": evidence if valid else "",
                 "invalid_guide_evidence": source_is_guide,
             }
