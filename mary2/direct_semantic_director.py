@@ -79,9 +79,13 @@ def validate_direct_semantic_turn(
         + _clean(mary_text)
         + "\n\nTAREFA\n"
         "Faça duas validações independentes. "
-        "A) FINALIDADE DA LINHA: primeiro decomponha EXCLUSIVAMENTE a FALA-GUIA ORIGINAL em seus objetivos semânticos. "
+        "A) FINALIDADE DA LINHA: primeiro decomponha EXCLUSIVAMENTE a FALA-GUIA ORIGINAL nos ATOS CONVERSACIONAIS que Mary deve realizar. "
+        "Exemplos de atos: perguntar, contar, admitir, propor, convidar, prometer, provocar, esclarecer, pedir. "
+        "Não converta um ato conversacional em resultado futuro. Exemplo: 'me levar para a balada' dentro de um convite significa Mary FORMULAR O CONVITE; "
+        "não significa que a ida à balada já tenha acontecido. 'Eu prometo que vou ser divertida' significa Mary FAZER A PROMESSA; "
+        "não significa que ela já tenha sido divertida na balada. "
         "Não use a fala atual do usuário, a compreensão atual ou a resposta de Mary para inventar novos objetivos da linha. "
-        "Depois determine se esses objetivos da FALA-GUIA já aconteceram na conversa. "
+        "Depois determine se esses atos da FALA-GUIA já foram realizados na conversa. "
         "Uma informação fornecida espontaneamente pelo USUÁRIO pode cumprir um objetivo sem Mary precisar repetir a pergunta. "
         "Exija evidência literal na CONVERSA DA LINHA. "
         "B) CONSISTÊNCIA FACTUAL: verifique se a RESPOSTA ATUAL DE MARY contradiz algum fato explícito das FONTES AUTORITATIVAS. "
@@ -107,7 +111,7 @@ def validate_direct_semantic_turn(
                 "content": (
                     "Você é um Diretor de continuidade semântica. "
                     "Valide finalidade da linha e verdade factual. "
-                    "Os objetivos da linha vêm somente da FALA-GUIA ORIGINAL. "
+                    "Os objetivos da linha vêm somente da FALA-GUIA ORIGINAL e devem ser entendidos como atos conversacionais de Mary, não como resultados futuros. "
                     "Não exija repetição literal da fala-guia. "
                     "Nunca invente evidência."
                 ),
