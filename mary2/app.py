@@ -102,7 +102,7 @@ st.set_page_config(page_title="Mary Core 2", page_icon="🖤", layout="centered"
 
 _LOG = logging.getLogger(__name__)
 
-BUILD_ID = "2026-10-08-direct-sheet-v6.22"
+BUILD_ID = "2026-10-08-direct-sheet-v6.23"
 
 DEFAULT_MODELS = [
     "google/gemini-2.5-flash-lite",
@@ -2094,6 +2094,21 @@ if user_text:
             if not isinstance(recent_user_facts, list):
                 recent_user_facts = []
 
+            temporary_character = scene_for_director.get("temporary_character", {})
+            if not isinstance(temporary_character, dict):
+                temporary_character = {}
+            active_interlocutor = " | ".join(
+                part
+                for part in [
+                    "papel=" + str(scene_for_director.get("user_role", "") or "").strip(),
+                    "nome=" + str(temporary_character.get("name", "") or "").strip(),
+                    "descrição=" + str(temporary_character.get("description", "") or "").strip(),
+                    "relação=" + str(temporary_character.get("relation_to_mary", "") or "").strip(),
+                    "gênero=" + str(temporary_character.get("gender", "") or "").strip(),
+                ]
+                if part.split("=", 1)[1]
+            )
+
             direct_interpretation = analyze_user_understanding(
                 api_key=api_key,
                 model=director_model,
@@ -2102,6 +2117,7 @@ if user_text:
                 previous_mary_text=previous_mary_text,
                 recent_messages=messages_before_turn,
                 recent_user_facts=recent_user_facts,
+                active_interlocutor=active_interlocutor,
                 instant_memory=str(direct_row.get("instant_memory", "") or ""),
                 permanent_memory=str(direct_row.get("permanent_memory", "") or ""),
                 physical_memory=str(direct_row.get("physical_memory", "") or ""),
@@ -2144,6 +2160,7 @@ if user_text:
                 user_text=dialogue_text,
                 interpretation=direct_interpretation,
                 previous_mary_text=previous_mary_text,
+                active_interlocutor=active_interlocutor,
                 character_name=str(
                     scene_for_director.get("temporary_character", {}).get("name", "") or ""
                 ),
