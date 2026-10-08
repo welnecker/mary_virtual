@@ -151,13 +151,20 @@ def validate_direct_semantic_turn(
         if not isinstance(item, dict):
             continue
         evidence = _clean(item.get("evidencia"))
-        valid = bool(evidence) and evidence.casefold() in conversation_norm
+        source = _clean(item.get("fonte")).upper()
+        source_is_guide = "FALA-GUIA" in source or "FALA GUIA" in source
+        valid = (
+            bool(evidence)
+            and evidence.casefold() in conversation_norm
+            and not source_is_guide
+        )
         normalized_objectives.append(
             {
                 "requirement": _clean(item.get("objetivo")),
                 "found": bool(item.get("alcancado", False)) and valid,
-                "source": _clean(item.get("fonte")).upper(),
+                "source": source,
                 "evidence": evidence if valid else "",
+                "invalid_guide_evidence": source_is_guide,
             }
         )
 
@@ -222,4 +229,8 @@ def validate_direct_semantic_turn(
         "raw_response": raw,
         "parsed_response": parsed,
         "parse_error": parse_error,
+        "invalid_guide_evidence": any(
+            bool(item.get("invalid_guide_evidence", False))
+            for item in normalized_objectives
+        ),
     }
