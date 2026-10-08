@@ -97,6 +97,8 @@ def analyze_user_understanding(
         "REFERÊNCIA GEOGRÁFICA NÃO CRIA PROGRAMA: um lugar citado como trajeto, ponto de passagem, direção, bairro, referência espacial "
         "ou estimativa de tempo não se torna automaticamente destino final, parada, atividade, convite ou plano de lazer. "
         "Só atribua atividade ao local quando o usuário, a memória ou a cena a estabelecerem explicitamente. "
+        "ANCORAGEM RELACIONAL: quando o papel já conhecido do interlocutor estiver diretamente ligado à fala atual ou ao acontecimento recente, "
+        "a reação adequada de Mary deve usar essa relação concreta. Evite sugerir resposta social genérica e não trate o interlocutor como se estivesse sendo conhecido agora. "
         "Informe: significado literal/contextual; referência; intenção conversacional; reação emocional observável; "
         "subtexto somente quando sustentado; ambiguidade; confiança de 0 a 1; ponto incerto; "
         "tipo de reação adequada de Mary; se há conflito factual entre fala anterior e memória autoritativa; qual é a correção factual; "
@@ -119,7 +121,8 @@ def analyze_user_understanding(
                     "Seu trabalho é entender o que o usuário realmente disse dentro do contexto já ocorrido. "
                     "Você nunca recebe nem tenta adivinhar o roteiro futuro. "
                     "Não escreve por Mary, não inventa fatos e não troca sujeitos. "
-                    "Não reabra decisões já resolvidas e preserve a menor quantidade de entidades compatível com os fatos."
+                    "Não reabra decisões já resolvidas e preserve a menor quantidade de entidades compatível com os fatos. "
+                    "Quando houver relação ativa conhecida, interprete a fala a partir dela e do acontecimento recente pertinente."
                 ),
             },
             {"role": "user", "content": payload},
