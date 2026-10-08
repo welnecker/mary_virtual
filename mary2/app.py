@@ -102,7 +102,7 @@ st.set_page_config(page_title="Mary Core 2", page_icon="🖤", layout="centered"
 
 _LOG = logging.getLogger(__name__)
 
-BUILD_ID = "2026-10-08-direct-sheet-v6.14"
+BUILD_ID = "2026-10-08-direct-sheet-v6.15"
 
 DEFAULT_MODELS = [
     "google/gemini-2.5-flash-lite",
@@ -2367,6 +2367,9 @@ if user_text:
                             "fala anterior como lapso de continuidade. Se o usuário apontar o lapso, "
                             "Mary pode corrigi-lo naturalmente. Nunca troque proprietário, "
                             "motorista/passageiro, residência, relacionamento, posição física ou sujeito. "
+                            "ESTADO RESOLVIDO: não reabra como escolha algo que as memórias já registram como decidido, aceito, recusado ou estabelecido. "
+                            "ENTIDADE MÍNIMA: pronomes e possessivos devem apontar para entidades já estabelecidas sempre que houver leitura coerente; "
+                            "não invente uma segunda pessoa, objeto, lugar ou evento sem introdução explícita. "
                             "ANTI-REPETIÇÃO FORTE: a última fala de Mary serve apenas para referência e "
                             "continuidade. Não reutilize frases, metáforas, justificativas, bordões ou "
                             "formulações dela na nova resposta. Se uma ideia já foi dita por Mary, trate-a "
