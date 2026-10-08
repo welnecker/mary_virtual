@@ -45,6 +45,7 @@ def test_evidence_source_is_derived_from_real_user_dialogue(monkeypatch):
     assert result["elements"][0]["source"] == "USUÁRIO"
     assert result["elements"][0]["claimed_source"] == "FALA-GUIA ORIGINAL"
     assert result["elements"][0]["evidence"] == "Eu moro em Camburi."
+    assert result["invalid_guide_evidence"] is False
 
 
 def test_evidence_source_prefers_first_real_occurrence(monkeypatch):
