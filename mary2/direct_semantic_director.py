@@ -170,7 +170,6 @@ def validate_direct_semantic_turn(
         evidence = _clean(item.get("evidencia"))
         claimed_source = _clean(item.get("fonte")).upper()
         source = _evidence_source(evidence, conversation_entries)
-        source_is_guide = "FALA-GUIA" in claimed_source or "FALA GUIA" in claimed_source
         valid = bool(evidence) and bool(source)
         normalized_objectives.append(
             {
@@ -179,7 +178,7 @@ def validate_direct_semantic_turn(
                 "source": source,
                 "claimed_source": claimed_source,
                 "evidence": evidence if valid else "",
-                "invalid_guide_evidence": source_is_guide,
+                "invalid_guide_evidence": False,
             }
         )
 
