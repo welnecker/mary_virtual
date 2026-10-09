@@ -110,7 +110,7 @@ st.set_page_config(page_title="Mary Core 2", page_icon="🖤", layout="centered"
 
 _LOG = logging.getLogger(__name__)
 
-BUILD_ID = "2026-10-09-sheet-runtime-v8.0"
+BUILD_ID = "2026-10-09-sheet-runtime-v8.1-revelation-test"
 
 
 def _runtime_get_chapter(chapter_id: str) -> dict:
@@ -2414,6 +2414,7 @@ if user_text:
                     permanent_memory=str(direct_row.get("permanent_memory", "") or ""),
                     physical_memory=str(direct_row.get("physical_memory", "") or ""),
                     initial_description=str(direct_row.get("initial_description", "") or ""),
+                    revelation_policy=str(direct_row.get("revelation_policy", "") or ""),
                 )
             grounded_facts = direct_interpretation.get("recent_user_facts", [])
             if isinstance(grounded_facts, list):
@@ -2890,6 +2891,76 @@ if user_text:
                     ):
                         raise OpenRouterError(
                             "A resposta de Mary manteve incoerência conversacional após correção."
+                        )
+
+                revelation_violation = direct_validation.get(
+                    "revelation_violation", {}
+                )
+                if (
+                    isinstance(revelation_violation, dict)
+                    and bool(revelation_violation.get("exists", False))
+                ):
+                    model_audit["direct_validation_before_revelation_correction"] = deepcopy(
+                        direct_validation
+                    )
+                    revelation_retry_messages = [
+                        *llm_messages,
+                        {
+                            "role": "system",
+                            "content": (
+                                "CORREÇÃO DE REVELAÇÃO OBRIGATÓRIA. A resposta anterior verbalizou "
+                                "conteúdo que Mary conhece, mas que ainda está reservado para uma linha futura. "
+                                "Reescreva a resposta reagindo naturalmente à fala atual do usuário, sem mentir, "
+                                "sem inventar fatos e sem revelar o conteúdo reservado. Se o usuário perguntou "
+                                "diretamente pelo dado proibido, Mary pode hesitar, pedir um instante, dizer que vai "
+                                "contar ou preparar a revelação, mas não pode entregá-la ainda. Preserve a FALA-GUIA "
+                                "da linha atual somente até onde ela couber naturalmente. "
+                                "Regra da linha: "
+                                + str(direct_row.get("revelation_policy", "") or "")
+                                + ". Conteúdo reservado detectado: "
+                                + str(revelation_violation.get("reserved_content", "") or "")
+                                + ". Trecho problemático: "
+                                + str(revelation_violation.get("mary_excerpt", "") or "")
+                                + ". Correção esperada: "
+                                + str(revelation_violation.get("correction", "") or "")
+                                + ". Use exatamente [FALA] e [PENSAMENTO]."
+                            ),
+                        },
+                    ]
+                    raw_answer = chat(
+                        api_key=api_key,
+                        model=model,
+                        fallback_model=fallback,
+                        messages=revelation_retry_messages,
+                        temperature=max(0.2, min(float(temperature), 0.7)),
+                    )
+                    model_audit["retry_used"] = True
+                    model_audit["retry_messages"] = deepcopy(revelation_retry_messages)
+                    model_audit["retry_raw_response"] = raw_answer
+                    mary_intent, mary_speech_raw = parse_mary_response(raw_answer)
+                    narration_leak = looks_like_action_narration(mary_speech_raw)
+                    answer = sanitize_mary_output(mary_speech_raw)
+                    if not answer or narration_leak:
+                        raise OpenRouterError(
+                            "A correção de revelação não produziu fala verbal limpa de Mary."
+                        )
+                    direct_validation = validate_direct_semantic_turn(
+                        api_key=api_key,
+                        model=director_model,
+                        fallback_model=fallback,
+                        row=direct_row,
+                        interpretation=direct_interpretation,
+                        mary_text=answer,
+                        user_text=dialogue_text,
+                        line_dialogue=list(direct_state.get("line_dialogue", []) or []),
+                    )
+                    if bool(
+                        (direct_validation.get("revelation_violation", {}) or {}).get(
+                            "exists", False
+                        )
+                    ):
+                        raise OpenRouterError(
+                            "A resposta de Mary manteve antecipação de revelação após correção."
                         )
 
                 hard_contradiction = direct_validation.get("hard_contradiction", {})
