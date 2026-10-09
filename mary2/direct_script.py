@@ -604,6 +604,7 @@ def build_direct_writer_prompt(
     all_rows: list[dict] | None = None,
     recent_messages: list[dict] | None = None,
     user_text: str,
+    user_scene_direction: str = "",
     interpretation: dict | None = None,
     previous_mary_text: str = "",
     previous_conversation_state: dict | None = None,
@@ -745,10 +746,12 @@ def build_direct_writer_prompt(
                 "Depois dessa fala, pare e aguarde a resposta do usuário; não execute a próxima linha.\n\n"
                 if blocked_line
                 else (
-                "USUÁRIO AGORA:\n"
+                "DIREÇÃO/ENCENAÇÃO ATUAL DO USUÁRIO:\n"
+                + (_clean(user_scene_direction) or "(nenhuma)")
+                + "\n\nFALA VERBAL ATUAL DO USUÁRIO:\n"
                 + (_clean(user_text) or "(sem fala verbal)")
                 + "\n\n"
-                "Leia a fala atual como continuação causal da conversa acima. "
+                "Leia a entrada atual como continuação causal da conversa acima. Preserve a diferença entre encenação e fala, mas use ambas para compreender o sentido completo do turno. "
                 "Perguntas, provocações, ironias, confirmações, recusas e brincadeiras devem ser respondidas pelo sentido, "
                 "não espelhadas nem devolvidas mecanicamente.\n\n"
                 )
