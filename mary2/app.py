@@ -30,6 +30,7 @@ from direct_script import (
     direct_line_correction_prompt,
     direct_script_ready_for_choice,
     ensure_direct_state,
+    extract_direct_character_name,
     is_automatic_direct_row,
     load_direct_script_catalog,
     load_direct_script_rows,
@@ -2331,6 +2332,25 @@ if user_text:
             previous_conversation_state = normalize_conversation_state(
                 narrative_state.get("direct_conversation_state", {})
             )
+
+            detected_character_name = extract_direct_character_name(
+                direct_row,
+                dialogue_text,
+            )
+            if detected_character_name:
+                temporary = st.session_state.scene_state.get("temporary_character", {})
+                if not isinstance(temporary, dict):
+                    temporary = {}
+                temporary = dict(temporary)
+                temporary.update(
+                    {
+                        "active": True,
+                        "name": detected_character_name,
+                        "user_can_play": True,
+                    }
+                )
+                st.session_state.scene_state["temporary_character"] = temporary
+                scene_for_director["temporary_character"] = deepcopy(temporary)
 
             temporary_character = scene_for_director.get("temporary_character", {})
             if not isinstance(temporary_character, dict):
