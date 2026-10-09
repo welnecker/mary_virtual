@@ -14,6 +14,7 @@ from mary2.direct_script import (
     next_direct_script,
     parse_direct_script_id,
     register_direct_user_reply,
+    record_direct_line_turn,
 )
 
 
@@ -466,6 +467,56 @@ def test_next_user_reply_advances_directly_without_breath_turn():
     register_direct_user_reply(state, ROWS, "Tudo bem, vamos.")
     assert current_direct_row(ROWS, state)["order"] == 2
     assert state["awaiting_reply_order"] == 0
+
+
+
+def test_direct_line_can_span_many_interactions_without_advancing_or_finishing():
+    state = ensure_direct_state({}, ROWS)
+    assert current_direct_row(ROWS, state)["order"] == 1
+    assert direct_script_ready_for_choice(state) is False
+
+    # Três trocas podem acontecer dentro da mesma linha enquanto o Diretor
+    # ainda não considerar a missão satisfeita. Sem mark_direct_line_emitted,
+    # a posição autoral não avança.
+    for idx in range(1, 4):
+        record_direct_line_turn(
+            state,
+            user_text=f"fala do usuário {idx}",
+            mary_text=f"resposta de Mary {idx}",
+        )
+        assert current_direct_row(ROWS, state)["order"] == 1
+        assert state["completed_orders"] == []
+        assert state["completed"] is False
+        assert direct_script_ready_for_choice(state) is False
+
+    # Só a validação semântica da linha arma a passagem para a próxima.
+    mark_direct_line_emitted(state, ROWS[0], ROWS)
+    assert state["awaiting_reply_order"] == 1
+    assert state["completed"] is False
+
+    # A fala seguinte do usuário confirma a passagem para a linha 2.
+    register_direct_user_reply(state, ROWS, "continua")
+    assert current_direct_row(ROWS, state)["order"] == 2
+    assert state["completed_orders"] == [1]
+    assert state["completed"] is False
+    assert direct_script_ready_for_choice(state) is False
+
+    # Mesmo que imaginemos dezenas de interações globais no capítulo,
+    # o estado direto não usa essa contagem para concluir o roteiro.
+    for idx in range(4, 9):
+        record_direct_line_turn(
+            state,
+            user_text=f"fala extra {idx}",
+            mary_text=f"resposta extra {idx}",
+        )
+        assert current_direct_row(ROWS, state)["order"] == 2
+        assert direct_script_ready_for_choice(state) is False
+
+    # O capítulo só termina quando a última linha é efetivamente validada.
+    mark_direct_line_emitted(state, ROWS[1], ROWS)
+    assert state["completed_orders"] == [1, 2]
+    assert state["completed"] is True
+    assert direct_script_ready_for_choice(state) is True
 
 
 def test_last_line_completes_immediately_when_validated():
