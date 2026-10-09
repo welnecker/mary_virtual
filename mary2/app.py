@@ -103,7 +103,7 @@ st.set_page_config(page_title="Mary Core 2", page_icon="🖤", layout="centered"
 
 _LOG = logging.getLogger(__name__)
 
-BUILD_ID = "2026-10-08-direct-sheet-v6.30"
+BUILD_ID = "2026-10-08-direct-sheet-v6.32"
 
 DEFAULT_MODELS = [
     "google/gemini-3-flash-preview",
@@ -2924,7 +2924,7 @@ if user_text:
                 and director_audit.get("scene_after", {}).get("fulfilled", False)
             )
             if direct_fulfilled:
-                mark_direct_line_emitted(direct_state, direct_row)
+                mark_direct_line_emitted(direct_state, direct_row, direct_rows)
             _LOG.info(
                 "DIRECT_SCRIPT_AUDIT order=%s type=%s completion=%s fulfilled=%s awaiting=%s",
                 int(direct_row.get("order", 0) or 0),
