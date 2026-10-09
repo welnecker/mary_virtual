@@ -584,3 +584,36 @@ def test_blocked_line_waits_for_user_after_mary_speaks():
     assert state["current_order"] == 12
     assert state["awaiting_reply_order"] == 0
     assert state["completed"] is False
+
+
+def test_direct_writer_preserves_scene_direction_and_spoken_dialogue_separately():
+    row = {
+        "order": 16,
+        "line_id": "linha_16",
+        "script_name": "Academia2",
+        "speech_guide": "eu vou estar ali na lanchonete... tá convidado",
+        "style": "convite direto",
+        "interaction_mode": "",
+        "instant_memory": "Mary está encerrando o treino.",
+        "permanent_memory": "Mary está separada de Janio.",
+        "physical_memory": "Mary tem cabelos negros.",
+        "initial_description": "Mary está na academia.",
+    }
+
+    prompt = build_direct_writer_prompt(
+        row=row,
+        all_rows=[row],
+        recent_messages=[],
+        user_text="Ha!",
+        user_scene_direction="Eu saio em 10 minutos... só preciso organizar os pesos para o próximo turno...",
+        interpretation={
+            "literal_meaning": "O personal informa que sai em 10 minutos e reage com uma risada curta.",
+            "user_obligation": {"exists": True, "requirement": "reconhecer que ele sai em 10 minutos"},
+        },
+    )
+
+    assert "DIREÇÃO/ENCENAÇÃO ATUAL DO USUÁRIO:" in prompt
+    assert "Eu saio em 10 minutos" in prompt
+    assert "FALA VERBAL ATUAL DO USUÁRIO:" in prompt
+    assert "Ha!" in prompt
+    assert "Preserve a diferença entre encenação e fala" in prompt
