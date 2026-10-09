@@ -56,6 +56,7 @@ def validate_direct_semantic_turn(
     mary_text: str,
     mary_thought: str = "",
     user_text: str = "",
+    user_scene_direction: str = "",
     line_dialogue: list[dict] | None = None,
 ) -> dict:
     """Valida em uma só chamada: finalidade da linha + consistência factual dura."""
@@ -90,9 +91,12 @@ def validate_direct_semantic_turn(
         source = "MARY" if role == "assistant" else "USUÁRIO"
         conversation_entries.append((source, content))
         history.append(source + ": " + content)
+    if _clean(user_scene_direction):
+        conversation_entries.append(("USUÁRIO", _clean(user_scene_direction)))
+        history.append("DIREÇÃO/ENCENAÇÃO DO USUÁRIO: " + _clean(user_scene_direction))
     if _clean(user_text):
         conversation_entries.append(("USUÁRIO", _clean(user_text)))
-        history.append("USUÁRIO: " + _clean(user_text))
+        history.append("FALA DO USUÁRIO: " + _clean(user_text))
     if _clean(mary_text):
         conversation_entries.append(("MARY", _clean(mary_text)))
         history.append("MARY: " + _clean(mary_text))
@@ -131,7 +135,7 @@ def validate_direct_semantic_turn(
         + (speech_guide or "(nenhuma)")
         + "\n\nREGRA DE REVELAÇÃO DA LINHA ATUAL\n"
         + (revelation_policy or "(sem restrição autoral específica)")
-        + "\n\nCOMPREENSÃO DA FALA ATUAL\n"
+        + "\n\nCOMPREENSÃO DA ENTRADA ATUAL\n"
         + understanding
         + "\n\nOBRIGAÇÃO CONVERSACIONAL ATUAL\n"
         + (obligation_text if obligation_exists else "(nenhuma)")
@@ -165,7 +169,7 @@ def validate_direct_semantic_turn(
         "Pronomes e possessivos da FALA-GUIA são lidos da perspectiva de Mary: 'me' refere-se a Mary; 'me levar' significa o interlocutor levar Mary, salvo contexto explícito contrário. "
         "Exija evidência literal na CONVERSA DA LINHA ou nos FATOS/DECISÕES RECENTES DO USUÁRIO aterrados. "
         "No campo evidencia, prefira UMA citação literal contínua. Se precisar abreviar uma citação longa, use reticências apenas para ligar fragmentos que existam literalmente na MESMA fala; nunca parafraseie a evidência. "
-        "B) COERÊNCIA CONVERSACIONAL: compare a COMPREENSÃO DA FALA ATUAL com a RESPOSTA ATUAL DE MARY. "
+        "B) COERÊNCIA CONVERSACIONAL: compare a COMPREENSÃO DA ENTRADA ATUAL com a RESPOSTA ATUAL DE MARY. A entrada pode conter direção/encenação e fala; preserve ambas sem transformar uma na outra. "
         "Verifique se Mary respeitou quem iniciou cada ação, quem é alvo de vocativos, perguntas, provocações, aceitações, recusas e correções, e se respondeu ao movimento atual sem inverter sujeito, destinatário, posse ou iniciativa. "
         "Não exija que Mary repita as palavras do usuário; valide o sentido e a relação causal com o movimento anterior. "
         "C) CONSISTÊNCIA FACTUAL: verifique se a RESPOSTA ATUAL DE MARY contradiz algum fato explícito das FONTES AUTORITATIVAS. "
