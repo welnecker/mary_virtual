@@ -1374,7 +1374,7 @@ with st.sidebar:
                     st.error(f"Não foi possível reiniciar o capítulo: {exc}")
 
             if not direct_linear_runtime:
-            if (
+                if (
                     st.session_state.route_checkpoints_loaded_for_run
                     != st.session_state.run_id
                 ):
