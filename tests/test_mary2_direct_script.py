@@ -8,6 +8,7 @@ from mary2.direct_script import (
     ensure_direct_state,
     extract_direct_character_name,
     is_automatic_direct_row,
+    is_blocked_direct_row,
     load_direct_script_catalog,
     load_direct_script_rows,
     mark_direct_line_emitted,
@@ -552,3 +553,34 @@ def test_direct_line_correction_prompt_keeps_same_mission():
 
 
 
+
+
+def test_blocked_line_waits_for_user_after_mary_speaks():
+    rows = [
+        {"order": 10, "line_id": "linha_10", "speech_guide": "pensamento", "interaction_mode": "automatico"},
+        {"order": 11, "line_id": "linha_11", "speech_guide": "Oi, pode me ajudar?", "interaction_mode": "bloqueado"},
+        {"order": 12, "line_id": "linha_12", "speech_guide": "O aparelho é esse?", "interaction_mode": ""},
+    ]
+    state = ensure_direct_state({}, rows)
+
+    assert is_automatic_direct_row(rows[0]) is True
+    assert is_blocked_direct_row(rows[1]) is True
+
+    mark_direct_line_emitted(state, rows[0], rows)
+    assert state["current_order"] == 11
+    assert state["completed_orders"] == [10]
+    assert state["awaiting_reply_order"] == 0
+
+    # Mary inicia a linha bloqueada; a linha NÃO é concluída ainda.
+    mark_direct_line_emitted(state, rows[1], rows)
+    assert state["current_order"] == 11
+    assert state["completed_orders"] == [10]
+    assert state["awaiting_reply_order"] == 11
+    assert state["completed"] is False
+
+    # Só a resposta real do usuário conclui a linha 11 e abre a 12.
+    register_direct_user_reply(state, rows, "claro, pode ser")
+    assert state["completed_orders"] == [10, 11]
+    assert state["current_order"] == 12
+    assert state["awaiting_reply_order"] == 0
+    assert state["completed"] is False
