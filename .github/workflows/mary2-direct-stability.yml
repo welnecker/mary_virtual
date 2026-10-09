@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - agent/carona-funnel-engine
+      - agent/sheet-script-discovery
     paths:
       - "mary2/**"
       - "tests/test_mary2_user_understanding_audit.py"
