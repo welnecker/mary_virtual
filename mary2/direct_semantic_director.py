@@ -54,6 +54,7 @@ def validate_direct_semantic_turn(
     row: dict,
     interpretation: dict,
     mary_text: str,
+    mary_thought: str = "",
     user_text: str = "",
     line_dialogue: list[dict] | None = None,
 ) -> dict:
@@ -65,6 +66,8 @@ def validate_direct_semantic_turn(
     obligation_text = _clean(obligation.get("requirement"))
     speech_guide = _clean(row.get("speech_guide"))
     revelation_policy = _clean(row.get("revelation_policy"))
+    interaction_mode = _clean(row.get("interaction_mode")).casefold()
+    automatic_row = interaction_mode in {"automatico", "automático", "automatic"}
 
     recent_user_facts = interpretation.get("recent_user_facts", []) if isinstance(interpretation, dict) else []
     if not isinstance(recent_user_facts, list):
@@ -93,6 +96,9 @@ def validate_direct_semantic_turn(
     if _clean(mary_text):
         conversation_entries.append(("MARY", _clean(mary_text)))
         history.append("MARY: " + _clean(mary_text))
+    if automatic_row and _clean(mary_thought):
+        conversation_entries.append(("MARY", _clean(mary_thought)))
+        history.append("PENSAMENTO DE MARY: " + _clean(mary_thought))
     conversation = "\n".join(history) or "(sem histórico da linha)"
 
     authoritative = (
@@ -135,9 +141,19 @@ def validate_direct_semantic_turn(
         + conversation
         + "\n\nRESPOSTA ATUAL DE MARY\n"
         + _clean(mary_text)
+        + (
+            "\n\nPENSAMENTO ATUAL DE MARY\n" + _clean(mary_thought)
+            if automatic_row and _clean(mary_thought)
+            else ""
+        )
         + "\n\nTAREFA\n"
         "Faça quatro validações independentes. "
         "A) FINALIDADE DA LINHA: primeiro decomponha EXCLUSIVAMENTE a FALA-GUIA ORIGINAL nos ATOS CONVERSACIONAIS que Mary deve realizar. "
+        + (
+            "Esta linha é AUTOMÁTICA: o PENSAMENTO ATUAL DE MARY também é saída válida e pode cumprir a FALA-GUIA, especialmente quando a linha é introspectiva. "
+            if automatic_row
+            else ""
+        )
         "Exemplos de atos: perguntar, contar, admitir, propor, convidar, prometer, provocar, esclarecer, pedir. "
         "Não converta um ato conversacional em resultado futuro. Exemplo: 'me levar para a balada' dentro de um convite significa Mary FORMULAR O CONVITE; "
         "não significa que a ida à balada já tenha acontecido. 'Eu prometo que vou ser divertida' significa Mary FAZER A PROMESSA; "
