@@ -40,6 +40,7 @@ def validate_direct_semantic_turn(
     obligation_exists = bool(obligation.get("exists", False))
     obligation_text = _clean(obligation.get("requirement"))
     speech_guide = _clean(row.get("speech_guide"))
+    revelation_policy = _clean(row.get("revelation_policy"))
 
     recent_user_facts = interpretation.get("recent_user_facts", []) if isinstance(interpretation, dict) else []
     if not isinstance(recent_user_facts, list):
@@ -98,6 +99,8 @@ def validate_direct_semantic_turn(
         + authoritative
         + "\n\nFALA-GUIA ORIGINAL\n"
         + (speech_guide or "(nenhuma)")
+        + "\n\nREGRA DE REVELAÇÃO DA LINHA ATUAL\n"
+        + (revelation_policy or "(sem restrição autoral específica)")
         + "\n\nCOMPREENSÃO DA FALA ATUAL\n"
         + understanding
         + "\n\nOBRIGAÇÃO CONVERSACIONAL ATUAL\n"
@@ -109,7 +112,7 @@ def validate_direct_semantic_turn(
         + "\n\nRESPOSTA ATUAL DE MARY\n"
         + _clean(mary_text)
         + "\n\nTAREFA\n"
-        "Faça três validações independentes. "
+        "Faça quatro validações independentes. "
         "A) FINALIDADE DA LINHA: primeiro decomponha EXCLUSIVAMENTE a FALA-GUIA ORIGINAL nos ATOS CONVERSACIONAIS que Mary deve realizar. "
         "Exemplos de atos: perguntar, contar, admitir, propor, convidar, prometer, provocar, esclarecer, pedir. "
         "Não converta um ato conversacional em resultado futuro. Exemplo: 'me levar para a balada' dentro de um convite significa Mary FORMULAR O CONVITE; "
@@ -128,13 +131,18 @@ def validate_direct_semantic_turn(
         "As fontes autoritativas vencem falas anteriores de Mary. "
         "Contradição dura inclui troca de identidade, papel, profissão, função, proprietário, motorista/passageiro, residência, relacionamento, posição física ou outro fato objetivo explícito. "
         "Não marque contradição por estilo, opinião, criatividade compatível ou missão incompleta. "
-        "A obrigação conversacional atual, quando existir, deve ser atendida pela RESPOSTA ATUAL DE MARY. "
+        "D) LIMITE DE REVELAÇÃO: compare a RESPOSTA ATUAL DE MARY com a REGRA DE REVELAÇÃO DA LINHA ATUAL. "
+        "Fatos marcados como NÃO PODE podem existir na DESCRIÇÃO INICIAL e serem conhecidos por Mary, mas não podem ser verbalizados ainda. "
+        "Se o usuário perguntou diretamente por conteúdo reservado, isso NÃO autoriza quebrar a fronteira; Mary deve reagir sem mentir, sem inventar e sem revelar o dado reservado. "
+        "Marque violação somente quando Mary efetivamente verbalizar conteúdo que a regra atual proíbe. "
+        "A obrigação conversacional atual, quando existir, deve ser atendida pela RESPOSTA ATUAL DE MARY dentro dessa fronteira de revelação. "
         "Não reprove uma linha verbal por Mary não executar uma ação física que não esteja na FALA-GUIA; ações físicas pertencem ao runtime/cena. "
         "Retorne somente JSON com: "
         "{\"obrigacao_usuario\":{\"existe\":true,\"requisito\":\"\",\"atendida\":true,\"evidencia\":\"\"},"
         "\"coerencia_conversacional\":{\"ok\":true,\"problema\":\"\",\"trecho_mary\":\"\",\"correcao\":\"\"},"
         "\"objetivos_guia\":[{\"objetivo\":\"\",\"alcancado\":true,\"fonte\":\"USUÁRIO\",\"evidencia\":\"\"}],"
         "\"contradicao_dura\":{\"existe\":false,\"fato_autoritativo\":\"\",\"trecho_mary\":\"\",\"correcao\":\"\"},"
+        "\"violacao_revelacao\":{\"existe\":false,\"conteudo_reservado\":\"\",\"trecho_mary\":\"\",\"correcao\":\"\"},"
         "\"cumpriu\":true,\"faltou\":\"\",\"motivo\":\"\"}."
     )
 
@@ -148,7 +156,7 @@ def validate_direct_semantic_turn(
                 "role": "system",
                 "content": (
                     "Você é um Diretor de continuidade semântica. "
-                    "Valide finalidade da linha, coerência com o movimento atual do usuário e verdade factual. "
+                    "Valide finalidade da linha, coerência com o movimento atual do usuário, verdade factual e limite de revelação. "
                     "Os objetivos da linha vêm somente da FALA-GUIA ORIGINAL e devem ser entendidos como atos conversacionais de Mary, não como resultados futuros. "
                     "Não exija repetição literal da fala-guia. "
                     "Nunca invente evidência."
@@ -246,6 +254,16 @@ def validate_direct_semantic_turn(
         "correction": _clean(contradiction_raw.get("correcao")),
     }
 
+    revelation_raw = parsed.get("violacao_revelacao", {})
+    if not isinstance(revelation_raw, dict):
+        revelation_raw = {}
+    revelation_violation = {
+        "exists": bool(revelation_raw.get("existe", False)),
+        "reserved_content": _clean(revelation_raw.get("conteudo_reservado")),
+        "mary_excerpt": _clean(revelation_raw.get("trecho_mary")),
+        "correction": _clean(revelation_raw.get("correcao")),
+    }
+
     all_objectives = (
         True
         if not speech_guide
@@ -256,6 +274,7 @@ def validate_direct_semantic_turn(
     fulfilled = (
         not parse_error
         and not hard_contradiction["exists"]
+        and not revelation_violation["exists"]
         and conversation_consistency["ok"]
         and normalized_obligation["satisfied"]
         and all_objectives
@@ -276,6 +295,7 @@ def validate_direct_semantic_turn(
         "elements": normalized_objectives,
         "user_obligation": normalized_obligation,
         "hard_contradiction": hard_contradiction,
+        "revelation_violation": revelation_violation,
         "conversation_consistency": conversation_consistency,
         "model": model,
         "duration_ms": duration_ms,
