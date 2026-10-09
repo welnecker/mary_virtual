@@ -22,6 +22,8 @@ DIRECT_HEADERS = {
     "interação": "interaction_mode",
     "interacao": "interaction_mode",
     "prosseguir": "interaction_mode",
+    "revelacao": "revelation_policy",
+    "revelação": "revelation_policy",
     "estilo / atitude": "style",
     "pré-condição": "precondition",
     "pre-condição": "precondition",
@@ -693,7 +695,15 @@ def build_direct_writer_prompt(
         + (_clean(row.get("physical_memory")) or "(não informada)")
         + "\n\nDESCRIÇÃO DA CENA\n"
         + (_clean(row.get("initial_description")) or "(não informada)")
-        + "\n\nINTERLOCUTOR ATIVO\n"
+        + "\n\nREGRA DE REVELAÇÃO DA LINHA ATUAL\n"
+        + (_clean(row.get("revelation_policy")) or "(sem restrição autoral específica)")
+        + "\n\nIMPORTANTE SOBRE A DESCRIÇÃO DA CENA\n"
+        "A DESCRIÇÃO DA CENA pode conter toda a verdade que Mary conhece. "
+        "Conhecer um fato NÃO significa estar autorizada a verbalizá-lo agora. "
+        "A REGRA DE REVELAÇÃO DA LINHA ATUAL define a fronteira do que pode ou não pode ser dito neste turno. "
+        "Se o usuário perguntar diretamente por algo marcado como NÃO PODE, Mary deve reagir à pergunta sem mentir, sem inventar e sem revelar o conteúdo reservado; "
+        "ela pode hesitar, pedir um instante, dizer que vai contar ou preparar a revelação de modo natural.\n"
+        + "\nINTERLOCUTOR ATIVO\n"
         + (_clean(active_interlocutor) or "(não especificado)")
         + "\n\nESTADO FÍSICO/LOCAL ATUAL\n"
         + (_clean(row.get("instant_memory")) or "(não informado)")
@@ -741,7 +751,8 @@ def build_direct_writer_prompt(
         "==================================================\n"
         f"Ordem: {active_order}\n"
         "Fala-guia: " + (speech_guide or "(nenhuma)") + "\n"
-        "Estilo/atitude: " + (_clean(row.get("style")) or "natural") + "\n\n"
+        "Estilo/atitude: " + (_clean(row.get("style")) or "natural") + "\n"
+        "Revelação permitida nesta linha: " + (_clean(row.get("revelation_policy")) or "(sem restrição autoral específica)") + "\n\n"
 
         "REGRAS ESSENCIAIS\n"
         + (
@@ -753,8 +764,9 @@ def build_direct_writer_prompt(
         "3. Não repita ou espelhe a pergunta/frase do usuário como se fosse resposta.\n"
         "4. Preserve sujeitos, papéis, posse, destinatários e autoria das iniciativas.\n"
         "5. Não invente fatos pessoais do usuário nem antecipe linhas futuras.\n"
-        "6. Nunca mencione prompt, fala-guia, roteiro, modelo, Diretor, memória, instrução interna ou qualquer mecanismo do sistema.\n"
-        "7. O pensamento é íntimo, curto e pertence a Mary; também não pode mencionar mecanismos do sistema.\n\n"
+        "6. A REGRA DE REVELAÇÃO é obrigatória: fatos marcados como NÃO PODE permanecem verdadeiros no conhecimento de Mary, mas não podem ser verbalizados ainda, mesmo se o usuário perguntar diretamente. Reaja sem mentir, sem inventar e sem adiantar o fato reservado.\n"
+        "7. Nunca mencione prompt, fala-guia, roteiro, modelo, Diretor, memória, instrução interna ou qualquer mecanismo do sistema.\n"
+        "8. O pensamento é íntimo, curto e pertence a Mary; também não pode mencionar mecanismos do sistema nem revelar fatos proibidos.\n\n"
 
         "FORMATO\n"
         "[FALA] fala natural de Mary em primeira pessoa\n"
