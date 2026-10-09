@@ -149,3 +149,32 @@ def test_explicit_state_change_is_returned_but_not_auto_promoted(monkeypatch):
 
     assert result["state_changes"] == ["O usuário mora em Camburi"]
     assert result["recent_user_facts"] == ["fato anterior válido"]
+
+
+def test_understanding_receives_scene_direction_and_dialogue_without_collapsing_them(monkeypatch):
+    captured = {}
+
+    def fake_chat(**kwargs):
+        captured.update(kwargs)
+        return _response(
+            meaning="O personal informa que sai em 10 minutos e reage com uma risada curta.",
+            state_changes=["O personal sai em 10 minutos"],
+        )
+
+    monkeypatch.setattr(understanding, "chat", fake_chat)
+
+    result = understanding.analyze_user_understanding(
+        api_key="test",
+        model="director-test",
+        fallback_model=None,
+        user_text="Ha!",
+        user_scene_direction="Eu saio em 10 minutos... só preciso organizar os pesos para o próximo turno...",
+        recent_messages=[],
+    )
+
+    payload = captured["messages"][1]["content"]
+    assert "DIREÇÃO/ENCENAÇÃO ATUAL DO USUÁRIO" in payload
+    assert "Eu saio em 10 minutos" in payload
+    assert "FALA VERBAL ATUAL DO USUÁRIO" in payload
+    assert "Ha!" in payload
+    assert result["state_changes"] == ["O personal sai em 10 minutos"]
