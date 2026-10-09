@@ -402,7 +402,8 @@ def test_writer_prompt_contains_full_script_real_conversation_and_active_line():
     assert "CONVERSA REAL — FONTE PRINCIPAL DE CONTINUIDADE" in prompt
     assert "MARY: Você cansou?" in prompt
     assert "USUÁRIO: Um pouco, mas gostei." in prompt
-    assert "USUÁRIO AGORA:\nVamos." in prompt
+    assert "DIREÇÃO/ENCENAÇÃO ATUAL DO USUÁRIO:\n(nenhuma)" in prompt
+    assert "FALA VERBAL ATUAL DO USUÁRIO:\nVamos." in prompt
     assert "APOIO SEMÂNTICO — SECUNDÁRIO" in prompt
     assert "Se este apoio parecer incompatível com a conversa real" in prompt
     assert "LINHA ATIVA AGORA" in prompt
