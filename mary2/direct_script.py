@@ -16,6 +16,11 @@ DIRECT_HEADERS = {
     "roteiro": "script_name",
     "tipo": "type",
     "fala-guia": "speech_guide",
+    "modo": "interaction_mode",
+    "modo de interação": "interaction_mode",
+    "modo de interacao": "interaction_mode",
+    "interação": "interaction_mode",
+    "interacao": "interaction_mode",
     "estilo / atitude": "style",
     "pré-condição": "precondition",
     "pre-condição": "precondition",
@@ -47,6 +52,14 @@ DIRECT_HEADERS = {
 
 def _clean(value: Any) -> str:
     return str(value or "").strip()
+
+
+def is_automatic_direct_row(row: dict | None) -> bool:
+    """Linha automática: não representa uma fala real do usuário."""
+    if not isinstance(row, dict):
+        return False
+    mode = _clean(row.get("interaction_mode")).casefold()
+    return mode in {"automatico", "automático", "automatic", "auto"}
 
 
 DIRECT_CHAPTER_PREFIX = "sheet:"
@@ -501,6 +514,7 @@ def build_direct_writer_prompt(
         )
 
     interpretation = interpretation if isinstance(interpretation, dict) else {}
+    automatic_line = is_automatic_direct_row(row)
     active_order = int(row.get("order", 0) or 0)
     speech_guide = _resolve_placeholders(
         row.get("speech_guide", ""),
@@ -601,12 +615,22 @@ def build_direct_writer_prompt(
         "CONVERSA REAL — FONTE PRINCIPAL DE CONTINUIDADE\n"
         "==================================================\n"
         + conversation_text
-        + "\n\nUSUÁRIO AGORA:\n"
-        + (_clean(user_text) or "(sem fala verbal)")
         + "\n\n"
-        "Leia a fala atual como continuação causal da conversa acima. "
-        "Perguntas, provocações, ironias, confirmações, recusas e brincadeiras devem ser respondidas pelo sentido, "
-        "não espelhadas nem devolvidas mecanicamente.\n\n"
+        + (
+            "CONTINUAÇÃO AUTOMÁTICA\n"
+            "O usuário NÃO falou neste turno. O botão Prosseguir apenas autorizou a sequência. "
+            "Mary está conduzindo a cena consigo mesma: pode pensar, murmurar, falar sozinha ou verbalizar "
+            "algo compatível com a FALA-GUIA. Não responda à palavra 'Prosseguir' e não invente interlocutor.\n\n"
+            if automatic_line
+            else (
+                "USUÁRIO AGORA:\n"
+                + (_clean(user_text) or "(sem fala verbal)")
+                + "\n\n"
+                "Leia a fala atual como continuação causal da conversa acima. "
+                "Perguntas, provocações, ironias, confirmações, recusas e brincadeiras devem ser respondidas pelo sentido, "
+                "não espelhadas nem devolvidas mecanicamente.\n\n"
+            )
+        )
 
         "==================================================\n"
         "APOIO SEMÂNTICO — SECUNDÁRIO, NÃO SUBSTITUI A CONVERSA\n"
