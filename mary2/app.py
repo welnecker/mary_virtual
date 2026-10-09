@@ -3174,7 +3174,6 @@ if user_text:
                     model=director_model,
                     fallback_model=fallback,
                     mary_text=answer,
-                    mary_thought=mary_intent,
                     user_text=dialogue_text,
                     user_understanding=direct_interpretation,
                     previous_conversation_state=previous_conversation_state,
