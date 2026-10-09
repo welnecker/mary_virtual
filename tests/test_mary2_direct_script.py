@@ -81,6 +81,83 @@ def test_automatic_writer_prompt_treats_prosseguir_as_control_not_dialogue():
 
 
 
+
+def test_sheet_chapter_roles_follow_linear_story_defaults():
+    confession = build_direct_chapter("Confissão1")
+    academy = build_direct_chapter("Academia2")
+    apartment = build_direct_chapter("apartamento5")
+
+    assert confession["allowed_roles"] == ["JANIO"]
+    assert confession["initial_scene"]["user_role"] == "JANIO"
+    assert confession["initial_scene"]["temporary_character"]["active"] is False
+
+    assert academy["allowed_roles"] == ["PERSONAGEM_DA_CENA"]
+    assert academy["initial_scene"]["user_role"] == "PERSONAGEM_DA_CENA"
+    assert academy["inherit_scene"] is False
+    assert academy["inherit_character"] is True
+
+    assert apartment["allowed_roles"] == ["PERSONAGEM_DA_CENA"]
+
+
+def test_direct_character_name_is_captured_from_introduction_or_name_answer():
+    row = {
+        "speech_guide": "Prazer, eu sou a Mary... preciso saber seu nome, né?"
+    }
+    assert extract_direct_character_name(row, "Meu nome é Donisete.") == "Donisete"
+    assert extract_direct_character_name(row, "Eu sou Donisete") == "Donisete"
+    assert extract_direct_character_name(row, "Donisete") == "Donisete"
+    assert extract_direct_character_name(
+        {"speech_guide": "Como foi seu dia?"},
+        "Donisete",
+    ) == ""
+
+
+def test_full_linear_catalog_sequence_is_index_driven(monkeypatch):
+    values = [
+        ["Ordem", "Roteiro", "Fala-guia", "Estilo / atitude", "PROSSEGUIR"],
+        ["1", "Carona4", "c4", "", ""],
+        ["1", "Confissão1", "c1", "", ""],
+        ["1", "apartamento5", "c5", "", "automatico"],
+        ["1", "Academia2", "c2", "", ""],
+        ["1", "Lanchonete3", "c3", "", "automatico"],
+    ]
+
+    class FakeWorksheet:
+        def get_all_values(self):
+            return values
+
+    class FakeBook:
+        def worksheet(self, name):
+            return FakeWorksheet()
+
+    class FakeClient:
+        def open_by_key(self, key):
+            return FakeBook()
+
+    monkeypatch.setattr(
+        "mary2.direct_script.gspread.service_account_from_dict",
+        lambda info: FakeClient(),
+    )
+
+    catalog = load_direct_script_catalog(
+        service_account_info={"client_email": "test@example.com"},
+        spreadsheet_id="sheet-id",
+    )
+
+    assert [item["script_id"] for item in catalog] == [
+        "Confissão1",
+        "Academia2",
+        "Lanchonete3",
+        "Carona4",
+        "apartamento5",
+    ]
+    assert next_direct_script(catalog, "Confissão1")["script_id"] == "Academia2"
+    assert next_direct_script(catalog, "Academia2")["script_id"] == "Lanchonete3"
+    assert next_direct_script(catalog, "Lanchonete3")["script_id"] == "Carona4"
+    assert next_direct_script(catalog, "Carona4")["script_id"] == "apartamento5"
+    assert next_direct_script(catalog, "apartamento5") == {}
+
+
 def test_indexed_script_id_builds_virtual_direct_chapter():
     parsed = parse_direct_script_id("apartamento5")
     assert parsed == {
