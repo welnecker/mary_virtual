@@ -1346,16 +1346,22 @@ with st.sidebar:
         and st.session_state.run_id
         and not st.session_state.persistence_error
     ):
-        with st.expander("Capítulos e rotas"):
+        current_sidebar_chapter = _runtime_get_chapter(_chapter_id())
+        direct_linear_runtime = (
+            str(current_sidebar_chapter.get("script_mode", "") or "").strip().lower()
+            == "direct_sheet"
+        )
+        with st.expander("Capítulo atual" if direct_linear_runtime else "Capítulos e rotas"):
             narrative_debug = st.session_state.story_state.get("narrative", {})
-            st.caption(
-                "Capítulo atual: "
-                + str(narrative_debug.get("chapter_id", ""))
-                + " · instância: "
-                + str(narrative_debug.get("chapter_instance_id", ""))
-                + " · ramo: "
-                + str(narrative_debug.get("branch_id", "main"))
-            )
+            caption_parts = [
+                "Capítulo atual: " + str(narrative_debug.get("chapter_id", "")),
+                "instância: " + str(narrative_debug.get("chapter_instance_id", "")),
+            ]
+            if not direct_linear_runtime:
+                caption_parts.append(
+                    "ramo: " + str(narrative_debug.get("branch_id", "main"))
+                )
+            st.caption(" · ".join(caption_parts))
 
             if st.button(
                 "Reiniciar este capítulo sem apagar o histórico",
@@ -1367,104 +1373,105 @@ with st.sidebar:
                 except Exception as exc:
                     st.error(f"Não foi possível reiniciar o capítulo: {exc}")
 
+            if not direct_linear_runtime:
             if (
-                st.session_state.route_checkpoints_loaded_for_run
-                != st.session_state.run_id
-            ):
-                try:
-                    st.session_state.route_checkpoints = load_checkpoints(
-                        service_account_info=persistence["service_account_info"],
-                        spreadsheet_id=persistence["spreadsheet_id"],
-                        spreadsheet_title=persistence["spreadsheet_title"],
-                        owner_email=persistence["owner_email"],
-                        run_id=st.session_state.run_id,
-                        checkpoint_type="decision",
+                    st.session_state.route_checkpoints_loaded_for_run
+                    != st.session_state.run_id
+                ):
+                    try:
+                        st.session_state.route_checkpoints = load_checkpoints(
+                            service_account_info=persistence["service_account_info"],
+                            spreadsheet_id=persistence["spreadsheet_id"],
+                            spreadsheet_title=persistence["spreadsheet_title"],
+                            owner_email=persistence["owner_email"],
+                            run_id=st.session_state.run_id,
+                            checkpoint_type="decision",
+                        )
+                        st.session_state.route_checkpoints_loaded_for_run = (
+                            st.session_state.run_id
+                        )
+                    except Exception:
+                        st.session_state.route_checkpoints = []
+    
+                decision_checkpoints = st.session_state.route_checkpoints
+    
+                if st.button(
+                    "Atualizar decisões salvas",
+                    use_container_width=True,
+                    key="refresh_route_checkpoints",
+                ):
+                    try:
+                        st.session_state.route_checkpoints = load_checkpoints(
+                            service_account_info=persistence["service_account_info"],
+                            spreadsheet_id=persistence["spreadsheet_id"],
+                            spreadsheet_title=persistence["spreadsheet_title"],
+                            owner_email=persistence["owner_email"],
+                            run_id=st.session_state.run_id,
+                            checkpoint_type="decision",
+                        )
+                        st.session_state.route_checkpoints_loaded_for_run = (
+                            st.session_state.run_id
+                        )
+                        decision_checkpoints = st.session_state.route_checkpoints
+                    except Exception as exc:
+                        st.error(f"Não foi possível carregar decisões: {exc}")
+    
+                if decision_checkpoints:
+                    st.markdown("**Explorar outra rota**")
+                    selected_checkpoint = st.selectbox(
+                        "Voltar a qual decisão?",
+                        decision_checkpoints,
+                        format_func=lambda item: (
+                            f"#{int(item.get('source_seq', 0) or 0)} · "
+                            f"{str(item.get('source_chapter_id', '') or '')}"
+                        ),
+                        key="branch_checkpoint_selector",
                     )
-                    st.session_state.route_checkpoints_loaded_for_run = (
-                        st.session_state.run_id
+                    checkpoint_chapter_id = str(
+                        selected_checkpoint.get("source_chapter_id", "") or ""
                     )
-                except Exception:
-                    st.session_state.route_checkpoints = []
-
-            decision_checkpoints = st.session_state.route_checkpoints
-
-            if st.button(
-                "Atualizar decisões salvas",
-                use_container_width=True,
-                key="refresh_route_checkpoints",
-            ):
-                try:
-                    st.session_state.route_checkpoints = load_checkpoints(
-                        service_account_info=persistence["service_account_info"],
-                        spreadsheet_id=persistence["spreadsheet_id"],
-                        spreadsheet_title=persistence["spreadsheet_title"],
-                        owner_email=persistence["owner_email"],
-                        run_id=st.session_state.run_id,
-                        checkpoint_type="decision",
+                    checkpoint_choices = chapter_choices(checkpoint_chapter_id)
+                    if checkpoint_choices:
+                        route_columns = st.columns(len(checkpoint_choices))
+                        for route_column, route_choice in zip(
+                            route_columns,
+                            checkpoint_choices,
+                        ):
+                            with route_column:
+                                route_choice_id = str(
+                                    route_choice.get("id", "") or ""
+                                )
+                                if st.button(
+                                    str(route_choice.get("label", route_choice_id)),
+                                    use_container_width=True,
+                                    key=(
+                                        "fork_choice_"
+                                        + str(selected_checkpoint.get("checkpoint_id", ""))
+                                        + "_"
+                                        + route_choice_id
+                                    ),
+                                ):
+                                    try:
+                                        activate_choice_from_checkpoint(
+                                            checkpoint_id=str(
+                                                selected_checkpoint.get(
+                                                    "checkpoint_id",
+                                                    "",
+                                                )
+                                            ),
+                                            choice_id=route_choice_id,
+                                            persistence=persistence,
+                                        )
+                                    except Exception as exc:
+                                        st.error(
+                                            f"Não foi possível abrir a rota: {exc}"
+                                        )
+                else:
+                    st.caption(
+                        "As decisões desta run aparecerão aqui à medida que forem criadas."
                     )
-                    st.session_state.route_checkpoints_loaded_for_run = (
-                        st.session_state.run_id
-                    )
-                    decision_checkpoints = st.session_state.route_checkpoints
-                except Exception as exc:
-                    st.error(f"Não foi possível carregar decisões: {exc}")
-
-            if decision_checkpoints:
-                st.markdown("**Explorar outra rota**")
-                selected_checkpoint = st.selectbox(
-                    "Voltar a qual decisão?",
-                    decision_checkpoints,
-                    format_func=lambda item: (
-                        f"#{int(item.get('source_seq', 0) or 0)} · "
-                        f"{str(item.get('source_chapter_id', '') or '')}"
-                    ),
-                    key="branch_checkpoint_selector",
-                )
-                checkpoint_chapter_id = str(
-                    selected_checkpoint.get("source_chapter_id", "") or ""
-                )
-                checkpoint_choices = chapter_choices(checkpoint_chapter_id)
-                if checkpoint_choices:
-                    route_columns = st.columns(len(checkpoint_choices))
-                    for route_column, route_choice in zip(
-                        route_columns,
-                        checkpoint_choices,
-                    ):
-                        with route_column:
-                            route_choice_id = str(
-                                route_choice.get("id", "") or ""
-                            )
-                            if st.button(
-                                str(route_choice.get("label", route_choice_id)),
-                                use_container_width=True,
-                                key=(
-                                    "fork_choice_"
-                                    + str(selected_checkpoint.get("checkpoint_id", ""))
-                                    + "_"
-                                    + route_choice_id
-                                ),
-                            ):
-                                try:
-                                    activate_choice_from_checkpoint(
-                                        checkpoint_id=str(
-                                            selected_checkpoint.get(
-                                                "checkpoint_id",
-                                                "",
-                                            )
-                                        ),
-                                        choice_id=route_choice_id,
-                                        persistence=persistence,
-                                    )
-                                except Exception as exc:
-                                    st.error(
-                                        f"Não foi possível abrir a rota: {exc}"
-                                    )
-            else:
-                st.caption(
-                    "As decisões desta run aparecerão aqui à medida que forem criadas."
-                )
-
-    if (
+    
+        if (
         persistence
         and st.session_state.run_id
         and st.session_state.turn_records
