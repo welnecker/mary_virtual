@@ -25,7 +25,8 @@ REGRAS
 - Não transforme fala em narração.
 - Frases como "No dia seguinte...", "Mary acorda...", "Janio sai para o trabalho",
   "horas depois", "no quarto", "ela vê o celular tocar" são direção de cena.
-- Frases em primeira pessoa dirigidas a Mary normalmente são fala.
+- Frases em primeira pessoa do PAPEL ATIVO que descrevem o que ele fará, pensa, sabe, precisa, quer ou informa a Mary normalmente são FALA, mesmo sem vocativo. Exemplos: "Eu saio em 10 minutos", "preciso organizar os pesos", "vou embora depois disso".
+- Só trate primeira pessoa como DIREÇÃO DE CENA quando houver marcação inequívoca de encenação/ação não verbal, por exemplo "*eu me aproximo*", "[ele segura a porta]", "Janio se levanta".
 - Entradas como '"Janio se aproxima e a olha nos olhos": Mary... vem cá' são MISTAS: a parte narrada é scene_direction e a fala depois dos dois-pontos é dialogue.
 - Texto entre aspas que descreve ação física de Janio continua sendo direção de cena, não fala.
 - Preserve pedidos físicos na fala com sujeito e objeto corretos; não parafraseie "senta no meu colo" como "vamos nos aproximar".
