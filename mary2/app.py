@@ -110,7 +110,7 @@ st.set_page_config(page_title="Mary Core 2", page_icon="🖤", layout="centered"
 
 _LOG = logging.getLogger(__name__)
 
-BUILD_ID = "2026-10-09-sheet-runtime-v8.1-revelation-test"
+BUILD_ID = "2026-10-09-sheet-runtime-v8.2-direct-navigation"
 
 
 def _runtime_get_chapter(chapter_id: str) -> dict:
@@ -2041,7 +2041,10 @@ if navigation_script_mode == "direct_sheet" and choice_ready:
     except Exception as exc:
         st.error(f"Não foi possível localizar o próximo roteiro na planilha: {exc}")
 
-elif chapter_ready_for_choice(chapter_id, chapter_turns, choice_ready):
+elif (
+    navigation_script_mode != "direct_sheet"
+    and chapter_ready_for_choice(chapter_id, chapter_turns, choice_ready)
+):
     available_choices = chapter_choices(chapter_id)
     st.divider()
     st.subheader("Decisão")
