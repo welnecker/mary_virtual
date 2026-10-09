@@ -12,12 +12,36 @@ def _clean(value) -> str:
 
 
 def _evidence_source(evidence: str, entries: list[tuple[str, str]]) -> str:
-    """Determina a autoria pela conversa real, nunca pelo rótulo produzido pelo LLM."""
+    """Determina a autoria pela conversa real, nunca pelo rótulo produzido pelo LLM.
+
+    Aceita uma citação literal contínua ou uma citação abreviada por reticências,
+    desde que TODOS os fragmentos substantivos existam literalmente na MESMA fala.
+    Isso evita falso negativo quando o Diretor encurta uma evidência real sem
+    permitir que uma paráfrase inventada conte como prova.
+    """
     needle = _clean(evidence).casefold()
     if not needle:
         return ""
+
     for source, content in entries:
-        if needle in _clean(content).casefold():
+        haystack = _clean(content).casefold()
+        if needle in haystack:
+            return source
+
+    # O Diretor às vezes cita dois trechos reais da mesma fala unidos por "..."
+    # ou "(...)". Valide somente se todos os fragmentos relevantes forem literais
+    # e pertencerem ao mesmo enunciado.
+    fragments = [
+        _clean(part).casefold().strip(" .,!?:;()[]{}-—")
+        for part in re.split(r"(?:\.\.\.|…|\(\.\.\.\)|\[…\])", evidence)
+    ]
+    fragments = [part for part in fragments if len(part) >= 8]
+    if len(fragments) < 2:
+        return ""
+
+    for source, content in entries:
+        haystack = _clean(content).casefold()
+        if all(fragment in haystack for fragment in fragments):
             return source
     return ""
 
@@ -124,6 +148,7 @@ def validate_direct_semantic_turn(
         "Os FATOS/DECISÕES RECENTES DO USUÁRIO são trechos literais previamente aterrados no texto real do usuário e também podem cumprir a finalidade quando responderem diretamente ao objetivo. "
         "Pronomes e possessivos da FALA-GUIA são lidos da perspectiva de Mary: 'me' refere-se a Mary; 'me levar' significa o interlocutor levar Mary, salvo contexto explícito contrário. "
         "Exija evidência literal na CONVERSA DA LINHA ou nos FATOS/DECISÕES RECENTES DO USUÁRIO aterrados. "
+        "No campo evidencia, prefira UMA citação literal contínua. Se precisar abreviar uma citação longa, use reticências apenas para ligar fragmentos que existam literalmente na MESMA fala; nunca parafraseie a evidência. "
         "B) COERÊNCIA CONVERSACIONAL: compare a COMPREENSÃO DA FALA ATUAL com a RESPOSTA ATUAL DE MARY. "
         "Verifique se Mary respeitou quem iniciou cada ação, quem é alvo de vocativos, perguntas, provocações, aceitações, recusas e correções, e se respondeu ao movimento atual sem inverter sujeito, destinatário, posse ou iniciativa. "
         "Não exija que Mary repita as palavras do usuário; valide o sentido e a relação causal com o movimento anterior. "
