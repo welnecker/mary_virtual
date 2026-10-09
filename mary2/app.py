@@ -110,7 +110,7 @@ st.set_page_config(page_title="Mary Core 2", page_icon="🖤", layout="centered"
 
 _LOG = logging.getLogger(__name__)
 
-BUILD_ID = "2026-10-09-sheet-runtime-v8.2-direct-navigation"
+BUILD_ID = "2026-10-09-sheet-runtime-v8.3-automatic-lines"
 
 
 def _runtime_get_chapter(chapter_id: str) -> dict:
@@ -2782,6 +2782,7 @@ if user_text:
                     row=direct_row,
                     interpretation=direct_interpretation,
                     mary_text=answer,
+                    mary_thought=mary_intent,
                     user_text=dialogue_text,
                     line_dialogue=list(direct_state.get("line_dialogue", []) or []),
                 )
@@ -2819,6 +2820,7 @@ if user_text:
                         row=direct_row,
                         interpretation=direct_interpretation,
                         mary_text=answer,
+                        mary_thought=mary_intent,
                         user_text=dialogue_text,
                         line_dialogue=list(direct_state.get("line_dialogue", []) or []),
                     )
@@ -2884,6 +2886,7 @@ if user_text:
                         row=direct_row,
                         interpretation=direct_interpretation,
                         mary_text=answer,
+                        mary_thought=mary_intent,
                         user_text=dialogue_text,
                         line_dialogue=list(direct_state.get("line_dialogue", []) or []),
                     )
@@ -2954,6 +2957,7 @@ if user_text:
                         row=direct_row,
                         interpretation=direct_interpretation,
                         mary_text=answer,
+                        mary_thought=mary_intent,
                         user_text=dialogue_text,
                         line_dialogue=list(direct_state.get("line_dialogue", []) or []),
                     )
@@ -3019,6 +3023,7 @@ if user_text:
                         row=direct_row,
                         interpretation=direct_interpretation,
                         mary_text=answer,
+                        mary_thought=mary_intent,
                         user_text=dialogue_text,
                         line_dialogue=list(direct_state.get("line_dialogue", []) or []),
                     )
@@ -3090,6 +3095,7 @@ if user_text:
                     model=director_model,
                     fallback_model=fallback,
                     mary_text=answer,
+                    mary_thought=mary_intent,
                     user_text=dialogue_text,
                     user_understanding=direct_interpretation,
                     previous_conversation_state=previous_conversation_state,
