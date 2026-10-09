@@ -105,22 +105,62 @@ def build_direct_chapter(script_id: Any) -> dict:
             f"ID de roteiro direto inválido: {parsed['script_id']!r}. "
             "Use Nome+índice, por exemplo Carona4."
         )
+
+    # O primeiro roteiro da história é a Confissão com Janio.
+    # Os seguintes usam PERSONAGEM_DA_CENA por padrão. Linhas automáticas
+    # ignoram o interlocutor e bloqueiam a entrada livre do usuário.
+    user_role = "JANIO" if int(parsed["script_index"]) == 1 else "PERSONAGEM_DA_CENA"
+    temporary_active = user_role == "PERSONAGEM_DA_CENA"
+    present = ["MARY", "JANIO"] if user_role == "JANIO" else ["MARY", "PERSONAGEM_DA_CENA"]
+
     return {
         "title": parsed["script_name"],
-        "allowed_roles": ["PERSONAGEM_DA_CENA"],
+        "allowed_roles": [user_role],
         "phase_context": "chapter",
         "script_mode": "direct_sheet",
         "script_worksheet": "MINHA_SUGESTAO",
         "script_name": parsed["script_id"],
         "sheet_script_index": parsed["script_index"],
-        "inherit_character": True,
-        "inherit_scene": True,
+        "inherit_character": False,
+        "inherit_scene": False,
         "decision_after_turns": 0,
         "choices": [],
         "opening_caption": "",
         "opening_mary": "",
         "model_opening": False,
-        "initial_scene": {},
+        "initial_scene": {
+            "location": "",
+            "time": "",
+            "present_characters": present,
+            "interaction_mode": "in_person",
+            "user_role": user_role,
+            "proximity": "",
+            "sexual_intensity": "none",
+            "mary_immediate_goal": "",
+            "mary_action": "",
+            "event": "",
+            "open_hook": False,
+            "hook_resolution": "",
+            "temporary_character": {
+                "active": temporary_active,
+                "name": "" if user_role == "JANIO" else "Personagem da cena",
+                "description": "",
+                "relation_to_mary": "",
+                "user_can_play": temporary_active,
+            },
+            "return_anchor": "",
+            "scene_changed": True,
+            "show_caption": False,
+            "scene_caption": "",
+            "arc_phase": "opening",
+            "resolution_type": "none",
+            "resolution_summary": "",
+            "start_new_scene": True,
+            "turns_in_scene": 0,
+            "scene_number": int(parsed["script_index"]),
+            "mary_should_initiate": False,
+            "user_scene_direction": "",
+        },
     }
 
 
