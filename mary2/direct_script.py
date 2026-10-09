@@ -63,6 +63,35 @@ def is_automatic_direct_row(row: dict | None) -> bool:
     return mode in {"automatico", "automático", "automatic", "auto"}
 
 
+def extract_direct_character_name(row: dict | None, user_text: Any) -> str:
+    """Captura nome declarado pelo interlocutor sem depender do modelo."""
+    text = _clean(user_text)
+    if not text:
+        return ""
+
+    patterns = (
+        r"\bmeu nome (?:é|e)\s+([A-Za-zÀ-ÖØ-öø-ÿ][A-Za-zÀ-ÖØ-öø-ÿ' -]{1,40})",
+        r"\beu sou\s+([A-Za-zÀ-ÖØ-öø-ÿ][A-Za-zÀ-ÖØ-öø-ÿ' -]{1,40})",
+        r"\bpode me chamar de\s+([A-Za-zÀ-ÖØ-öø-ÿ][A-Za-zÀ-ÖØ-öø-ÿ' -]{1,40})",
+        r"\bme chamo\s+([A-Za-zÀ-ÖØ-öø-ÿ][A-Za-zÀ-ÖØ-öø-ÿ' -]{1,40})",
+    )
+    for pattern in patterns:
+        match = re.search(pattern, text, flags=re.I)
+        if match:
+            value = _clean(match.group(1))
+            value = re.split(r"[,.!?;:\n]", value, maxsplit=1)[0].strip()
+            return value[:48]
+
+    guide = _clean((row or {}).get("speech_guide")).casefold()
+    words = text.split()
+    if "nome" in guide and 1 <= len(words) <= 3:
+        candidate = " ".join(words).strip(" .,!?:;")
+        if re.fullmatch(r"[A-Za-zÀ-ÖØ-öø-ÿ][A-Za-zÀ-ÖØ-öø-ÿ' -]{1,47}", candidate):
+            return candidate
+
+    return ""
+
+
 DIRECT_CHAPTER_PREFIX = "sheet:"
 
 
