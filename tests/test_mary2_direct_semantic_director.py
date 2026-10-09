@@ -220,3 +220,43 @@ def test_abbreviated_evidence_cannot_mix_fragments_from_different_turns():
     )
 
     assert source == ""
+
+
+def test_automatic_line_can_be_fulfilled_by_mary_thought(monkeypatch):
+    def fake_chat(**kwargs):
+        payload = kwargs["messages"][1]["content"]
+        assert "PENSAMENTO ATUAL DE MARY" in payload
+        assert "Assim tão rápido já aparece uma tentação dessas" in payload
+        return (
+            '{"obrigacao_usuario":{"existe":false,"requisito":"","atendida":true,"evidencia":""},'
+            '"coerencia_conversacional":{"ok":true,"problema":"","trecho_mary":"","correcao":""},'
+            '"objetivos_guia":[{"objetivo":"reconhecer a tentacao","alcancado":true,'
+            '"fonte":"MARY","evidencia":"Assim tão rápido já aparece uma tentação dessas"}],'
+            '"contradicao_dura":{"existe":false,"fato_autoritativo":"","trecho_mary":"","correcao":""},'
+            '"violacao_revelacao":{"existe":false,"conteudo_reservado":"","trecho_mary":"","correcao":""},'
+            '"cumpriu":true,"faltou":"","motivo":"pensamento cumpriu a linha"}'
+        )
+
+    monkeypatch.setattr(director, "chat", fake_chat)
+
+    result = director.validate_direct_semantic_turn(
+        api_key="test",
+        model="director-test",
+        fallback_model=None,
+        row={
+            **_row(),
+            "speech_guide": "Hum... Mary... será? Assim tão rápido já aparece uma tentação dessas?",
+            "interaction_mode": "automatico",
+        },
+        interpretation={
+            "user_obligation": {"exists": False, "requirement": ""},
+            "literal_meaning": "continuação automática",
+        },
+        mary_text="Vou ajustar o banco do Leg Press.",
+        mary_thought="Hum... Mary... será? Assim tão rápido já aparece uma tentação dessas?",
+        user_text="",
+        line_dialogue=[],
+    )
+
+    assert result["fulfilled"] is True
+    assert result["elements"][0]["source"] == "MARY"
