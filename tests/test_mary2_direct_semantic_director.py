@@ -173,3 +173,50 @@ def test_director_rejects_conversational_role_inversion(monkeypatch):
     assert result["conversation_consistency"]["ok"] is False
     assert result["conversation_consistency"]["issue"]
     assert result["fulfilled"] is False
+
+
+def test_abbreviated_literal_evidence_from_same_mary_turn_is_grounded(monkeypatch):
+    def fake_chat(**kwargs):
+        return (
+            '{"obrigacao_usuario":{"existe":false,"requisito":"","atendida":true,"evidencia":""},'
+            '"coerencia_conversacional":{"ok":true,"problema":"","trecho_mary":"","correcao":""},'
+            '"objetivos_guia":[{"objetivo":"expressar exaustao","alcancado":true,'
+            '"fonte":"MARY","evidencia":"Ufa! Consegui! Nossa, acho que agora foi o meu limite... Minhas pernas estão tremendo real agora"}],'
+            '"contradicao_dura":{"existe":false,"fato_autoritativo":"","trecho_mary":"","correcao":""},'
+            '"violacao_revelacao":{"existe":false,"conteudo_reservado":"","trecho_mary":"","correcao":""},'
+            '"cumpriu":true,"faltou":"","motivo":"cumpriu"}'
+        )
+
+    monkeypatch.setattr(director, "chat", fake_chat)
+
+    mary_text = (
+        "Ai! Ufa! Consegui! Nossa, acho que agora foi o meu limite... "
+        "pronto, série feita! Minhas pernas estão tremendo real agora, "
+        "mas a sensação de dever cumprido é maravilhosa."
+    )
+
+    result = director.validate_direct_semantic_turn(
+        api_key="test",
+        model="director-test",
+        fallback_model=None,
+        row={**_row(), "speech_guide": "Nossa... cheguei no meu limite."},
+        interpretation=_interpretation(),
+        mary_text=mary_text,
+        user_text="Vai, segura e sobe devagar.",
+        line_dialogue=[],
+    )
+
+    assert result["fulfilled"] is True
+    assert result["elements"][0]["source"] == "MARY"
+
+
+def test_abbreviated_evidence_cannot_mix_fragments_from_different_turns():
+    source = director._evidence_source(
+        "primeiro fragmento real... segundo fragmento real",
+        [
+            ("MARY", "Aqui existe apenas o primeiro fragmento real."),
+            ("MARY", "Aqui existe apenas o segundo fragmento real."),
+        ],
+    )
+
+    assert source == ""
