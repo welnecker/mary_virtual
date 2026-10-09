@@ -73,6 +73,7 @@ def test_sheet_catalog_discovers_scripts_and_sorts_by_trailing_index(monkeypatch
         "apartamento5",
     ]
     assert [item["row_count"] for item in catalog] == [1, 2, 1]
+    assert [item["executable_row_count"] for item in catalog] == [1, 2, 1]
     assert next_direct_script(catalog, "Carona4")["script_id"] == "apartamento5"
     assert next_direct_script(catalog, "apartamento5") == {}
 
@@ -271,6 +272,7 @@ def test_director_validator_only_checks_guide_completion(monkeypatch):
         api_key="test",
         model="director-test",
         fallback_model=None,
+        interpretation={},
         row={
             "speech_guide": "então, onde você mora? Camburi fica muito fora do seu caminho?"
         },
@@ -293,6 +295,7 @@ def test_director_validator_accepts_rephrased_guide(monkeypatch):
         api_key="test",
         model="director-test",
         fallback_model=None,
+        interpretation={},
         row={
             "speech_guide": "então, onde você mora? Camburi fica muito fora do seu caminho?"
         },
@@ -336,6 +339,7 @@ def test_director_prompt_preserves_subject_action_and_intention(monkeypatch):
         api_key="test",
         model="director-test",
         fallback_model=None,
+        interpretation={},
         row={
             "speech_guide": "O que me diz de me levar pra balada no Clube Náutico? Eu prometo que vou ser bem divertida..."
         },
@@ -362,6 +366,7 @@ def test_director_prompt_does_not_demand_missing_concrete_data(monkeypatch):
         api_key="test",
         model="director-test",
         fallback_model=None,
+        interpretation={},
         row={
             "speech_guide": "droga...lembrei que minha bateria morreu. Anota meu número pra gente não perder contato."
         },
