@@ -6,12 +6,79 @@ from mary2.direct_script import (
     direct_line_correction_prompt,
     direct_script_ready_for_choice,
     ensure_direct_state,
+    is_automatic_direct_row,
     load_direct_script_catalog,
     mark_direct_line_emitted,
     next_direct_script,
     parse_direct_script_id,
     register_direct_user_reply,
 )
+
+
+def test_automatic_row_is_recognized_from_prosseguir_column():
+    assert is_automatic_direct_row({"interaction_mode": "automatico"}) is True
+    assert is_automatic_direct_row({"interaction_mode": "AUTOMÁTICO"}) is True
+    assert is_automatic_direct_row({"interaction_mode": ""}) is False
+
+
+def test_automatic_row_completes_immediately_after_emission():
+    rows = [
+        {
+            "order": 1,
+            "line_id": "linha_01",
+            "script_name": "apartamento5",
+            "speech_guide": "preciso escolher uma roupa, mas antes vou tomar banho",
+            "interaction_mode": "automatico",
+        },
+        {
+            "order": 2,
+            "line_id": "linha_02",
+            "script_name": "apartamento5",
+            "speech_guide": "que água deliciosa",
+            "interaction_mode": "automatico",
+        },
+    ]
+    state = ensure_direct_state({}, rows)
+
+    mark_direct_line_emitted(state, rows[0], rows)
+
+    assert state["completed_orders"] == [1]
+    assert state["awaiting_reply_order"] == 0
+    assert state["index"] == 1
+    assert state["current_order"] == 2
+    assert state["completed"] is False
+
+
+def test_automatic_writer_prompt_treats_prosseguir_as_control_not_dialogue():
+    row = {
+        "order": 1,
+        "line_id": "linha_01",
+        "script_name": "apartamento5",
+        "speech_guide": "Nossa... pareço uma adolescente. Preciso escolher uma roupa.",
+        "style": "levemente ansiosa; feliz; expectativa",
+        "interaction_mode": "automatico",
+        "instant_memory": "Mary está sozinha em seu apartamento.",
+        "permanent_memory": "Mary está separada de Janio.",
+        "physical_memory": "Mary tem cabelos negros.",
+        "initial_description": "Mary acabou de chegar em casa.",
+    }
+
+    prompt = build_direct_writer_prompt(
+        row=row,
+        all_rows=[row],
+        recent_messages=[],
+        user_text="Prosseguir",
+        interpretation={
+            "automatic_turn": True,
+            "user_obligation": {"exists": False, "requirement": ""},
+        },
+    )
+
+    assert "CONTINUAÇÃO AUTOMÁTICA" in prompt
+    assert "O usuário NÃO falou neste turno" in prompt
+    assert "não invente interlocutor" in prompt
+    assert "USUÁRIO AGORA:\nProsseguir" not in prompt
+
 
 
 def test_indexed_script_id_builds_virtual_direct_chapter():
