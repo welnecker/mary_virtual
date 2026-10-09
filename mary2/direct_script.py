@@ -225,11 +225,36 @@ def current_direct_row(rows: list[dict], state: dict) -> dict:
     return dict(rows[index])
 
 
-def mark_direct_line_emitted(state: dict, row: dict) -> None:
+def mark_direct_line_emitted(
+    state: dict,
+    row: dict,
+    rows: list[dict] | None = None,
+) -> None:
     order = int(row.get("order", 0) or 0)
-    if order:
-        state["awaiting_reply_order"] = order
-        state["current_order"] = order
+    if not order:
+        return
+
+    last_order = 0
+    if rows:
+        last_order = max(int(item.get("order", 0) or 0) for item in rows)
+
+    if last_order and order == last_order:
+        completed = {
+            int(value)
+            for value in (state.get("completed_orders", []) or [])
+            if str(value).strip()
+        }
+        completed.add(order)
+        state["completed_orders"] = sorted(completed)
+        state["awaiting_reply_order"] = 0
+        state["current_order"] = 0
+        state["index"] = len(rows)
+        state["completed"] = True
+        state["line_dialogue"] = []
+        return
+
+    state["awaiting_reply_order"] = order
+    state["current_order"] = order
 
 
 def record_direct_line_turn(
