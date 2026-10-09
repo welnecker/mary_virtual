@@ -2189,6 +2189,7 @@ if user_text:
         direct_state: dict | None = None
         direct_row: dict = {}
         direct_registration: dict = {}
+        defer_automatic_entry = False
 
         hybrid_rows: list[dict] = []
         hybrid_state: dict | None = None
@@ -2231,6 +2232,18 @@ if user_text:
                 "id": str(direct_row.get("line_id", "") or "roteiro_concluido"),
                 "goal": str(direct_row.get("speech_guide", "") or "encerrar a Carona"),
             }
+            registration_before = (
+                direct_registration.get("state_before", {})
+                if isinstance(direct_registration, dict)
+                else {}
+            )
+            defer_automatic_entry = bool(
+                user_spoke
+                and not automatic_turn
+                and int(registration_before.get("awaiting_reply_order", 0) or 0) > 0
+                and direct_row
+                and is_automatic_direct_row(direct_row)
+            )
         elif script_mode == "block_sheet":
             block_rows = _block_script_rows(
                 persistence=persistence,
@@ -2280,6 +2293,72 @@ if user_text:
             )
         else:
             current_phase = chapter_phase(_chapter_id(), current_turn_number)
+
+        if script_mode == "direct_sheet" and defer_automatic_entry:
+            # A fala real do usuário apenas fecha a linha interativa anterior.
+            # Se a próxima linha for automática, ela NÃO é executada com essa fala:
+            # persiste-se a resposta do usuário e a UI volta exibindo o botão Prosseguir.
+            narrative_state["chapter_turns"] = int(
+                narrative_state.get("chapter_turns", 0) or 0
+            ) + 1
+            transition_record = {
+                "seq": 0,
+                "caption": "",
+                "direction": scene_direction,
+                "mary_action": "",
+                "hook_resolution": "",
+                "mary_intent": "",
+                "user_role": user_role,
+                "user_text": dialogue_text,
+                "mary_text": "",
+                "branch_id": str(narrative_state.get("branch_id", "main") or "main"),
+                "chapter_instance_id": str(
+                    narrative_state.get("chapter_instance_id", "") or ""
+                ),
+                "chapter_id": _chapter_id(),
+                "chapter_turn": int(narrative_state.get("chapter_turns", 0) or 0),
+            }
+            st.session_state.turn_records.append(transition_record)
+
+            if persistence:
+                info = ensure_schema(
+                    service_account_info=persistence["service_account_info"],
+                    spreadsheet_id=persistence["spreadsheet_id"],
+                    spreadsheet_title=persistence["spreadsheet_title"],
+                    owner_email=persistence["owner_email"],
+                )
+                st.session_state.spreadsheet_url = info["spreadsheet_url"]
+                if not st.session_state.run_id:
+                    st.session_state.run_id = create_run(
+                        service_account_info=persistence["service_account_info"],
+                        spreadsheet_id=info["spreadsheet_id"],
+                        spreadsheet_title=persistence["spreadsheet_title"],
+                        owner_email=persistence["owner_email"],
+                        player_id=persistence["player_id"],
+                        active_user_role=user_role,
+                        story_ledger=story_ledger_text(st.session_state.story_state),
+                        scene_state=st.session_state.scene_state,
+                        story_state=st.session_state.story_state,
+                        archive_previous=False,
+                    )
+                saved_seq = save_turn(
+                    service_account_info=persistence["service_account_info"],
+                    spreadsheet_id=info["spreadsheet_id"],
+                    spreadsheet_title=persistence["spreadsheet_title"],
+                    owner_email=persistence["owner_email"],
+                    run_id=st.session_state.run_id,
+                    player_id=persistence["player_id"],
+                    active_user_role=user_role,
+                    story_ledger=story_ledger_text(st.session_state.story_state),
+                    scene_state=st.session_state.scene_state,
+                    story_state=st.session_state.story_state,
+                    turn_record=transition_record,
+                    pre_turn_snapshot=pre_turn_snapshot,
+                )
+                transition_record["seq"] = saved_seq
+                st.session_state.run_last_seq = saved_seq
+
+            st.rerun()
 
         current_phase_id = str(current_phase.get("id", "") or "").strip()
         current_phase_goal = str(current_phase.get("goal", "") or "").strip()
