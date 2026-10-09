@@ -873,7 +873,11 @@ def _direct_script_rows(*, persistence: dict, chapter: dict) -> list[dict]:
     worksheet = str(
         chapter.get("script_worksheet", "MINHA_SUGESTAO") or "MINHA_SUGESTAO"
     ).strip()
-    script_name = str(chapter.get("script_name", "Carona") or "Carona").strip()
+    script_name = str(chapter.get("script_name", "") or "").strip()
+    if not script_name:
+        raise PersistenceError(
+            "Capítulo direto sem script_name. O roteiro deve ser identificado pela MINHA_SUGESTAO."
+        )
 
     rows = load_direct_script_rows(
         service_account_info=persistence["service_account_info"],
@@ -2000,12 +2004,21 @@ if navigation_script_mode == "direct_sheet" and choice_ready:
             next_title = str(
                 next_script.get("script_name", next_script_id) or next_script_id
             ).strip()
+            executable_rows = int(
+                next_script.get("executable_row_count", 0) or 0
+            )
             st.subheader("Próximo capítulo")
             st.caption(
                 f"{current_script_id} concluído. Próximo roteiro reconhecido na planilha: "
                 f"{next_script_id}."
             )
-            if st.button(
+            if executable_rows <= 0:
+                st.warning(
+                    f"{next_script_id} já está catalogado pela planilha, mas ainda não possui "
+                    "Fala-guia preenchida. O avanço ficará disponível quando o roteiro tiver "
+                    "ao menos uma linha executável."
+                )
+            elif st.button(
                 f"Continuar: {next_title}",
                 key=f"direct_continue_{next_script_id}",
                 use_container_width=True,
