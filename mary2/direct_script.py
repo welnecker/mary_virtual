@@ -58,11 +58,19 @@ def _clean(value: Any) -> str:
 
 
 def is_automatic_direct_row(row: dict | None) -> bool:
-    """Linha automática: não representa uma fala real do usuário."""
+    """Linha automática: Mary conduz sozinha e a linha termina sem resposta do usuário."""
     if not isinstance(row, dict):
         return False
     mode = _clean(row.get("interaction_mode")).casefold()
     return mode in {"automatico", "automático", "automatic", "auto"}
+
+
+def is_blocked_direct_row(row: dict | None) -> bool:
+    """Linha bloqueada: Mary fala primeiro e só depois libera a resposta do usuário."""
+    if not isinstance(row, dict):
+        return False
+    mode = _clean(row.get("interaction_mode")).casefold()
+    return mode in {"bloqueado", "bloqueada", "blocked", "mary_first", "mary-first"}
 
 
 def extract_direct_character_name(row: dict | None, user_text: Any) -> str:
