@@ -413,6 +413,34 @@ def mark_direct_line_emitted(
     if rows:
         last_order = max(int(item.get("order", 0) or 0) for item in rows)
 
+    if is_automatic_direct_row(row):
+        completed = {
+            int(value)
+            for value in (state.get("completed_orders", []) or [])
+            if str(value).strip()
+        }
+        completed.add(order)
+        state["completed_orders"] = sorted(completed)
+        state["awaiting_reply_order"] = 0
+        state["line_dialogue"] = []
+        if rows:
+            current_index = next(
+                (
+                    idx
+                    for idx, item in enumerate(rows)
+                    if int(item.get("order", 0) or 0) == order
+                ),
+                int(state.get("index", 0) or 0),
+            )
+            state["index"] = min(current_index + 1, len(rows))
+            if state["index"] >= len(rows):
+                state["current_order"] = 0
+                state["completed"] = True
+            else:
+                state["current_order"] = int(rows[state["index"]].get("order", 0) or 0)
+                state["completed"] = False
+        return
+
     if last_order and order == last_order:
         completed = {
             int(value)
