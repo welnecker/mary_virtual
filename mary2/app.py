@@ -460,6 +460,98 @@ def activate_chapter(
 
 
 
+
+def activate_direct_sheet_chapter(
+    *,
+    script_id: str,
+    persistence: dict | None,
+) -> None:
+    """Avança linearmente para um roteiro Nome+índice descoberto na MINHA_SUGESTAO."""
+    chapter = build_direct_chapter(script_id)
+    next_chapter_id = direct_chapter_id(script_id)
+    if not next_chapter_id:
+        raise ValueError("Roteiro direto inválido para transição.")
+
+    last_seq = int(st.session_state.get("run_last_seq", 0) or 0)
+    previous_scene = deepcopy(st.session_state.scene_state)
+    next_state = deepcopy(st.session_state.story_state)
+    narrative = next_state.setdefault("narrative", {})
+    branch_id = str(narrative.get("branch_id", "main") or "main")
+    instance_id = new_chapter_instance_id(next_chapter_id)
+
+    handoff = (
+        _handoff_from_record(st.session_state.turn_records[-1])
+        if st.session_state.turn_records
+        else {}
+    )
+
+    narrative["chapter_id"] = next_chapter_id
+    narrative["chapter_turns"] = 0
+    narrative["chapter_opening_pending"] = True
+    narrative["chapter_start_seq"] = last_seq + 1
+    narrative["prompt_start_seq"] = last_seq + 1
+    narrative["last_choice_id"] = f"continue:{script_id}"
+    narrative["pending_auto_chapter"] = ""
+    narrative["handoff"] = handoff
+    narrative["chapter_instance_id"] = instance_id
+    narrative["chapter_entry_checkpoint_id"] = ""
+    narrative["choice_ready"] = False
+    narrative.pop("direct_script", None)
+    narrative.pop("direct_conversation_state", None)
+    narrative.pop("direct_recent_user_facts", None)
+    narrative.pop("phase_start_message_index", None)
+    narrative.pop("active_phase_id", None)
+
+    next_scene = _scene_for_chapter_transition(chapter, previous_scene)
+    next_role = str(
+        next_scene.get("user_role", st.session_state.active_user_role)
+        or st.session_state.active_user_role
+        or "JANIO"
+    ).upper()
+    if next_role not in {"JANIO", "PERSONAGEM_DA_CENA"}:
+        next_role = "JANIO"
+
+    st.session_state.story_state = next_state
+    st.session_state.scene_state = next_scene
+    st.session_state.active_user_role = next_role
+    st.session_state.messages = []
+    st.session_state.turn_records = []
+
+    if persistence and st.session_state.run_id:
+        entry_id = save_checkpoint(
+            service_account_info=persistence["service_account_info"],
+            spreadsheet_id=persistence["spreadsheet_id"],
+            spreadsheet_title=persistence["spreadsheet_title"],
+            owner_email=persistence["owner_email"],
+            run_id=st.session_state.run_id,
+            checkpoint_type="chapter_entry",
+            source_seq=last_seq,
+            source_chapter_id=next_chapter_id,
+            source_chapter_instance_id=instance_id,
+            source_branch_id=branch_id,
+            choice_point_id=next_chapter_id,
+            active_user_role=next_role,
+            story_ledger=story_ledger_text(next_state),
+            scene_state=next_scene,
+            story_state=next_state,
+        )
+        narrative["chapter_entry_checkpoint_id"] = entry_id
+
+        update_run_snapshot(
+            service_account_info=persistence["service_account_info"],
+            spreadsheet_id=persistence["spreadsheet_id"],
+            spreadsheet_title=persistence["spreadsheet_title"],
+            owner_email=persistence["owner_email"],
+            run_id=st.session_state.run_id,
+            active_user_role=next_role,
+            story_ledger=story_ledger_text(next_state),
+            scene_state=next_scene,
+            story_state=next_state,
+        )
+
+    st.rerun()
+
+
 def restart_current_chapter(persistence: dict | None) -> None:
     """Cria nova instância do capítulo atual sem apagar interações anteriores."""
     if not persistence or not st.session_state.run_id:
@@ -1880,7 +1972,54 @@ chapter_turns = _chapter_turns()
 choice_ready = bool(
     st.session_state.story_state.get("narrative", {}).get("choice_ready", False)
 )
-if chapter_ready_for_choice(chapter_id, chapter_turns, choice_ready):
+chapter_config_for_navigation = _runtime_get_chapter(chapter_id)
+navigation_script_mode = str(
+    chapter_config_for_navigation.get("script_mode", "") or ""
+).strip().lower()
+
+if navigation_script_mode == "direct_sheet" and choice_ready:
+    st.divider()
+    try:
+        catalog = load_direct_script_catalog(
+            service_account_info=persistence["service_account_info"],
+            spreadsheet_id=persistence["spreadsheet_id"],
+            worksheet_name=str(
+                chapter_config_for_navigation.get(
+                    "script_worksheet",
+                    "MINHA_SUGESTAO",
+                )
+                or "MINHA_SUGESTAO"
+            ),
+        ) if persistence else []
+        current_script_id = str(
+            chapter_config_for_navigation.get("script_name", "") or ""
+        ).strip()
+        next_script = next_direct_script(catalog, current_script_id)
+        if next_script:
+            next_script_id = str(next_script.get("script_id", "") or "").strip()
+            next_title = str(
+                next_script.get("script_name", next_script_id) or next_script_id
+            ).strip()
+            st.subheader("Próximo capítulo")
+            st.caption(
+                f"{current_script_id} concluído. Próximo roteiro reconhecido na planilha: "
+                f"{next_script_id}."
+            )
+            if st.button(
+                f"Continuar: {next_title}",
+                key=f"direct_continue_{next_script_id}",
+                use_container_width=True,
+            ):
+                activate_direct_sheet_chapter(
+                    script_id=next_script_id,
+                    persistence=persistence,
+                )
+        else:
+            st.success("Roteiro concluído. Não há capítulo posterior cadastrado na MINHA_SUGESTAO.")
+    except Exception as exc:
+        st.error(f"Não foi possível localizar o próximo roteiro na planilha: {exc}")
+
+elif chapter_ready_for_choice(chapter_id, chapter_turns, choice_ready):
     available_choices = chapter_choices(chapter_id)
     st.divider()
     st.subheader("Decisão")
