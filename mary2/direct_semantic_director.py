@@ -129,6 +129,7 @@ def validate_direct_semantic_turn(
         "Contradição dura inclui troca de identidade, papel, profissão, função, proprietário, motorista/passageiro, residência, relacionamento, posição física ou outro fato objetivo explícito. "
         "Não marque contradição por estilo, opinião, criatividade compatível ou missão incompleta. "
         "A obrigação conversacional atual, quando existir, deve ser atendida pela RESPOSTA ATUAL DE MARY. "
+        "Não reprove uma linha verbal por Mary não executar uma ação física que não esteja na FALA-GUIA; ações físicas pertencem ao runtime/cena. "
         "Retorne somente JSON com: "
         "{\"obrigacao_usuario\":{\"existe\":true,\"requisito\":\"\",\"atendida\":true,\"evidencia\":\"\"},"
         "\"coerencia_conversacional\":{\"ok\":true,\"problema\":\"\",\"trecho_mary\":\"\",\"correcao\":\"\"},"
@@ -206,14 +207,21 @@ def validate_direct_semantic_turn(
     if not isinstance(obligation_raw, dict):
         obligation_raw = {}
     obligation_evidence = _clean(obligation_raw.get("evidencia"))
-    obligation_evidence_valid = bool(obligation_evidence) and obligation_evidence.casefold() in response_norm
+    obligation_claimed_satisfied = bool(obligation_raw.get("atendida", False))
+    # A obrigação é uma validação semântica. A evidência pode ser citação literal
+    # OU uma descrição curta do que Mary fez; não exija substring literal inteira.
+    obligation_evidence_valid = (
+        True
+        if not obligation_exists
+        else obligation_claimed_satisfied and bool(obligation_evidence)
+    )
     normalized_obligation = {
         "exists": obligation_exists,
         "requirement": obligation_text,
         "satisfied": (
             True
             if not obligation_exists
-            else bool(obligation_raw.get("atendida", False)) and obligation_evidence_valid
+            else obligation_claimed_satisfied and obligation_evidence_valid
         ),
         "evidence": obligation_evidence if obligation_evidence_valid else "",
     }
