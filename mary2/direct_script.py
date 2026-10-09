@@ -16,6 +16,12 @@ DIRECT_HEADERS = {
     "roteiro": "script_name",
     "tipo": "type",
     "fala-guia": "speech_guide",
+    "modo": "interaction_mode",
+    "modo de interação": "interaction_mode",
+    "modo de interacao": "interaction_mode",
+    "interação": "interaction_mode",
+    "interacao": "interaction_mode",
+    "prosseguir": "interaction_mode",
     "estilo / atitude": "style",
     "pré-condição": "precondition",
     "pre-condição": "precondition",
@@ -47,6 +53,245 @@ DIRECT_HEADERS = {
 
 def _clean(value: Any) -> str:
     return str(value or "").strip()
+
+
+def is_automatic_direct_row(row: dict | None) -> bool:
+    """Linha automática: não representa uma fala real do usuário."""
+    if not isinstance(row, dict):
+        return False
+    mode = _clean(row.get("interaction_mode")).casefold()
+    return mode in {"automatico", "automático", "automatic", "auto"}
+
+
+def extract_direct_character_name(row: dict | None, user_text: Any) -> str:
+    """Captura nome declarado pelo interlocutor sem depender do modelo."""
+    text = _clean(user_text)
+    if not text:
+        return ""
+
+    patterns = (
+        r"\bmeu nome (?:é|e)\s+([A-Za-zÀ-ÖØ-öø-ÿ][A-Za-zÀ-ÖØ-öø-ÿ' -]{1,40})",
+        r"\beu sou\s+([A-Za-zÀ-ÖØ-öø-ÿ][A-Za-zÀ-ÖØ-öø-ÿ' -]{1,40})",
+        r"\bpode me chamar de\s+([A-Za-zÀ-ÖØ-öø-ÿ][A-Za-zÀ-ÖØ-öø-ÿ' -]{1,40})",
+        r"\bme chamo\s+([A-Za-zÀ-ÖØ-öø-ÿ][A-Za-zÀ-ÖØ-öø-ÿ' -]{1,40})",
+    )
+    for pattern in patterns:
+        match = re.search(pattern, text, flags=re.I)
+        if match:
+            value = _clean(match.group(1))
+            value = re.split(r"[,.!?;:\n]", value, maxsplit=1)[0].strip()
+            return value[:48]
+
+    guide = _clean((row or {}).get("speech_guide")).casefold()
+    words = text.split()
+    if "nome" in guide and 1 <= len(words) <= 3:
+        candidate = " ".join(words).strip(" .,!?:;")
+        if re.fullmatch(r"[A-Za-zÀ-ÖØ-öø-ÿ][A-Za-zÀ-ÖØ-öø-ÿ' -]{1,47}", candidate):
+            return candidate
+
+    return ""
+
+
+DIRECT_CHAPTER_PREFIX = "sheet:"
+
+
+def parse_direct_script_id(value: Any) -> dict:
+    """Interpreta IDs autorais no formato Nome+índice, por exemplo Carona4."""
+    script_id = _clean(value)
+    match = re.match(r"^(.*?)(\d+)$", script_id)
+    if not match or not _clean(match.group(1)):
+        return {
+            "script_id": script_id,
+            "script_name": script_id,
+            "script_index": 0,
+            "valid": False,
+        }
+    return {
+        "script_id": script_id,
+        "script_name": _clean(match.group(1)),
+        "script_index": int(match.group(2)),
+        "valid": True,
+    }
+
+
+def direct_chapter_id(script_id: Any) -> str:
+    value = _clean(script_id)
+    return f"{DIRECT_CHAPTER_PREFIX}{value}" if value else ""
+
+
+def direct_script_id_from_chapter_id(chapter_id: Any) -> str:
+    value = _clean(chapter_id)
+    if not value.startswith(DIRECT_CHAPTER_PREFIX):
+        return ""
+    return _clean(value[len(DIRECT_CHAPTER_PREFIX):])
+
+
+def build_direct_chapter(script_id: Any) -> dict:
+    """Cria em memória a configuração de um capítulo descoberto na planilha."""
+    parsed = parse_direct_script_id(script_id)
+    if not parsed["valid"]:
+        raise ValueError(
+            f"ID de roteiro direto inválido: {parsed['script_id']!r}. "
+            "Use Nome+índice, por exemplo Carona4."
+        )
+
+    # O primeiro roteiro da história é a Confissão com Janio.
+    # Os seguintes usam PERSONAGEM_DA_CENA por padrão. Linhas automáticas
+    # ignoram o interlocutor e bloqueiam a entrada livre do usuário.
+    user_role = "JANIO" if int(parsed["script_index"]) == 1 else "PERSONAGEM_DA_CENA"
+    temporary_active = user_role == "PERSONAGEM_DA_CENA"
+    present = ["MARY", "JANIO"] if user_role == "JANIO" else ["MARY", "PERSONAGEM_DA_CENA"]
+
+    return {
+        "title": parsed["script_name"],
+        "allowed_roles": [user_role],
+        "phase_context": "chapter",
+        "script_mode": "direct_sheet",
+        "script_worksheet": "MINHA_SUGESTAO",
+        "script_name": parsed["script_id"],
+        "sheet_script_index": parsed["script_index"],
+        "inherit_character": temporary_active,
+        "inherit_scene": False,
+        "decision_after_turns": 0,
+        "choices": [],
+        "opening_caption": "",
+        "opening_mary": "",
+        "model_opening": False,
+        "initial_scene": {
+            "location": "",
+            "time": "",
+            "present_characters": present,
+            "interaction_mode": "in_person",
+            "user_role": user_role,
+            "proximity": "",
+            "sexual_intensity": "none",
+            "mary_immediate_goal": "",
+            "mary_action": "",
+            "event": "",
+            "open_hook": False,
+            "hook_resolution": "",
+            "temporary_character": {
+                "active": temporary_active,
+                "name": "" if user_role == "JANIO" else "Personagem da cena",
+                "description": "",
+                "relation_to_mary": "",
+                "user_can_play": temporary_active,
+            },
+            "return_anchor": "",
+            "scene_changed": True,
+            "show_caption": False,
+            "scene_caption": "",
+            "arc_phase": "opening",
+            "resolution_type": "none",
+            "resolution_summary": "",
+            "start_new_scene": True,
+            "turns_in_scene": 0,
+            "scene_number": int(parsed["script_index"]),
+            "mary_should_initiate": False,
+            "user_scene_direction": "",
+        },
+    }
+
+
+def load_direct_script_catalog(
+    *,
+    service_account_info: dict,
+    spreadsheet_id: str,
+    worksheet_name: str = "MINHA_SUGESTAO",
+) -> list[dict]:
+    """Descobre os roteiros Nome+índice diretamente da coluna Roteiro."""
+    if not service_account_info:
+        raise ValueError("service_account_info ausente para catálogo de roteiros")
+    if not _clean(spreadsheet_id):
+        raise ValueError("spreadsheet_id ausente para catálogo de roteiros")
+
+    client = gspread.service_account_from_dict(service_account_info)
+    worksheet = client.open_by_key(_clean(spreadsheet_id)).worksheet(
+        _clean(worksheet_name) or "MINHA_SUGESTAO"
+    )
+    values = worksheet.get_all_values()
+    if not values:
+        return []
+
+    header_index = -1
+    roteiro_index = -1
+    fala_guia_index = -1
+    for idx, source in enumerate(values):
+        normalized = [_clean(cell).lower() for cell in source]
+        if "ordem" in normalized and "roteiro" in normalized:
+            header_index = idx
+            roteiro_index = normalized.index("roteiro")
+            fala_guia_index = (
+                normalized.index("fala-guia")
+                if "fala-guia" in normalized
+                else -1
+            )
+            break
+    if header_index < 0 or roteiro_index < 0:
+        raise ValueError("cabeçalho do catálogo de roteiros não encontrado")
+
+    catalog_by_id: dict[str, dict] = {}
+    first_seen = 0
+    for source_row in values[header_index + 1:]:
+        script_id = _clean(
+            source_row[roteiro_index] if roteiro_index < len(source_row) else ""
+        )
+        if not script_id:
+            continue
+        parsed = parse_direct_script_id(script_id)
+        if not parsed["valid"]:
+            continue
+        key = parsed["script_id"].casefold()
+        if key not in catalog_by_id:
+            first_seen += 1
+            catalog_by_id[key] = {
+                **parsed,
+                "first_seen": first_seen,
+                "chapter_id": direct_chapter_id(parsed["script_id"]),
+                "row_count": 0,
+                "executable_row_count": 0,
+            }
+        catalog_by_id[key]["row_count"] += 1
+        if (
+            fala_guia_index >= 0
+            and fala_guia_index < len(source_row)
+            and _clean(source_row[fala_guia_index])
+        ):
+            catalog_by_id[key]["executable_row_count"] += 1
+
+    catalog = list(catalog_by_id.values())
+    catalog.sort(
+        key=lambda item: (
+            int(item.get("script_index", 0) or 0),
+            int(item.get("first_seen", 0) or 0),
+        )
+    )
+
+    seen_indexes: dict[int, str] = {}
+    for item in catalog:
+        index = int(item.get("script_index", 0) or 0)
+        previous = seen_indexes.get(index)
+        if previous and previous.casefold() != str(item["script_id"]).casefold():
+            raise ValueError(
+                f"Índice de roteiro duplicado {index}: {previous!r} e {item['script_id']!r}."
+            )
+        seen_indexes[index] = str(item["script_id"])
+
+    return catalog
+
+
+def next_direct_script(
+    catalog: list[dict],
+    current_script_id: Any,
+) -> dict:
+    current = _clean(current_script_id).casefold()
+    for index, item in enumerate(catalog):
+        if _clean(item.get("script_id")).casefold() != current:
+            continue
+        if index + 1 < len(catalog):
+            return dict(catalog[index + 1])
+        return {}
+    return {}
 
 
 def _resolve_placeholders(text: str, *, character_name: str) -> str:
@@ -238,6 +483,34 @@ def mark_direct_line_emitted(
     if rows:
         last_order = max(int(item.get("order", 0) or 0) for item in rows)
 
+    if is_automatic_direct_row(row):
+        completed = {
+            int(value)
+            for value in (state.get("completed_orders", []) or [])
+            if str(value).strip()
+        }
+        completed.add(order)
+        state["completed_orders"] = sorted(completed)
+        state["awaiting_reply_order"] = 0
+        state["line_dialogue"] = []
+        if rows:
+            current_index = next(
+                (
+                    idx
+                    for idx, item in enumerate(rows)
+                    if int(item.get("order", 0) or 0) == order
+                ),
+                int(state.get("index", 0) or 0),
+            )
+            state["index"] = min(current_index + 1, len(rows))
+            if state["index"] >= len(rows):
+                state["current_order"] = 0
+                state["completed"] = True
+            else:
+                state["current_order"] = int(rows[state["index"]].get("order", 0) or 0)
+                state["completed"] = False
+        return
+
     if last_order and order == last_order:
         completed = {
             int(value)
@@ -281,284 +554,6 @@ def direct_script_ready_for_choice(state: dict) -> bool:
     return bool(state.get("completed", False))
 
 
-
-
-def interpret_direct_turn(
-    *,
-    api_key: str,
-    model: str,
-    fallback_model: str | None,
-    row: dict,
-    user_text: str,
-    previous_mary_text: str = "",
-) -> dict:
-    """Intérprete: transforma a fala atual em situação compreendida antes da redação."""
-    speech_guide = _clean(row.get("speech_guide"))
-    payload = (
-        "MEMÓRIA PERMANENTE-GLOBAL\n"
-        + (_clean(row.get("permanent_memory")) or "(não informada)")
-        + "\n\nMEMÓRIA FÍSICA-GLOBAL\n"
-        + (_clean(row.get("physical_memory")) or "(não informada)")
-        + "\n\nMEMÓRIA INSTANTÂNEA-LOCAL\n"
-        + (_clean(row.get("instant_memory")) or "(não informada)")
-        + "\n\nÚLTIMA FALA DE MARY\n"
-        + (_clean(previous_mary_text) or "(primeira interação)")
-        + "\n\nFALA ATUAL DO USUÁRIO\n"
-        + (_clean(user_text) or "(sem fala verbal)")
-        + "\n\nFALA-GUIA\n"
-        + speech_guide
-        + "\n\nTAREFA\n"
-        "Interprete a situação para um Redator de diálogo. Não escreva a fala final de Mary. "
-        "SEPARAÇÃO ABSOLUTA DE FONTES: a FALA ATUAL DO USUÁRIO contém apenas o que o usuário realmente disse. "
-        "A FALA-GUIA contém apenas o que MARY deve fazer nesta linha. Nunca atribua ao usuário pergunta, intenção, pedido ou informação que exista apenas na FALA-GUIA. "
-        "Identifique: (1) o que o usuário realmente quis dizer, usando somente a FALA ATUAL DO USUÁRIO e a continuidade; "
-        "se a fala for apenas uma exclamação curta, palavrão, reação vaga ou frase ambígua sem referente claro, NÃO force uma interpretação temática: marque o sentido como reação vaga e o subtexto como vazio; "
-        "(2) subtexto somente quando houver evidência real na fala atual ou continuidade; "
-        "(3) se existe obrigação conversacional criada pelo USUÁRIO e o que Mary precisa responder/reconhecer; "
-        "(4) quais fatos das memórias são diretamente relevantes agora; "
-        "(5) qual ponte natural pode unir a resposta ao usuário à missão autoral, mas somente se essa ponte puder ser feita sem atribuir ao usuário algo que ele não disse. Se não houver ponte segura, deixe vazio. "
-        "Nunca invente fatos pessoais, motivos ou emoções. "
-        "Se a pergunta do usuário toca um fato presente na memória, use esse fato como base obrigatória. "
-        "Retorne apenas JSON: "
-        '{"sentido_usuario":"", "subtexto":"", '
-        '"obrigacao_conversacional":{"existe":true,"requisito":""}, '
-        '"fatos_relevantes":[""], "ponte_natural":""}.'
-    )
-    raw = chat(
-        api_key=api_key,
-        model=model,
-        fallback_model=fallback_model,
-        messages=[
-            {
-                "role": "system",
-                "content": (
-                    "Você é um Intérprete de diálogo. Sua função é compreender o turno antes da escrita. "
-                    "O usuário é sempre o PERSONAGEM DA CENA; Mary é sempre Mary. "
-                    "Nunca troque sujeito, nunca transforme a FALA-GUIA em algo dito pelo usuário e nunca transforme a fala do usuário em fala de Mary. "
-                    "Não use a FALA-GUIA para adivinhar o significado de uma fala vaga do usuário. "
-                    "Não escreve falas de Mary, não cria fatos e não embeleza."
-                ),
-            },
-            {"role": "user", "content": payload},
-        ],
-        temperature=0.0,
-        max_tokens=420,
-    )
-    parsed: dict = {}
-    parse_error = ""
-    try:
-        text = str(raw or "").strip()
-        text = re.sub(r"^\s*\`\`\`(?:json)?\s*", "", text, flags=re.I)
-        text = re.sub(r"\s*\`\`\`\s*$", "", text)
-        start = text.find("{")
-        end = text.rfind("}")
-        if start >= 0 and end >= start:
-            text = text[start:end + 1]
-        parsed = json.loads(text)
-        if not isinstance(parsed, dict):
-            raise ValueError("interpretação não é objeto JSON")
-    except Exception as exc:
-        parse_error = str(exc)
-        parsed = {}
-
-    obligation = parsed.get("obrigacao_conversacional", {})
-    if not isinstance(obligation, dict):
-        obligation = {}
-    facts = parsed.get("fatos_relevantes", [])
-    if not isinstance(facts, list):
-        facts = []
-    return {
-        "user_meaning": _clean(parsed.get("sentido_usuario")),
-        "subtext": _clean(parsed.get("subtexto")),
-        "user_obligation": {
-            "exists": bool(obligation.get("existe", False)),
-            "requirement": _clean(obligation.get("requisito")),
-        },
-        "relevant_facts": [_clean(x) for x in facts if _clean(x)],
-        "guide_requirements": [],
-        "natural_bridge": _clean(parsed.get("ponte_natural")),
-        "raw_response": raw,
-        "input_payload": payload,
-        "parse_error": parse_error,
-    }
-
-
-def validate_direct_line_completion(
-    *,
-    api_key: str,
-    model: str,
-    fallback_model: str | None,
-    row: dict,
-    interpretation: dict,
-    mary_text: str,
-    user_text: str = "",
-    line_dialogue: list[dict] | None = None,
-) -> dict:
-    """Diretor semântico: decide se a finalidade da linha já aconteceu na conversa."""
-    user_obligation = interpretation.get("user_obligation", {}) if isinstance(interpretation, dict) else {}
-    if not isinstance(user_obligation, dict):
-        user_obligation = {}
-    speech_guide = _clean(row.get("speech_guide"))
-    obligation_text = _clean(user_obligation.get("requirement"))
-    obligation_exists = bool(user_obligation.get("exists", False))
-
-    history_lines: list[str] = []
-    for message in (line_dialogue or [])[-10:]:
-        if not isinstance(message, dict):
-            continue
-        role = _clean(message.get("role")).lower()
-        content = _clean(message.get("content"))
-        if not content:
-            continue
-        speaker = "MARY" if role == "assistant" else "USUÁRIO"
-        history_lines.append(f"{speaker}: {content}")
-    if _clean(user_text):
-        history_lines.append(f"USUÁRIO: {_clean(user_text)}")
-    if _clean(mary_text):
-        history_lines.append(f"MARY: {_clean(mary_text)}")
-    conversation_text = "\n".join(history_lines) or "(sem histórico de linha)"
-
-    understanding_text = (
-        "Significado: "
-        + (_clean(interpretation.get("literal_meaning")) or _clean(interpretation.get("user_meaning")) or "(não determinado)")
-        + "\nReferência: " + (_clean(interpretation.get("reference")) or "(não determinada)")
-        + "\nIntenção: " + (_clean(interpretation.get("intent")) or "(não determinada)")
-        + "\nSubtexto sustentado: " + (_clean(interpretation.get("subtext")) or "(nenhum)")
-    )
-
-    payload = (
-        "FALA-GUIA ORIGINAL\n"
-        + (speech_guide or "(nenhuma)")
-        + "\n\nCOMPREENSÃO DA FALA ATUAL DO USUÁRIO\n"
-        + understanding_text
-        + "\n\nOBRIGAÇÃO CONVERSACIONAL CRIADA PELO USUÁRIO\n"
-        + (obligation_text if obligation_exists else "(nenhuma)")
-        + "\n\nCONVERSA OCORRIDA ENQUANTO ESTA LINHA ESTÁ ATIVA\n"
-        + conversation_text
-        + "\n\nRESPOSTA ATUAL DE MARY\n"
-        + _clean(mary_text)
-        + "\n\nTAREFA\n"
-        "Avalie se a FINALIDADE SEMÂNTICA da FALA-GUIA já foi alcançada na conversa desta linha. "
-        "A fala-guia é orientação autoral, não texto que Mary precise pronunciar literalmente. "
-        "Uma finalidade pode ser cumprida por informação fornecida espontaneamente pelo USUÁRIO. "
-        "Exemplo: se a fala-guia manda perguntar onde o usuário mora e ele já disse claramente onde mora, esse objetivo está cumprido, mesmo que Mary não tenha formulado a pergunta literal. "
-        "Da mesma forma, se a fala-guia pretende descobrir se algo fica fora do caminho e o usuário já esclareceu que não há desvio relevante, considere essa parte cumprida. "
-        "Não considere cumprido apenas porque o assunto apareceu: exija evidência concreta na CONVERSA DA LINHA. "
-        "Não use informações de linhas anteriores nem conhecimento externo. "
-        "A obrigação conversacional criada pela fala ATUAL do usuário, quando existir, deve ser atendida pela RESPOSTA ATUAL DE MARY. "
-        "Para cada objetivo da fala-guia, informe se foi alcançado, a fonte da evidência (USUÁRIO ou MARY) e um trecho literal da conversa. "
-        "Retorne apenas JSON: "
-        '{"obrigacao_usuario":{"existe":true,"requisito":"","atendida":true,"evidencia":""},'
-        '"objetivos_guia":[{"objetivo":"","alcancado":true,"fonte":"USUÁRIO","evidencia":""}],'
-        '"cumpriu":true,"faltou":"","motivo":""}.'
-    )
-    system_prompt = (
-        "Você é um Diretor de continuidade semântica. "
-        "Sua pergunta é: a finalidade desta linha já aconteceu na conversa? "
-        "Não exija repetição literal da fala-guia. "
-        "Aceite fatos fornecidos espontaneamente pelo usuário quando eles satisfizerem o objetivo autoral. "
-        "Nunca invente evidência."
-    )
-
-    started_at = time.perf_counter()
-    raw = chat(
-        api_key=api_key,
-        model=model,
-        fallback_model=fallback_model,
-        messages=[
-            {"role": "system", "content": system_prompt},
-            {"role": "user", "content": payload},
-        ],
-        temperature=0.0,
-        max_tokens=420,
-    )
-    duration_ms = round((time.perf_counter() - started_at) * 1000.0, 1)
-
-    parse_error = ""
-    parsed: dict = {}
-    try:
-        text = str(raw or "").strip()
-        text = re.sub(r"^\s*\x60\x60\x60(?:json)?\s*", "", text, flags=re.I)
-        text = re.sub(r"\s*\x60\x60\x60\s*$", "", text)
-        json_start = text.find("{")
-        json_end = text.rfind("}")
-        if json_start >= 0 and json_end >= json_start:
-            text = text[json_start : json_end + 1]
-        parsed = json.loads(text)
-        if not isinstance(parsed, dict):
-            raise ValueError("resposta do Diretor não é objeto JSON")
-    except Exception as exc:
-        parse_error = str(exc)
-        parsed = {}
-
-    conversation_norm = conversation_text.casefold()
-    response_norm = _clean(mary_text).casefold()
-
-    objectives = parsed.get("objetivos_guia", [])
-    if not isinstance(objectives, list):
-        objectives = []
-    normalized_elements: list[dict] = []
-    for item in objectives:
-        if not isinstance(item, dict):
-            continue
-        evidence = _clean(item.get("evidencia"))
-        evidence_valid = bool(evidence) and evidence.casefold() in conversation_norm
-        achieved = bool(item.get("alcancado", False)) and evidence_valid
-        normalized_elements.append({
-            "requirement": _clean(item.get("objetivo")),
-            "found": achieved,
-            "source": _clean(item.get("fonte")).upper(),
-            "evidence": evidence if evidence_valid else "",
-        })
-
-    obligation_raw = parsed.get("obrigacao_usuario", {})
-    if not isinstance(obligation_raw, dict):
-        obligation_raw = {}
-    obligation_evidence = _clean(obligation_raw.get("evidencia"))
-    obligation_evidence_valid = bool(obligation_evidence) and obligation_evidence.casefold() in response_norm
-    normalized_obligation = {
-        "exists": obligation_exists,
-        "requirement": obligation_text,
-        "satisfied": (
-            True if not obligation_exists
-            else bool(obligation_raw.get("atendida", False)) and obligation_evidence_valid
-        ),
-        "evidence": obligation_evidence if obligation_evidence_valid else "",
-    }
-
-    all_guide_found = (
-        True if not speech_guide
-        else bool(normalized_elements) and all(bool(item.get("found")) for item in normalized_elements)
-    )
-    fulfilled = (
-        not parse_error
-        and normalized_obligation["satisfied"]
-        and all_guide_found
-        and bool(parsed.get("cumpriu", False))
-    )
-
-    missing_parts: list[str] = []
-    if obligation_exists and not normalized_obligation["satisfied"]:
-        missing_parts.append(obligation_text or "responder à obrigação conversacional")
-    for item in normalized_elements:
-        if not item["found"] and item["requirement"]:
-            missing_parts.append(item["requirement"])
-    missing = "; ".join(missing_parts) or _clean(parsed.get("faltou"))
-    reason = _clean(parsed.get("motivo"))
-
-    return {
-        "fulfilled": fulfilled,
-        "missing": missing,
-        "reason": reason,
-        "elements": normalized_elements,
-        "user_obligation": normalized_obligation,
-        "model": model,
-        "duration_ms": duration_ms,
-        "input_payload": payload,
-        "raw_response": raw,
-        "parsed_response": parsed,
-        "parse_error": parse_error,
-    }
 
 
 def direct_line_correction_prompt(row: dict, evaluation: dict) -> str:
@@ -617,6 +612,7 @@ def build_direct_writer_prompt(
         )
 
     interpretation = interpretation if isinstance(interpretation, dict) else {}
+    automatic_line = is_automatic_direct_row(row)
     active_order = int(row.get("order", 0) or 0)
     speech_guide = _resolve_placeholders(
         row.get("speech_guide", ""),
@@ -717,14 +713,23 @@ def build_direct_writer_prompt(
         "CONVERSA REAL — FONTE PRINCIPAL DE CONTINUIDADE\n"
         "==================================================\n"
         + conversation_text
-        + "\n\nUSUÁRIO AGORA:\n"
-        + (_clean(user_text) or "(sem fala verbal)")
         + "\n\n"
-        "Leia a fala atual como continuação causal da conversa acima. "
-        "Perguntas, provocações, ironias, confirmações, recusas e brincadeiras devem ser respondidas pelo sentido, "
-        "não espelhadas nem devolvidas mecanicamente.\n\n"
-
-        "==================================================\n"
+        + (
+            "CONTINUAÇÃO AUTOMÁTICA\n"
+            "O usuário NÃO falou neste turno. O botão Prosseguir apenas autorizou a sequência. "
+            "Mary está conduzindo a cena consigo mesma: pode pensar, murmurar, falar sozinha ou verbalizar "
+            "algo compatível com a FALA-GUIA. Não responda à palavra 'Prosseguir' e não invente interlocutor.\n\n"
+            if automatic_line
+            else (
+                "USUÁRIO AGORA:\n"
+                + (_clean(user_text) or "(sem fala verbal)")
+                + "\n\n"
+                "Leia a fala atual como continuação causal da conversa acima. "
+                "Perguntas, provocações, ironias, confirmações, recusas e brincadeiras devem ser respondidas pelo sentido, "
+                "não espelhadas nem devolvidas mecanicamente.\n\n"
+            )
+        )
+        + "==================================================\n"
         "APOIO SEMÂNTICO — SECUNDÁRIO, NÃO SUBSTITUI A CONVERSA\n"
         "==================================================\n"
         + semantic_support
@@ -739,8 +744,12 @@ def build_direct_writer_prompt(
         "Estilo/atitude: " + (_clean(row.get("style")) or "natural") + "\n\n"
 
         "REGRAS ESSENCIAIS\n"
-        "1. Responda primeiro ao que o usuário realmente acabou de fazer conversacionalmente.\n"
-        "2. Depois, se couber naturalmente, desenvolva a linha ativa. Se não couber, mantenha-a pendente.\n"
+        + (
+            "1. Este é um turno automático: não há fala do usuário para responder; continue a experiência interna de Mary.\n"
+            if automatic_line
+            else "1. Responda primeiro ao que o usuário realmente acabou de fazer conversacionalmente.\n"
+        )
+        + "2. Depois, se couber naturalmente, desenvolva a linha ativa. Se não couber, mantenha-a pendente.\n"
         "3. Não repita ou espelhe a pergunta/frase do usuário como se fosse resposta.\n"
         "4. Preserve sujeitos, papéis, posse, destinatários e autoria das iniciativas.\n"
         "5. Não invente fatos pessoais do usuário nem antecipe linhas futuras.\n"

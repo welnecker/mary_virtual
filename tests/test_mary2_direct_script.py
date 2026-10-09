@@ -1,13 +1,261 @@
 from mary2.direct_script import (
+    build_direct_chapter,
     build_direct_writer_prompt,
     current_direct_row,
+    direct_chapter_id,
     direct_line_correction_prompt,
     direct_script_ready_for_choice,
     ensure_direct_state,
+    extract_direct_character_name,
+    is_automatic_direct_row,
+    load_direct_script_catalog,
     mark_direct_line_emitted,
+    next_direct_script,
+    parse_direct_script_id,
     register_direct_user_reply,
-    validate_direct_line_completion,
 )
+
+
+def test_automatic_row_is_recognized_from_prosseguir_column():
+    assert is_automatic_direct_row({"interaction_mode": "automatico"}) is True
+    assert is_automatic_direct_row({"interaction_mode": "AUTOMÁTICO"}) is True
+    assert is_automatic_direct_row({"interaction_mode": ""}) is False
+
+
+def test_automatic_row_completes_immediately_after_emission():
+    rows = [
+        {
+            "order": 1,
+            "line_id": "linha_01",
+            "script_name": "apartamento5",
+            "speech_guide": "preciso escolher uma roupa, mas antes vou tomar banho",
+            "interaction_mode": "automatico",
+        },
+        {
+            "order": 2,
+            "line_id": "linha_02",
+            "script_name": "apartamento5",
+            "speech_guide": "que água deliciosa",
+            "interaction_mode": "automatico",
+        },
+    ]
+    state = ensure_direct_state({}, rows)
+
+    mark_direct_line_emitted(state, rows[0], rows)
+
+    assert state["completed_orders"] == [1]
+    assert state["awaiting_reply_order"] == 0
+    assert state["index"] == 1
+    assert state["current_order"] == 2
+    assert state["completed"] is False
+
+
+def test_automatic_writer_prompt_treats_prosseguir_as_control_not_dialogue():
+    row = {
+        "order": 1,
+        "line_id": "linha_01",
+        "script_name": "apartamento5",
+        "speech_guide": "Nossa... pareço uma adolescente. Preciso escolher uma roupa.",
+        "style": "levemente ansiosa; feliz; expectativa",
+        "interaction_mode": "automatico",
+        "instant_memory": "Mary está sozinha em seu apartamento.",
+        "permanent_memory": "Mary está separada de Janio.",
+        "physical_memory": "Mary tem cabelos negros.",
+        "initial_description": "Mary acabou de chegar em casa.",
+    }
+
+    prompt = build_direct_writer_prompt(
+        row=row,
+        all_rows=[row],
+        recent_messages=[],
+        user_text="Prosseguir",
+        interpretation={
+            "automatic_turn": True,
+            "user_obligation": {"exists": False, "requirement": ""},
+        },
+    )
+
+    assert "CONTINUAÇÃO AUTOMÁTICA" in prompt
+    assert "O usuário NÃO falou neste turno" in prompt
+    assert "não invente interlocutor" in prompt
+    assert "USUÁRIO AGORA:\nProsseguir" not in prompt
+
+
+
+
+def test_sheet_chapter_roles_follow_linear_story_defaults():
+    confession = build_direct_chapter("Confissão1")
+    academy = build_direct_chapter("Academia2")
+    apartment = build_direct_chapter("apartamento5")
+
+    assert confession["allowed_roles"] == ["JANIO"]
+    assert confession["initial_scene"]["user_role"] == "JANIO"
+    assert confession["initial_scene"]["temporary_character"]["active"] is False
+
+    assert academy["allowed_roles"] == ["PERSONAGEM_DA_CENA"]
+    assert academy["initial_scene"]["user_role"] == "PERSONAGEM_DA_CENA"
+    assert academy["inherit_scene"] is False
+    assert academy["inherit_character"] is True
+
+    assert apartment["allowed_roles"] == ["PERSONAGEM_DA_CENA"]
+
+
+def test_direct_character_name_is_captured_from_introduction_or_name_answer():
+    row = {
+        "speech_guide": "Prazer, eu sou a Mary... preciso saber seu nome, né?"
+    }
+    assert extract_direct_character_name(row, "Meu nome é Donisete.") == "Donisete"
+    assert extract_direct_character_name(row, "Eu sou Donisete") == "Donisete"
+    assert extract_direct_character_name(row, "Donisete") == "Donisete"
+    assert extract_direct_character_name(
+        {"speech_guide": "Como foi seu dia?"},
+        "Donisete",
+    ) == ""
+
+
+def test_full_linear_catalog_sequence_is_index_driven(monkeypatch):
+    values = [
+        ["Ordem", "Roteiro", "Fala-guia", "Estilo / atitude", "PROSSEGUIR"],
+        ["1", "Carona4", "c4", "", ""],
+        ["1", "Confissão1", "c1", "", ""],
+        ["1", "apartamento5", "c5", "", "automatico"],
+        ["1", "Academia2", "c2", "", ""],
+        ["1", "Lanchonete3", "c3", "", "automatico"],
+    ]
+
+    class FakeWorksheet:
+        def get_all_values(self):
+            return values
+
+    class FakeBook:
+        def worksheet(self, name):
+            return FakeWorksheet()
+
+    class FakeClient:
+        def open_by_key(self, key):
+            return FakeBook()
+
+    monkeypatch.setattr(
+        "mary2.direct_script.gspread.service_account_from_dict",
+        lambda info: FakeClient(),
+    )
+
+    catalog = load_direct_script_catalog(
+        service_account_info={"client_email": "test@example.com"},
+        spreadsheet_id="sheet-id",
+    )
+
+    assert [item["script_id"] for item in catalog] == [
+        "Confissão1",
+        "Academia2",
+        "Lanchonete3",
+        "Carona4",
+        "apartamento5",
+    ]
+    assert next_direct_script(catalog, "Confissão1")["script_id"] == "Academia2"
+    assert next_direct_script(catalog, "Academia2")["script_id"] == "Lanchonete3"
+    assert next_direct_script(catalog, "Lanchonete3")["script_id"] == "Carona4"
+    assert next_direct_script(catalog, "Carona4")["script_id"] == "apartamento5"
+    assert next_direct_script(catalog, "apartamento5") == {}
+
+
+def test_indexed_script_id_builds_virtual_direct_chapter():
+    parsed = parse_direct_script_id("apartamento5")
+    assert parsed == {
+        "script_id": "apartamento5",
+        "script_name": "apartamento",
+        "script_index": 5,
+        "valid": True,
+    }
+
+    chapter = build_direct_chapter("apartamento5")
+    assert direct_chapter_id("apartamento5") == "sheet:apartamento5"
+    assert chapter["script_mode"] == "direct_sheet"
+    assert chapter["script_worksheet"] == "MINHA_SUGESTAO"
+    assert chapter["script_name"] == "apartamento5"
+    assert chapter["sheet_script_index"] == 5
+    assert chapter["choices"] == []
+
+
+def test_sheet_catalog_discovers_scripts_and_sorts_by_trailing_index(monkeypatch):
+    values = [
+        ["Ordem", "Roteiro", "Fala-guia"],
+        ["1", "Carona4", "fala 1"],
+        ["2", "Carona4", "fala 2"],
+        ["1", "Confissão1", "fala 1"],
+        ["1", "apartamento5", "fala 1"],
+        ["1", "SemIndice", "ignorado"],
+    ]
+
+    class FakeWorksheet:
+        def get_all_values(self):
+            return values
+
+    class FakeBook:
+        def worksheet(self, name):
+            assert name == "MINHA_SUGESTAO"
+            return FakeWorksheet()
+
+    class FakeClient:
+        def open_by_key(self, key):
+            assert key == "sheet-id"
+            return FakeBook()
+
+    monkeypatch.setattr(
+        "mary2.direct_script.gspread.service_account_from_dict",
+        lambda info: FakeClient(),
+    )
+
+    catalog = load_direct_script_catalog(
+        service_account_info={"client_email": "test@example.com"},
+        spreadsheet_id="sheet-id",
+    )
+
+    assert [item["script_id"] for item in catalog] == [
+        "Confissão1",
+        "Carona4",
+        "apartamento5",
+    ]
+    assert [item["row_count"] for item in catalog] == [1, 2, 1]
+    assert [item["executable_row_count"] for item in catalog] == [1, 2, 1]
+    assert next_direct_script(catalog, "Carona4")["script_id"] == "apartamento5"
+    assert next_direct_script(catalog, "apartamento5") == {}
+
+
+def test_sheet_catalog_rejects_duplicate_script_index(monkeypatch):
+    values = [
+        ["Ordem", "Roteiro", "Fala-guia"],
+        ["1", "Carona4", "fala"],
+        ["1", "Outro4", "fala"],
+    ]
+
+    class FakeWorksheet:
+        def get_all_values(self):
+            return values
+
+    class FakeBook:
+        def worksheet(self, name):
+            return FakeWorksheet()
+
+    class FakeClient:
+        def open_by_key(self, key):
+            return FakeBook()
+
+    monkeypatch.setattr(
+        "mary2.direct_script.gspread.service_account_from_dict",
+        lambda info: FakeClient(),
+    )
+
+    try:
+        load_direct_script_catalog(
+            service_account_info={"client_email": "test@example.com"},
+            spreadsheet_id="sheet-id",
+        )
+    except ValueError as exc:
+        assert "Índice de roteiro duplicado 4" in str(exc)
+    else:
+        raise AssertionError("índice narrativo duplicado deveria falhar")
+
 
 
 ROWS = [
@@ -158,48 +406,6 @@ def test_last_line_completes_immediately_when_validated():
 
 
 
-def test_director_validator_only_checks_guide_completion(monkeypatch):
-    def fake_chat(**kwargs):
-        return '{"elementos":[{"requisito":"perguntar onde o usuário mora","encontrado":false,"evidencia":""},{"requisito":"perguntar se Camburi fica fora do caminho do usuário","encontrado":false,"evidencia":""}],"cumpriu":false,"faltou":"perguntar onde mora","motivo":"a pergunta da fala-guia não apareceu"}'
-
-    monkeypatch.setattr("mary2.direct_script.chat", fake_chat)
-
-    result = validate_direct_line_completion(
-        api_key="test",
-        model="director-test",
-        fallback_model=None,
-        row={
-            "speech_guide": "então, onde você mora? Camburi fica muito fora do seu caminho?"
-        },
-        mary_text="Gostei muito do treino hoje. Você pegou pesado.",
-    )
-
-    assert result["fulfilled"] is False
-    assert result["missing"] == "perguntar onde mora"
-    assert "qualidade literária" in result["input_payload"]
-    assert result["parsed_response"]["cumpriu"] is False
-
-
-def test_director_validator_accepts_rephrased_guide(monkeypatch):
-    def fake_chat(**kwargs):
-        return '{"elementos":[{"requisito":"perguntar onde o usuário mora","encontrado":true,"evidencia":"você mora onde?"},{"requisito":"perguntar se Camburi fica fora do caminho do usuário","encontrado":true,"evidencia":"Camburi desvia muito do seu caminho?"}],"cumpriu":true,"faltou":"","motivo":"a missão essencial foi realizada"}'
-
-    monkeypatch.setattr("mary2.direct_script.chat", fake_chat)
-
-    result = validate_direct_line_completion(
-        api_key="test",
-        model="director-test",
-        fallback_model=None,
-        row={
-            "speech_guide": "então, onde você mora? Camburi fica muito fora do seu caminho?"
-        },
-        mary_text="Gostei sim do treino. Agora me conta: você mora onde? Camburi desvia muito do seu caminho?",
-    )
-
-    assert result["fulfilled"] is True
-    assert result["missing"] == ""
-
-
 def test_direct_line_correction_prompt_keeps_same_mission():
     prompt = direct_line_correction_prompt(
         {
@@ -220,52 +426,3 @@ def test_direct_line_correction_prompt_keeps_same_mission():
 
 
 
-def test_director_prompt_preserves_subject_action_and_intention(monkeypatch):
-    captured = {}
-
-    def fake_chat(**kwargs):
-        captured["messages"] = kwargs["messages"]
-        return '{"elementos":[{"requisito":"Mary pedir ao usuário que a leve ao Clube Náutico","encontrado":false,"evidencia":""},{"requisito":"Mary indicar que será uma companhia divertida","encontrado":false,"evidencia":""}],"cumpriu":false,"faltou":"pedido para levá-la e promessa de companhia divertida","motivo":"o clube foi mencionado, mas os atos de fala não ocorreram"}'
-
-    monkeypatch.setattr("mary2.direct_script.chat", fake_chat)
-
-    result = validate_direct_line_completion(
-        api_key="test",
-        model="director-test",
-        fallback_model=None,
-        row={
-            "speech_guide": "O que me diz de me levar pra balada no Clube Náutico? Eu prometo que vou ser bem divertida..."
-        },
-        mary_text="Quem sabe a gente não encontra algo por lá hoje? Seria divertido.",
-    )
-
-    payload = captured["messages"][1]["content"]
-    assert "Um assunto apenas mencionado NÃO satisfaz uma ação específica" in payload
-    assert "Preserve sujeito e papéis" in payload
-    assert result["fulfilled"] is False
-    assert len(result["elements"]) == 2
-
-
-def test_director_prompt_does_not_demand_missing_concrete_data(monkeypatch):
-    captured = {}
-
-    def fake_chat(**kwargs):
-        captured["messages"] = kwargs["messages"]
-        return '{"elementos":[{"requisito":"Mary mencionar que a bateria morreu","encontrado":true,"evidencia":"minha bateria morreu"},{"requisito":"Mary pedir ao outro personagem que registre o contato","encontrado":true,"evidencia":"anota meu número"}],"cumpriu":true,"faltou":"","motivo":"os atos de fala essenciais foram realizados"}'
-
-    monkeypatch.setattr("mary2.direct_script.chat", fake_chat)
-
-    result = validate_direct_line_completion(
-        api_key="test",
-        model="director-test",
-        fallback_model=None,
-        row={
-            "speech_guide": "droga...lembrei que minha bateria morreu. Anota meu número pra gente não perder contato."
-        },
-        mary_text="Droga, minha bateria morreu. Anota meu número pra gente não perder contato.",
-    )
-
-    payload = captured["messages"][1]["content"]
-    assert "não exija que Mary anote algo fisicamente" in payload
-    assert "Nunca exija dado concreto" in payload
-    assert result["fulfilled"] is True

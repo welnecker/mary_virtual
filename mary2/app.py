@@ -15,20 +15,27 @@ from chapters import (
     chapter_prompt,
     chapter_ready_for_choice,
     find_choice,
-    get_chapter,
+    get_chapter as get_legacy_chapter,
 )
 from director import direct_scene
 from direct_semantic_director import validate_direct_semantic_turn
 from conversation_state import analyze_mary_move, normalize_conversation_state
 from input_router import parse_user_input
 from direct_script import (
+    build_direct_chapter,
     build_direct_writer_prompt,
     current_direct_row,
+    direct_chapter_id,
+    direct_script_id_from_chapter_id,
     direct_line_correction_prompt,
     direct_script_ready_for_choice,
     ensure_direct_state,
+    extract_direct_character_name,
+    is_automatic_direct_row,
+    load_direct_script_catalog,
     load_direct_script_rows,
     mark_direct_line_emitted,
+    next_direct_script,
     record_direct_line_turn,
     register_direct_user_reply,
 )
@@ -103,7 +110,23 @@ st.set_page_config(page_title="Mary Core 2", page_icon="🖤", layout="centered"
 
 _LOG = logging.getLogger(__name__)
 
-BUILD_ID = "2026-10-08-direct-sheet-v6.32"
+BUILD_ID = "2026-10-09-sheet-runtime-v8.0"
+
+
+def _runtime_get_chapter(chapter_id: str) -> dict:
+    """Resolve capítulos legados ou capítulos diretos descobertos na planilha."""
+    script_id = direct_script_id_from_chapter_id(chapter_id)
+    if script_id:
+        return build_direct_chapter(script_id)
+
+    chapter = get_legacy_chapter(chapter_id)
+    # Compatibilidade temporária enquanto os capítulos anteriores são recompilados:
+    # a Carona já usa o novo ID autoral Nome+índice presente na MINHA_SUGESTAO.
+    if str(chapter_id) == "carona_camburi":
+        chapter["script_name"] = "Carona4"
+    return chapter
+
+
 
 DEFAULT_MODELS = [
     "google/gemini-3-flash-preview",
@@ -113,7 +136,7 @@ DEFAULT_MODELS = [
 ]
 
 INITIAL_SCENE = deepcopy(
-    get_chapter("confissao_inicial").get("initial_scene", {})
+    build_direct_chapter("Confissão1").get("initial_scene", {})
 )
 
 
@@ -256,7 +279,7 @@ def _scene_for_chapter_transition(chapter: dict, previous_scene: dict) -> dict:
         if (
             previous_character.get("active")
             and previous_name
-            and previous_name.lower() not in {"personal", "personagem", "personagem_da_cena"}
+            and previous_name.lower() not in {"personal", "personagem", "personagem_da_cena", "personagem da cena"}
         ):
             initial["temporary_character"] = previous_character
             present = list(initial.get("present_characters", []) or [])
@@ -294,7 +317,7 @@ def _scene_for_chapter_transition(chapter: dict, previous_scene: dict) -> dict:
 
 def _chapter_id() -> str:
     narrative = st.session_state.story_state.get("narrative", {})
-    return str(narrative.get("chapter_id", "confissao_inicial") or "confissao_inicial")
+    return str(narrative.get("chapter_id", "sheet:Confissão1") or "sheet:Confissão1")
 
 
 def _chapter_turns() -> int:
@@ -374,7 +397,7 @@ def activate_chapter(
     narrative.pop("phase_start_message_index", None)
     narrative.pop("active_phase_id", None)
 
-    chapter = get_chapter(next_chapter_id)
+    chapter = _runtime_get_chapter(next_chapter_id)
     st.session_state.scene_state = _scene_for_chapter_transition(
         chapter,
         previous_scene,
@@ -437,6 +460,98 @@ def activate_chapter(
 
     st.rerun()
 
+
+
+
+def activate_direct_sheet_chapter(
+    *,
+    script_id: str,
+    persistence: dict | None,
+) -> None:
+    """Avança linearmente para um roteiro Nome+índice descoberto na MINHA_SUGESTAO."""
+    chapter = build_direct_chapter(script_id)
+    next_chapter_id = direct_chapter_id(script_id)
+    if not next_chapter_id:
+        raise ValueError("Roteiro direto inválido para transição.")
+
+    last_seq = int(st.session_state.get("run_last_seq", 0) or 0)
+    previous_scene = deepcopy(st.session_state.scene_state)
+    next_state = deepcopy(st.session_state.story_state)
+    narrative = next_state.setdefault("narrative", {})
+    branch_id = str(narrative.get("branch_id", "main") or "main")
+    instance_id = new_chapter_instance_id(next_chapter_id)
+
+    handoff = (
+        _handoff_from_record(st.session_state.turn_records[-1])
+        if st.session_state.turn_records
+        else {}
+    )
+
+    narrative["chapter_id"] = next_chapter_id
+    narrative["chapter_turns"] = 0
+    narrative["chapter_opening_pending"] = True
+    narrative["chapter_start_seq"] = last_seq + 1
+    narrative["prompt_start_seq"] = last_seq + 1
+    narrative["last_choice_id"] = f"continue:{script_id}"
+    narrative["pending_auto_chapter"] = ""
+    narrative["handoff"] = handoff
+    narrative["chapter_instance_id"] = instance_id
+    narrative["chapter_entry_checkpoint_id"] = ""
+    narrative["choice_ready"] = False
+    narrative.pop("direct_script", None)
+    narrative.pop("direct_conversation_state", None)
+    narrative.pop("direct_recent_user_facts", None)
+    narrative.pop("phase_start_message_index", None)
+    narrative.pop("active_phase_id", None)
+
+    next_scene = _scene_for_chapter_transition(chapter, previous_scene)
+    next_role = str(
+        next_scene.get("user_role", st.session_state.active_user_role)
+        or st.session_state.active_user_role
+        or "JANIO"
+    ).upper()
+    if next_role not in {"JANIO", "PERSONAGEM_DA_CENA"}:
+        next_role = "JANIO"
+
+    st.session_state.story_state = next_state
+    st.session_state.scene_state = next_scene
+    st.session_state.active_user_role = next_role
+    st.session_state.messages = []
+    st.session_state.turn_records = []
+
+    if persistence and st.session_state.run_id:
+        entry_id = save_checkpoint(
+            service_account_info=persistence["service_account_info"],
+            spreadsheet_id=persistence["spreadsheet_id"],
+            spreadsheet_title=persistence["spreadsheet_title"],
+            owner_email=persistence["owner_email"],
+            run_id=st.session_state.run_id,
+            checkpoint_type="chapter_entry",
+            source_seq=last_seq,
+            source_chapter_id=next_chapter_id,
+            source_chapter_instance_id=instance_id,
+            source_branch_id=branch_id,
+            choice_point_id=next_chapter_id,
+            active_user_role=next_role,
+            story_ledger=story_ledger_text(next_state),
+            scene_state=next_scene,
+            story_state=next_state,
+        )
+        narrative["chapter_entry_checkpoint_id"] = entry_id
+
+        update_run_snapshot(
+            service_account_info=persistence["service_account_info"],
+            spreadsheet_id=persistence["spreadsheet_id"],
+            spreadsheet_title=persistence["spreadsheet_title"],
+            owner_email=persistence["owner_email"],
+            run_id=st.session_state.run_id,
+            active_user_role=next_role,
+            story_ledger=story_ledger_text(next_state),
+            scene_state=next_scene,
+            story_state=next_state,
+        )
+
+    st.rerun()
 
 
 def restart_current_chapter(persistence: dict | None) -> None:
@@ -612,7 +727,7 @@ def activate_choice_from_checkpoint(
     narrative.pop("phase_start_message_index", None)
     narrative.pop("active_phase_id", None)
 
-    chapter = get_chapter(next_chapter_id)
+    chapter = _runtime_get_chapter(next_chapter_id)
     next_scene = _scene_for_chapter_transition(chapter, base_scene)
     next_role = str(next_scene.get("user_role", "JANIO") or "JANIO").upper()
     if next_role not in {"JANIO", "PERSONAGEM_DA_CENA"}:
@@ -677,7 +792,7 @@ def apply_pending_auto_transition(persistence: dict | None) -> bool:
     if not next_chapter_id:
         return False
 
-    chapter = get_chapter(next_chapter_id)
+    chapter = _runtime_get_chapter(next_chapter_id)
     last_seq = int(st.session_state.get("run_last_seq", 0) or 0)
     handoff = (
         _handoff_from_record(st.session_state.turn_records[-1])
@@ -760,7 +875,11 @@ def _direct_script_rows(*, persistence: dict, chapter: dict) -> list[dict]:
     worksheet = str(
         chapter.get("script_worksheet", "MINHA_SUGESTAO") or "MINHA_SUGESTAO"
     ).strip()
-    script_name = str(chapter.get("script_name", "Carona") or "Carona").strip()
+    script_name = str(chapter.get("script_name", "") or "").strip()
+    if not script_name:
+        raise PersistenceError(
+            "Capítulo direto sem script_name. O roteiro deve ser identificado pela MINHA_SUGESTAO."
+        )
 
     rows = load_direct_script_rows(
         service_account_info=persistence["service_account_info"],
@@ -1078,7 +1197,7 @@ st.title("Mary Core 2")
 st.caption("Novela interativa por capítulos, com contexto renovado a cada decisão.")
 st.caption(f"Build: `{BUILD_ID}`")
 
-current_chapter = get_chapter(_chapter_id())
+current_chapter = _runtime_get_chapter(_chapter_id())
 st.caption(f"Capítulo atual: **{current_chapter.get('title', _chapter_id())}**")
 
 if st.session_state.rollback_notice:
@@ -1227,16 +1346,22 @@ with st.sidebar:
         and st.session_state.run_id
         and not st.session_state.persistence_error
     ):
-        with st.expander("Capítulos e rotas"):
+        current_sidebar_chapter = _runtime_get_chapter(_chapter_id())
+        direct_linear_runtime = (
+            str(current_sidebar_chapter.get("script_mode", "") or "").strip().lower()
+            == "direct_sheet"
+        )
+        with st.expander("Capítulo atual" if direct_linear_runtime else "Capítulos e rotas"):
             narrative_debug = st.session_state.story_state.get("narrative", {})
-            st.caption(
-                "Capítulo atual: "
-                + str(narrative_debug.get("chapter_id", ""))
-                + " · instância: "
-                + str(narrative_debug.get("chapter_instance_id", ""))
-                + " · ramo: "
-                + str(narrative_debug.get("branch_id", "main"))
-            )
+            caption_parts = [
+                "Capítulo atual: " + str(narrative_debug.get("chapter_id", "")),
+                "instância: " + str(narrative_debug.get("chapter_instance_id", "")),
+            ]
+            if not direct_linear_runtime:
+                caption_parts.append(
+                    "ramo: " + str(narrative_debug.get("branch_id", "main"))
+                )
+            st.caption(" · ".join(caption_parts))
 
             if st.button(
                 "Reiniciar este capítulo sem apagar o histórico",
@@ -1248,103 +1373,104 @@ with st.sidebar:
                 except Exception as exc:
                     st.error(f"Não foi possível reiniciar o capítulo: {exc}")
 
-            if (
-                st.session_state.route_checkpoints_loaded_for_run
-                != st.session_state.run_id
-            ):
-                try:
-                    st.session_state.route_checkpoints = load_checkpoints(
-                        service_account_info=persistence["service_account_info"],
-                        spreadsheet_id=persistence["spreadsheet_id"],
-                        spreadsheet_title=persistence["spreadsheet_title"],
-                        owner_email=persistence["owner_email"],
-                        run_id=st.session_state.run_id,
-                        checkpoint_type="decision",
+            if not direct_linear_runtime:
+                if (
+                    st.session_state.route_checkpoints_loaded_for_run
+                    != st.session_state.run_id
+                ):
+                    try:
+                        st.session_state.route_checkpoints = load_checkpoints(
+                            service_account_info=persistence["service_account_info"],
+                            spreadsheet_id=persistence["spreadsheet_id"],
+                            spreadsheet_title=persistence["spreadsheet_title"],
+                            owner_email=persistence["owner_email"],
+                            run_id=st.session_state.run_id,
+                            checkpoint_type="decision",
+                        )
+                        st.session_state.route_checkpoints_loaded_for_run = (
+                            st.session_state.run_id
+                        )
+                    except Exception:
+                        st.session_state.route_checkpoints = []
+    
+                decision_checkpoints = st.session_state.route_checkpoints
+    
+                if st.button(
+                    "Atualizar decisões salvas",
+                    use_container_width=True,
+                    key="refresh_route_checkpoints",
+                ):
+                    try:
+                        st.session_state.route_checkpoints = load_checkpoints(
+                            service_account_info=persistence["service_account_info"],
+                            spreadsheet_id=persistence["spreadsheet_id"],
+                            spreadsheet_title=persistence["spreadsheet_title"],
+                            owner_email=persistence["owner_email"],
+                            run_id=st.session_state.run_id,
+                            checkpoint_type="decision",
+                        )
+                        st.session_state.route_checkpoints_loaded_for_run = (
+                            st.session_state.run_id
+                        )
+                        decision_checkpoints = st.session_state.route_checkpoints
+                    except Exception as exc:
+                        st.error(f"Não foi possível carregar decisões: {exc}")
+    
+                if decision_checkpoints:
+                    st.markdown("**Explorar outra rota**")
+                    selected_checkpoint = st.selectbox(
+                        "Voltar a qual decisão?",
+                        decision_checkpoints,
+                        format_func=lambda item: (
+                            f"#{int(item.get('source_seq', 0) or 0)} · "
+                            f"{str(item.get('source_chapter_id', '') or '')}"
+                        ),
+                        key="branch_checkpoint_selector",
                     )
-                    st.session_state.route_checkpoints_loaded_for_run = (
-                        st.session_state.run_id
+                    checkpoint_chapter_id = str(
+                        selected_checkpoint.get("source_chapter_id", "") or ""
                     )
-                except Exception:
-                    st.session_state.route_checkpoints = []
-
-            decision_checkpoints = st.session_state.route_checkpoints
-
-            if st.button(
-                "Atualizar decisões salvas",
-                use_container_width=True,
-                key="refresh_route_checkpoints",
-            ):
-                try:
-                    st.session_state.route_checkpoints = load_checkpoints(
-                        service_account_info=persistence["service_account_info"],
-                        spreadsheet_id=persistence["spreadsheet_id"],
-                        spreadsheet_title=persistence["spreadsheet_title"],
-                        owner_email=persistence["owner_email"],
-                        run_id=st.session_state.run_id,
-                        checkpoint_type="decision",
+                    checkpoint_choices = chapter_choices(checkpoint_chapter_id)
+                    if checkpoint_choices:
+                        route_columns = st.columns(len(checkpoint_choices))
+                        for route_column, route_choice in zip(
+                            route_columns,
+                            checkpoint_choices,
+                        ):
+                            with route_column:
+                                route_choice_id = str(
+                                    route_choice.get("id", "") or ""
+                                )
+                                if st.button(
+                                    str(route_choice.get("label", route_choice_id)),
+                                    use_container_width=True,
+                                    key=(
+                                        "fork_choice_"
+                                        + str(selected_checkpoint.get("checkpoint_id", ""))
+                                        + "_"
+                                        + route_choice_id
+                                    ),
+                                ):
+                                    try:
+                                        activate_choice_from_checkpoint(
+                                            checkpoint_id=str(
+                                                selected_checkpoint.get(
+                                                    "checkpoint_id",
+                                                    "",
+                                                )
+                                            ),
+                                            choice_id=route_choice_id,
+                                            persistence=persistence,
+                                        )
+                                    except Exception as exc:
+                                        st.error(
+                                            f"Não foi possível abrir a rota: {exc}"
+                                        )
+                else:
+                    st.caption(
+                        "As decisões desta run aparecerão aqui à medida que forem criadas."
                     )
-                    st.session_state.route_checkpoints_loaded_for_run = (
-                        st.session_state.run_id
-                    )
-                    decision_checkpoints = st.session_state.route_checkpoints
-                except Exception as exc:
-                    st.error(f"Não foi possível carregar decisões: {exc}")
-
-            if decision_checkpoints:
-                st.markdown("**Explorar outra rota**")
-                selected_checkpoint = st.selectbox(
-                    "Voltar a qual decisão?",
-                    decision_checkpoints,
-                    format_func=lambda item: (
-                        f"#{int(item.get('source_seq', 0) or 0)} · "
-                        f"{str(item.get('source_chapter_id', '') or '')}"
-                    ),
-                    key="branch_checkpoint_selector",
-                )
-                checkpoint_chapter_id = str(
-                    selected_checkpoint.get("source_chapter_id", "") or ""
-                )
-                checkpoint_choices = chapter_choices(checkpoint_chapter_id)
-                if checkpoint_choices:
-                    route_columns = st.columns(len(checkpoint_choices))
-                    for route_column, route_choice in zip(
-                        route_columns,
-                        checkpoint_choices,
-                    ):
-                        with route_column:
-                            route_choice_id = str(
-                                route_choice.get("id", "") or ""
-                            )
-                            if st.button(
-                                str(route_choice.get("label", route_choice_id)),
-                                use_container_width=True,
-                                key=(
-                                    "fork_choice_"
-                                    + str(selected_checkpoint.get("checkpoint_id", ""))
-                                    + "_"
-                                    + route_choice_id
-                                ),
-                            ):
-                                try:
-                                    activate_choice_from_checkpoint(
-                                        checkpoint_id=str(
-                                            selected_checkpoint.get(
-                                                "checkpoint_id",
-                                                "",
-                                            )
-                                        ),
-                                        choice_id=route_choice_id,
-                                        persistence=persistence,
-                                    )
-                                except Exception as exc:
-                                    st.error(
-                                        f"Não foi possível abrir a rota: {exc}"
-                                    )
-            else:
-                st.caption(
-                    "As decisões desta run aparecerão aqui à medida que forem criadas."
-                )
-
+    
     if (
         persistence
         and st.session_state.run_id
@@ -1545,7 +1671,7 @@ def generate_model_chapter_opening(
 ) -> None:
     """Gera a primeira fala real de Mary após uma transição manual de capítulo."""
     narrative = st.session_state.story_state.setdefault("narrative", {})
-    chapter = get_chapter(_chapter_id())
+    chapter = _runtime_get_chapter(_chapter_id())
 
     if not narrative.get("chapter_opening_pending"):
         return
@@ -1859,7 +1985,63 @@ chapter_turns = _chapter_turns()
 choice_ready = bool(
     st.session_state.story_state.get("narrative", {}).get("choice_ready", False)
 )
-if chapter_ready_for_choice(chapter_id, chapter_turns, choice_ready):
+chapter_config_for_navigation = _runtime_get_chapter(chapter_id)
+navigation_script_mode = str(
+    chapter_config_for_navigation.get("script_mode", "") or ""
+).strip().lower()
+
+if navigation_script_mode == "direct_sheet" and choice_ready:
+    st.divider()
+    try:
+        catalog = load_direct_script_catalog(
+            service_account_info=persistence["service_account_info"],
+            spreadsheet_id=persistence["spreadsheet_id"],
+            worksheet_name=str(
+                chapter_config_for_navigation.get(
+                    "script_worksheet",
+                    "MINHA_SUGESTAO",
+                )
+                or "MINHA_SUGESTAO"
+            ),
+        ) if persistence else []
+        current_script_id = str(
+            chapter_config_for_navigation.get("script_name", "") or ""
+        ).strip()
+        next_script = next_direct_script(catalog, current_script_id)
+        if next_script:
+            next_script_id = str(next_script.get("script_id", "") or "").strip()
+            next_title = str(
+                next_script.get("script_name", next_script_id) or next_script_id
+            ).strip()
+            executable_rows = int(
+                next_script.get("executable_row_count", 0) or 0
+            )
+            st.subheader("Próximo capítulo")
+            st.caption(
+                f"{current_script_id} concluído. Próximo roteiro reconhecido na planilha: "
+                f"{next_script_id}."
+            )
+            if executable_rows <= 0:
+                st.warning(
+                    f"{next_script_id} já está catalogado pela planilha, mas ainda não possui "
+                    "Fala-guia preenchida. O avanço ficará disponível quando o roteiro tiver "
+                    "ao menos uma linha executável."
+                )
+            elif st.button(
+                f"Continuar: {next_title}",
+                key=f"direct_continue_{next_script_id}",
+                use_container_width=True,
+            ):
+                activate_direct_sheet_chapter(
+                    script_id=next_script_id,
+                    persistence=persistence,
+                )
+        else:
+            st.success("Roteiro concluído. Não há capítulo posterior cadastrado na MINHA_SUGESTAO.")
+    except Exception as exc:
+        st.error(f"Não foi possível localizar o próximo roteiro na planilha: {exc}")
+
+elif chapter_ready_for_choice(chapter_id, chapter_turns, choice_ready):
     available_choices = chapter_choices(chapter_id)
     st.divider()
     st.subheader("Decisão")
@@ -1880,15 +2062,67 @@ if chapter_ready_for_choice(chapter_id, chapter_turns, choice_ready):
                 )
 
 
-if user_role == "JANIO":
-    placeholder = "Fale ou dirija a cena como Janio..."
+direct_ui_row: dict = {}
+direct_ui_error = ""
+try:
+    ui_chapter = _runtime_get_chapter(_chapter_id())
+    if (
+        persistence
+        and str(ui_chapter.get("script_mode", "") or "").strip().lower() == "direct_sheet"
+    ):
+        ui_rows = _direct_script_rows(
+            persistence=persistence,
+            chapter=ui_chapter,
+        )
+        ui_state = ensure_direct_state(
+            st.session_state.story_state.setdefault("narrative", {}),
+            ui_rows,
+        )
+        direct_ui_row = current_direct_row(ui_rows, ui_state)
+except Exception as exc:
+    direct_ui_error = str(exc)
+
+automatic_turn = bool(
+    direct_ui_row
+    and is_automatic_direct_row(direct_ui_row)
+    and not choice_ready
+)
+
+if automatic_turn:
+    st.text_input(
+        "Continuação automática",
+        value="Prosseguir",
+        disabled=True,
+        label_visibility="collapsed",
+        key="automatic_continue_locked_text",
+    )
+    user_text = (
+        "Prosseguir"
+        if st.button(
+            "Prosseguir",
+            key=f"automatic_continue_{_chapter_id()}_{direct_ui_row.get('order', 0)}",
+            use_container_width=True,
+            type="primary",
+        )
+        else None
+    )
+    st.caption("Mary está conduzindo esta passagem consigo mesma. Não há fala livre do usuário neste turno.")
 else:
-    temporary_name = str(
-        st.session_state.scene_state.get("temporary_character", {}).get("name", "")
-        or "personagem da cena"
-    ).strip()
-    placeholder = f"Fale ou dirija a cena como {temporary_name}..."
-user_text = st.chat_input(placeholder)
+    if user_role == "JANIO":
+        placeholder = "Fale ou dirija a cena como Janio..."
+    else:
+        temporary_name = str(
+            st.session_state.scene_state.get("temporary_character", {}).get("name", "")
+            or "personagem da cena"
+        ).strip()
+        placeholder = f"Fale ou dirija a cena como {temporary_name}..."
+    user_text = st.chat_input(
+        placeholder,
+        disabled=bool(direct_ui_error),
+    )
+
+if direct_ui_error:
+    st.error(f"Não foi possível determinar o modo da linha atual: {direct_ui_error}")
 
 
 if user_text:
@@ -1918,13 +2152,19 @@ if user_text:
             "story_state": deepcopy(st.session_state.story_state),
         }
 
-        parsed_input = parse_user_input(
-            api_key=api_key,
-            model=input_model,
-            fallback_model=fallback,
-            user_role=user_role,
-            raw_text=user_text,
-        )
+        if automatic_turn:
+            parsed_input = {
+                "scene_direction": "",
+                "dialogue": "",
+            }
+        else:
+            parsed_input = parse_user_input(
+                api_key=api_key,
+                model=input_model,
+                fallback_model=fallback,
+                user_role=user_role,
+                raw_text=user_text,
+            )
         scene_direction = parsed_input["scene_direction"]
         dialogue_text = parsed_input["dialogue"]
         user_spoke = bool(dialogue_text)
@@ -1938,7 +2178,7 @@ if user_text:
             )
 
         current_turn_number = _chapter_turns() + 1
-        chapter_config = get_chapter(_chapter_id())
+        chapter_config = _runtime_get_chapter(_chapter_id())
         narrative_state = st.session_state.story_state.setdefault("narrative", {})
         script_mode = str(chapter_config.get("script_mode", "") or "").strip().lower()
         director_chapter_prompt = ""
@@ -2100,36 +2340,81 @@ if user_text:
                 narrative_state.get("direct_conversation_state", {})
             )
 
+            detected_character_name = extract_direct_character_name(
+                direct_row,
+                dialogue_text,
+            )
+            if detected_character_name:
+                temporary = st.session_state.scene_state.get("temporary_character", {})
+                if not isinstance(temporary, dict):
+                    temporary = {}
+                temporary = dict(temporary)
+                temporary.update(
+                    {
+                        "active": True,
+                        "name": detected_character_name,
+                        "user_can_play": True,
+                    }
+                )
+                st.session_state.scene_state["temporary_character"] = temporary
+                scene_for_director["temporary_character"] = deepcopy(temporary)
+
             temporary_character = scene_for_director.get("temporary_character", {})
             if not isinstance(temporary_character, dict):
                 temporary_character = {}
-            active_interlocutor = " | ".join(
-                part
-                for part in [
-                    "papel=" + str(scene_for_director.get("user_role", "") or "").strip(),
-                    "nome=" + str(temporary_character.get("name", "") or "").strip(),
-                    "descrição=" + str(temporary_character.get("description", "") or "").strip(),
-                    "relação=" + str(temporary_character.get("relation_to_mary", "") or "").strip(),
-                    "gênero=" + str(temporary_character.get("gender", "") or "").strip(),
-                ]
-                if part.split("=", 1)[1]
+            active_interlocutor = (
+                ""
+                if automatic_turn
+                else " | ".join(
+                    part
+                    for part in [
+                        "papel=" + str(scene_for_director.get("user_role", "") or "").strip(),
+                        "nome=" + str(temporary_character.get("name", "") or "").strip(),
+                        "descrição=" + str(temporary_character.get("description", "") or "").strip(),
+                        "relação=" + str(temporary_character.get("relation_to_mary", "") or "").strip(),
+                        "gênero=" + str(temporary_character.get("gender", "") or "").strip(),
+                    ]
+                    if part.split("=", 1)[1]
+                )
             )
 
-            direct_interpretation = analyze_user_understanding(
-                api_key=api_key,
-                model=director_model,
-                fallback_model=fallback,
-                user_text=dialogue_text,
-                previous_mary_text=previous_mary_text,
-                recent_messages=messages_before_turn,
-                recent_user_facts=recent_user_facts,
-                active_interlocutor=active_interlocutor,
-                previous_conversation_state=previous_conversation_state,
-                instant_memory=str(direct_row.get("instant_memory", "") or ""),
-                permanent_memory=str(direct_row.get("permanent_memory", "") or ""),
-                physical_memory=str(direct_row.get("physical_memory", "") or ""),
-                initial_description=str(direct_row.get("initial_description", "") or ""),
+            automatic_direct_turn = bool(
+                automatic_turn and is_automatic_direct_row(direct_row)
             )
+            if automatic_direct_turn:
+                direct_interpretation = {
+                    "relation_to_previous": (
+                        "continuação automática autorizada pelo botão Prosseguir; "
+                        "não houve nova fala do interlocutor"
+                    ),
+                    "move": "prosseguir a sequência interna de Mary",
+                    "literal_meaning": (
+                        "O usuário apenas autorizou a continuação da cena; "
+                        "não acrescentou conteúdo narrativo."
+                    ),
+                    "user_obligation": {
+                        "exists": False,
+                        "requirement": "",
+                    },
+                    "recent_user_facts": list(recent_user_facts[-16:]),
+                    "automatic_turn": True,
+                }
+            else:
+                direct_interpretation = analyze_user_understanding(
+                    api_key=api_key,
+                    model=director_model,
+                    fallback_model=fallback,
+                    user_text=dialogue_text,
+                    previous_mary_text=previous_mary_text,
+                    recent_messages=messages_before_turn,
+                    recent_user_facts=recent_user_facts,
+                    active_interlocutor=active_interlocutor,
+                    previous_conversation_state=previous_conversation_state,
+                    instant_memory=str(direct_row.get("instant_memory", "") or ""),
+                    permanent_memory=str(direct_row.get("permanent_memory", "") or ""),
+                    physical_memory=str(direct_row.get("physical_memory", "") or ""),
+                    initial_description=str(direct_row.get("initial_description", "") or ""),
+                )
             grounded_facts = direct_interpretation.get("recent_user_facts", [])
             if isinstance(grounded_facts, list):
                 narrative_state["direct_recent_user_facts"] = [
@@ -2155,7 +2440,11 @@ if user_text:
                         ),
                         chapter_turn=current_turn_number,
                         row=direct_row,
-                        user_text=dialogue_text,
+                        user_text=(
+                            "Prosseguir [controle automático]"
+                            if automatic_direct_turn
+                            else dialogue_text
+                        ),
                         previous_mary_text=previous_mary_text,
                         audit=understanding_audit,
                     )
@@ -2166,7 +2455,7 @@ if user_text:
                 row=direct_row,
                 all_rows=direct_rows,
                 recent_messages=messages_before_turn,
-                user_text=dialogue_text,
+                user_text=("Prosseguir" if automatic_direct_turn else dialogue_text),
                 interpretation=direct_interpretation,
                 previous_mary_text=previous_mary_text,
                 previous_conversation_state=previous_conversation_state,
@@ -2354,7 +2643,7 @@ if user_text:
         narrative_for_opening = st.session_state.story_state.get("narrative", {})
         if narrative_for_opening.get("chapter_opening_pending"):
             opening_caption = str(
-                get_chapter(_chapter_id()).get("opening_caption", "") or ""
+                _runtime_get_chapter(_chapter_id()).get("opening_caption", "") or ""
             ).strip()
             if opening_caption:
                 scene["show_caption"] = True
@@ -3011,7 +3300,7 @@ if user_text:
         if narrative.get("chapter_opening_pending"):
             narrative["chapter_opening_pending"] = False
 
-        active_chapter = get_chapter(_chapter_id())
+        active_chapter = _runtime_get_chapter(_chapter_id())
 
         if script_mode == "direct_sheet" and direct_state is not None:
             if direct_script_ready_for_choice(direct_state):
