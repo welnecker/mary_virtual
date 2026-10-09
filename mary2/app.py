@@ -1471,7 +1471,7 @@ with st.sidebar:
                         "As decisões desta run aparecerão aqui à medida que forem criadas."
                     )
     
-        if (
+    if (
         persistence
         and st.session_state.run_id
         and st.session_state.turn_records
