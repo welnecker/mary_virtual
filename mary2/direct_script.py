@@ -150,7 +150,7 @@ def build_direct_chapter(script_id: Any) -> dict:
         "script_worksheet": "MINHA_SUGESTAO",
         "script_name": parsed["script_id"],
         "sheet_script_index": parsed["script_index"],
-        "inherit_character": False,
+        "inherit_character": temporary_active,
         "inherit_scene": False,
         "decision_after_turns": 0,
         "choices": [],
