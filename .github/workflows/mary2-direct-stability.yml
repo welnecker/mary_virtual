@@ -38,7 +38,7 @@ jobs:
 
       - name: Run direct stability tests
         env:
-          PYTHONPATH: ".:mary2"
+          PYTHONPATH: "mary2:."
         run: |
           pytest -q \
             tests/test_mary2_direct_script.py \
