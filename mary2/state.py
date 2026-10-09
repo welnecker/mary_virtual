@@ -55,7 +55,7 @@ def migrate_state(state: dict | None) -> dict:
     narrative = state.get("narrative")
     if isinstance(narrative, dict):
         current["narrative"].update({
-            "chapter_id": str(narrative.get("chapter_id", "sheet:Confissão1") or "confissao_inicial"),
+            "chapter_id": str(narrative.get("chapter_id", "sheet:Confissão1") or "sheet:Confissão1"),
             "chapter_turns": int(narrative.get("chapter_turns", 0) or 0),
             "chapter_opening_pending": bool(narrative.get("chapter_opening_pending", False)),
             "chapter_start_seq": max(1, int(narrative.get("chapter_start_seq", 1) or 1)),
@@ -83,7 +83,7 @@ def migrate_state(state: dict | None) -> dict:
             "parent_checkpoint_id": str(narrative.get("parent_checkpoint_id", "") or ""),
             "chapter_instance_id": str(
                 narrative.get("chapter_instance_id", "")
-                or f"{str(narrative.get('chapter_id', 'confissao_inicial') or 'sheet:Confissão1')}_legacy"
+                or f"{str(narrative.get('chapter_id', 'sheet:Confissão1') or 'sheet:Confissão1')}_legacy"
             ),
             "chapter_entry_checkpoint_id": str(
                 narrative.get("chapter_entry_checkpoint_id", "") or ""
