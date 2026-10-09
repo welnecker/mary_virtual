@@ -47,6 +47,7 @@ def analyze_user_understanding(
     permanent_memory: str = "",
     physical_memory: str = "",
     initial_description: str = "",
+    revelation_policy: str = "",
 ) -> dict:
     """Compreende a fala do usuário sem receber fala-guia ou roteiro futuro."""
     recent_lines: list[str] = []
@@ -78,6 +79,8 @@ def analyze_user_understanding(
         + (str(physical_memory or "").strip() or "(não informado)")
         + "\n\nDESCRIÇÃO INICIAL DA CENA\n"
         + (str(initial_description or "").strip() or "(não informada)")
+        + "\n\nREGRA DE REVELAÇÃO DA LINHA ATUAL\n"
+        + (str(revelation_policy or "").strip() or "(sem restrição autoral específica)")
         + "\n\nINTERLOCUTOR ATIVO\n"
         + (str(active_interlocutor or "").strip() or "(não especificado)")
         + "\n\nESTADO CONVERSACIONAL ANTERIOR — INTERPRETAÇÃO DO ÚLTIMO MOVIMENTO DE MARY\n"
@@ -103,6 +106,10 @@ def analyze_user_understanding(
         "Não a transforme em fato consolidado e não a use para reinterpretar a realidade.\n"
         + "\nTAREFA\n"
         "Compreenda SOMENTE a fala atual do usuário à luz do passado e do presente já estabelecidos. "
+        "A REGRA DE REVELAÇÃO DA LINHA ATUAL limita o que Mary pode verbalizar agora, mesmo quando a DESCRIÇÃO INICIAL DA CENA contém fatos completos que Mary conhece. "
+        "Conhecimento de Mary não equivale a autorização de revelação. "
+        "Se o usuário pedir diretamente um fato marcado como NÃO PODE, NÃO transforme isso em obrigação de revelar o conteúdo reservado. "
+        "A obrigação deve ser reagir adequadamente à pergunta sem mentir, sem inventar e sem antecipar: Mary pode reconhecer a pressão, hesitar, prometer contar ou preparar a revelação. "
         "O ESTADO CONVERSACIONAL ANTERIOR é a interpretação semântica do que Mary acabou de fazer na conversa; "
         "use-o para determinar COMO a fala atual do usuário se relaciona ao turno anterior, em vez de apenas justapor textos. "
         "Você não conhece a fala-guia, a missão da linha nem qualquer acontecimento futuro. "
