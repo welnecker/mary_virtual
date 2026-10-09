@@ -100,6 +100,7 @@ def build_direct_chapter(script_id: Any) -> dict:
         "script_name": parsed["script_id"],
         "sheet_script_index": parsed["script_index"],
         "inherit_character": True,
+        "inherit_scene": True,
         "decision_after_turns": 0,
         "choices": [],
         "opening_caption": "",
