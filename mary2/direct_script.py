@@ -660,8 +660,7 @@ def build_direct_writer_prompt(
                 "não espelhadas nem devolvidas mecanicamente.\n\n"
             )
         )
-
-        "==================================================\n"
+        + "==================================================\n"
         "APOIO SEMÂNTICO — SECUNDÁRIO, NÃO SUBSTITUI A CONVERSA\n"
         "==================================================\n"
         + semantic_support
@@ -676,7 +675,11 @@ def build_direct_writer_prompt(
         "Estilo/atitude: " + (_clean(row.get("style")) or "natural") + "\n\n"
 
         "REGRAS ESSENCIAIS\n"
-        "1. Responda primeiro ao que o usuário realmente acabou de fazer conversacionalmente.\n"
+        + (
+            "1. Este é um turno automático: não há fala do usuário para responder; continue a experiência interna de Mary.\n"
+            if automatic_line
+            else "1. Responda primeiro ao que o usuário realmente acabou de fazer conversacionalmente.\n"
+        )
         "2. Depois, se couber naturalmente, desenvolva a linha ativa. Se não couber, mantenha-a pendente.\n"
         "3. Não repita ou espelhe a pergunta/frase do usuário como se fosse resposta.\n"
         "4. Preserve sujeitos, papéis, posse, destinatários e autoria das iniciativas.\n"
