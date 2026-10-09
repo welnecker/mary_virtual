@@ -38,6 +38,7 @@ def analyze_user_understanding(
     model: str,
     fallback_model: str | None,
     user_text: str,
+    user_scene_direction: str = "",
     previous_mary_text: str = "",
     recent_messages: list[dict] | None = None,
     recent_user_facts: list[str] | None = None,
@@ -93,7 +94,9 @@ def analyze_user_understanding(
         + (recent_context or "(nenhuma interação anterior relevante)")
         + "\n\nÚLTIMA FALA DE MARY\n"
         + (str(previous_mary_text or "").strip() or "(nenhuma)")
-        + "\n\nFALA ATUAL DO USUÁRIO\n"
+        + "\n\nDIREÇÃO/ENCENAÇÃO ATUAL DO USUÁRIO\n"
+        + (str(user_scene_direction or "").strip() or "(nenhuma)")
+        + "\n\nFALA VERBAL ATUAL DO USUÁRIO\n"
         + (str(user_text or "").strip() or "(sem fala verbal)")
         + "\n\nHIERARQUIA DE VERDADE\n"
         "1. MEMÓRIA PERMANENTE-GLOBAL\n"
@@ -105,7 +108,8 @@ def analyze_user_understanding(
         "Se uma fala anterior de Mary contradizer qualquer fonte autoritativa acima, trate a fala anterior como erro de continuidade. "
         "Não a transforme em fato consolidado e não a use para reinterpretar a realidade.\n"
         + "\nTAREFA\n"
-        "Compreenda SOMENTE a fala atual do usuário à luz do passado e do presente já estabelecidos. "
+        "Compreenda a ENTRADA ATUAL do usuário à luz do passado e do presente já estabelecidos. "
+        "A entrada pode ter DIREÇÃO/ENCENAÇÃO e FALA VERBAL. Preserve a distinção: não transforme encenação em fala, mas também não descarte fatos, ações, decisões ou condições explicitamente estabelecidos na direção autoral do usuário. "
         "A REGRA DE REVELAÇÃO DA LINHA ATUAL limita o que Mary pode verbalizar agora, mesmo quando a DESCRIÇÃO INICIAL DA CENA contém fatos completos que Mary conhece. "
         "Conhecimento de Mary não equivale a autorização de revelação. "
         "Se o usuário pedir diretamente um fato marcado como NÃO PODE, NÃO transforme isso em obrigação de revelar o conteúdo reservado. "
