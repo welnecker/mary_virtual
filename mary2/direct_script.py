@@ -49,6 +49,154 @@ def _clean(value: Any) -> str:
     return str(value or "").strip()
 
 
+DIRECT_CHAPTER_PREFIX = "sheet:"
+
+
+def parse_direct_script_id(value: Any) -> dict:
+    """Interpreta IDs autorais no formato Nome+índice, por exemplo Carona4."""
+    script_id = _clean(value)
+    match = re.match(r"^(.*?)(\d+)$", script_id)
+    if not match or not _clean(match.group(1)):
+        return {
+            "script_id": script_id,
+            "script_name": script_id,
+            "script_index": 0,
+            "valid": False,
+        }
+    return {
+        "script_id": script_id,
+        "script_name": _clean(match.group(1)),
+        "script_index": int(match.group(2)),
+        "valid": True,
+    }
+
+
+def direct_chapter_id(script_id: Any) -> str:
+    value = _clean(script_id)
+    return f"{DIRECT_CHAPTER_PREFIX}{value}" if value else ""
+
+
+def direct_script_id_from_chapter_id(chapter_id: Any) -> str:
+    value = _clean(chapter_id)
+    if not value.startswith(DIRECT_CHAPTER_PREFIX):
+        return ""
+    return _clean(value[len(DIRECT_CHAPTER_PREFIX):])
+
+
+def build_direct_chapter(script_id: Any) -> dict:
+    """Cria em memória a configuração de um capítulo descoberto na planilha."""
+    parsed = parse_direct_script_id(script_id)
+    if not parsed["valid"]:
+        raise ValueError(
+            f"ID de roteiro direto inválido: {parsed['script_id']!r}. "
+            "Use Nome+índice, por exemplo Carona4."
+        )
+    return {
+        "title": parsed["script_name"],
+        "allowed_roles": ["PERSONAGEM_DA_CENA"],
+        "phase_context": "chapter",
+        "script_mode": "direct_sheet",
+        "script_worksheet": "MINHA_SUGESTAO",
+        "script_name": parsed["script_id"],
+        "sheet_script_index": parsed["script_index"],
+        "inherit_character": True,
+        "decision_after_turns": 0,
+        "choices": [],
+        "opening_caption": "",
+        "opening_mary": "",
+        "model_opening": False,
+        "initial_scene": {},
+    }
+
+
+def load_direct_script_catalog(
+    *,
+    service_account_info: dict,
+    spreadsheet_id: str,
+    worksheet_name: str = "MINHA_SUGESTAO",
+) -> list[dict]:
+    """Descobre os roteiros Nome+índice diretamente da coluna Roteiro."""
+    if not service_account_info:
+        raise ValueError("service_account_info ausente para catálogo de roteiros")
+    if not _clean(spreadsheet_id):
+        raise ValueError("spreadsheet_id ausente para catálogo de roteiros")
+
+    client = gspread.service_account_from_dict(service_account_info)
+    worksheet = client.open_by_key(_clean(spreadsheet_id)).worksheet(
+        _clean(worksheet_name) or "MINHA_SUGESTAO"
+    )
+    values = worksheet.get_all_values()
+    if not values:
+        return []
+
+    header_index = -1
+    roteiro_index = -1
+    for idx, source in enumerate(values):
+        normalized = [_clean(cell).lower() for cell in source]
+        if "ordem" in normalized and "roteiro" in normalized:
+            header_index = idx
+            roteiro_index = normalized.index("roteiro")
+            break
+    if header_index < 0 or roteiro_index < 0:
+        raise ValueError("cabeçalho do catálogo de roteiros não encontrado")
+
+    catalog_by_id: dict[str, dict] = {}
+    first_seen = 0
+    for source_row in values[header_index + 1:]:
+        script_id = _clean(
+            source_row[roteiro_index] if roteiro_index < len(source_row) else ""
+        )
+        if not script_id:
+            continue
+        parsed = parse_direct_script_id(script_id)
+        if not parsed["valid"]:
+            continue
+        key = parsed["script_id"].casefold()
+        if key not in catalog_by_id:
+            first_seen += 1
+            catalog_by_id[key] = {
+                **parsed,
+                "first_seen": first_seen,
+                "chapter_id": direct_chapter_id(parsed["script_id"]),
+                "row_count": 0,
+            }
+        catalog_by_id[key]["row_count"] += 1
+
+    catalog = list(catalog_by_id.values())
+    catalog.sort(
+        key=lambda item: (
+            int(item.get("script_index", 0) or 0),
+            int(item.get("first_seen", 0) or 0),
+        )
+    )
+
+    seen_indexes: dict[int, str] = {}
+    for item in catalog:
+        index = int(item.get("script_index", 0) or 0)
+        previous = seen_indexes.get(index)
+        if previous and previous.casefold() != str(item["script_id"]).casefold():
+            raise ValueError(
+                f"Índice de roteiro duplicado {index}: {previous!r} e {item['script_id']!r}."
+            )
+        seen_indexes[index] = str(item["script_id"])
+
+    return catalog
+
+
+def next_direct_script(
+    catalog: list[dict],
+    current_script_id: Any,
+) -> dict:
+    current = _clean(current_script_id).casefold()
+    for index, item in enumerate(catalog):
+        if _clean(item.get("script_id")).casefold() != current:
+            continue
+        if index + 1 < len(catalog):
+            return dict(catalog[index + 1])
+        return {}
+    return {}
+
+
 def _resolve_placeholders(text: str, *, character_name: str) -> str:
     value = _clean(text)
     name = _clean(character_name)
