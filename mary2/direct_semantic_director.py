@@ -154,7 +154,7 @@ def validate_direct_semantic_turn(
             if automatic_row
             else ""
         )
-        "Exemplos de atos: perguntar, contar, admitir, propor, convidar, prometer, provocar, esclarecer, pedir. "
+        + "Exemplos de atos: perguntar, contar, admitir, propor, convidar, prometer, provocar, esclarecer, pedir. "
         "Não converta um ato conversacional em resultado futuro. Exemplo: 'me levar para a balada' dentro de um convite significa Mary FORMULAR O CONVITE; "
         "não significa que a ida à balada já tenha acontecido. 'Eu prometo que vou ser divertida' significa Mary FAZER A PROMESSA; "
         "não significa que ela já tenha sido divertida na balada. "
