@@ -680,7 +680,7 @@ def build_direct_writer_prompt(
             if automatic_line
             else "1. Responda primeiro ao que o usuário realmente acabou de fazer conversacionalmente.\n"
         )
-        "2. Depois, se couber naturalmente, desenvolva a linha ativa. Se não couber, mantenha-a pendente.\n"
+        + "2. Depois, se couber naturalmente, desenvolva a linha ativa. Se não couber, mantenha-a pendente.\n"
         "3. Não repita ou espelhe a pergunta/frase do usuário como se fosse resposta.\n"
         "4. Preserve sujeitos, papéis, posse, destinatários e autoria das iniciativas.\n"
         "5. Não invente fatos pessoais do usuário nem antecipe linhas futuras.\n"
