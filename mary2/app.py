@@ -15,20 +15,25 @@ from chapters import (
     chapter_prompt,
     chapter_ready_for_choice,
     find_choice,
-    get_chapter,
+    get_chapter as get_legacy_chapter,
 )
 from director import direct_scene
 from direct_semantic_director import validate_direct_semantic_turn
 from conversation_state import analyze_mary_move, normalize_conversation_state
 from input_router import parse_user_input
 from direct_script import (
+    build_direct_chapter,
     build_direct_writer_prompt,
     current_direct_row,
+    direct_chapter_id,
+    direct_script_id_from_chapter_id,
     direct_line_correction_prompt,
     direct_script_ready_for_choice,
     ensure_direct_state,
+    load_direct_script_catalog,
     load_direct_script_rows,
     mark_direct_line_emitted,
+    next_direct_script,
     record_direct_line_turn,
     register_direct_user_reply,
 )
@@ -103,7 +108,23 @@ st.set_page_config(page_title="Mary Core 2", page_icon="🖤", layout="centered"
 
 _LOG = logging.getLogger(__name__)
 
-BUILD_ID = "2026-10-08-direct-sheet-v6.32"
+BUILD_ID = "2026-10-09-sheet-script-discovery-v7.0"
+
+
+def _runtime__runtime_get_chapter(chapter_id: str) -> dict:
+    """Resolve capítulos legados ou capítulos diretos descobertos na planilha."""
+    script_id = direct_script_id_from_chapter_id(chapter_id)
+    if script_id:
+        return build_direct_chapter(script_id)
+
+    chapter = get_legacy_chapter(chapter_id)
+    # Compatibilidade temporária enquanto os capítulos anteriores são recompilados:
+    # a Carona já usa o novo ID autoral Nome+índice presente na MINHA_SUGESTAO.
+    if str(chapter_id) == "carona_camburi":
+        chapter["script_name"] = "Carona4"
+    return chapter
+
+
 
 DEFAULT_MODELS = [
     "google/gemini-3-flash-preview",
@@ -113,7 +134,7 @@ DEFAULT_MODELS = [
 ]
 
 INITIAL_SCENE = deepcopy(
-    get_chapter("confissao_inicial").get("initial_scene", {})
+    _runtime_get_chapter("confissao_inicial").get("initial_scene", {})
 )
 
 
@@ -374,7 +395,7 @@ def activate_chapter(
     narrative.pop("phase_start_message_index", None)
     narrative.pop("active_phase_id", None)
 
-    chapter = get_chapter(next_chapter_id)
+    chapter = _runtime_get_chapter(next_chapter_id)
     st.session_state.scene_state = _scene_for_chapter_transition(
         chapter,
         previous_scene,
@@ -612,7 +633,7 @@ def activate_choice_from_checkpoint(
     narrative.pop("phase_start_message_index", None)
     narrative.pop("active_phase_id", None)
 
-    chapter = get_chapter(next_chapter_id)
+    chapter = _runtime_get_chapter(next_chapter_id)
     next_scene = _scene_for_chapter_transition(chapter, base_scene)
     next_role = str(next_scene.get("user_role", "JANIO") or "JANIO").upper()
     if next_role not in {"JANIO", "PERSONAGEM_DA_CENA"}:
@@ -677,7 +698,7 @@ def apply_pending_auto_transition(persistence: dict | None) -> bool:
     if not next_chapter_id:
         return False
 
-    chapter = get_chapter(next_chapter_id)
+    chapter = _runtime_get_chapter(next_chapter_id)
     last_seq = int(st.session_state.get("run_last_seq", 0) or 0)
     handoff = (
         _handoff_from_record(st.session_state.turn_records[-1])
@@ -1078,7 +1099,7 @@ st.title("Mary Core 2")
 st.caption("Novela interativa por capítulos, com contexto renovado a cada decisão.")
 st.caption(f"Build: `{BUILD_ID}`")
 
-current_chapter = get_chapter(_chapter_id())
+current_chapter = _runtime_get_chapter(_chapter_id())
 st.caption(f"Capítulo atual: **{current_chapter.get('title', _chapter_id())}**")
 
 if st.session_state.rollback_notice:
@@ -1545,7 +1566,7 @@ def generate_model_chapter_opening(
 ) -> None:
     """Gera a primeira fala real de Mary após uma transição manual de capítulo."""
     narrative = st.session_state.story_state.setdefault("narrative", {})
-    chapter = get_chapter(_chapter_id())
+    chapter = _runtime_get_chapter(_chapter_id())
 
     if not narrative.get("chapter_opening_pending"):
         return
@@ -1938,7 +1959,7 @@ if user_text:
             )
 
         current_turn_number = _chapter_turns() + 1
-        chapter_config = get_chapter(_chapter_id())
+        chapter_config = _runtime_get_chapter(_chapter_id())
         narrative_state = st.session_state.story_state.setdefault("narrative", {})
         script_mode = str(chapter_config.get("script_mode", "") or "").strip().lower()
         director_chapter_prompt = ""
@@ -2354,7 +2375,7 @@ if user_text:
         narrative_for_opening = st.session_state.story_state.get("narrative", {})
         if narrative_for_opening.get("chapter_opening_pending"):
             opening_caption = str(
-                get_chapter(_chapter_id()).get("opening_caption", "") or ""
+                _runtime_get_chapter(_chapter_id()).get("opening_caption", "") or ""
             ).strip()
             if opening_caption:
                 scene["show_caption"] = True
@@ -3011,7 +3032,7 @@ if user_text:
         if narrative.get("chapter_opening_pending"):
             narrative["chapter_opening_pending"] = False
 
-        active_chapter = get_chapter(_chapter_id())
+        active_chapter = _runtime_get_chapter(_chapter_id())
 
         if script_mode == "direct_sheet" and direct_state is not None:
             if direct_script_ready_for_choice(direct_state):
