@@ -32,6 +32,7 @@ from direct_script import (
     ensure_direct_state,
     extract_direct_character_name,
     is_automatic_direct_row,
+    is_blocked_direct_row,
     load_direct_script_catalog,
     load_direct_script_rows,
     mark_direct_line_emitted,
@@ -110,7 +111,7 @@ st.set_page_config(page_title="Mary Core 2", page_icon="🖤", layout="centered"
 
 _LOG = logging.getLogger(__name__)
 
-BUILD_ID = "2026-10-09-sheet-runtime-v8.3-automatic-lines"
+BUILD_ID = "2026-10-09-sheet-runtime-v8.4-blocked-lines"
 
 
 def _runtime_get_chapter(chapter_id: str) -> dict:
@@ -2090,26 +2091,37 @@ automatic_turn = bool(
     and is_automatic_direct_row(direct_ui_row)
     and not choice_ready
 )
+blocked_turn = bool(
+    direct_ui_row
+    and is_blocked_direct_row(direct_ui_row)
+    and int(ui_state.get("awaiting_reply_order", 0) or 0)
+        != int(direct_ui_row.get("order", 0) or 0)
+    and not choice_ready
+)
+mary_first_turn = bool(automatic_turn or blocked_turn)
 
-if automatic_turn:
+if mary_first_turn:
     st.text_input(
-        "Continuação automática",
+        "Continuação de Mary",
         value="Prosseguir",
         disabled=True,
         label_visibility="collapsed",
-        key="automatic_continue_locked_text",
+        key="mary_first_continue_locked_text",
     )
     user_text = (
         "Prosseguir"
         if st.button(
             "Prosseguir",
-            key=f"automatic_continue_{_chapter_id()}_{direct_ui_row.get('order', 0)}",
+            key=f"mary_first_continue_{_chapter_id()}_{direct_ui_row.get('order', 0)}",
             use_container_width=True,
             type="primary",
         )
         else None
     )
-    st.caption("Mary está conduzindo esta passagem consigo mesma. Não há fala livre do usuário neste turno.")
+    if automatic_turn:
+        st.caption("Mary está conduzindo esta passagem consigo mesma. Não há fala livre do usuário neste turno.")
+    else:
+        st.caption("Mary inicia esta passagem. Depois da fala dela, o campo do personagem será liberado.")
 else:
     if user_role == "JANIO":
         placeholder = "Fale ou dirija a cena como Janio..."
@@ -2155,7 +2167,7 @@ if user_text:
             "story_state": deepcopy(st.session_state.story_state),
         }
 
-        if automatic_turn:
+        if mary_first_turn:
             parsed_input = {
                 "scene_direction": "",
                 "dialogue": "",
@@ -2189,7 +2201,7 @@ if user_text:
         direct_state: dict | None = None
         direct_row: dict = {}
         direct_registration: dict = {}
-        defer_automatic_entry = False
+        defer_locked_entry = False
 
         hybrid_rows: list[dict] = []
         hybrid_state: dict | None = None
@@ -2237,12 +2249,15 @@ if user_text:
                 if isinstance(direct_registration, dict)
                 else {}
             )
-            defer_automatic_entry = bool(
+            defer_locked_entry = bool(
                 user_spoke
-                and not automatic_turn
+                and not mary_first_turn
                 and int(registration_before.get("awaiting_reply_order", 0) or 0) > 0
                 and direct_row
-                and is_automatic_direct_row(direct_row)
+                and (
+                    is_automatic_direct_row(direct_row)
+                    or is_blocked_direct_row(direct_row)
+                )
             )
         elif script_mode == "block_sheet":
             block_rows = _block_script_rows(
@@ -2294,10 +2309,11 @@ if user_text:
         else:
             current_phase = chapter_phase(_chapter_id(), current_turn_number)
 
-        if script_mode == "direct_sheet" and defer_automatic_entry:
+        if script_mode == "direct_sheet" and defer_locked_entry:
             # A fala real do usuário apenas fecha a linha interativa anterior.
-            # Se a próxima linha for automática, ela NÃO é executada com essa fala:
-            # persiste-se a resposta do usuário e a UI volta exibindo o botão Prosseguir.
+            # Se a próxima linha exige iniciativa de Mary (automática ou bloqueada),
+            # ela NÃO é executada com essa fala. Persiste-se a resposta do usuário
+            # e a UI volta exibindo o botão Prosseguir.
             narrative_state["chapter_turns"] = int(
                 narrative_state.get("chapter_turns", 0) or 0
             ) + 1
@@ -2463,6 +2479,9 @@ if user_text:
             automatic_direct_turn = bool(
                 automatic_turn and is_automatic_direct_row(direct_row)
             )
+            blocked_direct_turn = bool(
+                blocked_turn and is_blocked_direct_row(direct_row)
+            )
             if automatic_direct_turn:
                 direct_interpretation = {
                     "relation_to_previous": (
@@ -2480,6 +2499,24 @@ if user_text:
                     },
                     "recent_user_facts": list(recent_user_facts[-16:]),
                     "automatic_turn": True,
+                }
+            elif blocked_direct_turn:
+                direct_interpretation = {
+                    "relation_to_previous": (
+                        "iniciativa de Mary autorizada pelo botão Prosseguir; "
+                        "não houve nova fala do interlocutor"
+                    ),
+                    "move": "Mary inicia a interação da linha atual",
+                    "literal_meaning": (
+                        "O usuário apenas autorizou Mary a tomar a iniciativa; "
+                        "a fala atual deve partir de Mary e terminar aguardando resposta."
+                    ),
+                    "user_obligation": {
+                        "exists": False,
+                        "requirement": "",
+                    },
+                    "recent_user_facts": list(recent_user_facts[-16:]),
+                    "blocked_turn": True,
                 }
             else:
                 direct_interpretation = analyze_user_understanding(
