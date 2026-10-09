@@ -30,6 +30,7 @@ from direct_script import (
     direct_line_correction_prompt,
     direct_script_ready_for_choice,
     ensure_direct_state,
+    is_automatic_direct_row,
     load_direct_script_catalog,
     load_direct_script_rows,
     mark_direct_line_emitted,
@@ -108,7 +109,7 @@ st.set_page_config(page_title="Mary Core 2", page_icon="🖤", layout="centered"
 
 _LOG = logging.getLogger(__name__)
 
-BUILD_ID = "2026-10-09-sheet-script-discovery-v7.0"
+BUILD_ID = "2026-10-09-sheet-script-discovery-v7.1"
 
 
 def _runtime_get_chapter(chapter_id: str) -> dict:
@@ -2053,15 +2054,67 @@ elif chapter_ready_for_choice(chapter_id, chapter_turns, choice_ready):
                 )
 
 
-if user_role == "JANIO":
-    placeholder = "Fale ou dirija a cena como Janio..."
+direct_ui_row: dict = {}
+direct_ui_error = ""
+try:
+    ui_chapter = _runtime_get_chapter(_chapter_id())
+    if (
+        persistence
+        and str(ui_chapter.get("script_mode", "") or "").strip().lower() == "direct_sheet"
+    ):
+        ui_rows = _direct_script_rows(
+            persistence=persistence,
+            chapter=ui_chapter,
+        )
+        ui_state = ensure_direct_state(
+            st.session_state.story_state.setdefault("narrative", {}),
+            ui_rows,
+        )
+        direct_ui_row = current_direct_row(ui_rows, ui_state)
+except Exception as exc:
+    direct_ui_error = str(exc)
+
+automatic_turn = bool(
+    direct_ui_row
+    and is_automatic_direct_row(direct_ui_row)
+    and not choice_ready
+)
+
+if automatic_turn:
+    st.text_input(
+        "Continuação automática",
+        value="Prosseguir",
+        disabled=True,
+        label_visibility="collapsed",
+        key="automatic_continue_locked_text",
+    )
+    user_text = (
+        "Prosseguir"
+        if st.button(
+            "Prosseguir",
+            key=f"automatic_continue_{_chapter_id()}_{direct_ui_row.get('order', 0)}",
+            use_container_width=True,
+            type="primary",
+        )
+        else None
+    )
+    st.caption("Mary está conduzindo esta passagem consigo mesma. Não há fala livre do usuário neste turno.")
 else:
-    temporary_name = str(
-        st.session_state.scene_state.get("temporary_character", {}).get("name", "")
-        or "personagem da cena"
-    ).strip()
-    placeholder = f"Fale ou dirija a cena como {temporary_name}..."
-user_text = st.chat_input(placeholder)
+    if user_role == "JANIO":
+        placeholder = "Fale ou dirija a cena como Janio..."
+    else:
+        temporary_name = str(
+            st.session_state.scene_state.get("temporary_character", {}).get("name", "")
+            or "personagem da cena"
+        ).strip()
+        placeholder = f"Fale ou dirija a cena como {temporary_name}..."
+    user_text = st.chat_input(
+        placeholder,
+        disabled=bool(direct_ui_error),
+    )
+
+if direct_ui_error:
+    st.error(f"Não foi possível determinar o modo da linha atual: {direct_ui_error}")
 
 
 if user_text:
@@ -2091,13 +2144,19 @@ if user_text:
             "story_state": deepcopy(st.session_state.story_state),
         }
 
-        parsed_input = parse_user_input(
-            api_key=api_key,
-            model=input_model,
-            fallback_model=fallback,
-            user_role=user_role,
-            raw_text=user_text,
-        )
+        if automatic_turn:
+            parsed_input = {
+                "scene_direction": "",
+                "dialogue": "",
+            }
+        else:
+            parsed_input = parse_user_input(
+                api_key=api_key,
+                model=input_model,
+                fallback_model=fallback,
+                user_role=user_role,
+                raw_text=user_text,
+            )
         scene_direction = parsed_input["scene_direction"]
         dialogue_text = parsed_input["dialogue"]
         user_spoke = bool(dialogue_text)
@@ -2288,21 +2347,43 @@ if user_text:
                 if part.split("=", 1)[1]
             )
 
-            direct_interpretation = analyze_user_understanding(
-                api_key=api_key,
-                model=director_model,
-                fallback_model=fallback,
-                user_text=dialogue_text,
-                previous_mary_text=previous_mary_text,
-                recent_messages=messages_before_turn,
-                recent_user_facts=recent_user_facts,
-                active_interlocutor=active_interlocutor,
-                previous_conversation_state=previous_conversation_state,
-                instant_memory=str(direct_row.get("instant_memory", "") or ""),
-                permanent_memory=str(direct_row.get("permanent_memory", "") or ""),
-                physical_memory=str(direct_row.get("physical_memory", "") or ""),
-                initial_description=str(direct_row.get("initial_description", "") or ""),
+            automatic_direct_turn = bool(
+                automatic_turn and is_automatic_direct_row(direct_row)
             )
+            if automatic_direct_turn:
+                direct_interpretation = {
+                    "relation_to_previous": (
+                        "continuação automática autorizada pelo botão Prosseguir; "
+                        "não houve nova fala do interlocutor"
+                    ),
+                    "move": "prosseguir a sequência interna de Mary",
+                    "literal_meaning": (
+                        "O usuário apenas autorizou a continuação da cena; "
+                        "não acrescentou conteúdo narrativo."
+                    ),
+                    "user_obligation": {
+                        "exists": False,
+                        "requirement": "",
+                    },
+                    "recent_user_facts": list(recent_user_facts[-16:]),
+                    "automatic_turn": True,
+                }
+            else:
+                direct_interpretation = analyze_user_understanding(
+                    api_key=api_key,
+                    model=director_model,
+                    fallback_model=fallback,
+                    user_text=dialogue_text,
+                    previous_mary_text=previous_mary_text,
+                    recent_messages=messages_before_turn,
+                    recent_user_facts=recent_user_facts,
+                    active_interlocutor=active_interlocutor,
+                    previous_conversation_state=previous_conversation_state,
+                    instant_memory=str(direct_row.get("instant_memory", "") or ""),
+                    permanent_memory=str(direct_row.get("permanent_memory", "") or ""),
+                    physical_memory=str(direct_row.get("physical_memory", "") or ""),
+                    initial_description=str(direct_row.get("initial_description", "") or ""),
+                )
             grounded_facts = direct_interpretation.get("recent_user_facts", [])
             if isinstance(grounded_facts, list):
                 narrative_state["direct_recent_user_facts"] = [
@@ -2328,7 +2409,11 @@ if user_text:
                         ),
                         chapter_turn=current_turn_number,
                         row=direct_row,
-                        user_text=dialogue_text,
+                        user_text=(
+                            "Prosseguir [controle automático]"
+                            if automatic_direct_turn
+                            else dialogue_text
+                        ),
                         previous_mary_text=previous_mary_text,
                         audit=understanding_audit,
                     )
@@ -2339,7 +2424,7 @@ if user_text:
                 row=direct_row,
                 all_rows=direct_rows,
                 recent_messages=messages_before_turn,
-                user_text=dialogue_text,
+                user_text=("Prosseguir" if automatic_direct_turn else dialogue_text),
                 interpretation=direct_interpretation,
                 previous_mary_text=previous_mary_text,
                 previous_conversation_state=previous_conversation_state,
