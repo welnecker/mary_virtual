@@ -1,13 +1,116 @@
 from mary2.direct_script import (
+    build_direct_chapter,
     build_direct_writer_prompt,
     current_direct_row,
+    direct_chapter_id,
     direct_line_correction_prompt,
     direct_script_ready_for_choice,
     ensure_direct_state,
+    load_direct_script_catalog,
     mark_direct_line_emitted,
+    next_direct_script,
+    parse_direct_script_id,
     register_direct_user_reply,
     validate_direct_line_completion,
 )
+
+
+def test_indexed_script_id_builds_virtual_direct_chapter():
+    parsed = parse_direct_script_id("apartamento5")
+    assert parsed == {
+        "script_id": "apartamento5",
+        "script_name": "apartamento",
+        "script_index": 5,
+        "valid": True,
+    }
+
+    chapter = build_direct_chapter("apartamento5")
+    assert direct_chapter_id("apartamento5") == "sheet:apartamento5"
+    assert chapter["script_mode"] == "direct_sheet"
+    assert chapter["script_worksheet"] == "MINHA_SUGESTAO"
+    assert chapter["script_name"] == "apartamento5"
+    assert chapter["sheet_script_index"] == 5
+    assert chapter["choices"] == []
+
+
+def test_sheet_catalog_discovers_scripts_and_sorts_by_trailing_index(monkeypatch):
+    values = [
+        ["Ordem", "Roteiro", "Fala-guia"],
+        ["1", "Carona4", "fala 1"],
+        ["2", "Carona4", "fala 2"],
+        ["1", "Confissão1", "fala 1"],
+        ["1", "apartamento5", "fala 1"],
+        ["1", "SemIndice", "ignorado"],
+    ]
+
+    class FakeWorksheet:
+        def get_all_values(self):
+            return values
+
+    class FakeBook:
+        def worksheet(self, name):
+            assert name == "MINHA_SUGESTAO"
+            return FakeWorksheet()
+
+    class FakeClient:
+        def open_by_key(self, key):
+            assert key == "sheet-id"
+            return FakeBook()
+
+    monkeypatch.setattr(
+        "mary2.direct_script.gspread.service_account_from_dict",
+        lambda info: FakeClient(),
+    )
+
+    catalog = load_direct_script_catalog(
+        service_account_info={"client_email": "test@example.com"},
+        spreadsheet_id="sheet-id",
+    )
+
+    assert [item["script_id"] for item in catalog] == [
+        "Confissão1",
+        "Carona4",
+        "apartamento5",
+    ]
+    assert [item["row_count"] for item in catalog] == [1, 2, 1]
+    assert next_direct_script(catalog, "Carona4")["script_id"] == "apartamento5"
+    assert next_direct_script(catalog, "apartamento5") == {}
+
+
+def test_sheet_catalog_rejects_duplicate_script_index(monkeypatch):
+    values = [
+        ["Ordem", "Roteiro", "Fala-guia"],
+        ["1", "Carona4", "fala"],
+        ["1", "Outro4", "fala"],
+    ]
+
+    class FakeWorksheet:
+        def get_all_values(self):
+            return values
+
+    class FakeBook:
+        def worksheet(self, name):
+            return FakeWorksheet()
+
+    class FakeClient:
+        def open_by_key(self, key):
+            return FakeBook()
+
+    monkeypatch.setattr(
+        "mary2.direct_script.gspread.service_account_from_dict",
+        lambda info: FakeClient(),
+    )
+
+    try:
+        load_direct_script_catalog(
+            service_account_info={"client_email": "test@example.com"},
+            spreadsheet_id="sheet-id",
+        )
+    except ValueError as exc:
+        assert "Índice de roteiro duplicado 4" in str(exc)
+    else:
+        raise AssertionError("índice narrativo duplicado deveria falhar")
+
 
 
 ROWS = [
