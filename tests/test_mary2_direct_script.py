@@ -106,6 +106,9 @@ def test_all_script_lines_are_visible_but_future_lines_are_read_only():
 
     assert "LINHA 1 [ATIVA — PODE SER DESENVOLVIDA AGORA]" in first
     assert "LINHA 2 [FUTURA — NÃO EXECUTAR NEM ANTECIPAR]" in first
+    future_block = first.split("LINHA 2 [FUTURA — NÃO EXECUTAR NEM ANTECIPAR]", 1)[1].split("REGRA DE EXECUÇÃO DO ROTEIRO", 1)[0]
+    assert "o trânsito deve estar um inferno essa hora" not in future_block
+    assert "Objetivo futuro: existe um próximo passo autoral reservado pelo runtime." in future_block
     assert "LINHA 1 [PASSADA — NÃO REPETIR]" in second
     assert "LINHA 2 [ATIVA — PODE SER DESENVOLVIDA AGORA]" in second
     assert "Mary e o personal estão no carro dele, seguindo para Camburi." in second
@@ -142,16 +145,16 @@ def test_next_user_reply_advances_directly_without_breath_turn():
     assert state["awaiting_reply_order"] == 0
 
 
-def test_last_line_completes_after_following_user_reply():
+def test_last_line_completes_immediately_when_validated():
     state = ensure_direct_state({}, ROWS)
-    mark_direct_line_emitted(state, ROWS[0])
+    mark_direct_line_emitted(state, ROWS[0], ROWS)
     register_direct_user_reply(state, ROWS, "Resposta 1")
-    mark_direct_line_emitted(state, ROWS[1])
-
-    register_direct_user_reply(state, ROWS, "Resposta final")
+    mark_direct_line_emitted(state, ROWS[1], ROWS)
 
     assert direct_script_ready_for_choice(state) is True
     assert current_direct_row(ROWS, state) == {}
+    assert state["completed_orders"] == [1, 2]
+    assert state["awaiting_reply_order"] == 0
 
 
 
