@@ -279,7 +279,7 @@ def _scene_for_chapter_transition(chapter: dict, previous_scene: dict) -> dict:
         if (
             previous_character.get("active")
             and previous_name
-            and previous_name.lower() not in {"personal", "personagem", "personagem_da_cena"}
+            and previous_name.lower() not in {"personal", "personagem", "personagem_da_cena", "personagem da cena"}
         ):
             initial["temporary_character"] = previous_character
             present = list(initial.get("present_characters", []) or [])
@@ -2355,16 +2355,20 @@ if user_text:
             temporary_character = scene_for_director.get("temporary_character", {})
             if not isinstance(temporary_character, dict):
                 temporary_character = {}
-            active_interlocutor = " | ".join(
-                part
-                for part in [
-                    "papel=" + str(scene_for_director.get("user_role", "") or "").strip(),
-                    "nome=" + str(temporary_character.get("name", "") or "").strip(),
-                    "descrição=" + str(temporary_character.get("description", "") or "").strip(),
-                    "relação=" + str(temporary_character.get("relation_to_mary", "") or "").strip(),
-                    "gênero=" + str(temporary_character.get("gender", "") or "").strip(),
-                ]
-                if part.split("=", 1)[1]
+            active_interlocutor = (
+                ""
+                if automatic_turn
+                else " | ".join(
+                    part
+                    for part in [
+                        "papel=" + str(scene_for_director.get("user_role", "") or "").strip(),
+                        "nome=" + str(temporary_character.get("name", "") or "").strip(),
+                        "descrição=" + str(temporary_character.get("description", "") or "").strip(),
+                        "relação=" + str(temporary_character.get("relation_to_mary", "") or "").strip(),
+                        "gênero=" + str(temporary_character.get("gender", "") or "").strip(),
+                    ]
+                    if part.split("=", 1)[1]
+                )
             )
 
             automatic_direct_turn = bool(
