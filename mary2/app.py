@@ -111,7 +111,7 @@ st.set_page_config(page_title="Mary Core 2", page_icon="🖤", layout="centered"
 
 _LOG = logging.getLogger(__name__)
 
-BUILD_ID = "2026-10-09-sheet-runtime-v8.4-blocked-lines"
+BUILD_ID = "2026-10-09-sheet-runtime-v8.5-full-user-turn"
 
 
 def _runtime_get_chapter(chapter_id: str) -> dict:
@@ -223,13 +223,17 @@ def reset_local_story() -> None:
 def _messages_from_records(records: list[dict]) -> list[dict[str, str]]:
     messages: list[dict[str, str]] = []
     for record in records:
-        if record.get("user_text"):
+        direction = str(record.get("direction", "") or "").strip()
+        dialogue = str(record.get("user_text", "") or "").strip()
+        if direction or dialogue:
+            parts = [f"[PAPEL={record.get('user_role', 'JANIO')}]"]
+            if direction:
+                parts.append(f"[DIREÇÃO/ENCENAÇÃO] {direction}")
+            if dialogue:
+                parts.append(f"[FALA] {dialogue}")
             messages.append({
                 "role": "user",
-                "content": (
-                    f"[PAPEL={record.get('user_role', 'JANIO')}] "
-                    f"{record.get('user_text', '')}"
-                ),
+                "content": "\n".join(parts),
             })
         if record.get("mary_text"):
             messages.append({
@@ -2187,9 +2191,14 @@ if user_text:
 
         messages_before_turn = deepcopy(st.session_state.messages)
 
-        if user_spoke:
+        if scene_direction or user_spoke:
+            user_message_parts = [f"[PAPEL={user_role}]"]
+            if scene_direction:
+                user_message_parts.append(f"[DIREÇÃO/ENCENAÇÃO] {scene_direction}")
+            if dialogue_text:
+                user_message_parts.append(f"[FALA] {dialogue_text}")
             st.session_state.messages.append(
-                {"role": "user", "content": f"[PAPEL={user_role}] {dialogue_text}"}
+                {"role": "user", "content": "\n".join(user_message_parts)}
             )
 
         current_turn_number = _chapter_turns() + 1
@@ -2524,6 +2533,7 @@ if user_text:
                     model=director_model,
                     fallback_model=fallback,
                     user_text=dialogue_text,
+                    user_scene_direction=scene_direction,
                     previous_mary_text=previous_mary_text,
                     recent_messages=messages_before_turn,
                     recent_user_facts=recent_user_facts,
@@ -2563,7 +2573,12 @@ if user_text:
                         user_text=(
                             "Prosseguir [controle automático]"
                             if automatic_direct_turn
-                            else dialogue_text
+                            else "\n".join(
+                                part for part in [
+                                    f"[DIREÇÃO/ENCENAÇÃO] {scene_direction}" if scene_direction else "",
+                                    f"[FALA] {dialogue_text}" if dialogue_text else "",
+                                ] if part
+                            )
                         ),
                         previous_mary_text=previous_mary_text,
                         audit=understanding_audit,
@@ -2576,6 +2591,7 @@ if user_text:
                 all_rows=direct_rows,
                 recent_messages=messages_before_turn,
                 user_text=("Prosseguir" if automatic_direct_turn else dialogue_text),
+                user_scene_direction=("" if mary_first_turn else scene_direction),
                 interpretation=direct_interpretation,
                 previous_mary_text=previous_mary_text,
                 previous_conversation_state=previous_conversation_state,
@@ -2900,6 +2916,7 @@ if user_text:
                     mary_text=answer,
                     mary_thought=mary_intent,
                     user_text=dialogue_text,
+                    user_scene_direction=scene_direction,
                     line_dialogue=list(direct_state.get("line_dialogue", []) or []),
                 )
 
@@ -2938,6 +2955,7 @@ if user_text:
                         mary_text=answer,
                         mary_thought=mary_intent,
                         user_text=dialogue_text,
+                        user_scene_direction=scene_direction,
                         line_dialogue=list(direct_state.get("line_dialogue", []) or []),
                     )
 
@@ -3004,6 +3022,7 @@ if user_text:
                         mary_text=answer,
                         mary_thought=mary_intent,
                         user_text=dialogue_text,
+                        user_scene_direction=scene_direction,
                         line_dialogue=list(direct_state.get("line_dialogue", []) or []),
                     )
                     if not bool(
@@ -3075,6 +3094,7 @@ if user_text:
                         mary_text=answer,
                         mary_thought=mary_intent,
                         user_text=dialogue_text,
+                        user_scene_direction=scene_direction,
                         line_dialogue=list(direct_state.get("line_dialogue", []) or []),
                     )
                     if bool(
@@ -3141,6 +3161,7 @@ if user_text:
                         mary_text=answer,
                         mary_thought=mary_intent,
                         user_text=dialogue_text,
+                        user_scene_direction=scene_direction,
                         line_dialogue=list(direct_state.get("line_dialogue", []) or []),
                     )
                     if bool(
