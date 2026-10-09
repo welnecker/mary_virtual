@@ -623,6 +623,7 @@ def build_direct_writer_prompt(
 
     interpretation = interpretation if isinstance(interpretation, dict) else {}
     automatic_line = is_automatic_direct_row(row)
+    blocked_line = is_blocked_direct_row(row)
     active_order = int(row.get("order", 0) or 0)
     speech_guide = _resolve_placeholders(
         row.get("speech_guide", ""),
@@ -739,12 +740,18 @@ def build_direct_writer_prompt(
             "algo compatível com a FALA-GUIA. Não responda à palavra 'Prosseguir' e não invente interlocutor.\n\n"
             if automatic_line
             else (
+                "INICIATIVA DE MARY\n"
+                "O usuário NÃO falou neste turno. Mary deve iniciar esta linha dirigindo-se naturalmente ao interlocutor conforme a FALA-GUIA. "
+                "Depois dessa fala, pare e aguarde a resposta do usuário; não execute a próxima linha.\n\n"
+                if blocked_line
+                else (
                 "USUÁRIO AGORA:\n"
                 + (_clean(user_text) or "(sem fala verbal)")
                 + "\n\n"
                 "Leia a fala atual como continuação causal da conversa acima. "
                 "Perguntas, provocações, ironias, confirmações, recusas e brincadeiras devem ser respondidas pelo sentido, "
                 "não espelhadas nem devolvidas mecanicamente.\n\n"
+                )
             )
         )
         + "==================================================\n"
@@ -766,7 +773,11 @@ def build_direct_writer_prompt(
         + (
             "1. Este é um turno automático: não há fala do usuário para responder; continue a experiência interna de Mary.\n"
             if automatic_line
-            else "1. Responda primeiro ao que o usuário realmente acabou de fazer conversacionalmente.\n"
+            else (
+                "1. Este é um turno de iniciativa de Mary: não há fala atual do usuário para responder. Execute a FALA-GUIA como iniciativa natural e encerre a resposta aguardando o interlocutor.\n"
+                if blocked_line
+                else "1. Responda primeiro ao que o usuário realmente acabou de fazer conversacionalmente.\n"
+            )
         )
         + "2. Depois, se couber naturalmente, desenvolva a linha ativa. Se não couber, mantenha-a pendente.\n"
         "3. Não repita ou espelhe a pergunta/frase do usuário como se fosse resposta.\n"
