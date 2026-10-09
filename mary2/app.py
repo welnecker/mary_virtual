@@ -111,7 +111,7 @@ _LOG = logging.getLogger(__name__)
 BUILD_ID = "2026-10-09-sheet-script-discovery-v7.0"
 
 
-def _runtime__runtime_get_chapter(chapter_id: str) -> dict:
+def _runtime_get_chapter(chapter_id: str) -> dict:
     """Resolve capítulos legados ou capítulos diretos descobertos na planilha."""
     script_id = direct_script_id_from_chapter_id(chapter_id)
     if script_id:
