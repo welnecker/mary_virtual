@@ -21,6 +21,7 @@ DIRECT_HEADERS = {
     "modo de interacao": "interaction_mode",
     "interação": "interaction_mode",
     "interacao": "interaction_mode",
+    "prosseguir": "interaction_mode",
     "estilo / atitude": "style",
     "pré-condição": "precondition",
     "pre-condição": "precondition",
