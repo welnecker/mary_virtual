@@ -109,7 +109,7 @@ st.set_page_config(page_title="Mary Core 2", page_icon="🖤", layout="centered"
 
 _LOG = logging.getLogger(__name__)
 
-BUILD_ID = "2026-10-09-sheet-script-discovery-v7.1"
+BUILD_ID = "2026-10-09-sheet-runtime-v8.0"
 
 
 def _runtime_get_chapter(chapter_id: str) -> dict:
@@ -135,7 +135,7 @@ DEFAULT_MODELS = [
 ]
 
 INITIAL_SCENE = deepcopy(
-    _runtime_get_chapter("confissao_inicial").get("initial_scene", {})
+    build_direct_chapter("Confissão1").get("initial_scene", {})
 )
 
 
@@ -316,7 +316,7 @@ def _scene_for_chapter_transition(chapter: dict, previous_scene: dict) -> dict:
 
 def _chapter_id() -> str:
     narrative = st.session_state.story_state.get("narrative", {})
-    return str(narrative.get("chapter_id", "confissao_inicial") or "confissao_inicial")
+    return str(narrative.get("chapter_id", "sheet:Confissão1") or "sheet:Confissão1")
 
 
 def _chapter_turns() -> int:
