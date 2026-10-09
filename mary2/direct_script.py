@@ -132,11 +132,17 @@ def load_direct_script_catalog(
 
     header_index = -1
     roteiro_index = -1
+    fala_guia_index = -1
     for idx, source in enumerate(values):
         normalized = [_clean(cell).lower() for cell in source]
         if "ordem" in normalized and "roteiro" in normalized:
             header_index = idx
             roteiro_index = normalized.index("roteiro")
+            fala_guia_index = (
+                normalized.index("fala-guia")
+                if "fala-guia" in normalized
+                else -1
+            )
             break
     if header_index < 0 or roteiro_index < 0:
         raise ValueError("cabeçalho do catálogo de roteiros não encontrado")
@@ -160,8 +166,15 @@ def load_direct_script_catalog(
                 "first_seen": first_seen,
                 "chapter_id": direct_chapter_id(parsed["script_id"]),
                 "row_count": 0,
+                "executable_row_count": 0,
             }
         catalog_by_id[key]["row_count"] += 1
+        if (
+            fala_guia_index >= 0
+            and fala_guia_index < len(source_row)
+            and _clean(source_row[fala_guia_index])
+        ):
+            catalog_by_id[key]["executable_row_count"] += 1
 
     catalog = list(catalog_by_id.values())
     catalog.sort(
