@@ -608,16 +608,19 @@ def build_direct_writer_prompt(
         status = "ATIVA — PODE SER DESENVOLVIDA AGORA" if order == active_order else (
             "PASSADA — NÃO REPETIR" if order < active_order else "FUTURA — NÃO EXECUTAR NEM ANTECIPAR"
         )
-        parts = [
-            f"LINHA {order} [{status}]",
-            "Fala-guia: " + (guide or "(vazia)"),
-        ]
-        style = _clean(source.get("style"))
-        instant = _clean(source.get("instant_memory"))
-        if style:
-            parts.append("Estilo/atitude: " + style)
-        if instant:
-            parts.append("Estado local da linha: " + instant)
+        parts = [f"LINHA {order} [{status}]"]
+        if order <= active_order:
+            parts.append("Fala-guia: " + (guide or "(vazia)"))
+            style = _clean(source.get("style"))
+            instant = _clean(source.get("instant_memory"))
+            if style:
+                parts.append("Estilo/atitude: " + style)
+            if instant:
+                parts.append("Estado local da linha: " + instant)
+        else:
+            # Linhas futuras servem como mapa de progressão, mas o texto autoral literal
+            # fica oculto para reduzir antecipação/cópia prematura.
+            parts.append("Objetivo futuro: existe um próximo passo autoral reservado pelo runtime.")
         script_lines.append("\n".join(parts))
 
     conversation_lines: list[str] = []
@@ -681,7 +684,7 @@ def build_direct_writer_prompt(
         + "\n\n".join(script_lines)
         + "\n\nREGRA DE EXECUÇÃO DO ROTEIRO:\n"
         "Você conhece o roteiro inteiro apenas para compreender a trajetória. "
-        "SOMENTE a linha marcada ATIVA pode ser desenvolvida. Linhas FUTURAS jamais podem ser executadas, "
+        "SOMENTE a linha marcada ATIVA pode ser desenvolvida. Linhas FUTURAS aparecem sem fala-guia literal e jamais podem ser executadas, "
         "citadas ou antecipadas. Linhas PASSADAS não devem ser repetidas. "
         "A fala-guia é direção semântica de Mary, nunca texto do usuário e nunca texto interno a ser mencionado.\n\n"
 
