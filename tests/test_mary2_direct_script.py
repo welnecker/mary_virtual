@@ -9,6 +9,7 @@ from mary2.direct_script import (
     extract_direct_character_name,
     is_automatic_direct_row,
     load_direct_script_catalog,
+    load_direct_script_rows,
     mark_direct_line_emitted,
     next_direct_script,
     parse_direct_script_id,
@@ -82,6 +83,80 @@ def test_automatic_writer_prompt_treats_prosseguir_as_control_not_dialogue():
 
 
 
+
+
+
+def test_revelation_column_is_loaded_and_writer_treats_it_as_boundary(monkeypatch):
+    values = [
+        [
+            "Ordem",
+            "Roteiro",
+            "Fala-guia",
+            "Estilo / atitude",
+            "PROSSEGUIR",
+            "REVELACAO",
+            "MEMÓRIA INSTANTÂNEA-LOCAL",
+            "MEMÓRIA PERMANENTE-GLOBAL",
+            "MEMÓRIA FÍSICA-GLOBAL",
+            "DESCRIÇÃO INICIAL-CENA",
+        ],
+        [
+            "3",
+            "Confissão1",
+            "Deixa eu contar tudo...",
+            "angústia",
+            "",
+            "PODE: preparar a revelação. NÃO PODE: revelar ainda identidade ou local.",
+            "Mary está no sofá.",
+            "Mary é casada com Janio.",
+            "Mary tem cabelos negros.",
+            "Mary sabe que o homem se chama Ricardo e que o encontrou no Shopping.",
+        ],
+    ]
+
+    class FakeWorksheet:
+        def get_all_values(self):
+            return values
+
+    class FakeBook:
+        def worksheet(self, name):
+            return FakeWorksheet()
+
+    class FakeClient:
+        def open_by_key(self, key):
+            return FakeBook()
+
+    monkeypatch.setattr(
+        "mary2.direct_script.gspread.service_account_from_dict",
+        lambda info: FakeClient(),
+    )
+
+    rows = load_direct_script_rows(
+        service_account_info={"client_email": "test@example.com"},
+        spreadsheet_id="sheet-id",
+        worksheet_name="MINHA_SUGESTAO",
+        script_name="Confissão1",
+    )
+
+    assert rows[0]["revelation_policy"].startswith("PODE: preparar")
+    prompt = build_direct_writer_prompt(
+        row=rows[0],
+        all_rows=rows,
+        recent_messages=[],
+        user_text="Com quem foi?",
+        interpretation={
+            "literal_meaning": "Janio quer saber a identidade do homem.",
+            "user_obligation": {
+                "exists": True,
+                "requirement": "Reagir à pergunta sem revelar a identidade ainda.",
+            },
+        },
+    )
+
+    assert "REGRA DE REVELAÇÃO DA LINHA ATUAL" in prompt
+    assert "NÃO PODE: revelar ainda identidade ou local." in prompt
+    assert "Conhecer um fato NÃO significa estar autorizada a verbalizá-lo agora." in prompt
+    assert "mesmo se o usuário perguntar diretamente" in prompt
 
 def test_sheet_chapter_roles_follow_linear_story_defaults():
     confession = build_direct_chapter("Confissão1")
