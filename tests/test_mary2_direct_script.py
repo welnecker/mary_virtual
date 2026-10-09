@@ -6,6 +6,7 @@ from mary2.direct_script import (
     direct_line_correction_prompt,
     direct_script_ready_for_choice,
     ensure_direct_state,
+    extract_direct_character_name,
     is_automatic_direct_row,
     load_direct_script_catalog,
     mark_direct_line_emitted,
