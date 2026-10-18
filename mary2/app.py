@@ -141,7 +141,7 @@ DEFAULT_MODELS = [
 @st.cache_data(ttl=60, show_spinner=False)
 def _first_sheet_script_id() -> str:
     try:
-        credentials = st.secrets.get("gcp_service_account") or st.secrets.get("GOOGLE_SERVICE_ACCOUNT")
+        credentials = (st.secrets.get("GOOGLE_CREDS_JSON") or st.secrets.get("gcp_service_account") or st.secrets.get("GOOGLE_SERVICE_ACCOUNT"))
         if isinstance(credentials, str):
             credentials = json.loads(credentials)
         credentials = dict(credentials)
