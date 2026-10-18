@@ -145,12 +145,11 @@ def build_direct_chapter(script_id: Any) -> dict:
             "Use Nome+índice, por exemplo Carona4."
         )
 
-    # O primeiro roteiro da história é a Confissão com Janio.
-    # Os seguintes usam PERSONAGEM_DA_CENA por padrão. Linhas automáticas
-    # ignoram o interlocutor e bloqueiam a entrada livre do usuário.
-    user_role = "JANIO" if int(parsed["script_index"]) == 1 else "PERSONAGEM_DA_CENA"
-    temporary_active = user_role == "PERSONAGEM_DA_CENA"
-    present = ["MARY", "JANIO"] if user_role == "JANIO" else ["MARY", "PERSONAGEM_DA_CENA"]
+    # Nenhum personagem é imposto pelo número do capítulo.
+    # A identidade concreta do interlocutor vem da cena autoral.
+    user_role = "PERSONAGEM_DA_CENA"
+    temporary_active = True
+    present = ["MARY", "PERSONAGEM_DA_CENA"]
 
     return {
         "title": parsed["script_name"],
@@ -182,7 +181,7 @@ def build_direct_chapter(script_id: Any) -> dict:
             "hook_resolution": "",
             "temporary_character": {
                 "active": temporary_active,
-                "name": "" if user_role == "JANIO" else "Personagem da cena",
+                "name": "Personagem da cena",
                 "description": "",
                 "relation_to_mary": "",
                 "user_can_play": temporary_active,
