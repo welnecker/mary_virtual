@@ -629,6 +629,7 @@ def build_direct_writer_prompt(
         row.get("speech_guide", ""),
         character_name=character_name,
     )
+    interpret_mode = speech_guide.strip().casefold() == "interpretar"
 
     script_lines: list[str] = []
     for source in (all_rows or [row]):
@@ -771,7 +772,16 @@ def build_direct_writer_prompt(
         "Estilo/atitude: " + (_clean(row.get("style")) or "natural") + "\n"
         "Revelação permitida nesta linha: " + (_clean(row.get("revelation_policy")) or "(sem restrição autoral específica)") + "\n\n"
 
-        "REGRAS ESSENCIAIS\n"
+        "REGRAS ESSENCIAIS\\n"
+        + (
+            "MODO INTERPRETAR: a palavra Interpretar é somente um seletor técnico, NÃO é fala de Mary. "
+            "Interprete a situação da MEMÓRIA INSTANTÂNEA-LOCAL como direção de atuação desta única linha. "
+            "Crie uma fala e um pensamento originais, respondendo à entrada do usuário quando houver. "
+            "O ESTILO/ATITUDE orienta a postura, sem obrigar humor, sedução ou outras marcas a cada turno. "
+            "Não resuma nem antecipe passos futuros; respeite o estado físico e a regra REVELACAO. "
+            "As regras de turno automático, bloqueado e comum continuam iguais.\\n"
+            if interpret_mode else ""
+        )
         + (
             "1. Este é um turno automático: não há fala do usuário para responder; continue a experiência interna de Mary.\n"
             if automatic_line
