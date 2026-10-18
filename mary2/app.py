@@ -136,9 +136,54 @@ DEFAULT_MODELS = [
     "Outro...",
 ]
 
-INITIAL_SCENE = deepcopy(
-    build_direct_chapter("Confissão1").get("initial_scene", {})
-)
+# O primeiro capítulo é descoberto na planilha, nunca fixado no código.
+# Cache curto evita leituras repetidas a cada rerun do Streamlit.
+@st.cache_data(ttl=60, show_spinner=False)
+def _first_sheet_script_id() -> str:
+    try:
+        credentials = st.secrets.get("gcp_service_account") or st.secrets.get("GOOGLE_SERVICE_ACCOUNT")
+        if isinstance(credentials, str):
+            credentials = json.loads(credentials)
+        credentials = dict(credentials)
+        if isinstance(credentials.get("private_key"), str):
+            credentials["private_key"] = credentials["private_key"].replace("\\n", "\n")
+        spreadsheet_id = str(st.secrets.get("MARY_SHEETS_ID", "") or "").strip()
+        catalog = load_direct_script_catalog(
+            service_account_info=credentials,
+            spreadsheet_id=spreadsheet_id,
+            worksheet_name="MINHA_SUGESTAO",
+        )
+        executable = [row for row in catalog if int(row.get("executable_row_count", 0) or 0) > 0]
+        return str(executable[0]["script_id"]) if executable else ""
+    except Exception as exc:
+        _LOG.warning("Não foi possível descobrir capítulo inicial: %s", exc)
+        return ""
+
+
+def _initial_chapter_id() -> str:
+    script_id = _first_sheet_script_id()
+    return direct_chapter_id(script_id) if script_id else "sheet:"
+
+
+_base_new_state = new_state
+
+
+def new_state() -> dict:
+    state = _base_new_state()
+    chapter_id = _initial_chapter_id()
+    state["narrative"]["chapter_id"] = chapter_id
+    state["narrative"]["chapter_instance_id"] = (
+        f"sheet_{_first_sheet_script_id()}_001" if _first_sheet_script_id() else ""
+    )
+    return state
+
+
+def _initial_scene() -> dict:
+    script_id = _first_sheet_script_id()
+    return deepcopy(build_direct_chapter(script_id).get("initial_scene", {})) if script_id else {}
+
+
+INITIAL_SCENE = _initial_scene()
 
 
 def _mary_display_text(text: str) -> str:
@@ -214,7 +259,7 @@ def reset_local_story() -> None:
     st.session_state.story_state = new_state()
     st.session_state.scene_state = deepcopy(INITIAL_SCENE)
     st.session_state.turn_records = []
-    st.session_state.active_user_role = "JANIO"
+    st.session_state.active_user_role = "PERSONAGEM_DA_CENA"
     st.session_state.run_last_seq = 0
     st.session_state.route_checkpoints = []
     st.session_state.route_checkpoints_loaded_for_run = ""
@@ -322,7 +367,7 @@ def _scene_for_chapter_transition(chapter: dict, previous_scene: dict) -> dict:
 
 def _chapter_id() -> str:
     narrative = st.session_state.story_state.get("narrative", {})
-    return str(narrative.get("chapter_id", "sheet:Confissão1") or "sheet:Confissão1")
+    return str(narrative.get("chapter_id") or _initial_chapter_id())
 
 
 def _chapter_turns() -> int:
@@ -1107,7 +1152,7 @@ for key, default in {
     "scene_state": dict(INITIAL_SCENE),
     "turn_records": [],
     "run_id": "",
-    "active_user_role": "JANIO",
+    "active_user_role": "PERSONAGEM_DA_CENA",
     "persistence_loaded": False,
     "persistence_error": "",
     "audit_error": "",
