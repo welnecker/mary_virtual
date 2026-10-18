@@ -1268,7 +1268,7 @@ with st.sidebar:
         temporary_character = {}
 
     allowed_roles = list(
-        current_chapter.get("allowed_roles", ["JANIO"]) or ["JANIO"]
+        current_chapter.get("allowed_roles", ["PERSONAGEM_DA_CENA"]) or ["PERSONAGEM_DA_CENA"]
     )
     temporary_available = bool(
         temporary_character.get("active")
@@ -1285,7 +1285,7 @@ with st.sidebar:
             role_options.append("PERSONAGEM_DA_CENA")
 
     if not role_options:
-        role_options = ["JANIO"]
+        role_options = ["PERSONAGEM_DA_CENA"]
 
     current_role = st.session_state.active_user_role
     if current_role not in role_options:
@@ -1362,7 +1362,7 @@ with st.sidebar:
                     spreadsheet_title=persistence["spreadsheet_title"],
                     owner_email=persistence["owner_email"],
                     player_id=persistence["player_id"],
-                    active_user_role="JANIO",
+                    active_user_role="PERSONAGEM_DA_CENA",
                     story_ledger=story_ledger_text(new_state()),
                     scene_state=dict(INITIAL_SCENE),
                     story_state=new_state(),
