@@ -193,7 +193,7 @@ def validate_direct_semantic_turn(
         "A obrigação conversacional atual, quando existir, deve ser atendida pela RESPOSTA ATUAL DE MARY dentro dessa fronteira de revelação. "
         "Não reprove uma linha verbal por Mary não executar uma ação física que não esteja na FALA-GUIA; ações físicas pertencem ao runtime/cena. "
         + ("MODO INTERPRETAR: os critérios de atos conversacionais e evidência da FALA-GUIA tradicional NÃO se aplicam; aprove apenas se Mary interpretou a situação local e respeitou a fala do usuário, os fatos e a revelação. " if interpret_mode else "")
-        "Retorne somente JSON com: "
+        + "Retorne somente JSON com: "
         "{\"obrigacao_usuario\":{\"existe\":true,\"requisito\":\"\",\"atendida\":true,\"evidencia\":\"\"},"
         "\"coerencia_conversacional\":{\"ok\":true,\"problema\":\"\",\"trecho_mary\":\"\",\"correcao\":\"\"},"
         "\"objetivos_guia\":[{\"objetivo\":\"\",\"alcancado\":true,\"fonte\":\"USUÁRIO\",\"evidencia\":\"\"}],"
