@@ -163,7 +163,6 @@ def validate_direct_semantic_turn(
             if interpret_mode else
             "A) FINALIDADE DA LINHA: primeiro decomponha EXCLUSIVAMENTE a FALA-GUIA ORIGINAL nos ATOS CONVERSACIONAIS que Mary deve realizar. "
         )
-        + 
         + (
             "Esta linha é AUTOMÁTICA: o PENSAMENTO ATUAL DE MARY também é saída válida e pode cumprir a FALA-GUIA, especialmente quando a linha é introspectiva. "
             if automatic_row
@@ -218,7 +217,7 @@ def validate_direct_semantic_turn(
                         if interpret_mode else
                         "Os objetivos da linha vêm somente da FALA-GUIA ORIGINAL e devem ser entendidos como atos conversacionais de Mary, não como resultados futuros. "
                     )
-                    "Não exija repetição literal da fala-guia. "
+                    + "Não exija repetição literal da fala-guia. "
                     "Nunca invente evidência."
                 ),
             },
