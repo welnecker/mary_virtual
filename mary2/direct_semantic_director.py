@@ -213,7 +213,7 @@ def validate_direct_semantic_turn(
                 "content": (
                     "Você é um Diretor de continuidade semântica. "
                     "Valide finalidade da linha, coerência com o movimento atual do usuário, verdade factual e limite de revelação. "
-                    (
+                    + (
                         "Se a fala-guia for Interpretar, avalie apenas a atuação contextual na memória instantânea, não o termo literal. "
                         if interpret_mode else
                         "Os objetivos da linha vêm somente da FALA-GUIA ORIGINAL e devem ser entendidos como atos conversacionais de Mary, não como resultados futuros. "
