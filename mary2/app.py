@@ -1190,6 +1190,25 @@ if persistence and not st.session_state.persistence_loaded:
         )
 
         if saved:
+            saved_chapter_id = str(
+                (saved.get("story_state") or {}).get("narrative", {}).get("chapter_id", "") or ""
+            )
+            saved_script_id = direct_script_id_from_chapter_id(saved_chapter_id)
+            if saved_script_id and saved_script_id.casefold() != _first_sheet_script_id().casefold():
+                valid_ids = {
+                    str(item["script_id"]).casefold()
+                    for item in load_direct_script_catalog(
+                        service_account_info=persistence["service_account_info"],
+                        spreadsheet_id=info["spreadsheet_id"],
+                        worksheet_name="MINHA_SUGESTAO",
+                    )
+                }
+                if saved_script_id.casefold() not in valid_ids:
+                    _LOG.warning("Sessão antiga com capítulo inexistente: %s", saved_chapter_id)
+                    saved = None
+                    reset_local_story()
+
+        if saved:
             st.session_state.run_id = saved["run_id"]
             st.session_state.active_user_role = saved["active_user_role"]
             st.session_state.scene_state = saved["scene_state"] or dict(INITIAL_SCENE)
@@ -1232,7 +1251,7 @@ if persistence and not st.session_state.persistence_loaded:
                 story_ledger=story_ledger_text(st.session_state.story_state),
                 scene_state=st.session_state.scene_state,
                 story_state=st.session_state.story_state,
-                archive_previous=False,
+                archive_previous=True,
             )
             st.session_state.run_last_seq = 0
 
