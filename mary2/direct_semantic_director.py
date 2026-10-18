@@ -192,6 +192,7 @@ def validate_direct_semantic_turn(
         "Marque violação somente quando Mary efetivamente verbalizar conteúdo que a regra atual proíbe. "
         "A obrigação conversacional atual, quando existir, deve ser atendida pela RESPOSTA ATUAL DE MARY dentro dessa fronteira de revelação. "
         "Não reprove uma linha verbal por Mary não executar uma ação física que não esteja na FALA-GUIA; ações físicas pertencem ao runtime/cena. "
+        + ("MODO INTERPRETAR: os critérios de atos conversacionais e evidência da FALA-GUIA tradicional NÃO se aplicam; aprove apenas se Mary interpretou a situação local e respeitou a fala do usuário, os fatos e a revelação. " if interpret_mode else "")
         "Retorne somente JSON com: "
         "{\"obrigacao_usuario\":{\"existe\":true,\"requisito\":\"\",\"atendida\":true,\"evidencia\":\"\"},"
         "\"coerencia_conversacional\":{\"ok\":true,\"problema\":\"\",\"trecho_mary\":\"\",\"correcao\":\"\"},"
@@ -325,7 +326,7 @@ def validate_direct_semantic_turn(
 
     all_objectives = (
         True
-        if not speech_guide
+        if interpret_mode or not speech_guide
         else bool(normalized_objectives)
         and all(bool(item.get("found")) for item in normalized_objectives)
     )
