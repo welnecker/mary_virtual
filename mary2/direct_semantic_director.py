@@ -66,6 +66,7 @@ def validate_direct_semantic_turn(
     obligation_exists = bool(obligation.get("exists", False))
     obligation_text = _clean(obligation.get("requirement"))
     speech_guide = _clean(row.get("speech_guide"))
+    interpret_mode = speech_guide.casefold() == "interpretar"
     revelation_policy = _clean(row.get("revelation_policy"))
     interaction_mode = _clean(row.get("interaction_mode")).casefold()
     automatic_row = interaction_mode in {"automatico", "automático", "automatic"}
@@ -152,7 +153,17 @@ def validate_direct_semantic_turn(
         )
         + "\n\nTAREFA\n"
         "Faça quatro validações independentes. "
-        "A) FINALIDADE DA LINHA: primeiro decomponha EXCLUSIVAMENTE a FALA-GUIA ORIGINAL nos ATOS CONVERSACIONAIS que Mary deve realizar. "
+        + (
+            "A) MODO INTERPRETAR: a palavra Interpretar é um seletor, NÃO um objetivo verbal. "
+            "Avalie se a resposta de Mary desenvolve de maneira coerente a situação da MEMÓRIA INSTANTÂNEA-LOCAL, "
+            "sem antecipar acontecimentos, sem repetir informações já estabelecidas e respondendo ao usuário. "
+            "Não exija uma frase determinada, humor, flerte nem que todos os detalhes da descrição sejam verbalizados. "
+            "Registre UM objetivo em objetivos_guia: 'interpretar a situação local', alcancado=true quando a "
+            "atuação efetivamente se relacionar com a situação; evidencia deve citar trecho literal da resposta ou pensamento. "
+            if interpret_mode else
+            "A) FINALIDADE DA LINHA: primeiro decomponha EXCLUSIVAMENTE a FALA-GUIA ORIGINAL nos ATOS CONVERSACIONAIS que Mary deve realizar. "
+        )
+        + 
         + (
             "Esta linha é AUTOMÁTICA: o PENSAMENTO ATUAL DE MARY também é saída válida e pode cumprir a FALA-GUIA, especialmente quando a linha é introspectiva. "
             if automatic_row
@@ -202,7 +213,11 @@ def validate_direct_semantic_turn(
                 "content": (
                     "Você é um Diretor de continuidade semântica. "
                     "Valide finalidade da linha, coerência com o movimento atual do usuário, verdade factual e limite de revelação. "
-                    "Os objetivos da linha vêm somente da FALA-GUIA ORIGINAL e devem ser entendidos como atos conversacionais de Mary, não como resultados futuros. "
+                    (
+                        "Se a fala-guia for Interpretar, avalie apenas a atuação contextual na memória instantânea, não o termo literal. "
+                        if interpret_mode else
+                        "Os objetivos da linha vêm somente da FALA-GUIA ORIGINAL e devem ser entendidos como atos conversacionais de Mary, não como resultados futuros. "
+                    )
                     "Não exija repetição literal da fala-guia. "
                     "Nunca invente evidência."
                 ),
