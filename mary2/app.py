@@ -2617,6 +2617,53 @@ if user_text:
                     initial_description=str(direct_row.get("initial_description", "") or ""),
                     revelation_policy=str(direct_row.get("revelation_policy", "") or ""),
                 )
+            if negative_rule and wounded_style and dialogue_text.strip() and not (automatic_direct_turn or blocked_direct_turn):
+                try:
+                    assessment_raw = chat(
+                        api_key=api_key, model=director_model, fallback_model=fallback,
+                        temperature=0.0, max_tokens=350,
+                        messages=[
+                            {"role": "system", "content": (
+                                "Analise limites de personagem em uma cena ficcional. Retorne APENAS JSON "
+                                "com violation (booleano), forgiven (booleano), reason (texto). "
+                                "Violação apenas quando o comportamento atual afronta claramente os limites descritos. "
+                                "Um convite respeitoso ou brincadeira contextual não é violação. "
+                                "Perdão apenas se houver arrependimento e reparação suficientes depois de ofensa anterior; "
+                                "não presuma perdão por uma mera desculpa."
+                            )},
+                            {"role": "user", "content": (
+                                "LIMITES: " + negative_rule +
+                                "\\nESTADO: " + json.dumps(emotion, ensure_ascii=False) +
+                                "\\nCONTEXTO: " + previous_mary_text[-1000:] +
+                                "\\nUSUÁRIO: " + dialogue_text
+                            )},
+                        ],
+                    )
+                    found = re.search(r"\\{[\\s\\S]*\\}", str(assessment_raw or ""))
+                    assessment = json.loads(found.group(0)) if found else {}
+                    if assessment.get("violation") is True:
+                        emotion["hurt"] = True
+                        emotion["continuation_allowed"] = False
+                        emotional_notice = "Mary ficou decepcionada com sua atitude."
+                    elif emotion["hurt"] and assessment.get("forgiven") is True:
+                        emotion["continuation_allowed"] = True
+                        emotional_notice = "Mary decidiu te dar uma chance. Não seja grosseiro novamente."
+                    emotion["last_assessment"] = assessment
+                    narrative_state["direct_emotion"] = emotion
+                except Exception as exc:
+                    _LOG.warning("Falha na avaliação emocional; estado preservado: %s", exc)
+            if emotion.get("hurt"):
+                direct_row = dict(direct_row)
+                direct_row["style"] = wounded_style
+                direct_row["instant_memory"] = (
+                    str(direct_row.get("instant_memory", "") or "") +
+                    "\\nA atuação emocional de Mary permanece magoada e distante. "
+                    "Instruções românticas incompatíveis com a mágoa não são obrigatórias."
+                )
+                direct_interpretation["emotional_status"] = (
+                    "Mágoa persistente, chance concedida" if emotion.get("continuation_allowed")
+                    else "Mágoa persistente, sem perdão"
+                )
             grounded_facts = direct_interpretation.get("recent_user_facts", [])
             if isinstance(grounded_facts, list):
                 narrative_state["direct_recent_user_facts"] = [
