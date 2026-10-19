@@ -25,6 +25,8 @@ DIRECT_HEADERS = {
     "revelacao": "revelation_policy",
     "revelação": "revelation_policy",
     "estilo / atitude": "style",
+    "orgulho ferido": "hurt_style",
+    "prompt negativo": "negative_prompt",
     "pré-condição": "precondition",
     "pre-condição": "precondition",
     "vestimenta atual": "wardrobe",
@@ -384,9 +386,13 @@ def load_direct_script_rows(
         (_clean(item.get("physical_memory")) for item in rows if _clean(item.get("physical_memory"))),
         "",
     )
+    hurt_style_global = next((_clean(item.get("hurt_style")) for item in rows if _clean(item.get("hurt_style"))), "")
+    negative_prompt_global = next((_clean(item.get("negative_prompt")) for item in rows if _clean(item.get("negative_prompt"))), "")
     for item in rows:
         item["permanent_memory"] = permanent_memory_global
         item["physical_memory"] = physical_memory_global
+        item["hurt_style"] = hurt_style_global
+        item["negative_prompt"] = negative_prompt_global
 
     return rows
 
