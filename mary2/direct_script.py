@@ -291,6 +291,31 @@ def load_direct_script_catalog(
     return catalog
 
 
+
+def load_direct_info_board(
+    *,
+    service_account_info: dict,
+    spreadsheet_id: str,
+    script_name: str,
+) -> str:
+    """Quadro exclusivamente visual para o jogador; nunca integra prompts."""
+    if not service_account_info or not _clean(spreadsheet_id) or not _clean(script_name):
+        return ""
+    client = gspread.service_account_from_dict(service_account_info)
+    worksheet = client.open_by_key(_clean(spreadsheet_id)).worksheet("QUADROS_INFORMATIVOS")
+    values = worksheet.get_all_values()
+    if not values:
+        return ""
+    headers = [_clean(x).casefold() for x in values[0]]
+    if "roteiro" not in headers or "quadro inicial" not in headers:
+        raise ValueError("QUADROS_INFORMATIVOS precisa das colunas ROTEIRO e QUADRO INICIAL")
+    script_col, board_col = headers.index("roteiro"), headers.index("quadro inicial")
+    for cells in values[1:]:
+        if script_col < len(cells) and _clean(cells[script_col]).casefold() == _clean(script_name).casefold():
+            return _clean(cells[board_col]) if board_col < len(cells) else ""
+    return ""
+
+
 def next_direct_script(
     catalog: list[dict],
     current_script_id: Any,
