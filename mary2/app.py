@@ -2492,7 +2492,15 @@ if user_text:
                 scene_for_director["return_anchor"] = ""
 
         direct_interpretation = {}
+        emotional_notice = ""
         if script_mode == "direct_sheet":
+            chapter_emotion_id = str(narrative_state.get("chapter_id", "") or "")
+            emotion = narrative_state.get("direct_emotion", {})
+            if not isinstance(emotion, dict) or emotion.get("chapter_id") != chapter_emotion_id:
+                emotion = {"chapter_id": chapter_emotion_id, "hurt": False, "continuation_allowed": True}
+                narrative_state["direct_emotion"] = emotion
+            negative_rule = str(direct_row.get("negative_prompt", "") or "")
+            wounded_style = str(direct_row.get("hurt_style", "") or "")
             previous_mary_text = next(
                 (
                     str(message.get("content", "") or "").strip()
