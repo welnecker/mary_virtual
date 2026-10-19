@@ -2059,7 +2059,12 @@ navigation_script_mode = str(
     chapter_config_for_navigation.get("script_mode", "") or ""
 ).strip().lower()
 
-if navigation_script_mode == "direct_sheet" and choice_ready:
+if navigation_script_mode == "direct_sheet" and bool(
+    st.session_state.story_state.get("narrative", {}).get("direct_emotional_ending_blocked", False)
+):
+    st.divider()
+    st.warning("Mary não gostou da sua atitude. Ela não deseja continuar esta história. Volte a uma etapa anterior ou reinicie o capítulo.")
+elif navigation_script_mode == "direct_sheet" and choice_ready:
     st.divider()
     try:
         catalog = load_direct_script_catalog(
@@ -3533,6 +3538,8 @@ if user_text:
             st.session_state.messages = messages_before_turn
             raise
 
+        if emotional_notice:
+            st.info(emotional_notice)
         model_audit["final_raw_response"] = raw_answer
         model_audit["mary_speech_raw"] = mary_speech_raw
         model_audit["mary_thought"] = mary_intent
@@ -3639,7 +3646,15 @@ if user_text:
 
         if script_mode == "direct_sheet" and direct_state is not None:
             if direct_script_ready_for_choice(direct_state):
-                narrative["choice_ready"] = True
+                emotion_end = narrative.get("direct_emotion", {})
+                forbidden = (
+                    isinstance(emotion_end, dict)
+                    and emotion_end.get("chapter_id") == str(narrative.get("chapter_id", "") or "")
+                    and emotion_end.get("hurt") is True
+                    and emotion_end.get("continuation_allowed") is not True
+                )
+                narrative["direct_emotional_ending_blocked"] = forbidden
+                narrative["choice_ready"] = not forbidden
         elif script_mode == "block_sheet" and block_state is not None:
             if block_ready_for_choice(block_state):
                 narrative["choice_ready"] = True
