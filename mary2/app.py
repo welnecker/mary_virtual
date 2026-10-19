@@ -2063,7 +2063,11 @@ if navigation_script_mode == "direct_sheet" and bool(
     st.session_state.story_state.get("narrative", {}).get("direct_emotional_ending_blocked", False)
 ):
     st.divider()
-    st.warning("Mary não gostou da sua atitude. Ela não deseja continuar esta história. Volte a uma etapa anterior ou reinicie o capítulo.")
+    emotional_ending = st.session_state.story_state.get("narrative", {}).get("direct_emotion", {})
+    if isinstance(emotional_ending, dict) and emotional_ending.get("rejected"):
+        st.warning("Mary respeitou sua decisão de não se aproximar. A história se encerra aqui; retorne ou reinicie o capítulo para escolher outro caminho.")
+    else:
+        st.warning("Mary não gostou da sua atitude. Ela não deseja continuar esta história. Volte a uma etapa anterior ou reinicie o capítulo.")
 elif navigation_script_mode == "direct_sheet" and choice_ready:
     st.divider()
     try:
@@ -2502,7 +2506,7 @@ if user_text:
             chapter_emotion_id = str(narrative_state.get("chapter_id", "") or "")
             emotion = narrative_state.get("direct_emotion", {})
             if not isinstance(emotion, dict) or emotion.get("chapter_id") != chapter_emotion_id:
-                emotion = {"chapter_id": chapter_emotion_id, "hurt": False, "continuation_allowed": True}
+                emotion = {"chapter_id": chapter_emotion_id, "hurt": False, "continuation_allowed": True, "rejected": False}
                 narrative_state["direct_emotion"] = emotion
                 narrative_state["direct_emotional_ending_blocked"] = False
             negative_rule = str(direct_row.get("negative_prompt", "") or "")
@@ -2631,11 +2635,18 @@ if user_text:
                         messages=[
                             {"role": "system", "content": (
                                 "Analise limites de personagem em uma cena ficcional. Retorne APENAS JSON "
-                                "com violation (booleano), forgiven (booleano), reason (texto). "
+                                "com violation (booleano), forgiven (booleano), rejected (booleano), reason (texto). "
                                 "Violação apenas quando o comportamento atual afronta claramente os limites descritos. "
                                 "Um convite respeitoso ou brincadeira contextual não é violação. "
                                 "Perdão apenas se houver arrependimento e reparação suficientes depois de ofensa anterior; "
-                                "não presuma perdão por uma mera desculpa."
+                                "não presuma perdão por uma mera desculpa. "
+                                "rejected=true SOMENTE quando o interlocutor recusa explicitamente "
+                                "qualquer conversa, companhia ou aproximação pessoal com Mary, "
+                                "ou a rejeita de maneira inequívoca. Não confunda com recusa "
+                                "pontual de ajuda, convite, horário ou atividade; tampouco com "
+                                "respostas breves ou silêncio. Uma recusa não é falta moral. "
+                                "Se o interlocutor for SILVIA ou outro personagem em vez do personal, "
+                                "não deduza rejeição do personal."
                             )},
                             {"role": "user", "content": (
                                 "LIMITES: " + negative_rule +
@@ -2647,11 +2658,16 @@ if user_text:
                     )
                     found = re.search(r"\{[\s\S]*\}", str(assessment_raw or ""))
                     assessment = json.loads(found.group(0)) if found else {}
-                    if assessment.get("violation") is True:
+                    if assessment.get("rejected") is True:
+                        emotion["hurt"] = True
+                        emotion["rejected"] = True
+                        emotion["continuation_allowed"] = False
+                        emotional_notice = "Mary percebeu que você não deseja proximidade. Ela respeitará sua decisão."
+                    elif assessment.get("violation") is True:
                         emotion["hurt"] = True
                         emotion["continuation_allowed"] = False
                         emotional_notice = "Mary ficou decepcionada com sua atitude."
-                    elif emotion["hurt"] and assessment.get("forgiven") is True:
+                    elif emotion["hurt"] and not emotion.get("rejected") and assessment.get("forgiven") is True:
                         emotion["continuation_allowed"] = True
                         emotional_notice = "Mary decidiu te dar uma chance. Não seja grosseiro novamente."
                     emotion["last_assessment"] = assessment
@@ -2664,7 +2680,11 @@ if user_text:
                 direct_row["instant_memory"] = (
                     str(direct_row.get("instant_memory", "") or "") +
                     "\\nA atuação emocional de Mary permanece magoada e distante. "
-                    "Instruções românticas incompatíveis com a mágoa não são obrigatórias."
+                    "Instruções românticas incompatíveis com a mágoa não são obrigatórias. "
+                    + ("O interlocutor rejeitou claramente a proximidade. Mary respeita essa decisão, "
+                       "não insiste em convite pessoal, pode conversar com Silvia e segue o roteiro "
+                       "apenas no que for narrativamente possível, sem forçar encontros ou vínculos."
+                       if emotion.get("rejected") else "")
                 )
                 direct_interpretation["emotional_status"] = (
                     "Mágoa persistente, chance concedida" if emotion.get("continuation_allowed")
@@ -3652,7 +3672,10 @@ if user_text:
                     isinstance(emotion_end, dict)
                     and emotion_end.get("chapter_id") == str(narrative.get("chapter_id", "") or "")
                     and emotion_end.get("hurt") is True
-                    and emotion_end.get("continuation_allowed") is not True
+                    and (
+                        emotion_end.get("rejected") is True
+                        or emotion_end.get("continuation_allowed") is not True
+                    )
                 )
                 narrative["direct_emotional_ending_blocked"] = forbidden
                 narrative["choice_ready"] = not forbidden
