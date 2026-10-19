@@ -2644,7 +2644,7 @@ if user_text:
                             )},
                         ],
                     )
-                    found = re.search(r"\\{[\\s\\S]*\\}", str(assessment_raw or ""))
+                    found = re.search(r"\{[\s\S]*\}", str(assessment_raw or ""))
                     assessment = json.loads(found.group(0)) if found else {}
                     if assessment.get("violation") is True:
                         emotion["hurt"] = True
