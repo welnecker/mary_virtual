@@ -916,6 +916,23 @@ def apply_pending_auto_transition(persistence: dict | None) -> bool:
     return True
 
 
+@st.cache_data(ttl=300, show_spinner=False)
+def _cached_direct_script_rows(
+    spreadsheet_id: str,
+    worksheet: str,
+    script_name: str,
+    _service_account_info: dict,
+) -> list[dict]:
+    # Uma leitura por roteiro/planilha a cada 5 minutos, não por rerun,
+    # mudança de input ou etapa do pipeline.
+    return load_direct_script_rows(
+        service_account_info=_service_account_info,
+        spreadsheet_id=spreadsheet_id,
+        worksheet_name=worksheet,
+        script_name=script_name,
+    )
+
+
 def _direct_script_rows(*, persistence: dict, chapter: dict) -> list[dict]:
     """Carrega a MINHA_SUGESTAO sem transformar o conteúdo autoral."""
     if not persistence:
@@ -932,12 +949,12 @@ def _direct_script_rows(*, persistence: dict, chapter: dict) -> list[dict]:
             "Capítulo direto sem script_name. O roteiro deve ser identificado pela MINHA_SUGESTAO."
         )
 
-    rows = load_direct_script_rows(
-        service_account_info=persistence["service_account_info"],
-        spreadsheet_id=persistence["spreadsheet_id"],
-        worksheet_name=worksheet,
-        script_name=script_name,
-    )
+    rows = deepcopy(_cached_direct_script_rows(
+        persistence["spreadsheet_id"],
+        worksheet,
+        script_name,
+        persistence["service_account_info"],
+    ))
     if not rows:
         raise PersistenceError(
             f"Nenhuma linha do roteiro {script_name!r} foi encontrada em {worksheet!r}."
