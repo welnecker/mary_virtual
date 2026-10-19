@@ -97,6 +97,22 @@ def migrate_state(state: dict | None) -> dict:
             current["narrative"]["direct_script"] = deepcopy(
                 narrative.get("direct_script")
             )
+        # Estados de continuidade do capítulo também precisam sobreviver
+        # à reconstrução da sessão Streamlit. Não copiar estes campos
+        # eliminava a mágoa de Mary depois de uma pausa.
+        for key in (
+            "direct_emotion",
+            "direct_conversation_state",
+            "direct_recent_user_facts",
+            "direct_emotional_ending_blocked",
+        ):
+            value = narrative.get(key)
+            if key in ("direct_emotion", "direct_conversation_state") and isinstance(value, dict):
+                current["narrative"][key] = deepcopy(value)
+            elif key == "direct_recent_user_facts" and isinstance(value, list):
+                current["narrative"][key] = deepcopy(value)
+            elif key == "direct_emotional_ending_blocked" and isinstance(value, bool):
+                current["narrative"][key] = value
         if "choice_ready" in narrative:
             current["narrative"]["choice_ready"] = bool(
                 narrative.get("choice_ready", False)
