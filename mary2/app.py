@@ -34,6 +34,7 @@ from direct_script import (
     is_automatic_direct_row,
     is_blocked_direct_row,
     load_direct_script_catalog,
+    load_direct_info_board,
     load_direct_script_rows,
     mark_direct_line_emitted,
     next_direct_script,
@@ -1268,6 +1269,32 @@ st.caption(f"Build: `{BUILD_ID}`")
 
 current_chapter = _runtime_get_chapter(_chapter_id())
 st.caption(f"Capítulo atual: **{current_chapter.get('title', _chapter_id())}**")
+
+# Orientação exclusiva ao jogador. O texto não entra no contexto da Mary,
+# nem é encaminhado à Compreensão, ao Redator ou ao Diretor.
+@st.cache_data(ttl=120, show_spinner=False)
+def _cached_direct_info_board(spreadsheet_id: str, script_name: str, _service_account_info: dict) -> str:
+    return load_direct_info_board(
+        service_account_info=_service_account_info,
+        spreadsheet_id=spreadsheet_id,
+        script_name=script_name,
+    )
+
+
+if str(current_chapter.get("script_mode", "") or "").lower() == "direct_sheet" and persistence:
+    _board_script = str(current_chapter.get("script_name", "") or "").strip()
+    if _board_script:
+        try:
+            _player_board = _cached_direct_info_board(
+                persistence["spreadsheet_id"],
+                _board_script,
+                persistence["service_account_info"],
+            )
+            if _player_board:
+                st.info(_player_board)
+        except Exception as _board_error:
+            _LOG.warning("Quadro inicial indisponível para %s: %s", _board_script, _board_error)
+
 
 if st.session_state.rollback_notice:
     st.success(st.session_state.rollback_notice)
