@@ -2504,6 +2504,7 @@ if user_text:
             if not isinstance(emotion, dict) or emotion.get("chapter_id") != chapter_emotion_id:
                 emotion = {"chapter_id": chapter_emotion_id, "hurt": False, "continuation_allowed": True}
                 narrative_state["direct_emotion"] = emotion
+                narrative_state["direct_emotional_ending_blocked"] = False
             negative_rule = str(direct_row.get("negative_prompt", "") or "")
             wounded_style = str(direct_row.get("hurt_style", "") or "")
             previous_mary_text = next(
