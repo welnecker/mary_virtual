@@ -773,7 +773,7 @@ def build_direct_writer_prompt(
         "REGRAS ESSENCIAIS\\n"
         + (
             "MODO INTERPRETAR: a palavra Interpretar é somente um seletor técnico, NÃO é fala de Mary. "
-            "Interprete a situação da MEMÓRIA INSTANTÂNEA-LOCAL como direção de atuação desta única linha. "
+            "A MEMÓRIA INSTANTÂNEA-LOCAL determina o acontecimento desta linha: represente a ação indispensável, não apenas a promessa de realizá-la. "
             "Crie uma fala e um pensamento originais, respondendo à entrada do usuário quando houver. "
             "O ESTILO/ATITUDE orienta a postura, sem obrigar humor, sedução ou outras marcas a cada turno. "
             "Não resuma nem antecipe passos futuros; respeite o estado físico e a regra REVELACAO. "
@@ -799,6 +799,6 @@ def build_direct_writer_prompt(
 
         "FORMATO\n"
         "[FALA] fala natural de Mary em primeira pessoa\n"
-        "[PENSAMENTO] uma frase curta em primeira pessoa: sensação íntima, intenção imediata ou reação ao que acaba de acontecer. Não descreva como realizado algo que Mary ainda não fez."
+        "[PENSAMENTO] sensação íntima ou ação presente efetivamente vivida por Mary em primeira pessoa, breve e concreta; não confunda intenção futura com fato ocorrido."
     )
 
