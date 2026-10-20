@@ -3410,6 +3410,56 @@ if user_text:
                         raise OpenRouterError(
                             "A resposta de Mary manteve contradição factual após correção."
                         )
+                # Uma unica reescrita da cena incompleta, sem repetir orientacoes
+                # de comportamento nem permitir que o roteiro prove a si proprio.
+                scene_check = direct_validation.get("scene_completion", {})
+                if isinstance(scene_check, dict) and scene_check.get("fulfilled") is False:
+                    model_audit["direct_validation_before_scene_correction"] = deepcopy(direct_validation)
+                    scene_retry_messages = [
+                        *llm_messages,
+                        {"role": "assistant", "content": raw_answer},
+                        {"role": "system", "content": (
+                            "A LINHA AINDA NAO TERMINOU. O acontecimento obrigatorio nao "
+                            "foi demonstrado pela resposta anterior. Nao repita despedidas, "
+                            "promessas de ir ou pedidos ja aceitos. Mostre a acao efetiva "
+                            "agora, de forma breve e em primeira pessoa no [PENSAMENTO], "
+                            "quando for um movimento silencioso, e mantenha [FALA] apenas "
+                            "se houver algo relevante a dizer. Diferencie a acao ja feita "
+                            "da intencao de faze-la. Fato faltante: "
+                            + str(scene_check.get("missing", "") or scene_check.get("event", "") or "")
+                            + ". Preserve o local, a sequencia e os personagens atuais. "
+                            "Use [FALA] e [PENSAMENTO], sem antecipar outras linhas."
+                        )},
+                    ]
+                    scene_raw = chat(
+                        api_key=api_key, model=model, fallback_model=fallback,
+                        messages=scene_retry_messages,
+                        temperature=max(0.2, min(float(temperature), 0.7)),
+                    )
+                    scene_thought, scene_speech = parse_mary_response(scene_raw)
+                    scene_answer = sanitize_mary_output(scene_speech)
+                    if scene_answer and not looks_like_action_narration(scene_speech):
+                        scene_validation = validate_direct_semantic_turn(
+                            api_key=api_key, model=director_model,
+                            fallback_model=fallback, row=direct_row,
+                            interpretation=direct_interpretation,
+                            mary_text=scene_answer, mary_thought=scene_thought,
+                            user_text=dialogue_text, user_scene_direction=scene_direction,
+                            line_dialogue=list(direct_state.get("line_dialogue", []) or []),
+                        )
+                        if bool(scene_validation.get("fulfilled", False)):
+                            raw_answer = scene_raw
+                            mary_intent, mary_speech_raw = scene_thought, scene_speech
+                            answer = scene_answer
+                            direct_validation = scene_validation
+                            model_audit["retry_used"] = True
+                            model_audit["retry_messages"] = deepcopy(scene_retry_messages)
+                            model_audit["retry_raw_response"] = scene_raw
+                        else:
+                            model_audit["scene_retry_rejected"] = deepcopy(scene_validation.get("scene_completion", {}))
+                    else:
+                        model_audit["scene_retry_rejected"] = "Saida sem fala valida."
+
                 if persistence:
                     try:
                         save_director_validation_audit(
