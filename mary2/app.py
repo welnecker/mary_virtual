@@ -3223,6 +3223,55 @@ if user_text:
                             "A resposta de Mary manteve incoerência conversacional após correção."
                         )
 
+                naturalness = direct_validation.get("naturalness", {})
+                if isinstance(naturalness, dict) and naturalness.get("ok") is False:
+                    model_audit["direct_validation_before_style_correction"] = deepcopy(direct_validation)
+                    style_retry_messages = [
+                        *llm_messages,
+                        {"role": "assistant", "content": raw_answer},
+                        {"role": "system", "content": (
+                            "REESCRITA DE VOZ NATURAL: mantenha os mesmos acontecimentos, "
+                            "fatos, interlocutores, limites, personalidade e objetivo desta linha. "
+                            "Corrija SOMENTE a fala artificial: português brasileiro cotidiano, "
+                            "reação específica ao interlocutor e sem frases de efeito, "
+                            "metáforas decorativas ou desafios genéricos. "
+                            "Problema: " + str(naturalness.get("issue", "") or "") +
+                            ". Trecho: " + str(naturalness.get("mary_excerpt", "") or "") +
+                            ". Ajuste: " + str(naturalness.get("correction", "") or "") +
+                            ". Retorne exatamente [FALA] e [PENSAMENTO]."
+                        )},
+                    ]
+                    style_raw = chat(
+                        api_key=api_key, model=model, fallback_model=fallback,
+                        messages=style_retry_messages,
+                        temperature=max(0.2, min(float(temperature), 0.7)),
+                    )
+                    style_thought, style_speech = parse_mary_response(style_raw)
+                    style_answer = sanitize_mary_output(style_speech)
+                    if style_answer and not looks_like_action_narration(style_speech):
+                        style_validation = validate_direct_semantic_turn(
+                            api_key=api_key, model=director_model,
+                            fallback_model=fallback, row=direct_row,
+                            interpretation=direct_interpretation,
+                            mary_text=style_answer, mary_thought=style_thought,
+                            user_text=dialogue_text, user_scene_direction=scene_direction,
+                            line_dialogue=list(direct_state.get("line_dialogue", []) or []),
+                        )
+                        if (
+                            bool(style_validation.get("fulfilled", False))
+                            and not str(style_validation.get("parse_error", "") or "").strip()
+                        ):
+                            raw_answer = style_raw
+                            mary_intent, mary_speech_raw = style_thought, style_speech
+                            answer = style_answer
+                            direct_validation = style_validation
+                            model_audit["retry_used"] = True
+                            model_audit["retry_messages"] = deepcopy(style_retry_messages)
+                            model_audit["retry_raw_response"] = style_raw
+                        else:
+                            model_audit["style_retry_rejected"] = style_validation.get("reason", "")
+                    else:
+                        model_audit["style_retry_rejected"] = "Resposta revisada sem fala limpa."
                 revelation_violation = direct_validation.get(
                     "revelation_violation", {}
                 )
