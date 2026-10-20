@@ -196,6 +196,7 @@ def validate_direct_semantic_turn(
         + "E) NATURALIDADE: observe frases de efeito, metaforas gratuitas, repeticao de bordoes, desafios romanticos genericos e linguagem que pareca propaganda ou romance narrado. "
         "So marque artificialidade quando for evidente no trecho atual; nao reprove falas expressivas, musica, flerte ou humor pertinentes. "
         "Avalie a naturalidade separadamente da coerencia factual, sem mudar os objetivos. "
+        + "Quando a linha autoral indicar sentimento mutuo, verifique se Mary expressa experiencia emocional propria em vez de apenas medir a reacao do interlocutor ou ostentar controle. Nao exija vulnerabilidade em toda fala e nao presuma desejo ou consentimento; respeite as escolhas e o contexto. Avalie isso dentro de naturalidade somente quando o descompasso for evidente. "
         + "Retorne somente JSON com: "
         "{\"obrigacao_usuario\":{\"existe\":true,\"requisito\":\"\",\"atendida\":true,\"evidencia\":\"\"},"
         "\"coerencia_conversacional\":{\"ok\":true,\"problema\":\"\",\"trecho_mary\":\"\",\"correcao\":\"\"},"
