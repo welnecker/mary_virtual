@@ -193,9 +193,13 @@ def validate_direct_semantic_turn(
         "A obrigação conversacional atual, quando existir, deve ser atendida pela RESPOSTA ATUAL DE MARY dentro dessa fronteira de revelação. "
         "Não reprove uma linha verbal por Mary não executar uma ação física que não esteja na FALA-GUIA; ações físicas pertencem ao runtime/cena. "
         + ("MODO INTERPRETAR: os critérios de atos conversacionais e evidência da FALA-GUIA tradicional NÃO se aplicam; aprove apenas se Mary interpretou a situação local e respeitou a fala do usuário, os fatos e a revelação. " if interpret_mode else "")
+        + "E) NATURALIDADE: observe frases de efeito, metaforas gratuitas, repeticao de bordoes, desafios romanticos genericos e linguagem que pareca propaganda ou romance narrado. "
+        "So marque artificialidade quando for evidente no trecho atual; nao reprove falas expressivas, musica, flerte ou humor pertinentes. "
+        "Avalie a naturalidade separadamente da coerencia factual, sem mudar os objetivos. "
         + "Retorne somente JSON com: "
         "{\"obrigacao_usuario\":{\"existe\":true,\"requisito\":\"\",\"atendida\":true,\"evidencia\":\"\"},"
         "\"coerencia_conversacional\":{\"ok\":true,\"problema\":\"\",\"trecho_mary\":\"\",\"correcao\":\"\"},"
+        "\"naturalidade\":{\"ok\":true,\"problema\":\"\",\"trecho_mary\":\"\",\"correcao\":\"\"},"
         "\"objetivos_guia\":[{\"objetivo\":\"\",\"alcancado\":true,\"fonte\":\"USUÁRIO\",\"evidencia\":\"\"}],"
         "\"contradicao_dura\":{\"existe\":false,\"fato_autoritativo\":\"\",\"trecho_mary\":\"\",\"correcao\":\"\"},"
         "\"violacao_revelacao\":{\"existe\":false,\"conteudo_reservado\":\"\",\"trecho_mary\":\"\",\"correcao\":\"\"},"
@@ -304,6 +308,16 @@ def validate_direct_semantic_turn(
         "correction": _clean(coherence_raw.get("correcao")),
     }
 
+    natural_raw = parsed.get("naturalidade", {})
+    if not isinstance(natural_raw, dict):
+        natural_raw = {}
+    naturalness = {
+        "ok": bool(natural_raw.get("ok", True)),
+        "issue": _clean(natural_raw.get("problema")),
+        "mary_excerpt": _clean(natural_raw.get("trecho_mary")),
+        "correction": _clean(natural_raw.get("correcao")),
+    }
+
     contradiction_raw = parsed.get("contradicao_dura", {})
     if not isinstance(contradiction_raw, dict):
         contradiction_raw = {}
@@ -336,6 +350,7 @@ def validate_direct_semantic_turn(
         and not hard_contradiction["exists"]
         and not revelation_violation["exists"]
         and conversation_consistency["ok"]
+        and naturalness["ok"]
         and normalized_obligation["satisfied"]
         and all_objectives
         and bool(parsed.get("cumpriu", False))
@@ -357,6 +372,7 @@ def validate_direct_semantic_turn(
         "hard_contradiction": hard_contradiction,
         "revelation_violation": revelation_violation,
         "conversation_consistency": conversation_consistency,
+        "naturalness": naturalness,
         "model": model,
         "duration_ms": duration_ms,
         "input_payload": payload,
