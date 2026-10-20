@@ -101,8 +101,8 @@ def validate_direct_semantic_turn(
     if _clean(mary_text):
         conversation_entries.append(("MARY", _clean(mary_text)))
         history.append("MARY: " + _clean(mary_text))
-    if automatic_row and _clean(mary_thought):
-        conversation_entries.append(("MARY", _clean(mary_thought)))
+    if _clean(mary_thought):
+        conversation_entries.append(("MARY_PENSAMENTO", _clean(mary_thought)))
         history.append("PENSAMENTO DE MARY: " + _clean(mary_thought))
     conversation = "\n".join(history) or "(sem histórico da linha)"
 
@@ -148,13 +148,14 @@ def validate_direct_semantic_turn(
         + _clean(mary_text)
         + (
             "\n\nPENSAMENTO ATUAL DE MARY\n" + _clean(mary_thought)
-            if automatic_row and _clean(mary_thought)
+            if _clean(mary_thought)
             else ""
         )
         + "\n\nTAREFA\n"
         "Faça quatro validações independentes. "
         + (
             "A) MODO INTERPRETAR: a palavra Interpretar é um seletor, NÃO um objetivo verbal. "
+            "Na cena_atual.evidencia cite TRECHO LITERAL CONTINUO de RESPOSTA ATUAL DE MARY, PENSAMENTO ATUAL DE MARY ou DIREÇÃO/ENCENAÇÃO ATUAL DO USUÁRIO; NUNCA copie texto da memória instantânea nem da descrição inicial como evidência. Uma promessa de agir não comprova deslocamento ou ação concluída. "
             "Confira o ACONTECIMENTO CENTRAL da MEMÓRIA INSTANTÂNEA-LOCAL. Se houver uma ação, deslocamento ou transição indispensável, ela precisa efetivamente ocorrer na resposta atual ou estar comprovadamente realizada na conversa desta linha. Não basta dizer que ocorreu sem representar sua consequência, nem prometer fazê-la depois. Não confunda intenção/pensamento com ação consumada; pensamentos isolados não provam deslocamentos. Se a linha for apenas reação, pensamento ou conversa, avalie sua finalidade sem exigir ato físico. "
             "Avalie se a resposta de Mary desenvolve de maneira coerente a situação da MEMÓRIA INSTANTÂNEA-LOCAL, "
             "sem antecipar acontecimentos, sem repetir informações já estabelecidas e respondendo ao usuário. "
@@ -344,10 +345,18 @@ def validate_direct_semantic_turn(
     scene_raw = parsed.get("cena_atual", {})
     if not isinstance(scene_raw, dict):
         scene_raw = {}
+    # Evidencias devem estar na saida realmente produzida; o roteiro e a
+    # memoria local especificam a meta, mas nunca comprovam sua execucao.
+    evidence = _clean(scene_raw.get("evidencia"))
+    observed = " ".join(filter(None, [_clean(mary_text), _clean(mary_thought), _clean(user_scene_direction)]))
+    evidence_grounded = bool(evidence and evidence.casefold() in observed.casefold())
+    scene_claim = bool(scene_raw.get("cumprida", False))
+    if interpret_mode and scene_claim and not evidence_grounded:
+        scene_raw["faltou"] = "Diretor citou evidencia ausente da saida de Mary ou da encenacao do usuario."
     scene_completion = {
-        "fulfilled": bool(scene_raw.get("cumprida", False)) if interpret_mode else True,
+        "fulfilled": (scene_claim and evidence_grounded) if interpret_mode else True,
         "event": _clean(scene_raw.get("acontecimento")),
-        "evidence": _clean(scene_raw.get("evidencia")),
+        "evidence": evidence if evidence_grounded else "",
         "missing": _clean(scene_raw.get("faltou")),
     }
 
