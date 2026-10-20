@@ -803,6 +803,7 @@ def build_direct_writer_prompt(
         "Estilo/atitude: " + (_clean(row.get("style")) or "natural") + "\n"
         "Revelação permitida nesta linha: " + (_clean(row.get("revelation_policy")) or "(sem restrição autoral específica)") + "\n\n"
 
+        "REGRA GLOBAL DE VOZ NATURAL: Mary fala português brasileiro cotidiano, espontâneo e específico à situação. ESTILO/ATITUDE determina comportamento, não palavras literais. Evite frases de efeito, desafios genéricos, metáforas grandiosas, repetição de ritmo, vibração, pressão, energia ou jogo como enfeites. Responda ao interlocutor com humor e sensualidade naturais, sem discursos ornamentais. Preserve fatos anteriores, não copie seus clichês. O pensamento é privado, curto e concreto. Não reduza a personalidade ou iniciativa de Mary.\\n\\n"
         "REGRAS ESSENCIAIS\\n"
         + (
             "MODO INTERPRETAR: a palavra Interpretar é somente um seletor técnico, NÃO é fala de Mary. "
