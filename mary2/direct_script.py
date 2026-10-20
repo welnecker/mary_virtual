@@ -799,6 +799,6 @@ def build_direct_writer_prompt(
 
         "FORMATO\n"
         "[FALA] fala natural de Mary em primeira pessoa\n"
-        "[PENSAMENTO] uma frase curta, íntima e situacional em primeira pessoa."
+        "[PENSAMENTO] uma frase curta em primeira pessoa: sensação íntima, intenção imediata ou reação ao que acaba de acontecer. Não descreva como realizado algo que Mary ainda não fez."
     )
 
