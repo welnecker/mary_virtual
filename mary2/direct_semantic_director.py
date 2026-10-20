@@ -155,6 +155,7 @@ def validate_direct_semantic_turn(
         "Faça quatro validações independentes. "
         + (
             "A) MODO INTERPRETAR: a palavra Interpretar é um seletor, NÃO um objetivo verbal. "
+            "Confira o ACONTECIMENTO CENTRAL da MEMÓRIA INSTANTÂNEA-LOCAL. Se houver uma ação, deslocamento ou transição indispensável, ela precisa efetivamente ocorrer na resposta atual ou estar comprovadamente realizada na conversa desta linha. Não basta dizer que ocorreu sem representar sua consequência, nem prometer fazê-la depois. Não confunda intenção/pensamento com ação consumada; pensamentos isolados não provam deslocamentos. Se a linha for apenas reação, pensamento ou conversa, avalie sua finalidade sem exigir ato físico. "
             "Avalie se a resposta de Mary desenvolve de maneira coerente a situação da MEMÓRIA INSTANTÂNEA-LOCAL, "
             "sem antecipar acontecimentos, sem repetir informações já estabelecidas e respondendo ao usuário. "
             "Não exija uma frase determinada, humor, flerte nem que todos os detalhes da descrição sejam verbalizados. "
@@ -192,7 +193,7 @@ def validate_direct_semantic_turn(
         "Marque violação somente quando Mary efetivamente verbalizar conteúdo que a regra atual proíbe. "
         "A obrigação conversacional atual, quando existir, deve ser atendida pela RESPOSTA ATUAL DE MARY dentro dessa fronteira de revelação. "
         "Não reprove uma linha verbal por Mary não executar uma ação física que não esteja na FALA-GUIA; ações físicas pertencem ao runtime/cena. "
-        + ("MODO INTERPRETAR: os critérios de atos conversacionais e evidência da FALA-GUIA tradicional NÃO se aplicam; aprove apenas se Mary interpretou a situação local e respeitou a fala do usuário, os fatos e a revelação. " if interpret_mode else "")
+        + ("MODO INTERPRETAR: valide o acontecimento central na verificacao de cena; nao dispense a execucao de acontecimentos indispensaveis. " if interpret_mode else "")
         + "E) NATURALIDADE: observe frases de efeito, metaforas gratuitas, repeticao de bordoes, desafios romanticos genericos e linguagem que pareca propaganda ou romance narrado. "
         "So marque artificialidade quando for evidente no trecho atual; nao reprove falas expressivas, musica, flerte ou humor pertinentes. "
         "Avalie a naturalidade separadamente da coerencia factual, sem mudar os objetivos. "
@@ -201,6 +202,7 @@ def validate_direct_semantic_turn(
         "{\"obrigacao_usuario\":{\"existe\":true,\"requisito\":\"\",\"atendida\":true,\"evidencia\":\"\"},"
         "\"coerencia_conversacional\":{\"ok\":true,\"problema\":\"\",\"trecho_mary\":\"\",\"correcao\":\"\"},"
         "\"naturalidade\":{\"ok\":true,\"problema\":\"\",\"trecho_mary\":\"\",\"correcao\":\"\"},"
+        "\"cena_atual\":{\"cumprida\":true,\"acontecimento\":\"\",\"evidencia\":\"\",\"faltou\":\"\"},"
         "\"objetivos_guia\":[{\"objetivo\":\"\",\"alcancado\":true,\"fonte\":\"USUÁRIO\",\"evidencia\":\"\"}],"
         "\"contradicao_dura\":{\"existe\":false,\"fato_autoritativo\":\"\",\"trecho_mary\":\"\",\"correcao\":\"\"},"
         "\"violacao_revelacao\":{\"existe\":false,\"conteudo_reservado\":\"\",\"trecho_mary\":\"\",\"correcao\":\"\"},"
@@ -339,6 +341,16 @@ def validate_direct_semantic_turn(
         "correction": _clean(revelation_raw.get("correcao")),
     }
 
+    scene_raw = parsed.get("cena_atual", {})
+    if not isinstance(scene_raw, dict):
+        scene_raw = {}
+    scene_completion = {
+        "fulfilled": bool(scene_raw.get("cumprida", False)) if interpret_mode else True,
+        "event": _clean(scene_raw.get("acontecimento")),
+        "evidence": _clean(scene_raw.get("evidencia")),
+        "missing": _clean(scene_raw.get("faltou")),
+    }
+
     all_objectives = (
         True
         if interpret_mode or not speech_guide
@@ -354,10 +366,13 @@ def validate_direct_semantic_turn(
         and naturalness["ok"]
         and normalized_obligation["satisfied"]
         and all_objectives
+        and scene_completion["fulfilled"]
         and bool(parsed.get("cumpriu", False))
     )
 
     missing_parts = []
+    if not scene_completion["fulfilled"]:
+        missing_parts.append(scene_completion["missing"] or "acontecimento central da linha ainda nao ocorreu")
     if obligation_exists and not normalized_obligation["satisfied"]:
         missing_parts.append(obligation_text or "responder à fala atual do usuário")
     for item in normalized_objectives:
@@ -374,6 +389,7 @@ def validate_direct_semantic_turn(
         "revelation_violation": revelation_violation,
         "conversation_consistency": conversation_consistency,
         "naturalness": naturalness,
+        "scene_completion": scene_completion,
         "model": model,
         "duration_ms": duration_ms,
         "input_payload": payload,
