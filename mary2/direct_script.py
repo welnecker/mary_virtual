@@ -662,16 +662,6 @@ def build_direct_writer_prompt(
     )
     interpret_mode = speech_guide.strip().casefold() == "interpretar"
 
-    # O roteiro anterior ja foi executado e sua continuidade esta no
-    # historico de dialogos do capitulo. Nao reenvie estilos/atitudes,
-    # memorias locais nem falas-guia de linhas passadas ao Redator.
-    # A unica direcao autoral ativa vem de row, abaixo.
-    script_lines: list[str] = []
-    script_lines.append(f"LINHA {active_order} [ATIVA]")
-    script_lines.append("Fala-guia: " + (speech_guide or "(vazia)"))
-    script_lines.append("Estilo/atitude: " + (_clean(row.get("style")) or "natural"))
-    script_lines.append("Estado local da linha: " + (_clean(row.get("instant_memory")) or "(nao informado)"))
-
     conversation_lines: list[str] = []
     for message in (recent_messages or []):
         if not isinstance(message, dict):
@@ -734,16 +724,6 @@ def build_direct_writer_prompt(
         + "\n\nESTADO FÍSICO/LOCAL ATUAL\n"
         + (_clean(row.get("instant_memory")) or "(não informado)")
         + "\n\n"
-
-        "==================================================\n"
-        "ROTEIRO COMPLETO DO CAPÍTULO — MAPA, NÃO CHECKLIST\n"
-        "==================================================\n"
-        + "\n\n".join(script_lines)
-        + "\n\nREGRA DE EXECUÇÃO DO ROTEIRO:\n"
-        "Você conhece o roteiro inteiro apenas para compreender a trajetória. "
-        "SOMENTE a linha marcada ATIVA pode ser desenvolvida. Linhas FUTURAS aparecem sem fala-guia literal e jamais podem ser executadas, "
-        "citadas ou antecipadas. Linhas PASSADAS não devem ser repetidas. "
-        "A fala-guia é direção semântica de Mary, nunca texto do usuário e nunca texto interno a ser mencionado.\n\n"
 
         "==================================================\n"
         "CONVERSA REAL — FONTE PRINCIPAL DE CONTINUIDADE\n"
