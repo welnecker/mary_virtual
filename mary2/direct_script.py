@@ -662,30 +662,15 @@ def build_direct_writer_prompt(
     )
     interpret_mode = speech_guide.strip().casefold() == "interpretar"
 
+    # O roteiro anterior ja foi executado e sua continuidade esta no
+    # historico de dialogos do capitulo. Nao reenvie estilos/atitudes,
+    # memorias locais nem falas-guia de linhas passadas ao Redator.
+    # A unica direcao autoral ativa vem de row, abaixo.
     script_lines: list[str] = []
-    for source in (all_rows or [row]):
-        order = int(source.get("order", 0) or 0)
-        guide = _resolve_placeholders(
-            source.get("speech_guide", ""),
-            character_name=character_name,
-        )
-        status = "ATIVA — PODE SER DESENVOLVIDA AGORA" if order == active_order else (
-            "PASSADA — NÃO REPETIR" if order < active_order else "FUTURA — NÃO EXECUTAR NEM ANTECIPAR"
-        )
-        parts = [f"LINHA {order} [{status}]"]
-        if order <= active_order:
-            parts.append("Fala-guia: " + (guide or "(vazia)"))
-            style = _clean(source.get("style"))
-            instant = _clean(source.get("instant_memory"))
-            if style:
-                parts.append("Estilo/atitude: " + style)
-            if instant:
-                parts.append("Estado local da linha: " + instant)
-        else:
-            # Linhas futuras servem como mapa de progressão, mas o texto autoral literal
-            # fica oculto para reduzir antecipação/cópia prematura.
-            parts.append("Objetivo futuro: existe um próximo passo autoral reservado pelo runtime.")
-        script_lines.append("\n".join(parts))
+    script_lines.append(f"LINHA {active_order} [ATIVA]")
+    script_lines.append("Fala-guia: " + (speech_guide or "(vazia)"))
+    script_lines.append("Estilo/atitude: " + (_clean(row.get("style")) or "natural"))
+    script_lines.append("Estado local da linha: " + (_clean(row.get("instant_memory")) or "(nao informado)"))
 
     conversation_lines: list[str] = []
     for message in (recent_messages or []):
