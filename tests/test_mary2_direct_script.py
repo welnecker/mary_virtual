@@ -641,3 +641,24 @@ def test_legacy_interpret_still_selects_mode():
     prompt = build_direct_writer_prompt(row=row, user_text="Oi")
     assert "Interpretar (modo técnico)" in prompt
     assert "Direção autoral desta linha:" not in prompt
+
+
+
+def test_interpret_direction_is_scoped_to_active_row_only():
+    directed = {
+        "order": 1,
+        "speech_guide": "Interpretar: Use interjeicoes apenas nesta linha.",
+        "style": "espontanea",
+        "instant_memory": "Mary olha pela janela.",
+    }
+    normal = {
+        "order": 2,
+        "speech_guide": "Interpretar",
+        "style": "calma",
+        "instant_memory": "Mary senta no sofa.",
+    }
+    first = build_direct_writer_prompt(row=directed, all_rows=[directed, normal], user_text="Oi")
+    second = build_direct_writer_prompt(row=normal, all_rows=[directed, normal], user_text="Ola")
+    assert "Direção autoral desta linha: Use interjeicoes apenas nesta linha." in first
+    assert "Use interjeicoes apenas nesta linha." not in second
+    assert "Direção autoral desta linha:" not in second
