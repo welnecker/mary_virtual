@@ -632,7 +632,7 @@ def test_interpret_directive_is_focus_not_literal_speech_guide():
     prompt = build_direct_writer_prompt(row=row, user_text="Boa noite")
     assert "Interpretar (modo técnico)" in prompt
     assert "Direção autoral desta linha: Reaja ao presente" in prompt
-    assert "Se houver DIREÇÃO AUTORAL" in prompt
+    assert "As orientações autorais de FALA, DESCRIÇÃO e PENSAMENTO" in prompt
     assert "MEMÓRIA INSTANTÂNEA-LOCAL" in prompt
 
 
@@ -683,3 +683,12 @@ def test_three_authorial_guides_are_independent_and_local():
     assert "Pensamento especifico desta linha." not in second
     assert "REGRA GLOBAL DE VOZ NATURAL" not in first
     assert "RECIPROCIDADE EMOCIONAL" not in first
+
+
+def test_compact_writer_contract_retains_three_components_and_boundaries():
+    row = {"order": 1, "speech_guide": "Interpretar: Reaja com naturalidade.", "action_guide": "Descreva gestos breves.", "thought_guide": "Use pensamento breve.", "instant_memory": "Mary senta.", "revelation_policy": "NÃO PODE revelar segredo."}
+    prompt = build_direct_writer_prompt(row=row, user_text="Oi")
+    assert "[AÇÃO]" in prompt and "[FALA]" in prompt and "[PENSAMENTO]" in prompt
+    assert "Não antecipe linhas nem revele fatos proibidos" in prompt
+    assert "NÃO PODE revelar segredo." in prompt
+    assert "Não invente ações ou pensamentos para preencher blocos" in prompt
