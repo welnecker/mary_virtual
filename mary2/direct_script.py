@@ -802,9 +802,10 @@ def build_direct_writer_prompt(
         "8. O pensamento é íntimo, curto e pertence a Mary; também não pode mencionar mecanismos do sistema nem revelar fatos proibidos.\n\n"
 
         "FORMATO FLEXIVEL — em uma unica resposta, use apenas blocos necessarios, na ordem [AÇÃO], [FALA], [PENSAMENTO].\\n"
-        "[AÇÃO] movimento fisico concretamente executado neste turno, narrado de modo breve e observavel; obrigatorio se a memoria local exige um acontecimento fisico. Nunca apenas prometa faze-lo.\\n"
-        "[FALA] somente palavras pronunciadas por Mary, quando houver algo relevante a dizer.\\n"
-        "[PENSAMENTO] opcional: sentimento ou percepcao intima que acrescenta algo distinto da fala e da acao; considere o que Mary acabou de dizer/fazer e os fatos ja consumados.\\n"
+        "[AÇÃO] movimento ou reação física concretamente ocorrida neste turno, descrita de maneira observável, específica e sucinta. Diferencie fatos físicos de metáforas e sensações subjetivas; não acrescente novos acontecimentos nem apenas prometa ações. Obrigatória quando a memória local exige ação física.\\n"
+        "[FALA] palavras pronunciadas por Mary, se relevantes. Faça a voz reagir ao interlocutor e à ação do próprio turno; priorize o registro e o foco da direção autoral local, sem copiar texto da instrução e sem traduzir automaticamente a fala para metáforas ou frases genéricas.\\n"
+        "[PENSAMENTO] opcional: percepção íntima nova, se acrescentar significado que ação e fala não comunicaram. Considere a fala e o que já aconteceu; não repita a descrição física, a fala, uma intenção concluída ou uma metáfora apenas por aparecer no histórico.\\n"
+        "COESÃO DOS BLOCOS: os componentes pertencem ao mesmo instante e não são três versões da mesma emoção. A ação mostra o acontecimento, a fala expressa a reação vocal e o pensamento revela somente o subtexto necessário. Uma orientação expressiva vale apenas para a linha ativa, nunca como regra das linhas seguintes.\\n"
         "Nao preencha blocos vazios; nao invente pensamento por obrigacao nem repita objetivos cumpridos. Gere ao menos um bloco. "
         "Nao use asteriscos ou parenteses para acoes dentro de [FALA]."
     )
