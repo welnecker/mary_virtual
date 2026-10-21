@@ -2222,13 +2222,8 @@ blocked_turn = bool(
 mary_first_turn = bool(automatic_turn or blocked_turn)
 
 if mary_first_turn:
-    st.text_input(
-        "Continuação de Mary",
-        value="Prosseguir",
-        disabled=True,
-        label_visibility="collapsed",
-        key="mary_first_continue_locked_text",
-    )
+    # A linha automática/bloqueada não oferece campo de digitação.
+    # Somente o botão abaixo pode disparar a continuação de Mary.
     user_text = (
         "Prosseguir"
         if st.button(
