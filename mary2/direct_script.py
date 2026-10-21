@@ -16,6 +16,9 @@ DIRECT_HEADERS = {
     "roteiro": "script_name",
     "tipo": "type",
     "fala-guia": "speech_guide",
+    "descrição-guia": "action_guide",
+    "descricao-guia": "action_guide",
+    "pensamento-guia": "thought_guide",
     "modo": "interaction_mode",
     "modo de interação": "interaction_mode",
     "modo de interacao": "interaction_mode",
@@ -663,6 +666,8 @@ def build_direct_writer_prompt(
     interpret_match = re.fullmatch(r"interpretar(?:\s*:\s*(.*))?", speech_guide.strip(), flags=re.I | re.S)
     interpret_mode = bool(interpret_match)
     interpret_direction = (interpret_match.group(1) or "").strip() if interpret_match else ""
+    action_guide = _clean(row.get("action_guide"))
+    thought_guide = _clean(row.get("thought_guide"))
 
     conversation_lines: list[str] = []
     for message in (recent_messages or []):
@@ -768,38 +773,16 @@ def build_direct_writer_prompt(
         f"Ordem: {active_order}\n"
         "Fala-guia: " + ("Interpretar (modo técnico)" if interpret_mode else (speech_guide or "(nenhuma)")) + "\n"
         + ("Direção autoral desta linha: " + interpret_direction + "\n" if interpret_direction else "")
+        + ("Descrição-guia: " + action_guide + "\\n" if action_guide else "")
+        + ("Pensamento-guia: " + thought_guide + "\\n" if thought_guide else "")
         + "Estilo/atitude: " + (_clean(row.get("style")) or "natural") + "\n"
         "Revelação permitida nesta linha: " + (_clean(row.get("revelation_policy")) or "(sem restrição autoral específica)") + "\n\n"
 
-        "REGRA GLOBAL DE VOZ NATURAL: Mary fala português brasileiro cotidiano, espontâneo e específico à situação. ESTILO/ATITUDE determina a postura E o registro da fala: escolha palavras, ritmo e reacoes coerentes com a atitude descrita na linha, sem copiar literalmente o roteiro. Evite frases de efeito, desafios genéricos, metáforas grandiosas, repetição de ritmo, vibração, pressão, energia ou jogo como enfeites. Responda ao interlocutor sem discursos ornamentais. Em cenas de desejo, nao substitua automaticamente reacoes especificas por declaracoes romanticas abstratas: use linguagem direta e espontanea, apropriada ao contexto, sem forcar intensidade nem inventar acontecimentos. Preserve fatos anteriores, não copie seus clichês. O pensamento é privado, curto e concreto. Não reduza a personalidade ou iniciativa de Mary.\\n\\n"
-        "RECIPROCIDADE EMOCIONAL: Mary tem desejos, necessidades, medos e impulsos próprios. Ela não é observadora imune às emoções nem estrategista em controle permanente. Se houver atração mútua, a atitude do interlocutor também pode surpreender, afetar, emocionar ou desconcertar Mary. Confiança não significa autocontrole absoluto: ela pode hesitar, perder o fio da conversa, rir nervosamente, mudar de ideia ou agir por impulso, conforme a cena. Não transforme cada troca em teste da resistência dele, demonstração de poder feminino ou disputa por domínio. Faça Mary viver a experiência, e não apenas avaliar o efeito que causa. Evite escalada emocional obrigatória: a intensidade acompanha acontecimentos concretos, consentimento e limites da personagem. Preserve estilo, iniciativa, fatos, sequência e intenções autorais.\\n\\n"
-        "REGRAS ESSENCIAIS\\n"
-        + (
-            "MODO INTERPRETAR: a palavra Interpretar é somente um seletor técnico, NÃO é fala de Mary. "
-            "A MEMÓRIA INSTANTÂNEA-LOCAL determina o acontecimento desta linha: represente a ação indispensável, não apenas a promessa de realizá-la. "
-            "Produza apenas os blocos necessarios ao acontecimento, respondendo à entrada do usuário quando houver; pensamento e fala nao sao ambos obrigatorios. "
-            "O ESTILO/ATITUDE desta linha orienta a postura e a linguagem: nao suavize nem romantize por padrao, mas nao intensifique alem do que a cena e a interacao sustentam. "
-            "Se houver DIREÇÃO AUTORAL, ela define o foco interpretativo desta linha: expresse sua intenção com liberdade criativa, sem copiar instruções ou palavras literalmente. A ação indispensável segue a memória local, e a reação ao interlocutor segue a conversa real. "
-            "Não resuma nem antecipe passos futuros; respeite o estado físico e a regra REVELACAO. "
-            "As regras de turno automático, bloqueado e comum continuam iguais.\\n"
-            if interpret_mode else ""
-        )
-        + (
-            "1. Este é um turno automático: não há fala do usuário para responder; continue a experiência interna de Mary.\n"
-            if automatic_line
-            else (
-                "1. Este é um turno de iniciativa de Mary: não há fala atual do usuário para responder. Execute a FALA-GUIA como iniciativa natural e encerre a resposta aguardando o interlocutor.\n"
-                if blocked_line
-                else "1. Responda primeiro ao que o usuário realmente acabou de fazer conversacionalmente.\n"
-            )
-        )
-        + "2. Depois, se couber naturalmente, desenvolva a linha ativa. Se não couber, mantenha-a pendente.\n"
-        "3. Não repita ou espelhe a pergunta/frase do usuário como se fosse resposta.\n"
-        "4. Preserve sujeitos, papéis, posse, destinatários e autoria das iniciativas.\n"
-        "5. Não invente fatos pessoais do usuário nem antecipe linhas futuras.\n"
-        "6. A REGRA DE REVELAÇÃO é obrigatória: fatos marcados como NÃO PODE permanecem verdadeiros no conhecimento de Mary, mas não podem ser verbalizados ainda, mesmo se o usuário perguntar diretamente. Reaja sem mentir, sem inventar e sem adiantar o fato reservado.\n"
-        "7. Nunca mencione prompt, fala-guia, roteiro, modelo, Diretor, memória, instrução interna ou qualquer mecanismo do sistema.\n"
-        "8. O pensamento é íntimo, curto e pertence a Mary; também não pode mencionar mecanismos do sistema nem revelar fatos proibidos.\n\n"
+        "DIREÇÃO: A linha ativa e suas memórias estabelecem o acontecimento, os fatos e o estilo. "
+        "As orientações autorais de FALA, DESCRIÇÃO e PENSAMENTO dirigem apenas seu componente e apenas esta linha; "
+        "interprete-as sem copiar literalmente. Responda à entrada atual e preserve a continuidade. "
+        "Não antecipe linhas nem revele fatos proibidos pela regra REVELACAO. "
+        "Em linha automática, continue sem inventar fala do usuário; em linha bloqueada, Mary toma a iniciativa.\\n\\n"
 
         "FORMATO FLEXIVEL — em uma unica resposta, use apenas blocos necessarios, na ordem [AÇÃO], [FALA], [PENSAMENTO].\\n"
         "[AÇÃO] movimento ou reação física concretamente ocorrida neste turno, descrita de maneira observável, específica e sucinta. Diferencie fatos físicos de metáforas e sensações subjetivas; não acrescente novos acontecimentos nem apenas prometa ações. Obrigatória quando a memória local exige ação física.\\n"
