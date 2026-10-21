@@ -47,11 +47,49 @@ def chat(
                 timeout=90,
             )
             response.raise_for_status()
-            data = response.json()
-            text = data["choices"][0]["message"]["content"]
-            if not isinstance(text, str) or not text.strip():
-                raise OpenRouterError("O modelo retornou resposta vazia.")
-            return text.strip()
+            try:
+                data = response.json()
+            except ValueError as exc:
+                raise OpenRouterError(
+                    f"OpenRouter retornou HTTP {response.status_code} com resposta não JSON."
+                ) from exc
+            if not isinstance(data, dict):
+                raise OpenRouterError(
+                    f"OpenRouter retornou formato inesperado (HTTP {response.status_code})."
+                )
+            choices = data.get("choices")
+            if not isinstance(choices, list) or not choices:
+                error = data.get("error")
+                if isinstance(error, dict):
+                    detail = str(error.get("message") or error.get("code") or "erro sem mensagem")
+                else:
+                    detail = str(error or data.get("message") or "campo choices ausente")
+                raise OpenRouterError(
+                    f"OpenRouter respondeu HTTP {response.status_code}, modelo {candidate}: {detail[:500]}"
+                )
+            message = choices[0].get("message", {}) if isinstance(choices[0], dict) else {}
+            content = message.get("content") if isinstance(message, dict) else None
+            if isinstance(content, list):
+                content = "".join(
+                    item.get("text", "") for item in content
+                    if isinstance(item, dict) and isinstance(item.get("text"), str)
+                )
+            if not isinstance(content, str) or not content.strip():
+                raise OpenRouterError(
+                    f"OpenRouter retornou resposta vazia (HTTP {response.status_code}, modelo {candidate})."
+                )
+            return content.strip()
+        except requests.HTTPError as exc:
+            status = exc.response.status_code if exc.response is not None else "desconhecido"
+            try:
+                error_data = exc.response.json() if exc.response is not None else {}
+                error = error_data.get("error", {}) if isinstance(error_data, dict) else {}
+                detail = error.get("message", "") if isinstance(error, dict) else str(error)
+            except ValueError:
+                detail = ""
+            last_error = OpenRouterError(
+                f"OpenRouter HTTP {status}, modelo {candidate}: {str(detail)[:500] or 'requisição rejeitada'}"
+            )
         except Exception as exc:
             last_error = exc
 
