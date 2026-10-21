@@ -662,3 +662,24 @@ def test_interpret_direction_is_scoped_to_active_row_only():
     assert "Direção autoral desta linha: Use interjeicoes apenas nesta linha." in first
     assert "Use interjeicoes apenas nesta linha." not in second
     assert "Direção autoral desta linha:" not in second
+
+
+
+def test_three_authorial_guides_are_independent_and_local():
+    directed = {
+        "order": 1,
+        "speech_guide": "Interpretar: Fala especifica desta linha.",
+        "action_guide": "Interpretar: Descricao especifica desta linha.",
+        "thought_guide": "Interpretar: Pensamento especifico desta linha.",
+        "instant_memory": "Mary segura um copo.",
+    }
+    next_row = {"order": 2, "speech_guide": "Interpretar", "instant_memory": "Mary senta."}
+    first = build_direct_writer_prompt(row=directed, all_rows=[directed, next_row], user_text="Oi")
+    second = build_direct_writer_prompt(row=next_row, all_rows=[directed, next_row], user_text="Ola")
+    assert "Direção autoral desta linha: Fala especifica desta linha." in first
+    assert "Descrição-guia: Interpretar: Descricao especifica desta linha." in first
+    assert "Pensamento-guia: Interpretar: Pensamento especifico desta linha." in first
+    assert "Descricao especifica desta linha." not in second
+    assert "Pensamento especifico desta linha." not in second
+    assert "REGRA GLOBAL DE VOZ NATURAL" not in first
+    assert "RECIPROCIDADE EMOCIONAL" not in first
