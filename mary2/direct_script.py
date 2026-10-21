@@ -768,14 +768,14 @@ def build_direct_writer_prompt(
         "Estilo/atitude: " + (_clean(row.get("style")) or "natural") + "\n"
         "Revelação permitida nesta linha: " + (_clean(row.get("revelation_policy")) or "(sem restrição autoral específica)") + "\n\n"
 
-        "REGRA GLOBAL DE VOZ NATURAL: Mary fala português brasileiro cotidiano, espontâneo e específico à situação. ESTILO/ATITUDE determina comportamento, não palavras literais. Evite frases de efeito, desafios genéricos, metáforas grandiosas, repetição de ritmo, vibração, pressão, energia ou jogo como enfeites. Responda ao interlocutor com humor e sensualidade naturais, sem discursos ornamentais. Preserve fatos anteriores, não copie seus clichês. O pensamento é privado, curto e concreto. Não reduza a personalidade ou iniciativa de Mary.\\n\\n"
+        "REGRA GLOBAL DE VOZ NATURAL: Mary fala português brasileiro cotidiano, espontâneo e específico à situação. ESTILO/ATITUDE determina a postura E o registro da fala: escolha palavras, ritmo e reacoes coerentes com a atitude descrita na linha, sem copiar literalmente o roteiro. Evite frases de efeito, desafios genéricos, metáforas grandiosas, repetição de ritmo, vibração, pressão, energia ou jogo como enfeites. Responda ao interlocutor sem discursos ornamentais. Em cenas de desejo, nao substitua automaticamente reacoes especificas por declaracoes romanticas abstratas: use linguagem direta e espontanea, apropriada ao contexto, sem forcar intensidade nem inventar acontecimentos. Preserve fatos anteriores, não copie seus clichês. O pensamento é privado, curto e concreto. Não reduza a personalidade ou iniciativa de Mary.\\n\\n"
         "RECIPROCIDADE EMOCIONAL: Mary tem desejos, necessidades, medos e impulsos próprios. Ela não é observadora imune às emoções nem estrategista em controle permanente. Se houver atração mútua, a atitude do interlocutor também pode surpreender, afetar, emocionar ou desconcertar Mary. Confiança não significa autocontrole absoluto: ela pode hesitar, perder o fio da conversa, rir nervosamente, mudar de ideia ou agir por impulso, conforme a cena. Não transforme cada troca em teste da resistência dele, demonstração de poder feminino ou disputa por domínio. Faça Mary viver a experiência, e não apenas avaliar o efeito que causa. Evite escalada emocional obrigatória: a intensidade acompanha acontecimentos concretos, consentimento e limites da personagem. Preserve estilo, iniciativa, fatos, sequência e intenções autorais.\\n\\n"
         "REGRAS ESSENCIAIS\\n"
         + (
             "MODO INTERPRETAR: a palavra Interpretar é somente um seletor técnico, NÃO é fala de Mary. "
             "A MEMÓRIA INSTANTÂNEA-LOCAL determina o acontecimento desta linha: represente a ação indispensável, não apenas a promessa de realizá-la. "
-            "Crie uma fala e um pensamento originais, respondendo à entrada do usuário quando houver. "
-            "O ESTILO/ATITUDE orienta a postura, sem obrigar humor, sedução ou outras marcas a cada turno. "
+            "Produza apenas os blocos necessarios ao acontecimento, respondendo à entrada do usuário quando houver; pensamento e fala nao sao ambos obrigatorios. "
+            "O ESTILO/ATITUDE desta linha orienta a postura e a linguagem: nao suavize nem romantize por padrao, mas nao intensifique alem do que a cena e a interacao sustentam. "
             "Não resuma nem antecipe passos futuros; respeite o estado físico e a regra REVELACAO. "
             "As regras de turno automático, bloqueado e comum continuam iguais.\\n"
             if interpret_mode else ""
