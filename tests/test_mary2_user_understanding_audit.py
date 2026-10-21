@@ -178,3 +178,29 @@ def test_understanding_receives_scene_direction_and_dialogue_without_collapsing_
     assert "FALA VERBAL ATUAL DO USUÁRIO" in payload
     assert "Ha!" in payload
     assert result["state_changes"] == ["O personal sai em 10 minutos"]
+
+
+def test_understanding_includes_compact_onomatopoeia_dictionary(monkeypatch):
+    captured = {}
+
+    def fake_chat(**kwargs):
+        captured.update(kwargs)
+        return _response()
+
+    monkeypatch.setattr(understanding, "chat", fake_chat)
+    understanding.analyze_user_understanding(
+        api_key="test",
+        model="director-test",
+        fallback_model=None,
+        user_text="Oi Mary...hunmf! Como você tá?",
+        instant_memory="Encontro casual entre Mary e o interlocutor.",
+    )
+    payload = captured["messages"][1]["content"]
+    for entry in (
+        "SNIFFF=cheirar", "LAMB=lamber", "SMACK=beijar",
+        "CHUP=chupar", "HUNMF=abraçar", "PUF=esforço físico",
+        "UFA=alívio/relaxamento", "POP=estalo/desprendimento",
+    ):
+        assert entry in payload
+    assert "Oi Mary...hunmf! Como você tá?" in payload
+    assert "Encontro casual entre Mary e o interlocutor." in payload
