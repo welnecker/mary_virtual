@@ -660,7 +660,9 @@ def build_direct_writer_prompt(
         row.get("speech_guide", ""),
         character_name=character_name,
     )
-    interpret_mode = speech_guide.strip().casefold() == "interpretar"
+    interpret_match = re.fullmatch(r"interpretar(?:\s*:\s*(.*))?", speech_guide.strip(), flags=re.I | re.S)
+    interpret_mode = bool(interpret_match)
+    interpret_direction = (interpret_match.group(1) or "").strip() if interpret_match else ""
 
     conversation_lines: list[str] = []
     for message in (recent_messages or []):
@@ -764,7 +766,8 @@ def build_direct_writer_prompt(
         "LINHA ATIVA AGORA\n"
         "==================================================\n"
         f"Ordem: {active_order}\n"
-        "Fala-guia: " + (speech_guide or "(nenhuma)") + "\n"
+        "Fala-guia: " + ("Interpretar (modo técnico)" if interpret_mode else (speech_guide or "(nenhuma)")) + "\n"
+        + ("Direção autoral desta linha: " + interpret_direction + "\n" if interpret_direction else "")
         "Estilo/atitude: " + (_clean(row.get("style")) or "natural") + "\n"
         "Revelação permitida nesta linha: " + (_clean(row.get("revelation_policy")) or "(sem restrição autoral específica)") + "\n\n"
 
@@ -776,6 +779,7 @@ def build_direct_writer_prompt(
             "A MEMÓRIA INSTANTÂNEA-LOCAL determina o acontecimento desta linha: represente a ação indispensável, não apenas a promessa de realizá-la. "
             "Produza apenas os blocos necessarios ao acontecimento, respondendo à entrada do usuário quando houver; pensamento e fala nao sao ambos obrigatorios. "
             "O ESTILO/ATITUDE desta linha orienta a postura e a linguagem: nao suavize nem romantize por padrao, mas nao intensifique alem do que a cena e a interacao sustentam. "
+            "Se houver DIREÇÃO AUTORAL, ela define o foco interpretativo desta linha: expresse sua intenção com liberdade criativa, sem copiar instruções ou palavras literalmente. A ação indispensável segue a memória local, e a reação ao interlocutor segue a conversa real. "
             "Não resuma nem antecipe passos futuros; respeite o estado físico e a regra REVELACAO. "
             "As regras de turno automático, bloqueado e comum continuam iguais.\\n"
             if interpret_mode else ""
