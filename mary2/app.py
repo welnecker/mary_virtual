@@ -75,7 +75,7 @@ from funnel_script import (
     required_markers,
 )
 from openrouter_client import OpenRouterError, chat
-from output_filter import looks_like_action_narration, parse_mary_response, sanitize_mary_output
+from output_filter import looks_like_action_narration, parse_mary_response, parse_mary_components, sanitize_mary_output
 from user_understanding_audit import (
     analyze_user_understanding,
     save_user_understanding_audit,
@@ -235,6 +235,15 @@ def _render_scene_action(text: str) -> None:
         ),
         unsafe_allow_html=True,
     )
+
+
+
+def _parse_direct_flexible_response(raw: str, script_mode: str) -> tuple[str, str]:
+    """No roteiro direto, a fala e o pensamento sao opcionais; a acao e independente."""
+    if script_mode == "direct_sheet":
+        parts = parse_mary_components(raw)
+        return parts["thought"], parts["speech"]
+    return parse_mary_response(raw)
 
 
 def _render_mary_thought(text: str) -> None:
@@ -3048,22 +3057,20 @@ if user_text:
                 temperature=temperature,
             )
             model_audit["initial_raw_response"] = raw_answer
-            mary_intent, mary_speech_raw = parse_mary_response(raw_answer)
+            mary_intent, mary_speech_raw = _parse_direct_flexible_response(raw_answer, script_mode)
             narration_leak = looks_like_action_narration(mary_speech_raw)
             answer = sanitize_mary_output(mary_speech_raw)
 
-            if not answer or narration_leak:
+            if (not answer and not (script_mode == "direct_sheet" and parse_mary_components(raw_answer)["action"])) or narration_leak:
                 retry_messages = [
                     *llm_messages,
                     {
                         "role": "system",
                         "content": (
-                            "CORREÇÃO DE FORMATO: use exatamente [FALA] e depois [PENSAMENTO]. "
-                            "[FALA] contém somente o que Mary diz em voz alta. "
-                            "[PENSAMENTO] é uma frase curta em primeira pessoa escrita somente "
-                            "depois da fala; não planeje nem explique a fala. Não escreva narração externa, "
-                            "rubricas, metáforas literárias ou ações como descrição. "
-                            "As ações físicas pertencem exclusivamente ao Diretor."
+                            "CORREÇÃO DE FORMATO: no roteiro direto use apenas os blocos necessários: "
+                            "[AÇÃO] para movimento executado, [FALA] para diálogo e "
+                            "[PENSAMENTO] opcional para sentimento distinto. "
+                            "Não coloque ações entre asteriscos dentro da fala."
                         ),
                     },
                 ]
@@ -3077,11 +3084,11 @@ if user_text:
                     temperature=max(0.2, min(float(temperature), 0.8)),
                 )
                 model_audit["retry_raw_response"] = raw_answer
-                mary_intent, mary_speech_raw = parse_mary_response(raw_answer)
+                mary_intent, mary_speech_raw = _parse_direct_flexible_response(raw_answer, script_mode)
                 narration_leak = looks_like_action_narration(mary_speech_raw)
                 answer = sanitize_mary_output(mary_speech_raw)
 
-            if not answer or narration_leak:
+            if (not answer and not (script_mode == "direct_sheet" and parse_mary_components(raw_answer)["action"])) or narration_leak:
                 raise OpenRouterError(
                     "O modelo não produziu fala verbal limpa de Mary após duas tentativas."
                 )
@@ -3098,7 +3105,7 @@ if user_text:
                     row=direct_row,
                     interpretation=direct_interpretation,
                     mary_text=answer,
-                    mary_thought=mary_intent,
+                    mary_thought=mary_intent, mary_action=parse_mary_components(raw_answer)["action"],
                     user_text=dialogue_text,
                     user_scene_direction=scene_direction,
                     line_dialogue=list(direct_state.get("line_dialogue", []) or []),
@@ -3137,7 +3144,7 @@ if user_text:
                         row=direct_row,
                         interpretation=direct_interpretation,
                         mary_text=answer,
-                        mary_thought=mary_intent,
+                        mary_thought=mary_intent, mary_action=parse_mary_components(raw_answer)["action"],
                         user_text=dialogue_text,
                         user_scene_direction=scene_direction,
                         line_dialogue=list(direct_state.get("line_dialogue", []) or []),
@@ -3176,7 +3183,7 @@ if user_text:
                                 + str(conversation_consistency.get("mary_excerpt", "") or "")
                                 + ". Correção semântica esperada: "
                                 + str(conversation_consistency.get("correction", "") or "")
-                                + ". Use exatamente [FALA] e [PENSAMENTO]."
+                                + ". Preserve os blocos [AÇÃO], [FALA] e [PENSAMENTO] quando necessários."
                             ),
                         },
                     ]
@@ -3190,10 +3197,10 @@ if user_text:
                     model_audit["retry_used"] = True
                     model_audit["retry_messages"] = deepcopy(conversation_retry_messages)
                     model_audit["retry_raw_response"] = raw_answer
-                    mary_intent, mary_speech_raw = parse_mary_response(raw_answer)
+                    mary_intent, mary_speech_raw = _parse_direct_flexible_response(raw_answer, script_mode)
                     narration_leak = looks_like_action_narration(mary_speech_raw)
                     answer = sanitize_mary_output(mary_speech_raw)
-                    if not answer or narration_leak:
+                    if (not answer and not (script_mode == "direct_sheet" and parse_mary_components(raw_answer)["action"])) or narration_leak:
                         raise OpenRouterError(
                             "A correção de continuidade não produziu fala verbal limpa de Mary."
                         )
@@ -3204,7 +3211,7 @@ if user_text:
                         row=direct_row,
                         interpretation=direct_interpretation,
                         mary_text=answer,
-                        mary_thought=mary_intent,
+                        mary_thought=mary_intent, mary_action=parse_mary_components(raw_answer)["action"],
                         user_text=dialogue_text,
                         user_scene_direction=scene_direction,
                         line_dialogue=list(direct_state.get("line_dialogue", []) or []),
@@ -3233,7 +3240,7 @@ if user_text:
                             "Problema: " + str(naturalness.get("issue", "") or "") +
                             ". Trecho: " + str(naturalness.get("mary_excerpt", "") or "") +
                             ". Ajuste: " + str(naturalness.get("correction", "") or "") +
-                            ". Retorne exatamente [FALA] e [PENSAMENTO]."
+                            ". Retorne apenas os blocos necessários [AÇÃO], [FALA], [PENSAMENTO]."
                         )},
                     ]
                     style_raw = chat(
@@ -3241,14 +3248,14 @@ if user_text:
                         messages=style_retry_messages,
                         temperature=max(0.2, min(float(temperature), 0.7)),
                     )
-                    style_thought, style_speech = parse_mary_response(style_raw)
+                    style_thought, style_speech = _parse_direct_flexible_response(style_raw, script_mode)
                     style_answer = sanitize_mary_output(style_speech)
-                    if style_answer and not looks_like_action_narration(style_speech):
+                    if (style_answer or parse_mary_components(style_raw)["action"]) and not looks_like_action_narration(style_speech):
                         style_validation = validate_direct_semantic_turn(
                             api_key=api_key, model=director_model,
                             fallback_model=fallback, row=direct_row,
                             interpretation=direct_interpretation,
-                            mary_text=style_answer, mary_thought=style_thought,
+                            mary_text=style_answer, mary_thought=style_thought, mary_action=parse_mary_components(style_raw)["action"],
                             user_text=dialogue_text, user_scene_direction=scene_direction,
                             line_dialogue=list(direct_state.get("line_dialogue", []) or []),
                         )
@@ -3297,7 +3304,7 @@ if user_text:
                                 + str(revelation_violation.get("mary_excerpt", "") or "")
                                 + ". Correção esperada: "
                                 + str(revelation_violation.get("correction", "") or "")
-                                + ". Use exatamente [FALA] e [PENSAMENTO]."
+                                + ". Preserve os blocos [AÇÃO], [FALA] e [PENSAMENTO] quando necessários."
                             ),
                         },
                     ]
@@ -3311,10 +3318,10 @@ if user_text:
                     model_audit["retry_used"] = True
                     model_audit["retry_messages"] = deepcopy(revelation_retry_messages)
                     model_audit["retry_raw_response"] = raw_answer
-                    mary_intent, mary_speech_raw = parse_mary_response(raw_answer)
+                    mary_intent, mary_speech_raw = _parse_direct_flexible_response(raw_answer, script_mode)
                     narration_leak = looks_like_action_narration(mary_speech_raw)
                     answer = sanitize_mary_output(mary_speech_raw)
-                    if not answer or narration_leak:
+                    if (not answer and not (script_mode == "direct_sheet" and parse_mary_components(raw_answer)["action"])) or narration_leak:
                         raise OpenRouterError(
                             "A correção de revelação não produziu fala verbal limpa de Mary."
                         )
@@ -3325,7 +3332,7 @@ if user_text:
                         row=direct_row,
                         interpretation=direct_interpretation,
                         mary_text=answer,
-                        mary_thought=mary_intent,
+                        mary_thought=mary_intent, mary_action=parse_mary_components(raw_answer)["action"],
                         user_text=dialogue_text,
                         user_scene_direction=scene_direction,
                         line_dialogue=list(direct_state.get("line_dialogue", []) or []),
@@ -3364,7 +3371,7 @@ if user_text:
                                 + str(hard_contradiction.get("mary_excerpt", "") or "")
                                 + ". Correção: "
                                 + str(hard_contradiction.get("correction", "") or "")
-                                + ". Use exatamente [FALA] e [PENSAMENTO]."
+                                + ". Preserve os blocos [AÇÃO], [FALA] e [PENSAMENTO] quando necessários."
                             ),
                         },
                     ]
@@ -3378,10 +3385,10 @@ if user_text:
                     model_audit["retry_used"] = True
                     model_audit["retry_messages"] = deepcopy(factual_retry_messages)
                     model_audit["retry_raw_response"] = raw_answer
-                    mary_intent, mary_speech_raw = parse_mary_response(raw_answer)
+                    mary_intent, mary_speech_raw = _parse_direct_flexible_response(raw_answer, script_mode)
                     narration_leak = looks_like_action_narration(mary_speech_raw)
                     answer = sanitize_mary_output(mary_speech_raw)
-                    if not answer or narration_leak:
+                    if (not answer and not (script_mode == "direct_sheet" and parse_mary_components(raw_answer)["action"])) or narration_leak:
                         raise OpenRouterError(
                             "A correção factual não produziu fala verbal limpa de Mary."
                         )
@@ -3392,7 +3399,7 @@ if user_text:
                         row=direct_row,
                         interpretation=direct_interpretation,
                         mary_text=answer,
-                        mary_thought=mary_intent,
+                        mary_thought=mary_intent, mary_action=parse_mary_components(raw_answer)["action"],
                         user_text=dialogue_text,
                         user_scene_direction=scene_direction,
                         line_dialogue=list(direct_state.get("line_dialogue", []) or []),
@@ -3417,13 +3424,13 @@ if user_text:
                             "A LINHA AINDA NAO TERMINOU. O acontecimento obrigatorio nao "
                             "foi demonstrado pela resposta anterior. Nao repita despedidas, "
                             "promessas de ir ou pedidos ja aceitos. Mostre a acao efetiva "
-                            "agora, de forma breve e em primeira pessoa no [PENSAMENTO], "
+                            "agora no bloco [AÇÃO], se for um movimento silencioso, "
                             "quando for um movimento silencioso, e mantenha [FALA] apenas "
                             "se houver algo relevante a dizer. Diferencie a acao ja feita "
                             "da intencao de faze-la. Fato faltante: "
                             + str(scene_check.get("missing", "") or scene_check.get("event", "") or "")
                             + ". Preserve o local, a sequencia e os personagens atuais. "
-                            "Use [FALA] e [PENSAMENTO], sem antecipar outras linhas."
+                            "Use [AÇÃO], [FALA] ou [PENSAMENTO] conforme necessário, sem antecipar outras linhas."
                         )},
                     ]
                     scene_raw = chat(
@@ -3431,14 +3438,14 @@ if user_text:
                         messages=scene_retry_messages,
                         temperature=max(0.2, min(float(temperature), 0.7)),
                     )
-                    scene_thought, scene_speech = parse_mary_response(scene_raw)
+                    scene_thought, scene_speech = _parse_direct_flexible_response(scene_raw, script_mode)
                     scene_answer = sanitize_mary_output(scene_speech)
-                    if scene_answer and not looks_like_action_narration(scene_speech):
+                    if (scene_answer or parse_mary_components(scene_raw)["action"]) and not looks_like_action_narration(scene_speech):
                         scene_validation = validate_direct_semantic_turn(
                             api_key=api_key, model=director_model,
                             fallback_model=fallback, row=direct_row,
                             interpretation=direct_interpretation,
-                            mary_text=scene_answer, mary_thought=scene_thought,
+                            mary_text=scene_answer, mary_thought=scene_thought, mary_action=parse_mary_components(scene_raw)["action"],
                             user_text=dialogue_text, user_scene_direction=scene_direction,
                             line_dialogue=list(direct_state.get("line_dialogue", []) or []),
                         )
@@ -3544,7 +3551,7 @@ if user_text:
                     scene=scene,
                     user_text=dialogue_text,
                     mary_text=answer,
-                    mary_thought=mary_intent,
+                    mary_thought=mary_intent, mary_action=parse_mary_components(raw_answer)["action"],
                 )
                 model_audit[
                     "funnel_evaluation_initial"
@@ -3602,7 +3609,7 @@ if user_text:
                     answer = sanitize_mary_output(
                         mary_speech_raw
                     )
-                    if not answer or narration_leak:
+                    if (not answer and not (script_mode == "direct_sheet" and parse_mary_components(raw_answer)["action"])) or narration_leak:
                         raise OpenRouterError(
                             "A correção do funil não produziu fala verbal limpa."
                         )
@@ -3616,7 +3623,7 @@ if user_text:
                         scene=scene,
                         user_text=dialogue_text,
                         mary_text=answer,
-                        mary_thought=mary_intent,
+                        mary_thought=mary_intent, mary_action=parse_mary_components(raw_answer)["action"],
                     )
 
                 model_audit[
@@ -3699,6 +3706,9 @@ if user_text:
 
         if emotional_notice:
             st.info(emotional_notice)
+        direct_action_text = parse_mary_components(raw_answer)["action"] if script_mode == "direct_sheet" else ""
+        if script_mode == "direct_sheet":
+            model_audit["mary_action"] = direct_action_text
         model_audit["final_raw_response"] = raw_answer
         model_audit["mary_speech_raw"] = mary_speech_raw
         model_audit["mary_thought"] = mary_intent
@@ -3859,7 +3869,7 @@ if user_text:
             "seq": 0,
             "caption": caption,
             "direction": scene_direction,
-            "mary_action": str(scene.get("mary_action", "") or "").strip(),
+            "mary_action": direct_action_text if script_mode == "direct_sheet" else str(scene.get("mary_action", "") or "").strip(),
             "hook_resolution": str(scene.get("hook_resolution", "") or "").strip(),
             "mary_intent": mary_intent,
             "user_role": user_role,
