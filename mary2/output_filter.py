@@ -40,11 +40,10 @@ def parse_mary_response(text: str) -> tuple[str, str]:
     )
     intent = re.sub(r"\s+", " ", intent).strip()
 
-    # Intenção é um balão curto: uma frase, sem parágrafo.
+    # Preserve o pensamento integral, inclusive quebras de linha.
+    # A apresentação visual não deve truncar o texto usado na auditoria.
     if intent:
-        intent = intent.splitlines()[0].strip()
-        if len(intent) > 180:
-            intent = intent[:177].rstrip() + "..."
+        intent = intent.strip()
 
     return intent, speech
 
