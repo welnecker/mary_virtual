@@ -14,7 +14,7 @@ _SPEECH_RE = re.compile(
 
 
 
-_COMPONENT_RE = re.compile(r"\\[(FALA|PENSAMENTO|AÇÃO|ACAO)\\]", flags=re.I)
+_COMPONENT_RE = re.compile(r"\[(FALA|PENSAMENTO|AÇÃO|ACAO)\]", flags=re.I)
 
 
 def parse_mary_components(text: str) -> dict[str, str]:
