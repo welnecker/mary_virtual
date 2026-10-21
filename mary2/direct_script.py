@@ -799,6 +799,6 @@ def build_direct_writer_prompt(
 
         "FORMATO\n"
         "[FALA] fala natural de Mary em primeira pessoa\n"
-        "[PENSAMENTO] sensação íntima ou ação presente efetivamente vivida por Mary em primeira pessoa, breve e concreta; não confunda intenção futura com fato ocorrido."
+        "[PENSAMENTO] escreva DEPOIS da [FALA], considerando explicitamente o que Mary acabou de dizer ou fazer e a situação atual. Expresse a experiência íntima dela nesse instante, de forma breve, concreta e natural. Uma intenção já concluída não continua pendente: Mary pode sentir as consequências emocionais do ocorrido, mas não deve repetir como missão algo que já aconteceu. Se Mary fingiu ou mentiu na fala, o pensamento pode revelar o sentimento oposto, sem contradizer os fatos estabelecidos nem antecipar eventos futuros."
     )
 
