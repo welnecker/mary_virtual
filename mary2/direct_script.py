@@ -773,8 +773,8 @@ def build_direct_writer_prompt(
         f"Ordem: {active_order}\n"
         "Fala-guia: " + ("Interpretar (modo técnico)" if interpret_mode else (speech_guide or "(nenhuma)")) + "\n"
         + ("Direção autoral desta linha: " + interpret_direction + "\n" if interpret_direction else "")
-        + ("Descrição-guia: " + action_guide + "\\n" if action_guide else "")
-        + ("Pensamento-guia: " + thought_guide + "\\n" if thought_guide else "")
+        + ("Descrição-guia: " + action_guide + "\n" if action_guide else "")
+        + ("Pensamento-guia: " + thought_guide + "\n" if thought_guide else "")
         + "Estilo/atitude: " + (_clean(row.get("style")) or "natural") + "\n"
         "Revelação permitida nesta linha: " + (_clean(row.get("revelation_policy")) or "(sem restrição autoral específica)") + "\n\n"
 
@@ -782,7 +782,7 @@ def build_direct_writer_prompt(
         "As orientações autorais de FALA, DESCRIÇÃO e PENSAMENTO dirigem apenas seu componente e apenas esta linha; "
         "interprete-as sem copiar literalmente. Responda à entrada atual e preserve a continuidade. "
         "Não antecipe linhas nem revele fatos proibidos pela regra REVELACAO. "
-        "Em linha automática, continue sem inventar fala do usuário; em linha bloqueada, Mary toma a iniciativa.\\n\\n"
+        "Em linha automática, continue sem inventar fala do usuário; em linha bloqueada, Mary toma a iniciativa.\n\n"
 
         "FORMATO FLEXIVEL — em uma unica resposta, use apenas blocos necessarios, na ordem [AÇÃO], [FALA], [PENSAMENTO].\\n"
         "[AÇÃO] movimento ou reação física concretamente ocorrida neste turno, descrita de maneira observável, específica e sucinta. Diferencie fatos físicos de metáforas e sensações subjetivas; não acrescente novos acontecimentos nem apenas prometa ações. Obrigatória quando a memória local exige ação física.\\n"
