@@ -3425,7 +3425,7 @@ if user_text:
                             "foi demonstrado pela resposta anterior. Nao repita despedidas, "
                             "promessas de ir ou pedidos ja aceitos. Mostre a acao efetiva "
                             "agora no bloco [AÇÃO], se for um movimento silencioso, "
-                            "quando for um movimento silencioso, e mantenha [FALA] apenas "
+                            "e mantenha [FALA] apenas "
                             "se houver algo relevante a dizer. Diferencie a acao ja feita "
                             "da intencao de faze-la. Fato faltante: "
                             + str(scene_check.get("missing", "") or scene_check.get("event", "") or "")
@@ -3551,7 +3551,7 @@ if user_text:
                     scene=scene,
                     user_text=dialogue_text,
                     mary_text=answer,
-                    mary_thought=mary_intent, mary_action=parse_mary_components(raw_answer)["action"],
+                    mary_thought=mary_intent,
                 )
                 model_audit[
                     "funnel_evaluation_initial"
@@ -3623,7 +3623,7 @@ if user_text:
                         scene=scene,
                         user_text=dialogue_text,
                         mary_text=answer,
-                        mary_thought=mary_intent, mary_action=parse_mary_components(raw_answer)["action"],
+                        mary_thought=mary_intent,
                     )
 
                 model_audit[
