@@ -797,8 +797,11 @@ def build_direct_writer_prompt(
         "7. Nunca mencione prompt, fala-guia, roteiro, modelo, Diretor, memória, instrução interna ou qualquer mecanismo do sistema.\n"
         "8. O pensamento é íntimo, curto e pertence a Mary; também não pode mencionar mecanismos do sistema nem revelar fatos proibidos.\n\n"
 
-        "FORMATO\n"
-        "[FALA] fala natural de Mary em primeira pessoa\n"
-        "[PENSAMENTO] escreva DEPOIS da [FALA], considerando explicitamente o que Mary acabou de dizer ou fazer e a situação atual. Expresse a experiência íntima dela nesse instante, de forma breve, concreta e natural. Uma intenção já concluída não continua pendente: Mary pode sentir as consequências emocionais do ocorrido, mas não deve repetir como missão algo que já aconteceu. Se Mary fingiu ou mentiu na fala, o pensamento pode revelar o sentimento oposto, sem contradizer os fatos estabelecidos nem antecipar eventos futuros."
+        "FORMATO FLEXIVEL — em uma unica resposta, use apenas blocos necessarios, na ordem [AÇÃO], [FALA], [PENSAMENTO].\\n"
+        "[AÇÃO] movimento fisico concretamente executado neste turno, narrado de modo breve e observavel; obrigatorio se a memoria local exige um acontecimento fisico. Nunca apenas prometa faze-lo.\\n"
+        "[FALA] somente palavras pronunciadas por Mary, quando houver algo relevante a dizer.\\n"
+        "[PENSAMENTO] opcional: sentimento ou percepcao intima que acrescenta algo distinto da fala e da acao; considere o que Mary acabou de dizer/fazer e os fatos ja consumados.\\n"
+        "Nao preencha blocos vazios; nao invente pensamento por obrigacao nem repita objetivos cumpridos. Gere ao menos um bloco. "
+        "Nao use asteriscos ou parenteses para acoes dentro de [FALA]."
     )
 
