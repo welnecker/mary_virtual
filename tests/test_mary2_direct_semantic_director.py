@@ -103,8 +103,8 @@ def test_director_prompt_treats_identity_and_role_as_hard_facts(monkeypatch):
     )
 
     payload = captured["messages"][1]["content"]
-    assert "troca de identidade, papel, profissão, função" in payload
-    assert "Pronomes e possessivos da FALA-GUIA são lidos da perspectiva de Mary" in payload
+    assert "fontes autoritativas prevalecem sobre falas anteriores" in payload
+    assert "preservando interlocutor, autoria de ações, sujeito, destinatário" in payload
 
 
 def test_grounded_recent_user_fact_can_fulfill_future_line(monkeypatch):
