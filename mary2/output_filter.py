@@ -13,6 +13,35 @@ _SPEECH_RE = re.compile(
 )
 
 
+
+_COMPONENT_RE = re.compile(r"\\[(FALA|PENSAMENTO|AÇÃO|ACAO)\\]", flags=re.I)
+
+
+def parse_mary_components(text: str) -> dict[str, str]:
+    """Extrai blocos opcionais sem perder acoes nem exigir pensamento.
+
+    Mantem compatibilidade com respostas antigas sem marcadores.
+    """
+    value = str(text or "").strip()
+    parts = {"speech": "", "thought": "", "action": ""}
+    markers = list(_COMPONENT_RE.finditer(value))
+    if not markers:
+        parts["speech"] = value
+        return parts
+    chunks = {"speech": [], "thought": [], "action": []}
+    # Texto anterior ao primeiro marcador e preservado como fala legada.
+    if value[:markers[0].start()].strip():
+        chunks["speech"].append(value[:markers[0].start()].strip())
+    for index, marker in enumerate(markers):
+        end = markers[index + 1].start() if index + 1 < len(markers) else len(value)
+        text_part = value[marker.end():end].strip()
+        kind = marker.group(1).upper()
+        key = "speech" if kind == "FALA" else "thought" if kind == "PENSAMENTO" else "action"
+        if text_part:
+            chunks[key].append(text_part)
+    return {key: "\n".join(chunks[key]).strip() for key in chunks}
+
+
 def parse_mary_response(text: str) -> tuple[str, str]:
     """Separa pensamento privado curto da fala audível de Mary."""
     value = str(text or "").strip()
