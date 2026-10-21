@@ -98,7 +98,7 @@ def analyze_user_understanding(
         + (str(user_scene_direction or "").strip() or "(nenhuma)")
         + "\n\nFALA VERBAL ATUAL DO USUÁRIO\n"
         + (str(user_text or "").strip() or "(sem fala verbal)")
-        + "\n\nHIERARQUIA DE VERDADE\n"
+        + "\n\nONOMATOPEIAS (significado básico; interprete conforme a cena): SNIFFF=cheirar; LAMB=lamber; SMACK=beijar; CHUP=chupar; HUNMF=abraçar; PUF=esforço físico; UFA=alívio/relaxamento; POP=estalo/desprendimento. Reconheça essas expressões como ações ou manifestações físicas, sem inventar detalhes; considere-as ao compreender o que o usuário fez ou perguntou.\n"\n        + "\n\nHIERARQUIA DE VERDADE\n"
         "1. ESTADO OBJETIVO ATUAL / MEMÓRIA INSTANTÂNEA-LOCAL: autoridade sobre o presente, quem está presente e onde Mary está.\n"
         "2. ENTRADA ATUAL DO USUÁRIO: ações explícitas compatíveis com a cena atual.\n"
         "3. CONTEXTO RECENTE REAL: eventos já vividos neste capítulo; não antecipe acontecimentos.\n"
