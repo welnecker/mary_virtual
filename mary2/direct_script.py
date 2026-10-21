@@ -784,12 +784,11 @@ def build_direct_writer_prompt(
         "Não antecipe linhas nem revele fatos proibidos pela regra REVELACAO. "
         "Em linha automática, continue sem inventar fala do usuário; em linha bloqueada, Mary toma a iniciativa.\n\n"
 
-        "FORMATO FLEXIVEL — em uma unica resposta, use apenas blocos necessarios, na ordem [AÇÃO], [FALA], [PENSAMENTO].\\n"
-        "[AÇÃO] movimento ou reação física concretamente ocorrida neste turno, descrita de maneira observável, específica e sucinta. Diferencie fatos físicos de metáforas e sensações subjetivas; não acrescente novos acontecimentos nem apenas prometa ações. Obrigatória quando a memória local exige ação física.\\n"
-        "[FALA] palavras pronunciadas por Mary, se relevantes. Faça a voz reagir ao interlocutor e à ação do próprio turno; priorize o registro e o foco da direção autoral local, sem copiar texto da instrução e sem traduzir automaticamente a fala para metáforas ou frases genéricas.\\n"
-        "[PENSAMENTO] opcional: percepção íntima nova, se acrescentar significado que ação e fala não comunicaram. Considere a fala e o que já aconteceu; não repita a descrição física, a fala, uma intenção concluída ou uma metáfora apenas por aparecer no histórico.\\n"
-        "COESÃO DOS BLOCOS: os componentes pertencem ao mesmo instante e não são três versões da mesma emoção. A ação mostra o acontecimento, a fala expressa a reação vocal e o pensamento revela somente o subtexto necessário. Uma orientação expressiva vale apenas para a linha ativa, nunca como regra das linhas seguintes.\\n"
-        "Nao preencha blocos vazios; nao invente pensamento por obrigacao nem repita objetivos cumpridos. Gere ao menos um bloco. "
-        "Nao use asteriscos ou parenteses para acoes dentro de [FALA]."
+        "FORMATO: gere somente os blocos necessários, nesta ordem: [AÇÃO], [FALA], [PENSAMENTO].\\n"
+        "[AÇÃO] descreve a ação física efetivamente realizada conforme a memória local e a descrição-guia; não basta prometer.\\n"
+        "[FALA] contém só as palavras de Mary, guiadas pela Fala-guia e pela conversa real.\\n"
+        "[PENSAMENTO] é opcional; inclua apenas percepção íntima que acrescente algo novo, guiada pelo Pensamento-guia.\\n"
+        "Todos os blocos pertencem ao mesmo instante, sem repetir a mesma informação. Não copie literalmente orientações, não intensifique nem enfeite a narração além do que pede a linha ativa. "
+        "Não invente ações ou pensamentos para preencher blocos; gere pelo menos um. Não coloque ações dentro de [FALA]."
     )
 
