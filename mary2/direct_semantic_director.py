@@ -67,7 +67,9 @@ def validate_direct_semantic_turn(
     obligation_exists = bool(obligation.get("exists", False))
     obligation_text = _clean(obligation.get("requirement"))
     speech_guide = _clean(row.get("speech_guide"))
-    interpret_mode = speech_guide.casefold() == "interpretar"
+    interpret_match = re.fullmatch(r"interpretar(?:\s*:\s*(.*))?", speech_guide, flags=re.I | re.S)
+    interpret_mode = bool(interpret_match)
+    interpret_direction = (interpret_match.group(1) or "").strip() if interpret_match else ""
     revelation_policy = _clean(row.get("revelation_policy"))
     interaction_mode = _clean(row.get("interaction_mode")).casefold()
     automatic_row = interaction_mode in {"automatico", "automático", "automatic"}
@@ -137,7 +139,8 @@ def validate_direct_semantic_turn(
         "FONTES AUTORITATIVAS\n"
         + authoritative
         + "\n\nFALA-GUIA ORIGINAL\n"
-        + (speech_guide or "(nenhuma)")
+        + ("Interpretar (modo técnico)" if interpret_mode else (speech_guide or "(nenhuma)"))
+        + ("\n\nDIREÇÃO AUTORAL DE INTERPRETAÇÃO — FOCO, NÃO TEXTO LITERAL\n" + interpret_direction if interpret_direction else "")
         + "\n\nREGRA DE REVELAÇÃO DA LINHA ATUAL\n"
         + (revelation_policy or "(sem restrição autoral específica)")
         + "\n\nCOMPREENSÃO DA ENTRADA ATUAL\n"
@@ -161,6 +164,7 @@ def validate_direct_semantic_turn(
         "Faça quatro validações independentes. "
         + (
             "A) MODO INTERPRETAR: a palavra Interpretar é um seletor, NÃO um objetivo verbal. "
+            "Quando houver DIREÇÃO AUTORAL, avalie se a atuação transmite seu foco de modo contextual; não exija palavras, detalhes ou exemplos literais, nem confunda a direção com ação física obrigatória. A MEMÓRIA INSTANTÂNEA-LOCAL mantém o acontecimento obrigatório. "
             "Na cena_atual.evidencia cite TRECHO LITERAL CONTINUO de ACAO ATUAL REALIZADA POR MARY, RESPOSTA ATUAL DE MARY, PENSAMENTO ATUAL DE MARY ou DIREÇÃO/ENCENAÇÃO ATUAL DO USUÁRIO; NUNCA copie texto da memória instantânea nem da descrição inicial como evidência. Uma promessa de agir não comprova deslocamento ou ação concluída. Para movimentos fisicos indispensaveis exija ACAO ATUAL REALIZADA POR MARY e retorne cena_atual.acao_fisica_obrigatoria=true. Se nao ha movimento indispensavel, use false. "
             "Confira o ACONTECIMENTO CENTRAL da MEMÓRIA INSTANTÂNEA-LOCAL. Se houver uma ação, deslocamento ou transição indispensável, ela precisa efetivamente ocorrer na resposta atual ou estar comprovadamente realizada na conversa desta linha. Não basta dizer que ocorreu sem representar sua consequência, nem prometer fazê-la depois. Não confunda intenção/pensamento com ação consumada; pensamentos isolados não provam deslocamentos. Se a linha for apenas reação, pensamento ou conversa, avalie sua finalidade sem exigir ato físico. "
             "Avalie se a resposta de Mary desenvolve de maneira coerente a situação da MEMÓRIA INSTANTÂNEA-LOCAL, "
