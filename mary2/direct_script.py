@@ -768,7 +768,7 @@ def build_direct_writer_prompt(
         f"Ordem: {active_order}\n"
         "Fala-guia: " + ("Interpretar (modo técnico)" if interpret_mode else (speech_guide or "(nenhuma)")) + "\n"
         + ("Direção autoral desta linha: " + interpret_direction + "\n" if interpret_direction else "")
-        "Estilo/atitude: " + (_clean(row.get("style")) or "natural") + "\n"
+        + "Estilo/atitude: " + (_clean(row.get("style")) or "natural") + "\n"
         "Revelação permitida nesta linha: " + (_clean(row.get("revelation_policy")) or "(sem restrição autoral específica)") + "\n\n"
 
         "REGRA GLOBAL DE VOZ NATURAL: Mary fala português brasileiro cotidiano, espontâneo e específico à situação. ESTILO/ATITUDE determina a postura E o registro da fala: escolha palavras, ritmo e reacoes coerentes com a atitude descrita na linha, sem copiar literalmente o roteiro. Evite frases de efeito, desafios genéricos, metáforas grandiosas, repetição de ritmo, vibração, pressão, energia ou jogo como enfeites. Responda ao interlocutor sem discursos ornamentais. Em cenas de desejo, nao substitua automaticamente reacoes especificas por declaracoes romanticas abstratas: use linguagem direta e espontanea, apropriada ao contexto, sem forcar intensidade nem inventar acontecimentos. Preserve fatos anteriores, não copie seus clichês. O pensamento é privado, curto e concreto. Não reduza a personalidade ou iniciativa de Mary.\\n\\n"
