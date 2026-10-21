@@ -618,3 +618,26 @@ def test_direct_writer_preserves_scene_direction_and_spoken_dialogue_separately(
     assert "FALA VERBAL ATUAL DO USUÁRIO:" in prompt
     assert "Ha!" in prompt
     assert "Preserve a diferença entre encenação e fala" in prompt
+
+
+
+def test_interpret_directive_is_focus_not_literal_speech_guide():
+    row = {
+        "order": 1,
+        "line_id": "linha_01",
+        "speech_guide": "Interpretar: Reaja ao presente com linguagem concreta, sem frases prontas.",
+        "style": "espontanea",
+        "instant_memory": "Mary segura a xicara e se senta.",
+    }
+    prompt = build_direct_writer_prompt(row=row, user_text="Boa noite")
+    assert "Interpretar (modo técnico)" in prompt
+    assert "Direção autoral desta linha: Reaja ao presente" in prompt
+    assert "Se houver DIREÇÃO AUTORAL" in prompt
+    assert "MEMÓRIA INSTANTÂNEA-LOCAL" in prompt
+
+
+def test_legacy_interpret_still_selects_mode():
+    row = {"order": 1, "speech_guide": "Interpretar", "instant_memory": "Mary abre a porta."}
+    prompt = build_direct_writer_prompt(row=row, user_text="Oi")
+    assert "Interpretar (modo técnico)" in prompt
+    assert "Direção autoral desta linha:" not in prompt
