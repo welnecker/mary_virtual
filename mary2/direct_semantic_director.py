@@ -55,6 +55,7 @@ def validate_direct_semantic_turn(
     interpretation: dict,
     mary_text: str,
     mary_thought: str = "",
+    mary_action: str = "",
     user_text: str = "",
     user_scene_direction: str = "",
     line_dialogue: list[dict] | None = None,
@@ -101,6 +102,9 @@ def validate_direct_semantic_turn(
     if _clean(mary_text):
         conversation_entries.append(("MARY", _clean(mary_text)))
         history.append("MARY: " + _clean(mary_text))
+    if _clean(mary_action):
+        conversation_entries.append(("MARY_ACAO", _clean(mary_action)))
+        history.append("ACAO REALIZADA POR MARY: " + _clean(mary_action))
     if _clean(mary_thought):
         conversation_entries.append(("MARY_PENSAMENTO", _clean(mary_thought)))
         history.append("PENSAMENTO DE MARY: " + _clean(mary_thought))
@@ -145,7 +149,9 @@ def validate_direct_semantic_turn(
         + "\n\nCONVERSA DA LINHA ATIVA\n"
         + conversation
         + "\n\nRESPOSTA ATUAL DE MARY\n"
-        + _clean(mary_text)
+        + (_clean(mary_text) or "(sem fala neste turno)")
+        + "\n\nACAO ATUAL REALIZADA POR MARY\n"
+        + (_clean(mary_action) or "(sem acao fisica neste turno)")
         + (
             "\n\nPENSAMENTO ATUAL DE MARY\n" + _clean(mary_thought)
             if _clean(mary_thought)
@@ -155,7 +161,7 @@ def validate_direct_semantic_turn(
         "Faça quatro validações independentes. "
         + (
             "A) MODO INTERPRETAR: a palavra Interpretar é um seletor, NÃO um objetivo verbal. "
-            "Na cena_atual.evidencia cite TRECHO LITERAL CONTINUO de RESPOSTA ATUAL DE MARY, PENSAMENTO ATUAL DE MARY ou DIREÇÃO/ENCENAÇÃO ATUAL DO USUÁRIO; NUNCA copie texto da memória instantânea nem da descrição inicial como evidência. Uma promessa de agir não comprova deslocamento ou ação concluída. "
+            "Na cena_atual.evidencia cite TRECHO LITERAL CONTINUO de ACAO ATUAL REALIZADA POR MARY, RESPOSTA ATUAL DE MARY, PENSAMENTO ATUAL DE MARY ou DIREÇÃO/ENCENAÇÃO ATUAL DO USUÁRIO; NUNCA copie texto da memória instantânea nem da descrição inicial como evidência. Uma promessa de agir não comprova deslocamento ou ação concluída. Para movimentos fisicos indispensaveis exija ACAO ATUAL REALIZADA POR MARY e retorne cena_atual.acao_fisica_obrigatoria=true. Se nao ha movimento indispensavel, use false. "
             "Confira o ACONTECIMENTO CENTRAL da MEMÓRIA INSTANTÂNEA-LOCAL. Se houver uma ação, deslocamento ou transição indispensável, ela precisa efetivamente ocorrer na resposta atual ou estar comprovadamente realizada na conversa desta linha. Não basta dizer que ocorreu sem representar sua consequência, nem prometer fazê-la depois. Não confunda intenção/pensamento com ação consumada; pensamentos isolados não provam deslocamentos. Se a linha for apenas reação, pensamento ou conversa, avalie sua finalidade sem exigir ato físico. "
             "Avalie se a resposta de Mary desenvolve de maneira coerente a situação da MEMÓRIA INSTANTÂNEA-LOCAL, "
             "sem antecipar acontecimentos, sem repetir informações já estabelecidas e respondendo ao usuário. "
@@ -348,13 +354,20 @@ def validate_direct_semantic_turn(
     # Evidencias devem estar na saida realmente produzida; o roteiro e a
     # memoria local especificam a meta, mas nunca comprovam sua execucao.
     evidence = _clean(scene_raw.get("evidencia"))
-    observed = " ".join(filter(None, [_clean(mary_text), _clean(mary_thought), _clean(user_scene_direction)]))
+    observed = " ".join(filter(None, [_clean(mary_text), _clean(mary_thought), _clean(mary_action), _clean(user_scene_direction)]))
     evidence_grounded = bool(evidence and evidence.casefold() in observed.casefold())
     scene_claim = bool(scene_raw.get("cumprida", False))
+    physical_required = bool(scene_raw.get("acao_fisica_obrigatoria", False))
+    # A fala, a promessa e o pensamento nao comprovam deslocamento fisico.
+    physical_evidence = bool(_clean(mary_action)) and bool(
+        evidence and evidence.casefold() in _clean(mary_action).casefold()
+    )
+    if interpret_mode and physical_required and not physical_evidence:
+        scene_raw["faltou"] = "Movimento obrigatorio sem evidencia em [AÇÃO]."
     if interpret_mode and scene_claim and not evidence_grounded:
         scene_raw["faltou"] = "Diretor citou evidencia ausente da saida de Mary ou da encenacao do usuario."
     scene_completion = {
-        "fulfilled": (scene_claim and evidence_grounded) if interpret_mode else True,
+        "fulfilled": (scene_claim and evidence_grounded and (not physical_required or physical_evidence)) if interpret_mode else True,
         "event": _clean(scene_raw.get("acontecimento")),
         "evidence": evidence if evidence_grounded else "",
         "missing": _clean(scene_raw.get("faltou")),
