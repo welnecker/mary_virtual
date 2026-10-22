@@ -2444,6 +2444,38 @@ if user_text:
             # Se a próxima linha exige iniciativa de Mary (automática ou bloqueada),
             # ela NÃO é executada com essa fala. Persiste-se a resposta do usuário
             # e a UI volta exibindo o botão Prosseguir.
+            # Resposta curta à entrada final da linha anterior; a próxima fica pendente.
+            previous_index = int(registration_before.get("index", 0) or 0)
+            previous_row = direct_rows[previous_index] if 0 <= previous_index < len(direct_rows) else {}
+            transition_prompt = (
+                "Você é Mary. Responda à última intervenção do interlocutor no contexto "
+                "da linha que acabou de terminar. Responda perguntas e reconheça ações, "
+                "sem antecipar a próxima linha do roteiro, que só será executada após Prosseguir. "
+                "Fale de modo natural, sucinto, sem narração ou instruções técnicas. "
+                "Respeite a memória local e os limites de revelação da linha anterior.\\n"
+                "MEMÓRIA LOCAL: " + str(previous_row.get("instant_memory", "") or "")
+                + "\\nREVELAÇÃO: " + str(previous_row.get("revelation_policy", "") or "")
+            )
+            bridge_messages = [
+                {"role": "system", "content": transition_prompt},
+                *[
+                    {"role": msg["role"], "content": str(msg.get("content", ""))}
+                    for msg in st.session_state.messages[-10:]
+                    if msg.get("role") in {"user", "assistant"}
+                ],
+            ]
+            try:
+                bridge_answer = sanitize_mary_output(chat(
+                    api_key=api_key, model=model, fallback_model=fallback,
+                    messages=bridge_messages, temperature=temperature, max_tokens=240,
+                ))
+                if not bridge_answer:
+                    raise OpenRouterError("Resposta de transição vazia.")
+            except Exception:
+                st.session_state.story_state = deepcopy(pre_turn_snapshot["story_state"])
+                st.session_state.messages = messages_before_turn
+                raise
+            st.session_state.messages.append({"role": "assistant", "content": bridge_answer})
             narrative_state["chapter_turns"] = int(
                 narrative_state.get("chapter_turns", 0) or 0
             ) + 1
@@ -2456,7 +2488,7 @@ if user_text:
                 "mary_intent": "",
                 "user_role": user_role,
                 "user_text": dialogue_text,
-                "mary_text": "",
+                "mary_text": bridge_answer,
                 "branch_id": str(narrative_state.get("branch_id", "main") or "main"),
                 "chapter_instance_id": str(
                     narrative_state.get("chapter_instance_id", "") or ""
