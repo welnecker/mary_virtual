@@ -21,15 +21,28 @@ COLUMNS = [
 # Regras experimentais selecionadas e adaptadas de blader/humanizer (MIT).
 # Origem: https://github.com/blader/humanizer
 HUMANIZER_MARY = """
-HUMANIZAÇÃO DE DIÁLOGO — MARY (camada de estilo, subordinada ao roteiro)
-- Responda primeiro ao sentido concreto da última fala/pergunta do interlocutor.
-- Evite repetir a mesma informação, frase, reação ou justificativa da resposta anterior.
-- Evite frases genéricas de assistente, explicações didáticas, conclusões e dramaticidade decorativa.
-- Varie comprimento e cadência de frases; permita coloquialidade, pausas e imperfeições naturais.
-- Preserve o temperamento pedido na linha: não torne Mary sempre gentil, engraçada ou provocante.
-- Não acrescente fatos, ações físicas, sentimentos ou revelações fora do que a linha autoriza.
-- Preserve exatamente o contrato de saída definido pelo Redator.
-- Não imite artificialmente informalidade usando gírias, reticências ou risadas em excesso.
+CONTRATO DE ENCENAÇÃO ENXUTA — experimento B
+Estas regras especializam o estilo; roteiro, fatos e REVELACAO prevalecem.
+AÇÃO:
+- 'Descrição-guia' é uma ordem de encenação objetiva, NÃO um tema de prosa literária.
+- Realize somente gestos e movimentos efetivamente orientados para esta linha.
+- Escreva [AÇÃO] em até duas frases curtas, com verbos concretos, sem metáfora, floreio,
+  narração de sentimentos, microdetalhes anatômicos ou efeitos cinematográficos.
+- Não crie ações adicionais, expressões faciais, lágrimas, toques ou mudanças de posição.
+- Se Descrição-guia estiver vazia, não invente uma ação para preencher [AÇÃO].
+- Não copie nem amplie passagens da descrição inicial; ela contextualiza, não ordena ações.
+FALA:
+- Priorize responder à última fala/pergunta real, respeitando a fala-guia e REVELACAO.
+- Use oralidade brasileira natural, sem monólogos explicativos, clichês ou romantização.
+- Não transforme a intensidade da memória/cena em linguagem grandiosa.
+PENSAMENTO:
+- Só inclua [PENSAMENTO] se trouxer informação íntima distinta da fala e da ação.
+- Evite metáforas, reafirmação emotiva do que já foi dito e conclusões dramáticas.
+GERAL:
+- Não invente acontecimentos, sensações ou fatos para completar blocos.
+- Mantenha tags do contrato original, omitindo blocos sem conteúdo justificável.
+- Não repita a mesma informação em dois blocos.
+- Dê preferência à concisão mesmo se houver orçamento alto de tokens.
 """
 
 st.set_page_config(page_title="Mary | Laboratório Humanizer", page_icon="🧪", layout="wide")
@@ -100,7 +113,7 @@ recent = st.text_area("Contexto conversacional anterior (opcional; texto manual)
     help="Copie algumas falas anteriores. O laboratório não consulta nem altera INTERACTIONS.")
 interpretation = st.text_area("Interpretação / obrigação direta (opcional)", height=70,
     help="Informe qual pergunta ou ação Mary deve responder. Não executa a Compreensão.")
-st.info("Ambas as versões usam o mesmo roteiro e contexto. Este é um teste do Redator; não reproduz automaticamente a Compreensão e o Diretor.")
+st.info("A = Redator atual. B = Redator com contrato de encenação enxuta; mantém o mesmo roteiro. Sem Compreensão e Diretor automáticos.")\nst.markdown("**Descrição-guia da linha:** " + (str(row.get("action_guide", "")).strip() or "*(vazia — não inventar ações na versão B)*"))
 if st.button("Gerar A e B", type="primary"):
     if not (user_text.strip() or row.get("interaction_mode", "").lower() in {"automatico", "automático", "automatic"}):
         st.warning("Informe uma fala para linhas interativas.")
