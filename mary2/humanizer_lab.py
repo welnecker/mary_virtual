@@ -1,4 +1,4 @@
-"""Laboratório A/B do Redator Mary vs. Humanizer (execução independente)."""
+"""Laboratório A/B/C do Redator Mary vs. Humanizer (execução independente)."""
 from __future__ import annotations
 
 import json
@@ -16,6 +16,7 @@ COLUMNS = [
     "timestamp", "test_id", "capitulo", "linha", "modelo", "fala_usuario",
     "contexto", "fala_guia", "original", "humanizer", "preferida",
     "naturalidade_original", "naturalidade_humanizer", "fidelidade_roteiro", "observacoes",
+    "interpretativo", "naturalidade_interpretativo", "vencedor_por_canal",
 ]
 
 # Regras experimentais selecionadas e adaptadas de blader/humanizer (MIT).
@@ -41,9 +42,29 @@ Não reescreva nem restrinja [FALA] e [PENSAMENTO] com estas regras de [AÇÃO].
 Mantenha o formato exigido pelo Redator e os limites autorais de REVELACAO.
 """
 
+# Terceira modalidade: mesma linha e fatos, mas atuação humana interpretativa.
+# A iniciativa nova deve permanecer dentro das ações já autorizadas pelo roteiro.
+HUMANIZER_INTERPRETATIVO = """
+CONTRATO EXPERIMENTAL C — INTERPRETAÇÃO HUMANA
+O roteiro, a Descrição-guia, a Fala-guia, o Pensamento-guia e REVELACAO
+definem os acontecimentos e limites. Não antecipe nenhuma linha futura.
+Crie uma interpretação singular da MESMA cena, sem acrescentar fatos ou ações.
+[AÇÃO]: narração externa em terceira pessoa, observável, natural e concreta.
+Mostre ritmo, hesitação ou reação apenas se já couberem nos gestos da Descrição-guia.
+Se a Descrição-guia estiver vazia, não crie ações novas.
+Evite explicações abstratas do sentimento, clichês e prosa ornamental.
+Não imponha limite artificial de duas frases; use somente a extensão necessária.
+[FALA]: oralidade brasileira espontânea e individual, com variação orgânica
+de ritmo e intensidade. Responda ao sentido da fala atual do interlocutor
+sem acrescentar informações de outro momento ou deslocar o foco da Fala-guia.
+[PENSAMENTO]: voz íntima de Mary, subjetiva e específica, evitando repetir
+a fala ou a ação. Preserve o grau emocional indicado no roteiro sem amplificá-lo.
+Mantenha o formato original de blocos e a personalidade da personagem.
+"""
+
 st.set_page_config(page_title="Mary | Laboratório Humanizer", page_icon="🧪", layout="wide")
 st.title("🧪 Mary — Laboratório Humanizer")
-st.caption("Teste isolado: não avança capítulos, não modifica checkpoints ou INTERACTIONS.")
+st.caption("Comparação A/B/C isolada: não avança capítulos nem modifica checkpoints ou INTERACTIONS.")
 
 def _credentials():
     raw = (st.secrets.get("GOOGLE_CREDS_JSON")
@@ -102,16 +123,16 @@ except Exception as exc:
     st.error(f"Falha ao carregar roteiro: {exc}")
     st.stop()
 
-model = st.text_input("Modelo OpenRouter (o mesmo nas duas versões)", value="google/gemini-3-flash-preview")
-temperature = st.slider("Temperatura (mesma nas duas versões)", 0.0, 1.5, 0.7, 0.05)
+model = st.text_input("Modelo OpenRouter (igual nas três versões)", value="google/gemini-3-flash-preview")
+temperature = st.slider("Temperatura (igual nas três versões)", 0.0, 1.5, 0.7, 0.05)
 user_text = st.text_area("Última fala do interlocutor", height=90)
 recent = st.text_area("Contexto conversacional anterior (opcional; texto manual)", height=140,
     help="Copie algumas falas anteriores. O laboratório não consulta nem altera INTERACTIONS.")
 interpretation = st.text_area("Interpretação / obrigação direta (opcional)", height=70,
     help="Informe qual pergunta ou ação Mary deve responder. Não executa a Compreensão.")
-st.info("A = Redator atual. B = Redator original com ajuste apenas na descrição de [AÇÃO]; mantém o mesmo roteiro. Sem Compreensão e Diretor automáticos.")
+st.info("A = Redator original; B = concisão apenas em [AÇÃO]; C = humanização interpretativa em [AÇÃO], [FALA] e [PENSAMENTO]. As três versões usam a mesma linha, o mesmo modelo e o mesmo contexto. Sem Compreensão ou Diretor automáticos.")
 st.markdown("**Descrição-guia da linha:** " + (str(row.get("action_guide", "")).strip() or "*(vazia — não inventar ações na versão B)*"))
-if st.button("Gerar A e B", type="primary"):
+if st.button("Gerar A, B e C", type="primary"):
     if not (user_text.strip() or row.get("interaction_mode", "").lower() in {"automatico", "automático", "automatic"}):
         st.warning("Informe uma fala para linhas interativas.")
     else:
@@ -129,12 +150,13 @@ if st.button("Gerar A e B", type="primary"):
             common = {"api_key": key, "model": model, "temperature": temperature, "max_tokens": 1000}
             a = chat(messages=[{"role":"user", "content":prompt}], **common)
             b = chat(messages=[{"role":"user", "content":prompt + "\n\n" + HUMANIZER_MARY}], **common)
+            interpretation_c = chat(messages=[{"role":"user", "content":prompt + "\n\n" + HUMANIZER_INTERPRETATIVO}], **common)
             st.session_state["humanizer_pair"] = {
                 "timestamp":datetime.now(timezone.utc).isoformat(),
                 "test_id":str(uuid4()), "capitulo":chapter,
                 "linha":str(row.get("order")), "modelo":model, "fala_usuario":user_text,
                 "contexto":recent, "fala_guia":str(row.get("speech_guide","")),
-                "original":a, "humanizer":b,
+                "original":a, "humanizer":b, "interpretativo":interpretation_c,
             }
         except Exception as exc:
             st.error(f"Falha durante a geração: {exc}")
@@ -143,26 +165,38 @@ pair = st.session_state.get("humanizer_pair")
 if pair:
     st.subheader("Comparação")
     st.caption("Caso " + pair["test_id"] + " · " + pair["capitulo"] + " · linha " + pair["linha"])
-    left,right = st.columns(2)
-    with left:
-        st.markdown("#### A — Mary original")
-        st.text_area("Resposta original", pair["original"], height=320, disabled=True)
-    with right:
-        st.markdown("#### B — Mary + Humanizer")
-        st.text_area("Resposta humanizada", pair["humanizer"], height=320, disabled=True)
+    a_col, b_col, c_col = st.columns(3)
+    with a_col:
+        st.markdown("#### A — Original")
+        st.text_area("Resposta A", pair["original"], height=390, disabled=True)
+    with b_col:
+        st.markdown("#### B — Conciso")
+        st.text_area("Resposta B", pair["humanizer"], height=390, disabled=True)
+    with c_col:
+        st.markdown("#### C — Interpretativo")
+        st.text_area("Resposta C", pair["interpretativo"], height=390, disabled=True)
     with st.form("review", clear_on_submit=False):
-        preferida = st.radio("Qual resposta você prefere?", ["A", "B", "Empate"], horizontal=True)
-        a_score = st.slider("Naturalidade A", 1, 5, 3)
-        b_score = st.slider("Naturalidade B", 1, 5, 3)
-        faithful = st.selectbox("Ambas respeitaram o roteiro?", ["Não avaliado", "Sim", "Somente A", "Somente B", "Nenhuma"])
+        preferida = st.radio("Qual resposta você prefere?", ["A", "B", "C", "Empate"], horizontal=True)
+        ca, cb, cc = st.columns(3)
+        with ca:
+            a_score = st.slider("Naturalidade A", 1, 5, 3)
+        with cb:
+            b_score = st.slider("Naturalidade B", 1, 5, 3)
+        with cc:
+            c_score = st.slider("Naturalidade C", 1, 5, 3)
+        faithful = st.selectbox("Fidelidade ao roteiro", ["Não avaliado", "Todas", "A e B", "A e C", "B e C", "Somente A", "Somente B", "Somente C", "Nenhuma"])
+        winner_action = st.selectbox("Melhor [AÇÃO]", ["Empate", "A", "B", "C"])
+        winner_speech = st.selectbox("Melhor [FALA]", ["Empate", "A", "B", "C"])
+        winner_thought = st.selectbox("Melhor [PENSAMENTO]", ["Empate", "A", "B", "C"])
         notes = st.text_area("Observações autorais")
         submitted = st.form_submit_button("Salvar avaliação em HUMANIZER")
     if submitted:
         try:
             reviewed = dict(pair)
             reviewed.update(preferida=preferida, naturalidade_original=a_score,
-                            naturalidade_humanizer=b_score, fidelidade_roteiro=faithful,
-                            observacoes=notes)
+                            naturalidade_humanizer=b_score, naturalidade_interpretativo=c_score,
+                            vencedor_por_canal=f"AÇÃO={winner_action}; FALA={winner_speech}; PENSAMENTO={winner_thought}",
+                            fidelidade_roteiro=faithful, observacoes=notes)
             _write_review(reviewed)
             st.success("Avaliação registrada na aba HUMANIZER.")
             st.session_state.pop("humanizer_pair", None)
