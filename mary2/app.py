@@ -3494,6 +3494,56 @@ if user_text:
                     else:
                         model_audit["scene_retry_rejected"] = "Saida sem fala valida."
 
+                # Linhas automáticas são atômicas: nenhuma resposta pendente
+                # pode chegar à tela, à persistência ou consumir outro clique.
+                if automatic_turn and not bool(direct_validation.get("fulfilled", False)):
+                    auto_retry_messages = [
+                        *llm_messages,
+                        {"role": "assistant", "content": raw_answer},
+                        {"role": "system", "content": (
+                            "CORREÇÃO INTERNA DA LINHA AUTOMÁTICA. A tentativa anterior "
+                            "não concluiu o objetivo autoral: "
+                            + str(direct_validation.get("missing", "") or "objetivo incompleto")
+                            + ". Gere uma resposta efetivamente corrigida, sem repetir a anterior. "
+                            "Execute apenas a linha atual, respeitando contexto e limites. "
+                            "Use os blocos [AÇÃO], [FALA], [PENSAMENTO] quando pertinentes."
+                        )},
+                    ]
+                    auto_raw = chat(
+                        api_key=api_key, model=model, fallback_model=fallback,
+                        messages=auto_retry_messages, temperature=temperature,
+                    )
+                    auto_parts = parse_mary_components(auto_raw)
+                    auto_speech = sanitize_mary_output(auto_parts["speech"])
+                    if not auto_speech or looks_like_action_narration(auto_speech):
+                        raise OpenRouterError(
+                            "Linha automática sem resposta válida após correção interna; nada foi publicado."
+                        )
+                    auto_validation = validate_direct_semantic_turn(
+                        api_key=api_key, model=director_model, fallback_model=fallback,
+                        row=direct_row, interpretation=direct_interpretation,
+                        mary_text=auto_speech, mary_thought=auto_parts["thought"],
+                        mary_action=auto_parts["action"], user_text=dialogue_text,
+                        user_scene_direction=scene_direction,
+                        line_dialogue=list(direct_state.get("line_dialogue", []) or []),
+                    )
+                    if (
+                        not bool(auto_validation.get("fulfilled", False))
+                        or str(auto_validation.get("parse_error", "") or "").strip()
+                    ):
+                        raise OpenRouterError(
+                            "Linha automática não aprovada após correção interna. "
+                            "Nenhuma resposta foi exibida ou salva; tente Prosseguir novamente."
+                        )
+                    model_audit["retry_used"] = True
+                    model_audit["retry_messages"] = deepcopy(auto_retry_messages)
+                    model_audit["retry_raw_response"] = auto_raw
+                    raw_answer = auto_raw
+                    mary_intent = auto_parts["thought"]
+                    mary_speech_raw = auto_parts["speech"]
+                    answer = auto_speech
+                    direct_validation = auto_validation
+
                 if persistence:
                     try:
                         save_director_validation_audit(
