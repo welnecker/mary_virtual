@@ -21,28 +21,24 @@ COLUMNS = [
 # Regras experimentais selecionadas e adaptadas de blader/humanizer (MIT).
 # Origem: https://github.com/blader/humanizer
 HUMANIZER_MARY = """
-CONTRATO DE ENCENAÇÃO ENXUTA — experimento B
-Estas regras especializam o estilo; roteiro, fatos e REVELACAO prevalecem.
-AÇÃO:
-- 'Descrição-guia' é uma ordem de encenação objetiva, NÃO um tema de prosa literária.
-- Realize somente gestos e movimentos efetivamente orientados para esta linha.
-- Escreva [AÇÃO] em até duas frases curtas, com verbos concretos, sem metáfora, floreio,
-  narração de sentimentos, microdetalhes anatômicos ou efeitos cinematográficos.
-- Não crie ações adicionais, expressões faciais, lágrimas, toques ou mudanças de posição.
-- Se Descrição-guia estiver vazia, não invente uma ação para preencher [AÇÃO].
-- Não copie nem amplie passagens da descrição inicial; ela contextualiza, não ordena ações.
-FALA:
-- Priorize responder à última fala/pergunta real, respeitando a fala-guia e REVELACAO.
-- Use oralidade brasileira natural, sem monólogos explicativos, clichês ou romantização.
-- Não transforme a intensidade da memória/cena em linguagem grandiosa.
-PENSAMENTO:
-- Só inclua [PENSAMENTO] se trouxer informação íntima distinta da fala e da ação.
-- Evite metáforas, reafirmação emotiva do que já foi dito e conclusões dramáticas.
-GERAL:
-- Não invente acontecimentos, sensações ou fatos para completar blocos.
-- Mantenha tags do contrato original, omitindo blocos sem conteúdo justificável.
-- Não repita a mesma informação em dois blocos.
-- Dê preferência à concisão mesmo se houver orçamento alto de tokens.
+CONTRATO EXPERIMENTAL: AJUSTE EXCLUSIVO DO CANAL [AÇÃO]
+Preserve integralmente o comportamento original do Redator em [FALA] e [PENSAMENTO].
+Não aplique humanização, redução de intensidade, simplificação ou padronização
+ao texto desses dois canais. Siga neles a Fala-guia, o Pensamento-guia, o estilo
+e o contexto como faria sem este complemento.
+
+Somente para [AÇÃO]:
+- Descrição-guia determina a encenação; não é convite à expansão literária.
+- Descreva apenas os gestos e movimentos fisicamente autorizados pela linha.
+- Use narração externa, em terceira pessoa (Mary/ela), nunca "eu"/"meus".
+- Prefira uma frase objetiva; use no máximo duas frases curtas se necessário.
+- Evite metáforas, dramatização ornamental, repetições e minúcias não solicitadas.
+- Não invente gestos, expressões faciais, contato, lágrimas ou deslocamentos.
+- Se Descrição-guia estiver vazia, não invente [AÇÃO] só para preencher o formato.
+- Descrição inicial informa o contexto e não autoriza novas ações.
+
+Não reescreva nem restrinja [FALA] e [PENSAMENTO] com estas regras de [AÇÃO].
+Mantenha o formato exigido pelo Redator e os limites autorais de REVELACAO.
 """
 
 st.set_page_config(page_title="Mary | Laboratório Humanizer", page_icon="🧪", layout="wide")
@@ -113,7 +109,7 @@ recent = st.text_area("Contexto conversacional anterior (opcional; texto manual)
     help="Copie algumas falas anteriores. O laboratório não consulta nem altera INTERACTIONS.")
 interpretation = st.text_area("Interpretação / obrigação direta (opcional)", height=70,
     help="Informe qual pergunta ou ação Mary deve responder. Não executa a Compreensão.")
-st.info("A = Redator atual. B = Redator com contrato de encenação enxuta; mantém o mesmo roteiro. Sem Compreensão e Diretor automáticos.")
+st.info("A = Redator atual. B = Redator original com ajuste apenas na descrição de [AÇÃO]; mantém o mesmo roteiro. Sem Compreensão e Diretor automáticos.")
 st.markdown("**Descrição-guia da linha:** " + (str(row.get("action_guide", "")).strip() or "*(vazia — não inventar ações na versão B)*"))
 if st.button("Gerar A e B", type="primary"):
     if not (user_text.strip() or row.get("interaction_mode", "").lower() in {"automatico", "automático", "automatic"}):
