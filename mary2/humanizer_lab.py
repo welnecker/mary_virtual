@@ -113,7 +113,8 @@ recent = st.text_area("Contexto conversacional anterior (opcional; texto manual)
     help="Copie algumas falas anteriores. O laboratório não consulta nem altera INTERACTIONS.")
 interpretation = st.text_area("Interpretação / obrigação direta (opcional)", height=70,
     help="Informe qual pergunta ou ação Mary deve responder. Não executa a Compreensão.")
-st.info("A = Redator atual. B = Redator com contrato de encenação enxuta; mantém o mesmo roteiro. Sem Compreensão e Diretor automáticos.")\nst.markdown("**Descrição-guia da linha:** " + (str(row.get("action_guide", "")).strip() or "*(vazia — não inventar ações na versão B)*"))
+st.info("A = Redator atual. B = Redator com contrato de encenação enxuta; mantém o mesmo roteiro. Sem Compreensão e Diretor automáticos.")
+st.markdown("**Descrição-guia da linha:** " + (str(row.get("action_guide", "")).strip() or "*(vazia — não inventar ações na versão B)*"))
 if st.button("Gerar A e B", type="primary"):
     if not (user_text.strip() or row.get("interaction_mode", "").lower() in {"automatico", "automático", "automatic"}):
         st.warning("Informe uma fala para linhas interativas.")
