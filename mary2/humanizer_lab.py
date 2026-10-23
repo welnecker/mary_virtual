@@ -67,31 +67,40 @@ Mantenha o formato exigido pelo Redator e os limites autorais de REVELACAO.
 # Terceira modalidade: mesma linha e fatos, mas atuação humana interpretativa.
 # A iniciativa nova deve permanecer dentro das ações já autorizadas pelo roteiro.
 HUMANIZER_INTERPRETATIVO = """
-CONTRATO EXPERIMENTAL C — HÍBRIDO
-O roteiro e REVELACAO continuam como autoridade. Preserve o acontecimento,
-a continuidade e a personalidade indicados pela linha atual.
+CONTRATO EXPERIMENTAL C — AÇÃO CONCRETA E SENSORIAL, FALA LIVRE, PENSAMENTO DIRETO
+Siga a hierarquia autoral comum aos três modos. REVELACAO e a linha ativa
+continuam sendo autoridades sobre tudo o que pode acontecer ou ser dito.
 
-[AÇÃO] — MESMAS REGRAS DA VERSÃO B, SEM FLEXIBILIZAÇÃO:
-- Descrição-guia determina a encenação; não é convite à expansão literária.
-- Descreva apenas os gestos e movimentos fisicamente autorizados pela linha.
-- Use narração externa, em terceira pessoa (Mary/ela), nunca "eu"/"meus".
-- Prefira uma frase objetiva; use no máximo duas frases curtas se necessário.
-- Evite metáforas, dramatização ornamental, repetições e minúcias não solicitadas.
-- Não invente gestos, expressões faciais, contato, lágrimas ou deslocamentos.
-- Se Descrição-guia estiver vazia, não invente [AÇÃO] só para preencher o formato.
-- Descrição inicial informa o contexto e não autoriza novas ações.
+[AÇÃO] — OBJETIVA E SENSORIAL:
+- Descrição-guia define gestos e movimentos; execute somente o que ela permite.
+- Descreva Mary em terceira pessoa, com verbos concretos e sem prosa literária.
+- Inclua sensações físicas concretas somente quando já estiverem autorizadas
+  na Descrição-guia ou claramente estabelecidas como estado atual da cena.
+- Uma sensação não autoriza inventar outro movimento ou acontecimento.
+- Prefira uma ou duas frases; acrescente extensão apenas para tornar clara
+  a sequência de ações explicitamente orientadas.
+- Evite metáforas, imagens poéticas, exageros, reiterações e microdetalhes
+  que não mudem a compreensão da encenação.
+- Se a Descrição-guia estiver vazia, não invente uma ação para preencher [AÇÃO].
+- A memória instantânea e a descrição inicial contextualizam; não criam tarefas.
 
-[FALA] — MANTER A INTERPRETAÇÃO HUMANA DA VERSÃO C:
-- Oralidade brasileira espontânea e individual, com variação orgânica de ritmo
-  e intensidade. Responda ao sentido da fala atual do interlocutor, sem
-  acrescentar informações de outro momento ou deslocar o foco da Fala-guia.
-- Preserve sensorialidade e intensidade solicitadas pelo roteiro, sem clichês.
+[FALA] — PRESERVAR EXPRESSIVIDADE:
+- Responda à última intervenção do interlocutor segundo a Fala-guia.
+- Mantenha a oralidade espontânea, o ritmo e a intensidade que a cena pede.
+- Não reduza, resuma ou padronize a fala para imitar a concisão de [AÇÃO].
+- Evite somente imagens poéticas ornamentais; preserve a voz pessoal de Mary.
 
-[PENSAMENTO] — MANTER A INTERPRETAÇÃO HUMANA DA VERSÃO C:
-- Voz íntima de Mary, subjetiva e específica, evitando repetir a fala ou a ação.
-- Preserve o grau emocional indicado no roteiro sem amplificá-lo.
+[PENSAMENTO] — ÍNTIMO E DIRETO, COMO NO MELHOR RESULTADO DE B:
+- Expresse a experiência interior em linguagem próxima da fala mental cotidiana.
+- Seja específico e sensorial quando o Pensamento-guia justificar.
+- Não use metáforas de eletricidade, fogo ou outras imagens poéticas para
+  substituir as sensações concretas já fornecidas pelo roteiro.
+- Evite reformular a FALA ou repetir a AÇÃO; não acrescente fatos ou emoções
+  ausentes da direção autoral.
+- Não elimine um pensamento necessário só para encurtar a resposta.
 
-Mantenha o formato original dos blocos. Não antecipe nenhuma linha futura.
+Os três blocos podem ter níveis diferentes de expressividade. Preserve o
+contrato de saída original e não antecipe acontecimentos de linhas futuras.
 """
 
 st.set_page_config(page_title="Mary | Laboratório Humanizer", page_icon="🧪", layout="wide")
@@ -162,7 +171,7 @@ recent = st.text_area("Contexto conversacional anterior (opcional; texto manual)
     help="Copie algumas falas anteriores. O laboratório não consulta nem altera INTERACTIONS.")
 interpretation = st.text_area("Interpretação / obrigação direta (opcional)", height=70,
     help="Informe qual pergunta ou ação Mary deve responder. Não executa a Compreensão.")
-st.info("A = Redator original com hierarquia autoral; B = a mesma hierarquia com concisão em [AÇÃO]; C = híbrido: [AÇÃO] concisa da B e [FALA]/[PENSAMENTO] interpretativos. As três versões usam a mesma linha, o mesmo modelo e o mesmo contexto. Sem Compreensão ou Diretor automáticos.")
+st.info("A = Redator original com hierarquia autoral; B = a mesma hierarquia com concisão em [AÇÃO]; C = híbrido refinado: [AÇÃO] objetiva e sensorial, [FALA] expressiva e [PENSAMENTO] íntimo e direto. As três versões usam a mesma linha, o mesmo modelo e o mesmo contexto. Sem Compreensão ou Diretor automáticos.")
 st.markdown("**Descrição-guia da linha:** " + (str(row.get("action_guide", "")).strip() or "*(vazia — não inventar ações na versão B)*"))
 if st.button("Gerar A, B e C", type="primary"):
     if not (user_text.strip() or row.get("interaction_mode", "").lower() in {"automatico", "automático", "automatic"}):
@@ -206,7 +215,7 @@ if pair:
         st.markdown("#### B — Conciso")
         st.text_area("Resposta B", pair["humanizer"], height=390, disabled=True)
     with c_col:
-        st.markdown("#### C — Híbrido interpretativo")
+        st.markdown("#### C — Híbrido sensorial")
         st.text_area("Resposta C", pair["interpretativo"], height=390, disabled=True)
     with st.form("review", clear_on_submit=False):
         preferida = st.radio("Qual resposta você prefere?", ["A", "B", "C", "Empate"], horizontal=True)
