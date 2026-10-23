@@ -19,6 +19,28 @@ COLUMNS = [
     "interpretativo", "naturalidade_interpretativo", "vencedor_por_canal",
 ]
 
+# Regras autorais idênticas para A, B e C: isolamento de funções dos guias.
+# Nenhuma modalidade deve reinterpretar as outras colunas como novas missões.
+AUTHORIAL_CHANNEL_HIERARCHY = """
+HIERARQUIA DE AUTORIA DOS TRÊS CANAIS — APLICAR A TODAS AS VARIANTES
+Considere todas as colunas como contexto para coerência, mas respeite a
+responsabilidade de cada uma ao escrever o texto final:
+[AÇÃO] Autoridade: Descrição-guia da linha ativa. Descreva os movimentos
+que ela autoriza. Memória instantânea, descrição inicial, estilo e pensamentos
+informam o contexto, mas NÃO ordenam gestos, contatos ou acontecimentos novos.
+[FALA] Autoridade: Fala-guia, respondendo primeiro ao sentido da última entrada
+real do interlocutor. Estilo/atitude modula tom e cadência; não cria novos assuntos.
+[PENSAMENTO] Autoridade: Pensamento-guia. Expresse a experiência interna
+da personagem sem repetir mecanicamente sua fala ou suas ações.
+Memórias fornecem fatos e estado já existentes, não tarefas extras.
+A mesma sensação repetida em várias colunas NÃO é pedido para multiplicar
+a sensação em [AÇÃO], [FALA] e [PENSAMENTO].
+Se um guia de componente está vazio, não invente conteúdo só para preencher
+a tag. Preserve REVELACAO, a linha ativa e o formato dos blocos.
+Essa regra define responsabilidade narrativa, não diminui a intensidade,
+o vocabulário ou a espontaneidade que o roteiro autorizou.
+"""
+ 
 # Regras experimentais selecionadas e adaptadas de blader/humanizer (MIT).
 # Origem: https://github.com/blader/humanizer
 HUMANIZER_MARY = """
@@ -140,7 +162,7 @@ recent = st.text_area("Contexto conversacional anterior (opcional; texto manual)
     help="Copie algumas falas anteriores. O laboratório não consulta nem altera INTERACTIONS.")
 interpretation = st.text_area("Interpretação / obrigação direta (opcional)", height=70,
     help="Informe qual pergunta ou ação Mary deve responder. Não executa a Compreensão.")
-st.info("A = Redator original; B = concisão apenas em [AÇÃO]; C = híbrido: [AÇÃO] concisa da B e [FALA]/[PENSAMENTO] interpretativos. As três versões usam a mesma linha, o mesmo modelo e o mesmo contexto. Sem Compreensão ou Diretor automáticos.")
+st.info("A = Redator original com hierarquia autoral; B = a mesma hierarquia com concisão em [AÇÃO]; C = híbrido: [AÇÃO] concisa da B e [FALA]/[PENSAMENTO] interpretativos. As três versões usam a mesma linha, o mesmo modelo e o mesmo contexto. Sem Compreensão ou Diretor automáticos.")
 st.markdown("**Descrição-guia da linha:** " + (str(row.get("action_guide", "")).strip() or "*(vazia — não inventar ações na versão B)*"))
 if st.button("Gerar A, B e C", type="primary"):
     if not (user_text.strip() or row.get("interaction_mode", "").lower() in {"automatico", "automático", "automatic"}):
@@ -158,9 +180,10 @@ if st.button("Gerar A, B e C", type="primary"):
                 previous_mary_text=recent, active_interlocutor="PERSONAGEM_DA_CENA",
             )
             common = {"api_key": key, "model": model, "temperature": temperature, "max_tokens": 1000}
-            a = chat(messages=[{"role":"user", "content":prompt}], **common)
-            b = chat(messages=[{"role":"user", "content":prompt + "\n\n" + HUMANIZER_MARY}], **common)
-            interpretation_c = chat(messages=[{"role":"user", "content":prompt + "\n\n" + HUMANIZER_INTERPRETATIVO}], **common)
+            base_prompt = prompt + "\n\n" + AUTHORIAL_CHANNEL_HIERARCHY
+            a = chat(messages=[{"role":"user", "content":base_prompt}], **common)
+            b = chat(messages=[{"role":"user", "content":base_prompt + "\n\n" + HUMANIZER_MARY}], **common)
+            interpretation_c = chat(messages=[{"role":"user", "content":base_prompt + "\n\n" + HUMANIZER_INTERPRETATIVO}], **common)
             st.session_state["humanizer_pair"] = {
                 "timestamp":datetime.now(timezone.utc).isoformat(),
                 "test_id":str(uuid4()), "capitulo":chapter,
@@ -177,7 +200,7 @@ if pair:
     st.caption("Caso " + pair["test_id"] + " · " + pair["capitulo"] + " · linha " + pair["linha"])
     a_col, b_col, c_col = st.columns(3)
     with a_col:
-        st.markdown("#### A — Original")
+        st.markdown("#### A — Original + hierarquia")
         st.text_area("Resposta A", pair["original"], height=390, disabled=True)
     with b_col:
         st.markdown("#### B — Conciso")
