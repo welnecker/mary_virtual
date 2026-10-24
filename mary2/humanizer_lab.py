@@ -135,6 +135,12 @@ def _rows(script_name):
         script_name=script_name,
     )
 
+@st.cache_data(ttl=120, show_spinner=False)
+def _read_history():
+    book = gspread.service_account_from_dict(_credentials()).open_by_key(
+        str(st.secrets.get("MARY_SHEETS_ID", "")))
+    return book.worksheet("INTERACTIONS").get_all_records()
+
 def _write_review(data):
     book = gspread.service_account_from_dict(_credentials()).open_by_key(
         str(st.secrets.get("MARY_SHEETS_ID", ""))
