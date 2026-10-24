@@ -250,7 +250,7 @@ if st.button("Gerar A, B e C", type="primary"):
         st.warning("Informe uma fala para linhas interativas.")
     else:
         try:
-            recent_messages = [{"role":"assistant","content": recent}] if recent.strip() else []
+            recent_messages = history_messages
             effective_user_text = "" if automatic_line else user_text
             effective_interpretation = "" if automatic_line else interpretation
             parsed_interpretation = {
@@ -260,7 +260,8 @@ if st.button("Gerar A, B e C", type="primary"):
             prompt = build_direct_writer_prompt(
                 row=row, recent_messages=recent_messages,
                 user_text=effective_user_text, interpretation=parsed_interpretation,
-                previous_mary_text=recent, active_interlocutor="PERSONAGEM_DA_CENA",
+                previous_mary_text=next((m["content"] for m in reversed(recent_messages) if m["role"] == "assistant"), ""),
+                active_interlocutor="PERSONAGEM_DA_CENA",
             )
             common = {"api_key": key, "model": model, "temperature": temperature, "max_tokens": 1000}
             base_prompt = prompt + "\n\n" + AUTHORIAL_CHANNEL_HIERARCHY
@@ -271,7 +272,7 @@ if st.button("Gerar A, B e C", type="primary"):
                 "timestamp":datetime.now(timezone.utc).isoformat(),
                 "test_id":str(uuid4()), "capitulo":chapter,
                 "linha":str(row.get("order")), "modelo":model, "fala_usuario":effective_user_text,
-                "contexto":recent, "fala_guia":str(row.get("speech_guide","")),
+                "contexto":history_description, "fala_guia":str(row.get("speech_guide","")),
                 "original":a, "humanizer":b, "interpretativo":interpretation_c,
             }
         except Exception as exc:
