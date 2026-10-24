@@ -207,8 +207,40 @@ user_text = st.text_area(
     key=f"lab_user_text_{chapter}_{row.get('order')}_{'auto' if automatic_line else 'interactive'}",
 )
 
-recent = st.text_area("Contexto conversacional anterior (opcional; texto manual)", height=140,
-    help="Copie algumas falas anteriores. O laboratório não consulta nem altera INTERACTIONS.")
+st.markdown("#### Histórico anterior")
+source = st.radio("Origem do contexto", ["Interações salvas", "Manual", "Sem histórico"], horizontal=True)
+history_messages = []
+history_description = ""
+if source == "Interações salvas":
+    try:
+        available = [r for r in _read_history()
+                     if str(r.get("chapter_id", "")) == "sheet:" + chapter]
+        available.sort(key=lambda r: (str(r.get("created_at", "")), int(r.get("seq", 0) or 0)))
+        if available:
+            options = [(str(r.get("run_id", "")),
+                        str(r.get("chapter_instance_id", "")),
+                        int(r.get("seq", 0) or 0)) for r in available]
+            chosen = st.selectbox("Ponto de reprodução", options[::-1],
+                        format_func=lambda p: f"execução {p[0][-10:]} | {p[1]} | seq {p[2]}")
+            count = st.slider("Turnos anteriores", 1, 20, 8)
+            history_messages = _history_before(available, chapter, *chosen, count)
+            history_description = f"run={chosen[0]}; instance={chosen[1]}; cutoff={chosen[2]}"
+            with st.expander("Conferir mensagens selecionadas"):
+                for message in history_messages:
+                    st.text(message["role"].upper() + ": " + message["content"][:1000])
+        else:
+            st.warning("Nenhuma interação salva para este capítulo.")
+    except Exception as exc:
+        st.warning(f"Histórico indisponível: {exc}")
+recent = st.text_area("Histórico manual", height=140, disabled=source != "Manual")
+if source == "Manual":
+    for line in recent.splitlines():
+        label, sep, value = line.partition(":")
+        role = "assistant" if sep and label.strip().lower() == "mary" else "user"
+        if line.strip():
+            history_messages.append({"role": role, "content": value.strip() if sep else line.strip()})
+    history_description = recent
+
 interpretation = st.text_area("Interpretação / obrigação direta (opcional)", height=70,
     help="Informe qual pergunta ou ação Mary deve responder. Não executa a Compreensão.")
 st.info("A = Redator original com hierarquia autoral; B = a mesma hierarquia com concisão em [AÇÃO]; C = híbrido refinado: [AÇÃO] objetiva e sensorial, [FALA] expressiva e [PENSAMENTO] íntimo e direto. As três versões usam a mesma linha, o mesmo modelo e o mesmo contexto. Sem Compreensão ou Diretor automáticos.")
