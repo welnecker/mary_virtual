@@ -166,7 +166,19 @@ except Exception as exc:
 
 model = st.text_input("Modelo OpenRouter (igual nas três versões)", value="google/gemini-3-flash-preview")
 temperature = st.slider("Temperatura (igual nas três versões)", 0.0, 1.5, 0.7, 0.05)
-user_text = st.text_area("Última fala do interlocutor", height=90)
+# O roteiro, e não o texto digitado, determina se a linha é automática.
+interaction_mode = str(row.get("interaction_mode", "")).strip().casefold()
+automatic_line = interaction_mode in {"automatico", "automático", "automatic"}
+if automatic_line:
+    st.info("Linha automática: Mary continua a cena sem fala do interlocutor.")
+user_text = st.text_area(
+    "Última fala do interlocutor",
+    value="",
+    height=90,
+    disabled=automatic_line,
+    key=f"lab_user_text_{chapter}_{row.get('order')}_{'auto' if automatic_line else 'interactive'}",
+)
+
 recent = st.text_area("Contexto conversacional anterior (opcional; texto manual)", height=140,
     help="Copie algumas falas anteriores. O laboratório não consulta nem altera INTERACTIONS.")
 interpretation = st.text_area("Interpretação / obrigação direta (opcional)", height=70,
@@ -174,18 +186,20 @@ interpretation = st.text_area("Interpretação / obrigação direta (opcional)",
 st.info("A = Redator original com hierarquia autoral; B = a mesma hierarquia com concisão em [AÇÃO]; C = híbrido refinado: [AÇÃO] objetiva e sensorial, [FALA] expressiva e [PENSAMENTO] íntimo e direto. As três versões usam a mesma linha, o mesmo modelo e o mesmo contexto. Sem Compreensão ou Diretor automáticos.")
 st.markdown("**Descrição-guia da linha:** " + (str(row.get("action_guide", "")).strip() or "*(vazia — não inventar ações na versão B)*"))
 if st.button("Gerar A, B e C", type="primary"):
-    if not (user_text.strip() or row.get("interaction_mode", "").lower() in {"automatico", "automático", "automatic"}):
+    if not (automatic_line or user_text.strip()):
         st.warning("Informe uma fala para linhas interativas.")
     else:
         try:
             recent_messages = [{"role":"assistant","content": recent}] if recent.strip() else []
+            effective_user_text = "" if automatic_line else user_text
+            effective_interpretation = "" if automatic_line else interpretation
             parsed_interpretation = {
-                "user_obligation": {"exists": bool(interpretation.strip()), "requirement": interpretation},
-                "move": interpretation,
+                "user_obligation": {"exists": bool(effective_interpretation.strip()), "requirement": effective_interpretation},
+                "move": effective_interpretation,
             }
             prompt = build_direct_writer_prompt(
                 row=row, recent_messages=recent_messages,
-                user_text=user_text, interpretation=parsed_interpretation,
+                user_text=effective_user_text, interpretation=parsed_interpretation,
                 previous_mary_text=recent, active_interlocutor="PERSONAGEM_DA_CENA",
             )
             common = {"api_key": key, "model": model, "temperature": temperature, "max_tokens": 1000}
@@ -196,7 +210,7 @@ if st.button("Gerar A, B e C", type="primary"):
             st.session_state["humanizer_pair"] = {
                 "timestamp":datetime.now(timezone.utc).isoformat(),
                 "test_id":str(uuid4()), "capitulo":chapter,
-                "linha":str(row.get("order")), "modelo":model, "fala_usuario":user_text,
+                "linha":str(row.get("order")), "modelo":model, "fala_usuario":effective_user_text,
                 "contexto":recent, "fala_guia":str(row.get("speech_guide","")),
                 "original":a, "humanizer":b, "interpretativo":interpretation_c,
             }
