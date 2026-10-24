@@ -141,6 +141,28 @@ def _read_history():
         str(st.secrets.get("MARY_SHEETS_ID", "")))
     return book.worksheet("INTERACTIONS").get_all_records()
 
+def _history_before(records, chapter, run_id, instance, seq, limit):
+    subset = [
+        r for r in records
+        if str(r.get("chapter_id", "")) == "sheet:" + chapter
+        and str(r.get("run_id", "")) == run_id
+        and str(r.get("chapter_instance_id", "")) == instance
+        and int(r.get("seq", 0) or 0) < seq
+    ]
+    subset.sort(key=lambda r: int(r.get("seq", 0) or 0))
+    messages = []
+    for item in subset[-limit:]:
+        spoken = str(item.get("user_text", "")).strip()
+        direction = str(item.get("scene_direction", "")).strip()
+        if spoken or direction:
+            speaker = str(item.get("user_role", "") or "INTERLOCUTOR")
+            messages.append({"role": "user", "content": speaker + ": " + " ".join(v for v in [direction, spoken] if v)})
+        mary = str(item.get("mary_text", "")).strip()
+        action = str(item.get("mary_action", "")).strip()
+        if mary or action:
+            messages.append({"role": "assistant", "content": " ".join(v for v in [action, mary] if v)})
+    return messages
+
 def _write_review(data):
     book = gspread.service_account_from_dict(_credentials()).open_by_key(
         str(st.secrets.get("MARY_SHEETS_ID", ""))
