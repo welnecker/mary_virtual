@@ -30,6 +30,8 @@ DIRECT_HEADERS = {
     "estilo / atitude": "style",
     "orgulho ferido": "hurt_style",
     "prompt negativo": "negative_prompt",
+    "direção dos interlocutores": "interlocutor_direction",
+    "direcao dos interlocutores": "interlocutor_direction",
     "pré-condição": "precondition",
     "pre-condição": "precondition",
     "vestimenta atual": "wardrobe",
