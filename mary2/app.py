@@ -2288,8 +2288,18 @@ blocked_turn = bool(
         != int(direct_ui_row.get("order", 0) or 0)
     and not choice_ready
 )
-mary_first_turn = bool(automatic_turn or blocked_turn)
 pilot_script = str(ui_chapter.get("script_name", "") or "").strip() == "Apartamento1"
+# No piloto, uma linha interativa ainda não emitida deve iniciar pela fala de Mary.
+# Só depois de emitida é que a DIREÇÃO DOS INTERLOCUTORES fornece os botões.
+pilot_mary_first = bool(
+    pilot_script
+    and direct_ui_row
+    and not automatic_turn
+    and not blocked_turn
+    and not choice_ready
+    and int(ui_state.get("awaiting_reply_order", 0) or 0) == 0
+)
+mary_first_turn = bool(automatic_turn or blocked_turn or pilot_mary_first)
 pilot_options = {}
 if pilot_script and ui_state and not mary_first_turn:
     reply_order = int(ui_state.get("awaiting_reply_order", 0) or 0)
@@ -2752,7 +2762,8 @@ if user_text:
                 automatic_turn and is_automatic_direct_row(direct_row)
             )
             blocked_direct_turn = bool(
-                blocked_turn and is_blocked_direct_row(direct_row)
+                (blocked_turn and is_blocked_direct_row(direct_row))
+                or (pilot_mary_first and pilot_script and not is_automatic_direct_row(direct_row))
             )
             if automatic_direct_turn:
                 direct_interpretation = {
