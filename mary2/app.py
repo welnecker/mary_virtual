@@ -2229,6 +2229,17 @@ blocked_turn = bool(
     and not choice_ready
 )
 mary_first_turn = bool(automatic_turn or blocked_turn)
+pilot_script = str(ui_chapter.get("script_name", "") or "").strip() == "Apartamento1"
+pilot_options = {}
+if pilot_script and ui_state and not mary_first_turn:
+    reply_order = int(ui_state.get("awaiting_reply_order", 0) or 0)
+    reply_row = next((r for r in ui_rows if int(r.get("order", 0) or 0) == reply_order), {})
+    for item in str(reply_row.get("interlocutor_direction", "") or "").splitlines():
+        key, sep, value = item.partition(":")
+        if sep and key.strip().upper() in {"PERSONAGEM", "POSITIVA", "NEGATIVA"}:
+            pilot_options[key.strip().upper()] = value.strip()
+    if not (pilot_options.get("POSITIVA") and pilot_options.get("NEGATIVA")):
+        pilot_options = {}
 
 if mary_first_turn:
     # A linha automática/bloqueada não oferece campo de digitação.
@@ -2256,10 +2267,20 @@ else:
             or "personagem da cena"
         ).strip()
         placeholder = f"Fale ou dirija a cena como {temporary_name}..."
-    user_text = st.chat_input(
-        placeholder,
-        disabled=bool(direct_ui_error),
+    pilot_selection = None
+    if pilot_options and not choice_ready:
+        left, right = st.columns(2)
+        with left:
+            if st.button("Prosseguir", key="pilot_positive", use_container_width=True, type="primary"):
+                pilot_selection = "POSITIVA"
+        with right:
+            if st.button("Contrariar", key="pilot_negative", use_container_width=True):
+                pilot_selection = "NEGATIVA"
+    user_text = pilot_options[pilot_selection] if pilot_selection else st.chat_input(
+        placeholder, disabled=bool(direct_ui_error),
     )
+    if pilot_selection:
+        st.session_state["pilot_choice_pending"] = {"choice": pilot_selection, "text": user_text}
 
 if direct_ui_error:
     st.error(f"Não foi possível determinar o modo da linha atual: {direct_ui_error}")
@@ -2297,6 +2318,8 @@ if user_text:
                 "scene_direction": "",
                 "dialogue": "",
             }
+        elif st.session_state.get("pilot_choice_pending", {}).get("text") == user_text:
+            parsed_input = {"scene_direction": "", "dialogue": user_text}
         else:
             parsed_input = parse_user_input(
                 api_key=api_key,
@@ -2305,6 +2328,16 @@ if user_text:
                 user_role=user_role,
                 raw_text=user_text,
             )
+        pilot_choice = st.session_state.pop("pilot_choice_pending", None)
+        if pilot_choice and pilot_script:
+            pilot_state = st.session_state.story_state.setdefault("narrative", {}).setdefault(
+                "apartamento1_pilot", {"negatives": 0, "blocked": False, "hurt": False})
+            if pilot_choice["choice"] == "NEGATIVA":
+                pilot_state["negatives"] += 1
+                pilot_state["blocked"] = pilot_state["negatives"] >= 2
+                pilot_state["hurt"] = True
+            elif not pilot_state["blocked"]:
+                pilot_state["hurt"] = False
         scene_direction = parsed_input["scene_direction"]
         dialogue_text = parsed_input["dialogue"]
         user_spoke = bool(dialogue_text)
@@ -2589,6 +2622,10 @@ if user_text:
                 emotion = {"chapter_id": chapter_emotion_id, "hurt": False, "continuation_allowed": True, "rejected": False}
                 narrative_state["direct_emotion"] = emotion
                 narrative_state["direct_emotional_ending_blocked"] = False
+            pilot_mood = narrative_state.get("apartamento1_pilot", {}) if pilot_script else {}
+            if pilot_mood.get("hurt"):
+                emotion["hurt"] = True
+                emotion["continuation_allowed"] = False
             negative_rule = str(direct_row.get("negative_prompt", "") or "")
             wounded_style = str(direct_row.get("hurt_style", "") or "")
             previous_mary_text = next(
@@ -2754,6 +2791,9 @@ if user_text:
                     narrative_state["direct_emotion"] = emotion
                 except Exception as exc:
                     _LOG.warning("Falha na avaliação emocional; estado preservado: %s", exc)
+            if pilot_script and narrative_state.get("apartamento1_pilot", {}).get("hurt"):
+                emotion["hurt"] = True
+                emotion["continuation_allowed"] = False
             if emotion.get("hurt"):
                 direct_row = dict(direct_row)
                 direct_row["style"] = wounded_style
@@ -3907,6 +3947,8 @@ if user_text:
                         or emotion_end.get("continuation_allowed") is not True
                     )
                 )
+                if pilot_script and narrative.get("apartamento1_pilot", {}).get("blocked"):
+                    forbidden = True
                 narrative["direct_emotional_ending_blocked"] = forbidden
                 narrative["choice_ready"] = not forbidden
         elif script_mode == "block_sheet" and block_state is not None:
