@@ -558,6 +558,7 @@ def activate_direct_sheet_chapter(
     narrative["chapter_instance_id"] = instance_id
     narrative["chapter_entry_checkpoint_id"] = ""
     narrative["choice_ready"] = False
+    narrative.pop("apartamento1_pilot", None)
     narrative.pop("direct_script", None)
     narrative.pop("direct_conversation_state", None)
     narrative.pop("direct_recent_user_facts", None)
@@ -686,6 +687,7 @@ def restart_current_chapter(persistence: dict | None) -> None:
     narrative["choice_ready"] = False
     narrative["pending_auto_chapter"] = ""
     narrative["handoff"] = {}
+    narrative.pop("apartamento1_pilot", None)
     narrative.pop("phase_start_message_index", None)
     narrative.pop("active_phase_id", None)
 
