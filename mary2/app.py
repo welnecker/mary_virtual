@@ -2623,6 +2623,10 @@ if user_text:
                 narrative_state["direct_emotion"] = emotion
                 narrative_state["direct_emotional_ending_blocked"] = False
             pilot_mood = narrative_state.get("apartamento1_pilot", {}) if pilot_script else {}
+            if pilot_choice and pilot_script and pilot_choice.get("choice") == "POSITIVA" and not pilot_mood.get("blocked"):
+                emotion["hurt"] = False
+                emotion["rejected"] = False
+                emotion["continuation_allowed"] = True
             if pilot_mood.get("hurt"):
                 emotion["hurt"] = True
                 emotion["continuation_allowed"] = False
