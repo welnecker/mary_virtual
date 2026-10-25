@@ -3577,10 +3577,58 @@ if user_text:
                         not bool(auto_validation.get("fulfilled", False))
                         or str(auto_validation.get("parse_error", "") or "").strip()
                     ):
-                        raise OpenRouterError(
-                            "Linha automática não aprovada após correção interna. "
-                            "Nenhuma resposta foi exibida ou salva; tente Prosseguir novamente."
+                        # Segunda tentativa com os motivos da reprovação atual.
+                        # Não publica respostas sem aprovação do Diretor.
+                        missing_detail = str(auto_validation.get("missing", "") or "").strip()
+                        scene_detail = auto_validation.get("scene_completion", {}) or {}
+                        correction_messages = [
+                            *llm_messages,
+                            {"role": "assistant", "content": auto_raw},
+                            {"role": "system", "content": (
+                                "ÚLTIMA CORREÇÃO DA LINHA AUTOMÁTICA. O Diretor reprovou "
+                                "a tentativa anterior. Falha: "
+                                + (missing_detail or str(scene_detail.get("missing", "") or "objetivo não comprovado"))
+                                + ". Execute estritamente a Descrição-guia, a Fala-guia e "
+                                "o Pensamento-guia da LINHA ATIVA, sem repetir frases da tentativa "
+                                "anterior, sem antecipar linhas futuras. A ação física deve estar "
+                                "explicitamente descrita em [AÇÃO] e a fala verbal em [FALA]. "
+                                "Use evidências concretas, não apenas intenções."
+                            )},
+                        ]
+                        last_raw = chat(
+                            api_key=api_key, model=model, fallback_model=fallback,
+                            messages=correction_messages,
+                            temperature=max(0.2, min(float(temperature), 0.5)),
                         )
+                        last_parts = parse_mary_components(last_raw)
+                        last_speech = sanitize_mary_output(last_parts["speech"])
+                        if last_speech and not looks_like_action_narration(last_speech):
+                            last_validation = validate_direct_semantic_turn(
+                                api_key=api_key, model=director_model, fallback_model=fallback,
+                                row=direct_row, interpretation=direct_interpretation,
+                                mary_text=last_speech, mary_thought=last_parts["thought"],
+                                mary_action=last_parts["action"], user_text=dialogue_text,
+                                user_scene_direction=scene_direction,
+                                line_dialogue=list(direct_state.get("line_dialogue", []) or []),
+                            )
+                            if bool(last_validation.get("fulfilled", False)) and not last_validation.get("parse_error"):
+                                auto_raw, auto_parts, auto_speech, auto_validation = (
+                                    last_raw, last_parts, last_speech, last_validation
+                                )
+                        if not bool(auto_validation.get("fulfilled", False)) or auto_validation.get("parse_error"):
+                            _LOG.warning(
+                                "AUTO_LINE_VALIDATION_REJECTED chapter=%s line=%s missing=%s scene=%s parse=%s",
+                                str(narrative_state.get("chapter_id", "")),
+                                str(direct_row.get("order", "")),
+                                str(auto_validation.get("missing", ""))[:400],
+                                str(scene_detail.get("missing", ""))[:300],
+                                str(auto_validation.get("parse_error", ""))[:160],
+                            )
+                            raise OpenRouterError(
+                                "Linha automática não aprovada após correções internas. "
+                                "Nenhuma resposta foi exibida ou salva. Consulte o log "
+                                "AUTO_LINE_VALIDATION_REJECTED e tente Prosseguir novamente."
+                            )
                     model_audit["retry_used"] = True
                     model_audit["retry_messages"] = deepcopy(auto_retry_messages)
                     model_audit["retry_raw_response"] = auto_raw
