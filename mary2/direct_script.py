@@ -556,7 +556,7 @@ def mark_direct_line_emitted(
                 state["completed"] = False
         return
 
-    if last_order and order == last_order:
+    if last_order and order == last_order and not (row.get("script_name") == "Apartamento1" and row.get("interlocutor_direction")):
         completed = {
             int(value)
             for value in (state.get("completed_orders", []) or [])
