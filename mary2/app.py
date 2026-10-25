@@ -1,5 +1,63 @@
 from __future__ import annotations
 
+AUTHORIAL_CHANNEL_HIERARCHY = """
+HIERARQUIA DE AUTORIA DOS TRÊS CANAIS — APLICAR A TODAS AS VARIANTES
+Considere todas as colunas como contexto para coerência, mas respeite a
+responsabilidade de cada uma ao escrever o texto final:
+[AÇÃO] Autoridade: Descrição-guia da linha ativa. Descreva os movimentos
+que ela autoriza. Memória instantânea, descrição inicial, estilo e pensamentos
+informam o contexto, mas NÃO ordenam gestos, contatos ou acontecimentos novos.
+[FALA] Autoridade: Fala-guia, respondendo primeiro ao sentido da última entrada
+real do interlocutor. Estilo/atitude modula tom e cadência; não cria novos assuntos.
+[PENSAMENTO] Autoridade: Pensamento-guia. Expresse a experiência interna
+da personagem sem repetir mecanicamente sua fala ou suas ações.
+Memórias fornecem fatos e estado já existentes, não tarefas extras.
+A mesma sensação repetida em várias colunas NÃO é pedido para multiplicar
+a sensação em [AÇÃO], [FALA] e [PENSAMENTO].
+Se um guia de componente está vazio, não invente conteúdo só para preencher
+a tag. Preserve REVELACAO, a linha ativa e o formato dos blocos.
+Essa regra define responsabilidade narrativa, não diminui a intensidade,
+o vocabulário ou a espontaneidade que o roteiro autorizou.
+"""
+ 
+HUMANIZER_INTERPRETATIVO = """
+CONTRATO EXPERIMENTAL C — AÇÃO CONCRETA E SENSORIAL, FALA LIVRE, PENSAMENTO DIRETO
+Siga a hierarquia autoral comum aos três modos. REVELACAO e a linha ativa
+continuam sendo autoridades sobre tudo o que pode acontecer ou ser dito.
+
+[AÇÃO] — OBJETIVA E SENSORIAL:
+- Descrição-guia define gestos e movimentos; execute somente o que ela permite.
+- Descreva Mary em terceira pessoa, com verbos concretos e sem prosa literária.
+- Inclua sensações físicas concretas somente quando já estiverem autorizadas
+  na Descrição-guia ou claramente estabelecidas como estado atual da cena.
+- Uma sensação não autoriza inventar outro movimento ou acontecimento.
+- Prefira uma ou duas frases; acrescente extensão apenas para tornar clara
+  a sequência de ações explicitamente orientadas.
+- Evite metáforas, imagens poéticas, exageros, reiterações e microdetalhes
+  que não mudem a compreensão da encenação.
+- Se a Descrição-guia estiver vazia, não invente uma ação para preencher [AÇÃO].
+- A memória instantânea e a descrição inicial contextualizam; não criam tarefas.
+
+[FALA] — PRESERVAR EXPRESSIVIDADE:
+- Responda à última intervenção do interlocutor segundo a Fala-guia.
+- Mantenha a oralidade espontânea, o ritmo e a intensidade que a cena pede.
+- Não reduza, resuma ou padronize a fala para imitar a concisão de [AÇÃO].
+- Evite somente imagens poéticas ornamentais; preserve a voz pessoal de Mary.
+
+[PENSAMENTO] — ÍNTIMO E DIRETO, COMO NO MELHOR RESULTADO DE B:
+- Expresse a experiência interior em linguagem próxima da fala mental cotidiana.
+- Seja específico e sensorial quando o Pensamento-guia justificar.
+- Não use metáforas de eletricidade, fogo ou outras imagens poéticas para
+  substituir as sensações concretas já fornecidas pelo roteiro.
+- Evite reformular a FALA ou repetir a AÇÃO; não acrescente fatos ou emoções
+  ausentes da direção autoral.
+- Não elimine um pensamento necessário só para encurtar a resposta.
+
+Os três blocos podem ter níveis diferentes de expressividade. Preserve o
+contrato de saída original e não antecipe acontecimentos de linhas futuras.
+"""
+
+
 import html
 import json
 import logging
@@ -2870,7 +2928,9 @@ if user_text:
                 character_name=str(
                     scene_for_director.get("temporary_character", {}).get("name", "") or ""
                 ),
-            )
+            )            if str(chapter_config.get("script_name", "") or "").strip() == "Apartamento1":
+                current_chapter_prompt += "\n\n" + AUTHORIAL_CHANNEL_HIERARCHY + "\n\n" + HUMANIZER_INTERPRETATIVO
+
         elif script_mode == "block_sheet":
             current_chapter_prompt = build_block_prompt(
                 facts_prompt=str(chapter_config.get("facts_prompt", "") or ""),
