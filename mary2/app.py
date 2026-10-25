@@ -2928,7 +2928,8 @@ if user_text:
                 character_name=str(
                     scene_for_director.get("temporary_character", {}).get("name", "") or ""
                 ),
-            )            if str(chapter_config.get("script_name", "") or "").strip() == "Apartamento1":
+            )
+            if str(chapter_config.get("script_name", "") or "").strip() == "Apartamento1":
                 current_chapter_prompt += "\n\n" + AUTHORIAL_CHANNEL_HIERARCHY + "\n\n" + HUMANIZER_INTERPRETATIVO
 
         elif script_mode == "block_sheet":
