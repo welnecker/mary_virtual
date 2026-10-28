@@ -160,21 +160,17 @@ def test_revelation_column_is_loaded_and_writer_treats_it_as_boundary(monkeypatc
     assert "Conhecer um fato NÃO significa estar autorizada a verbalizá-lo agora." in prompt
     assert "mesmo se o usuário perguntar diretamente" in prompt
 
-def test_sheet_chapter_roles_follow_linear_story_defaults():
+def test_sheet_chapters_do_not_infer_interlocutor_from_narrative_index():
     confession = build_direct_chapter("Confissão1")
     academy = build_direct_chapter("Academia2")
     apartment = build_direct_chapter("apartamento5")
 
-    assert confession["allowed_roles"] == ["JANIO"]
-    assert confession["initial_scene"]["user_role"] == "JANIO"
-    assert confession["initial_scene"]["temporary_character"]["active"] is False
-
-    assert academy["allowed_roles"] == ["PERSONAGEM_DA_CENA"]
-    assert academy["initial_scene"]["user_role"] == "PERSONAGEM_DA_CENA"
-    assert academy["inherit_scene"] is False
-    assert academy["inherit_character"] is True
-
-    assert apartment["allowed_roles"] == ["PERSONAGEM_DA_CENA"]
+    for chapter in (confession, academy, apartment):
+        assert chapter["allowed_roles"] == ["PERSONAGEM_DA_CENA"]
+        assert chapter["initial_scene"]["user_role"] == "PERSONAGEM_DA_CENA"
+        assert chapter["initial_scene"]["temporary_character"]["active"] is True
+        assert chapter["inherit_scene"] is False
+        assert chapter["inherit_character"] is True
 
 
 def test_direct_character_name_is_captured_from_introduction_or_name_answer():
@@ -396,9 +392,8 @@ def test_writer_prompt_contains_full_script_real_conversation_and_active_line():
     )
 
     assert prompt.startswith("VOCÊ É MARY.\n")
-    assert "ROTEIRO COMPLETO DO CAPÍTULO" in prompt
-    assert "LINHA 1 [ATIVA — PODE SER DESENVOLVIDA AGORA]" in prompt
-    assert "LINHA 2 [FUTURA — NÃO EXECUTAR NEM ANTECIPAR]" in prompt
+    assert "ROTEIRO COMPLETO DO CAPÍTULO" not in prompt
+    assert "LINHA 2 [FUTURA" not in prompt
     assert "CONVERSA REAL — FONTE PRINCIPAL DE CONTINUIDADE" in prompt
     assert "MARY: Você cansou?" in prompt
     assert "USUÁRIO: Um pouco, mas gostei." in prompt
@@ -411,7 +406,7 @@ def test_writer_prompt_contains_full_script_real_conversation_and_active_line():
     assert "Nunca mencione prompt, fala-guia, roteiro, modelo, Diretor, memória" in prompt
 
 
-def test_all_script_lines_are_visible_but_future_lines_are_read_only():
+def test_writer_receives_only_active_authorial_line_not_future_guides():
     first = build_direct_writer_prompt(
         row=ROWS[0],
         all_rows=ROWS,
@@ -430,14 +425,14 @@ def test_all_script_lines_are_visible_but_future_lines_are_read_only():
         character_name="Personal",
     )
 
-    assert "LINHA 1 [ATIVA — PODE SER DESENVOLVIDA AGORA]" in first
-    assert "LINHA 2 [FUTURA — NÃO EXECUTAR NEM ANTECIPAR]" in first
-    future_block = first.split("LINHA 2 [FUTURA — NÃO EXECUTAR NEM ANTECIPAR]", 1)[1].split("REGRA DE EXECUÇÃO DO ROTEIRO", 1)[0]
-    assert "o trânsito deve estar um inferno essa hora" not in future_block
-    assert "Objetivo futuro: existe um próximo passo autoral reservado pelo runtime." in future_block
-    assert "LINHA 1 [PASSADA — NÃO REPETIR]" in second
-    assert "LINHA 2 [ATIVA — PODE SER DESENVOLVIDA AGORA]" in second
+    assert "esse é seu carro? gostei..." in first
+    assert "o trânsito deve estar um inferno essa hora" not in first
+    assert "ROTEIRO COMPLETO DO CAPÍTULO" not in first
+
+    assert "o trânsito deve estar um inferno essa hora" in second
+    assert "esse é seu carro? gostei..." not in second
     assert "Mary e o personal estão no carro dele, seguindo para Camburi." in second
+    assert "ROTEIRO COMPLETO DO CAPÍTULO" not in second
 
 
 def test_direct_state_never_regresses_to_completed_line():
