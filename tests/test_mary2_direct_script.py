@@ -662,3 +662,41 @@ def test_interpret_direction_is_scoped_to_active_row_only():
     assert "Direção autoral desta linha: Use interjeicoes apenas nesta linha." in first
     assert "Use interjeicoes apenas nesta linha." not in second
     assert "Direção autoral desta linha:" not in second
+
+
+def test_optional_onomatopoeia_enters_prompt_only_when_present():
+    base = {
+        "order": 1,
+        "line_id": "linha_01",
+        "script_name": "Teste1",
+        "speech_guide": "Interpretar: Mary reage ao momento.",
+        "style": "natural",
+        "interaction_mode": "",
+        "revelation_policy": "",
+        "instant_memory": "",
+        "permanent_memory": "",
+        "physical_memory": "",
+        "initial_description": "",
+    }
+
+    with_sound = dict(base, onomatopoeia="CHUP....SMACK....LAMB!")
+    prompt = build_direct_writer_prompt(
+        row=with_sound,
+        all_rows=[with_sound],
+        recent_messages=[],
+        user_text="",
+        interpretation={"user_obligation": {"exists": False, "requirement": ""}},
+    )
+    assert "Onomatopeia autoral obrigatória: CHUP....SMACK....LAMB!" in prompt
+    assert "reproduza exatamente a sequência autoral acima" in prompt
+
+    without_sound = dict(base, onomatopoeia="")
+    prompt_empty = build_direct_writer_prompt(
+        row=without_sound,
+        all_rows=[without_sound],
+        recent_messages=[],
+        user_text="",
+        interpretation={"user_obligation": {"exists": False, "requirement": ""}},
+    )
+    assert "Onomatopeia autoral obrigatória:" not in prompt_empty
+    assert "ONOMATOPEIA DA LINHA:" not in prompt_empty
