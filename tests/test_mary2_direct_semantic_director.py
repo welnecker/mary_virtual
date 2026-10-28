@@ -207,7 +207,7 @@ def test_abbreviated_literal_evidence_from_same_mary_turn_is_grounded(monkeypatc
     )
 
     assert result["fulfilled"] is True
-    assert result["elements"][0]["source"] == "MARY"
+    assert result["elements"][0]["source"] == "MARY_PENSAMENTO"
 
 
 def test_abbreviated_evidence_cannot_mix_fragments_from_different_turns():
