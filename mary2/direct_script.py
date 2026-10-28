@@ -25,6 +25,8 @@ DIRECT_HEADERS = {
     "revelacao": "revelation_policy",
     "revelação": "revelation_policy",
     "estilo / atitude": "style",
+    "onomatopeia": "onomatopoeia",
+    "onomatopéia": "onomatopoeia",
     "orgulho ferido": "hurt_style",
     "prompt negativo": "negative_prompt",
     "pré-condição": "precondition",
@@ -660,6 +662,7 @@ def build_direct_writer_prompt(
         row.get("speech_guide", ""),
         character_name=character_name,
     )
+    onomatopoeia = _clean(row.get("onomatopoeia"))
     interpret_match = re.fullmatch(r"interpretar(?:\s*:\s*(.*))?", speech_guide.strip(), flags=re.I | re.S)
     interpret_mode = bool(interpret_match)
     interpret_direction = (interpret_match.group(1) or "").strip() if interpret_match else ""
@@ -769,7 +772,12 @@ def build_direct_writer_prompt(
         "Fala-guia: " + ("Interpretar (modo técnico)" if interpret_mode else (speech_guide or "(nenhuma)")) + "\n"
         + ("Direção autoral desta linha: " + interpret_direction + "\n" if interpret_direction else "")
         + "Estilo/atitude: " + (_clean(row.get("style")) or "natural") + "\n"
-        "Revelação permitida nesta linha: " + (_clean(row.get("revelation_policy")) or "(sem restrição autoral específica)") + "\n\n"
+        + ("Onomatopeia autoral obrigatória: " + onomatopoeia + "\n" if onomatopoeia else "")
+        + "Revelação permitida nesta linha: " + (_clean(row.get("revelation_policy")) or "(sem restrição autoral específica)") + "\n\n"
+        + (
+            "ONOMATOPEIA DA LINHA: reproduza exatamente a sequência autoral acima, uma única vez e em linha própria dentro do bloco [FALA]. Não substitua, não reordene, não complete e não invente sons adicionais.\n\n"
+            if onomatopoeia else ""
+        )
 
         "REGRA GLOBAL DE VOZ NATURAL: Mary fala português brasileiro cotidiano, espontâneo e específico à situação. ESTILO/ATITUDE determina a postura E o registro da fala: escolha palavras, ritmo e reacoes coerentes com a atitude descrita na linha, sem copiar literalmente o roteiro. Evite frases de efeito, desafios genéricos, metáforas grandiosas, repetição de ritmo, vibração, pressão, energia ou jogo como enfeites. Responda ao interlocutor sem discursos ornamentais. Em cenas de desejo, nao substitua automaticamente reacoes especificas por declaracoes romanticas abstratas: use linguagem direta e espontanea, apropriada ao contexto, sem forcar intensidade nem inventar acontecimentos. Preserve fatos anteriores, não copie seus clichês. O pensamento é privado, curto e concreto. Não reduza a personalidade ou iniciativa de Mary.\\n\\n"
         "RECIPROCIDADE EMOCIONAL: Mary tem desejos, necessidades, medos e impulsos próprios. Ela não é observadora imune às emoções nem estrategista em controle permanente. Se houver atração mútua, a atitude do interlocutor também pode surpreender, afetar, emocionar ou desconcertar Mary. Confiança não significa autocontrole absoluto: ela pode hesitar, perder o fio da conversa, rir nervosamente, mudar de ideia ou agir por impulso, conforme a cena. Não transforme cada troca em teste da resistência dele, demonstração de poder feminino ou disputa por domínio. Faça Mary viver a experiência, e não apenas avaliar o efeito que causa. Evite escalada emocional obrigatória: a intensidade acompanha acontecimentos concretos, consentimento e limites da personagem. Preserve estilo, iniciativa, fatos, sequência e intenções autorais.\\n\\n"
