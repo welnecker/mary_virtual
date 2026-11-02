@@ -66,11 +66,16 @@ import sys
 from pathlib import Path
 from copy import deepcopy
 
-# Streamlit inicia mary2/app.py com mary2/ como diretório de imports.
-# Módulos compartilhados (auth, google_sheets_repository) ficam na raiz.
+# Módulos homônimos existem na raiz (app legado) e em mary2/.
+# Priorizar mary2/ para que director, openrouter_client e os demais módulos
+# deste motor não sejam resolvidos acidentalmente para a versão legada.
+_MARY2_DIR = str(Path(__file__).resolve().parent)
 _PROJECT_ROOT = str(Path(__file__).resolve().parent.parent)
 if _PROJECT_ROOT not in sys.path:
-    sys.path.insert(0, _PROJECT_ROOT)
+    sys.path.append(_PROJECT_ROOT)
+if _MARY2_DIR in sys.path:
+    sys.path.remove(_MARY2_DIR)
+sys.path.insert(0, _MARY2_DIR)
 
 import streamlit as st
 
