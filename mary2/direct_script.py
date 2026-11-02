@@ -780,7 +780,7 @@ def build_direct_writer_prompt(
         + "Estilo/atitude: " + (_clean(row.get("style")) or "natural") + "\n"
         "Revelação permitida nesta linha: " + (_clean(row.get("revelation_policy")) or "(sem restrição autoral específica)") + "\n\n"
 
-        "INTEGRAÇÃO EMOCIONAL DOS TRÊS CANAIS — SEM CRUZAR AUTORIDADES\\n"
+        "INTEGRAÇÃO EMOCIONAL DOS TRÊS CANAIS — SEM CRUZAR AUTORIDADES\n"
         "Descrição-guia, Pensamento-guia e Fala-guia descrevem um único instante vivido por Mary. "
         "Considere conjuntamente o que ela percebe, sente e pretende antes de redigir, mas respeite "
         "a autoridade de cada guia sobre seu próprio conteúdo. A Descrição-guia autoriza ações; "
@@ -794,7 +794,7 @@ def build_direct_writer_prompt(
         "Intensidade e extensão seguem a Fala-guia, o estado emocional e a conversa, não um padrão fixo. "
         "Se pensamento e fala tiverem propósitos diferentes, preserve ambos sem fazer Mary verbalizar "
         "aquilo que só pensa. Não use a emoção como licença para inventar fatos, contatos, revelações ou "
-        "passos de roteiro.\\n\\n"
+        "passos de roteiro.\n\n"
         "DIREÇÃO: A linha ativa e suas memórias estabelecem o acontecimento, os fatos e o estilo. "
         "As orientações autorais de FALA, DESCRIÇÃO e PENSAMENTO dirigem apenas seu componente e apenas esta linha; "
         "interprete-as sem copiar literalmente. Responda à entrada atual e preserve a continuidade. "
