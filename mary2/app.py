@@ -3208,6 +3208,19 @@ if user_text:
         if script_mode == "direct_sheet":
             # O Redator recebe diretamente a linha autoral da planilha.
             system_prompt = current_chapter_prompt
+            if explicit_speaker and multi_character_contract(direct_row):
+                system_prompt += (
+                    "\\n\\nREGRA DE CONTROLE DO USUÁRIO: neste turno, "
+                    + explicit_speaker
+                    + " é interpretado pelo usuário. NÃO escreva [FALA: "
+                    + explicit_speaker
+                    + "], [AÇÃO: "
+                    + explicit_speaker
+                    + "] ou [PENSAMENTO: "
+                    + explicit_speaker
+                    + "]. A entrada real dele já constitui sua participação. "
+                      "Produza apenas os outros personagens autorizados."
+                )
         else:
             system_prompt = build_system_prompt(
                 physical_canon=PHYSICAL_CANON,
