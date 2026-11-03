@@ -1654,7 +1654,7 @@ def delete_interactions_from_seq(
 
 
 EPISODIC_MEMORY_AUDIT_SHEET = "EPISODIC_MEMORY_AUDIT"
-EPISODIC_MEMORY_AUDIT_HEADERS = ["run_id","seq","created_at","chapter_id","chapter_instance_id","branch_id","line_order","status","candidates_count","candidate_seqs","candidate_evidence_json","current_user_text","error"]
+EPISODIC_MEMORY_AUDIT_HEADERS = ["run_id","seq","created_at","chapter_id","chapter_instance_id","branch_id","line_order","status","candidates_count","candidate_seqs","candidate_evidence_json","current_user_text","error","scene_direction","speaker_explicit","query_terms_json","selection_reason","filter_version"]
 
 def save_episodic_memory_audit(
     *,
@@ -1667,6 +1667,9 @@ def save_episodic_memory_audit(
     line_order: int,
     user_text: str,
     candidates: list[dict],
+    scene_direction: str = "",
+    speaker_explicit: str = "",
+    diagnostics: dict | None = None,
     spreadsheet_id: str = "",
     spreadsheet_title: str = "MARY_CORE_PERSISTENCE",
     owner_email: str = "",
@@ -1681,6 +1684,7 @@ def save_episodic_memory_audit(
     ws = _ensure_worksheet(
         book, EPISODIC_MEMORY_AUDIT_SHEET, EPISODIC_MEMORY_AUDIT_HEADERS
     )
+    diagnostic_info = diagnostics if isinstance(diagnostics, dict) else {}
     ws.append_row(
         [
             run_id, seq, _now(), chapter_id, chapter_instance_id, branch_id,
@@ -1689,6 +1693,10 @@ def save_episodic_memory_audit(
             ",".join(str(item.get("seq", "")) for item in candidates),
             json.dumps(candidates, ensure_ascii=False),
             str(user_text or "")[:1000], "",
+            str(scene_direction or "")[:1000], str(speaker_explicit or "")[:80],
+            json.dumps(diagnostic_info.get("query_terms", []), ensure_ascii=False),
+            str(diagnostic_info.get("reason", "") or ""),
+            str(diagnostic_info.get("filter_version", "") or ""),
         ],
         value_input_option="RAW",
     )
