@@ -744,9 +744,14 @@ def _find_run_row(ws, run_id: str) -> int | None:
         cell = ws.find(run_id, in_column=1)
     except gspread.exceptions.CellNotFound:
         return None
-    rows[run_id] = int(cell.row)
+    # gspread >= 6 pode retornar None quando a busca não encontra resultado,
+    # em vez de lançar CellNotFound. Não acessar cell.row nesse caso.
+    if cell is None:
+        return None
+    row_number = int(cell.row)
+    rows[run_id] = row_number
     ws._mary_run_rows = rows
-    return int(cell.row)
+    return row_number
 
 
 def save_turn(
