@@ -5,6 +5,7 @@ import re
 import time
 
 from openrouter_client import chat
+from multi_character import guide_characters
 
 
 def _clean(value) -> str:
@@ -111,6 +112,15 @@ def validate_direct_semantic_turn(
         conversation_entries.append(("MARY_PENSAMENTO", _clean(mary_thought)))
         history.append("PENSAMENTO DE MARY: " + _clean(mary_thought))
     conversation = "\n".join(history) or "(sem histórico da linha)"
+    multi_authors = guide_characters(row)
+    multi_author_direction = (
+        "LINHA COM PERSONAGENS IDENTIFICADOS: os blocos rotulados "
+        "indicam quem efetivamente agiu, falou ou pensou. "
+        "Não atribua a Mary falas, ações ou pensamentos marcados Silvia ou outros nomes. "
+        "Avalie ações e falas de cada personagem conforme a autoria explícita. "
+        "Pensamento de um personagem não é informação conhecida pelos demais.\\n\\n"
+        if any(name != "mary" for name in multi_authors) else ""
+    )
 
     authoritative = (
         "MEMÓRIA PERMANENTE-GLOBAL\n"
@@ -136,7 +146,8 @@ def validate_direct_semantic_turn(
     )
 
     payload = (
-        "FONTES AUTORITATIVAS\n"
+        multi_author_direction
+        + "FONTES AUTORITATIVAS\n"
         + authoritative
         + "\n\nFALA-GUIA ORIGINAL\n"
         + ("Interpretar (modo técnico)" if interpret_mode else (speech_guide or "(nenhuma)"))
