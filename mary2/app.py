@@ -2853,7 +2853,8 @@ if user_text:
                             {"role": "system", "content": (
                                 "Analise limites de personagem em uma cena ficcional. Retorne APENAS JSON "
                                 "com violation (booleano), forgiven (booleano), rejected (booleano), reason (texto), "
-                                "speaker (nome do personagem que efetivamente FALOU nesta entrada; vazio se incerto). "
+                                "speaker (nome do personagem que efetivamente FALOU nesta entrada; vazio se incerto), "
+                                "repair_evidence (citação LITERAL curta da fala atual que demonstra reparação; vazio quando forgiven=false). "
                                 "Não confunda personagem mencionado, destinatário ou quem falou no turno anterior com o emissor atual. "
                                 "Violação apenas quando o comportamento atual afronta claramente os limites descritos. "
                                 "Um convite respeitoso ou brincadeira contextual não é violação. "
@@ -2912,7 +2913,9 @@ if user_text:
                         emotion["hurt"] = True
                         emotion["continuation_allowed"] = False
                         emotional_notice = "Mary ficou decepcionada com sua atitude."
-                    elif emotion.get("hurt") and assessment.get("forgiven") is True:
+                    elif (emotion.get("hurt") and assessment.get("forgiven") is True
+                          and len(str(assessment.get("repair_evidence", "") or "").strip()) >= 5
+                          and str(assessment.get("repair_evidence", "") or "").strip().casefold() in dialogue_text.casefold()):
                         # Reconciliação validada encerra mágoa e rejeição anteriores
                         # APENAS para este interlocutor, sem apagar o histórico.
                         emotion["hurt"] = False
