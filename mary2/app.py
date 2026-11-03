@@ -315,7 +315,7 @@ def _render_scene_action(text: str) -> None:
         (
             '<div style="margin:0.45rem 0 0.8rem; padding:0.68rem 0.85rem; '
             'border-radius:0.7rem; background:rgba(127,127,127,0.08); '
-            'font-weight:650; line-height:1.5;">'
+            'font-weight:650; line-height:1.5; white-space:pre-line;">'
             + html.escape(value)
             + "</div>"
         ),
@@ -340,7 +340,7 @@ def _render_mary_thought(text: str) -> None:
         (
             '<div style="margin:0.1rem 0 0.8rem; padding:0.78rem 0.95rem; '
             'border-radius:0.9rem; background:rgba(127,127,127,0.07); '
-            'font-size:1rem; line-height:1.55;">'
+            'font-size:1rem; line-height:1.55; white-space:pre-line;">'
             '<span style="font-size:1.08rem; margin-right:0.35rem;">💭</span>'
             '<span style="font-style:italic; opacity:0.92;">'
             + html.escape(value)
