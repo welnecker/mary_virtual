@@ -63,6 +63,21 @@ class EpisodicShadowTests(unittest.TestCase):
     def test_no_match_returns_empty(self):
         self.assertEqual(self.run_select(current_user_text="Abacaxi no jardim"), [])
 
+    def test_generic_words_no_longer_create_false_matches(self):
+        rows = [
+            row(1, "Oi Mary, a gente quer conversar no cruzeiro", "A gente quer isso também."),
+            row(2, "Gente, Mary, vocês querem ficar?", "Cruzeiro é diversão."),
+        ]
+        result = select(rows, run_id="r1", chapter_instance_id="cap1",
+                        branch_id="main", before_seq=8,
+                        current_user_text="A gente quer falar com Mary no cruzeiro")
+        self.assertEqual(result, [])
+
+    def test_diagnostics_explain_missing_distinctive_words(self):
+        report = module.describe_episode_selection("Mary, a gente quer conversar?", [], before_seq=7)
+        self.assertEqual(report["reason"], "MENOS_DE_DUAS_PALAVRAS_DISTINTIVAS")
+        self.assertEqual(report["filter_version"], "lexical-shadow-v2")
+
     def test_no_single_term_trigger(self):
         self.assertEqual(self.run_select(current_user_text="Carro!"), [])
 
