@@ -809,8 +809,8 @@ def build_direct_writer_prompt(
         + ("\n" + multi_character_contract(row) + "\n" if multi_character_contract(row) else "")
         + "FORMATO: gere somente os blocos necessários, nesta ordem: [AÇÃO], [FALA], [PENSAMENTO].\\n"
         "[AÇÃO] descreve a ação física efetivamente realizada conforme a memória local e a descrição-guia; não basta prometer.\\n"
-        "[FALA] contém só as palavras de Mary, guiadas pela Fala-guia e pela conversa real.\\n"
-        "[PENSAMENTO] é opcional; inclua apenas percepção íntima que acrescente algo novo, guiada pelo Pensamento-guia.\\n"
+        "[FALA] contém as palavras de Mary, exceto nas linhas que autorizam explicitamente a fala identificada de outro personagem.\\n"
+        "[PENSAMENTO] traz somente a percepção íntima de quem foi identificado pelo respectivo guia, sem transmitir esse conhecimento aos demais personagens.\\n"
         "Todos os blocos pertencem ao mesmo instante, sem repetir a mesma informação. Não copie literalmente orientações, não intensifique nem enfeite a narração além do que pede a linha ativa. "
         "Não invente ações ou pensamentos para preencher blocos; gere pelo menos um. Não coloque ações dentro de [FALA]."
     )
