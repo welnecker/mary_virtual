@@ -302,6 +302,47 @@ def load_direct_script_catalog(
 
 
 
+def _lookup_direct_info_board(values: list[list], script_name: str) -> str:
+    """Resolve quadro por nome exato ou variação inofensiva de espaços.
+
+    Mantém algarismos e palavras: Caribe 1 nunca corresponde a Caribe 2.
+    Se nomes diferentes colidirem após normalização, não escolhe por acaso.
+    """
+    if not values:
+        return ""
+    headers = [_clean(x).casefold() for x in values[0]]
+    if "roteiro" not in headers or "quadro inicial" not in headers:
+        raise ValueError("QUADROS_INFORMATIVOS precisa das colunas ROTEIRO e QUADRO INICIAL")
+    script_col, board_col = headers.index("roteiro"), headers.index("quadro inicial")
+    target = _clean(script_name).casefold()
+    if not target:
+        return ""
+
+    def _entries():
+        for cells in values[1:]:
+            if script_col < len(cells):
+                title = _clean(cells[script_col]).casefold()
+                if title:
+                    yield title, (_clean(cells[board_col]) if board_col < len(cells) else "")
+
+    entries = list(_entries())
+    exact = [board for title, board in entries if title == target]
+    if len(exact) == 1:
+        return exact[0]
+    if len(exact) > 1:
+        raise ValueError(f"QUADROS_INFORMATIVOS: roteiro duplicado {script_name!r}")
+    compact = lambda value: re.sub(r"\\s+", "", value)
+    candidates = [board for title, board in entries if compact(title) == compact(target)]
+    if len(candidates) == 1:
+        return candidates[0]
+    if len(candidates) > 1:
+        raise ValueError(
+            f"QUADROS_INFORMATIVOS: nomes ambíguos para {script_name!r}; "
+            "padronize ROTEIRO para evitar apresentar quadro incorreto."
+        )
+    return ""
+
+
 def load_direct_info_board(
     *,
     service_account_info: dict,
@@ -313,17 +354,7 @@ def load_direct_info_board(
         return ""
     client = gspread.service_account_from_dict(service_account_info)
     worksheet = client.open_by_key(_clean(spreadsheet_id)).worksheet("QUADROS_INFORMATIVOS")
-    values = worksheet.get_all_values()
-    if not values:
-        return ""
-    headers = [_clean(x).casefold() for x in values[0]]
-    if "roteiro" not in headers or "quadro inicial" not in headers:
-        raise ValueError("QUADROS_INFORMATIVOS precisa das colunas ROTEIRO e QUADRO INICIAL")
-    script_col, board_col = headers.index("roteiro"), headers.index("quadro inicial")
-    for cells in values[1:]:
-        if script_col < len(cells) and _clean(cells[script_col]).casefold() == _clean(script_name).casefold():
-            return _clean(cells[board_col]) if board_col < len(cells) else ""
-    return ""
+    return _lookup_direct_info_board(worksheet.get_all_values(), script_name)
 
 
 def next_direct_script(
