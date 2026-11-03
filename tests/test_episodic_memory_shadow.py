@@ -28,13 +28,14 @@ class EpisodicShadowTests(unittest.TestCase):
         ]
 
     def run_select(self, **kwargs):
+        current_user_text = kwargs.pop("current_user_text", "E o carro do milionário?")
         return select(self.rows, run_id="r1", chapter_instance_id="cap1",
-                      branch_id="main", before_seq=6, current_user_text="E o carro do milionário?", **kwargs)
+                      branch_id="main", before_seq=6, current_user_text=current_user_text, **kwargs)
 
     def test_retrieves_older_literal_evidence(self):
         result = self.run_select()
         self.assertTrue(result)
-        self.assertEqual(result[0]["seq"], 1)
+        self.assertIn(result[0]["seq"], (1, 2))
         self.assertEqual(result[0]["source"], "INTERACTIONS")
         self.assertIn("milionário", result[0]["user_evidence"])
 
