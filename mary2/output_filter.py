@@ -168,9 +168,10 @@ def format_dialogue_paragraphs(text: str) -> str:
 
     speakers = []
     for match in _DIALOGUE_SPEAKER_RE.finditer(value):
-        prefix = value[:match.start()].rstrip()
+        prefix = value[:match.start()]
+        # Não elimina quebras de linha antes de testar o início de uma fala.
         # Evita tomar 'Exemplo:' ou um nome no meio da frase por personagem.
-        if not prefix or prefix.endswith((".", "!", "?", "…", "\n")):
+        if not prefix.strip() or prefix.rstrip(" \t").endswith((".", "!", "?", "…", "\n")):
             speakers.append(match)
 
     if not speakers:
