@@ -326,7 +326,7 @@ def _checkpoint_records(ws, *, force: bool = False) -> list[dict]:
     if not force and cached is not None and monotonic() - ws._mary_checkpoint_loaded_at < _CHECKPOINT_TTL:
         return deepcopy(cached)
     try:
-        rows = ws.get_all_records()
+        rows = ws.get_all_records(expected_headers=CHECKPOINT_HEADERS)
     except gspread.exceptions.APIError as exc:
         if getattr(exc, "code", None) != 429 or cached is None:
             raise
@@ -690,7 +690,7 @@ def create_run(
 
     # Uma run ativa por player. Mesmo a criação automática de inicialização
     # arquiva qualquer ativa anterior para evitar duplicação em reruns/reloads.
-    rows = ws.get_all_records()
+    rows = ws.get_all_records(expected_headers=RUN_HEADERS)
     now_archive = _now()
     for index, item in enumerate(rows, start=2):
         if (
@@ -722,7 +722,7 @@ def create_run(
     )
 
     # Guarda adicional para reruns sequenciais: mantém somente a run recém-criada ativa.
-    refreshed = ws.get_all_records()
+    refreshed = ws.get_all_records(expected_headers=RUN_HEADERS)
     _remember_run_rows(ws, refreshed)
     for index, item in enumerate(refreshed, start=2):
         if (
@@ -1386,7 +1386,7 @@ def load_latest_run(
     runs_ws = _ensure_worksheet(book, RUNS_SHEET, RUN_HEADERS)
     interactions_ws = _ensure_worksheet(book, INTERACTIONS_SHEET, INTERACTION_HEADERS)
 
-    runs = runs_ws.get_all_records()
+    runs = runs_ws.get_all_records(expected_headers=RUN_HEADERS)
     _remember_run_rows(runs_ws, runs)
     candidates = [
         r for r in runs
@@ -1400,7 +1400,7 @@ def load_latest_run(
     run = candidates[0]
     run_id = str(run["run_id"])
 
-    all_interactions = interactions_ws.get_all_records()
+    all_interactions = interactions_ws.get_all_records(expected_headers=INTERACTION_HEADERS)
     rows = [r for r in all_interactions if str(r.get("run_id", "")) == run_id]
     rows.sort(key=lambda r: int(r.get("seq", 0) or 0))
     rows = rows[-interaction_limit:]
@@ -1482,7 +1482,7 @@ def load_run_interactions(
     )
     rows = [
         dict(item)
-        for item in interactions_ws.get_all_records()
+        for item in interactions_ws.get_all_records(expected_headers=INTERACTION_HEADERS)
         if str(item.get("run_id", "")) == run_id
     ]
     rows.sort(key=lambda item: int(item.get("seq", 0) or 0))
@@ -1545,7 +1545,7 @@ def delete_interactions_from_seq(
     if run_row is None:
         raise PersistenceError(f"run_id não encontrado: {run_id}")
 
-    records = interactions_ws.get_all_records()
+    records = interactions_ws.get_all_records(expected_headers=INTERACTION_HEADERS)
     selected: dict | None = None
     rows_to_delete: list[int] = []
     remaining_seqs: list[int] = []
