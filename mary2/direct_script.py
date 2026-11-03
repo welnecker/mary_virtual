@@ -9,6 +9,7 @@ from typing import Any
 import gspread
 
 from openrouter_client import chat
+from multi_character import multi_character_contract
 
 
 DIRECT_HEADERS = {
@@ -805,6 +806,7 @@ def build_direct_writer_prompt(
         "Não antecipe linhas nem revele fatos proibidos pela regra REVELACAO. "
         "Em linha automática, continue sem inventar fala do usuário; em linha bloqueada, Mary toma a iniciativa.\n\n"
 
+        + ("\n" + multi_character_contract(row) + "\n" if multi_character_contract(row) else "")
         "FORMATO: gere somente os blocos necessários, nesta ordem: [AÇÃO], [FALA], [PENSAMENTO].\\n"
         "[AÇÃO] descreve a ação física efetivamente realizada conforme a memória local e a descrição-guia; não basta prometer.\\n"
         "[FALA] contém só as palavras de Mary, guiadas pela Fala-guia e pela conversa real.\\n"
