@@ -81,30 +81,34 @@ def is_blocked_direct_row(row: dict | None) -> bool:
 
 
 def extract_direct_character_name(row: dict | None, user_text: Any) -> str:
-    """Captura nome declarado pelo interlocutor sem depender do modelo."""
+    """Reconhece apresentação nominal, não descrição de personalidade.
+
+    Ex.: 'eu sou o contrário dele' NÃO atribui o nome 'o contrário dele'.
+    Prioriza nome próprio explícito e evita consumir o resto da frase.
+    """
     text = _clean(user_text)
     if not text:
         return ""
 
-    patterns = (
-        r"\bmeu nome (?:é|e)\s+([A-Za-zÀ-ÖØ-öø-ÿ][A-Za-zÀ-ÖØ-öø-ÿ' -]{1,40})",
-        r"\beu sou\s+([A-Za-zÀ-ÖØ-öø-ÿ][A-Za-zÀ-ÖØ-öø-ÿ' -]{1,40})",
-        r"\bpode me chamar de\s+([A-Za-zÀ-ÖØ-öø-ÿ][A-Za-zÀ-ÖØ-öø-ÿ' -]{1,40})",
-        r"\bme chamo\s+([A-Za-zÀ-ÖØ-öø-ÿ][A-Za-zÀ-ÖØ-öø-ÿ' -]{1,40})",
+    # Evita capturar frases descritivas e artigos como se fossem nomes.
+    proper_name = r"([A-ZÁÉÍÓÚÂÊÔÃÕÇ][a-záéíóúâêôãõç]{1,39})"
+    prefixes = (
+        r"\\bmeu nome (?:é|e)\\s+",
+        r"\\beu sou\\s+",
+        r"\\bpode me chamar de\\s+",
+        r"\\bme chamo\\s+",
     )
-    for pattern in patterns:
-        match = re.search(pattern, text, flags=re.I)
+    for prefix in prefixes:
+        match = re.search(prefix + proper_name, text, flags=re.I if "nome" in prefix else 0)
         if match:
-            value = _clean(match.group(1))
-            value = re.split(r"[,.!?;:\n]", value, maxsplit=1)[0].strip()
-            return value[:48]
+            name = match.group(1)
+            if name.casefold() not in {"sou", "uma", "isso", "muito", "aqui", "contrario", "contrário"}:
+                return name
 
     guide = _clean((row or {}).get("speech_guide")).casefold()
-    words = text.split()
-    if "nome" in guide and 1 <= len(words) <= 3:
-        candidate = " ".join(words).strip(" .,!?:;")
-        if re.fullmatch(r"[A-Za-zÀ-ÖØ-öø-ÿ][A-Za-zÀ-ÖØ-öø-ÿ' -]{1,47}", candidate):
-            return candidate
+    candidate = text.strip(" .,!?:;")
+    if "nome" in guide and re.fullmatch(proper_name, candidate):
+        return candidate
 
     return ""
 
