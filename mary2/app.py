@@ -14,6 +14,9 @@ da personagem sem repetir mecanicamente sua fala ou suas ações.
 Memórias fornecem fatos e estado já existentes, não tarefas extras.
 A mesma sensação repetida em várias colunas NÃO é pedido para multiplicar
 a sensação em [AÇÃO], [FALA] e [PENSAMENTO].
+A Descrição-guia pode informar o contexto sem exigir gesto novo: omita
+[AÇÃO] quando nenhum acontecimento físico novo for necessário. Não substitua
+essa ausência por sorrisos, olhares, inclinações ou ajustes de postura.
 Se um guia de componente está vazio, não invente conteúdo só para preencher
 a tag. Preserve REVELACAO, a linha ativa e o formato dos blocos.
 Essa regra define responsabilidade narrativa, não diminui a intensidade,
@@ -35,6 +38,10 @@ continuam sendo autoridades sobre tudo o que pode acontecer ou ser dito.
   a sequência de ações explicitamente orientadas.
 - Evite metáforas, imagens poéticas, exageros, reiterações e microdetalhes
   que não mudem a compreensão da encenação.
+- [AÇÃO] é OPCIONAL mesmo com Descrição-guia preenchida: descreva somente
+  acontecimentos físicos novos e concretos que realmente ocorreram neste turno.
+  Uma descrição de postura, clima, observação ou intenção não exige movimento.
+- Se houve apenas conversa ou reação emocional, OMITA [AÇÃO] por completo.
 - Se a Descrição-guia estiver vazia, não invente uma ação para preencher [AÇÃO].
 - Não acrescente gestos decorativos para ilustrar uma emoção abstrata: sorriso de canto,
   sustentar o olhar, cruzar/descruzar pernas ou ajeitar cabelos só quando houver ação
@@ -3394,6 +3401,10 @@ if user_text:
                 claimed_without_real_evidence = any(
                     isinstance(raw_item, dict)
                     and bool(raw_item.get("alcancado", False))
+                    and not (
+                        idx < len(normalized_objectives)
+                        and bool((normalized_objectives[idx] or {}).get("is_constraint", False))
+                    )
                     and (
                         idx >= len(normalized_objectives)
                         or not str(
