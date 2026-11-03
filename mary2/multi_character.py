@@ -26,7 +26,7 @@ def _label(text: str) -> str:
     text = " ".join(str(text or "").strip().split())
     if text.upper() == "MARY":
         return "Mary"
-    return text
+    return text.title() if text.isupper() else text
 
 
 def guide_characters(row: dict) -> dict[str, set[str]]:
