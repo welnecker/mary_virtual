@@ -1,6 +1,26 @@
 from __future__ import annotations
 
 import json
+import re
+
+
+_LEADING_STAGE = re.compile(r'^\s*\(([^\n()]{1,180})\)\s*', re.S)
+_ACTOR = re.compile(r'^([A-ZÁÉÍÓÚÂÊÔÃÕÇ][a-záéíóúâêôãõç]{2,40})(?:\s+(?:fala|diz|responde|pergunta|comenta|sussurra|continua)\b|\s*$)', re.I)
+
+
+def explicit_stage_prefix(raw_text: str) -> tuple[str, str, str]:
+    """Extrai direção inicial literal e eventual emissor nomeado, sem LLM."""
+    text = str(raw_text or '')
+    match = _LEADING_STAGE.match(text)
+    if not match:
+        return '', '', text
+    direction = '(' + match.group(1).strip() + ')'
+    remaining = text[match.end():].strip()
+    if not remaining:
+        return direction, '', remaining
+    actor = _ACTOR.match(match.group(1).strip())
+    name = actor.group(1) if actor else ''
+    return direction, name, remaining
 
 from openrouter_client import chat
 
@@ -54,6 +74,11 @@ def parse_user_input(
     user_role: str,
     raw_text: str,
 ) -> dict:
+    prefix_direction, explicit_speaker, remaining_text = explicit_stage_prefix(raw_text)
+    # O cabeçalho de personagem escrito pelo usuário tem prioridade sobre o
+    # classificador: sua atribuição não pode ser apagada por uma saída do LLM.
+    if prefix_direction and not remaining_text:
+        return {"kind": "scene", "scene_direction": prefix_direction, "dialogue": "", "explicit_speaker": ""}
     raw = chat(
         api_key=api_key,
         model=model,
@@ -64,7 +89,7 @@ def parse_user_input(
                 "role": "user",
                 "content": (
                     f"PAPEL ATIVO: {user_role}\n\n"
-                    f"ENTRADA ORIGINAL:\n{raw_text}"
+                    f"ENTRADA ORIGINAL:\n{remaining_text if prefix_direction else raw_text}"
                 ),
             },
         ],
@@ -77,16 +102,26 @@ def parse_user_input(
     except Exception:
         return {
             "kind": "dialogue",
-            "scene_direction": "",
-            "dialogue": raw_text.strip(),
+            "scene_direction": prefix_direction,
+            "dialogue": remaining_text if prefix_direction else raw_text.strip(),
+            "explicit_speaker": explicit_speaker,
         }
 
     kind = str(data.get("kind", "dialogue") or "dialogue").strip().lower()
     if kind not in {"scene", "dialogue", "mixed"}:
         kind = "dialogue"
 
+    direction = str(data.get("scene_direction", "") or "").strip()
+    dialogue = str(data.get("dialogue", "") or "").strip()
+    if prefix_direction:
+        direction = (prefix_direction + (" " + direction if direction else "")).strip()
+        # Quando a fala está fora do parêntese, preserva-a mesmo se o classificador
+        # acidentalmente a descartou ou reclassificou como direção.
+        if not dialogue and remaining_text:
+            dialogue = remaining_text
     return {
-        "kind": kind,
-        "scene_direction": str(data.get("scene_direction", "") or "").strip(),
-        "dialogue": str(data.get("dialogue", "") or "").strip(),
+        "kind": "mixed" if direction and dialogue else "scene" if direction else "dialogue",
+        "scene_direction": direction,
+        "dialogue": dialogue,
+        "explicit_speaker": explicit_speaker,
     }
