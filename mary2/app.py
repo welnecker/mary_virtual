@@ -163,7 +163,7 @@ from user_understanding_audit import (
     analyze_user_understanding,
     save_user_understanding_audit,
 )
-from episodic_memory_shadow import select_episodic_candidates
+from episodic_memory_shadow import select_episodic_candidates, describe_episode_selection
 from persistence import (
     PersistenceError,
     create_run,
@@ -4284,6 +4284,11 @@ if user_text:
                             line_order=int(direct_row.get("order", 0) or 0),
                             user_text=dialogue_text,
                             candidates=candidates,
+                            scene_direction=scene_direction,
+                            speaker_explicit=explicit_speaker,
+                            diagnostics=describe_episode_selection(
+                                dialogue_text, candidates, before_seq=saved_seq
+                            ),
                         )
                     except Exception as episodic_audit_exc:
                         st.session_state.audit_error = (
