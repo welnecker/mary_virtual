@@ -4049,6 +4049,15 @@ if user_text:
                     raise OpenRouterError(
                         "A resposta de Mary ultrapassou as paredes do funil após correção."
                     )
+            if script_mode == "direct_sheet" and multi_character_contract(direct_row):
+                authors_ok, authors_issue = verify_character_blocks(
+                    raw_answer, direct_row, user_speaker=str(explicit_speaker or "").strip()
+                )
+                if not authors_ok:
+                    raise OpenRouterError(
+                        "Autoria dos personagens inconsistente: " + authors_issue
+                    )
+                model_audit["character_components"] = parsed_character_blocks(raw_answer)
         except Exception:
             # Turno atômico: nada da tentativa incompleta fica na sessão.
             st.session_state.scene_state = deepcopy(
@@ -4063,13 +4072,6 @@ if user_text:
             st.session_state.messages = messages_before_turn
             raise
 
-        if script_mode == "direct_sheet" and multi_character_contract(direct_row):
-            authors_ok, authors_issue = verify_character_blocks(
-                raw_answer, direct_row, user_speaker=str(explicit_speaker or "").strip()
-            )
-            if not authors_ok:
-                raise OpenRouterError("Autoria dos personagens inconsistente: " + authors_issue)
-            model_audit["character_components"] = parsed_character_blocks(raw_answer)
         if emotional_notice:
             st.info(emotional_notice)
         direct_action_text = parse_mary_components(raw_answer)["action"] if script_mode == "direct_sheet" else ""
