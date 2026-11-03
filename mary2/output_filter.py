@@ -152,7 +152,7 @@ def looks_like_action_narration(text: str) -> bool:
 # Nomes de personagens são detectados apenas como rótulos de fala.
 # O formatador não muda o texto armazenado, nem o contrato do Redator.
 _DIALOGUE_SPEAKER_RE = re.compile(
-    r"(?P<name>[A-ZÀ-ÖØ-Þ][a-zà-öø-ÿ]{1,29}(?:[ ]+[A-ZÀ-ÖØ-Þ][a-zà-öø-ÿ]{1,29}){0,2}):(?=\\s|$)"
+    r"(?P<name>[A-ZÀ-ÖØ-Þ][a-zà-öø-ÿ]{1,29}(?:[ ]+[A-ZÀ-ÖØ-Þ][a-zà-öø-ÿ]{1,29}){0,2}):(?=\s|$)"
 )
 
 
@@ -170,7 +170,7 @@ def format_dialogue_paragraphs(text: str) -> str:
     for match in _DIALOGUE_SPEAKER_RE.finditer(value):
         prefix = value[:match.start()].rstrip()
         # Evita tomar 'Exemplo:' ou um nome no meio da frase por personagem.
-        if not prefix or prefix.endswith((".", "!", "?", "…", "\\n")):
+        if not prefix or prefix.endswith((".", "!", "?", "…", "\n")):
             speakers.append(match)
 
     if not speakers:
@@ -190,12 +190,12 @@ def format_dialogue_paragraphs(text: str) -> str:
         else:
             paragraphs.append(f"**{name}:**")
 
-    return "\\n\\n".join(part for part in paragraphs if part)
+    return "\n\n".join(part for part in paragraphs if part)
 
 
 def _format_dialogue_body(text: str) -> str:
     """Mantém quebras explícitas e acrescenta respiro a blocos muito longos."""
-    sections = re.split(r"\\n[ \\t]*\\n+", str(text or "").strip())
+    sections = re.split(r"\n[ \t]*\n+", str(text or "").strip())
     result = []
     for section in sections:
         section = section.strip()
@@ -203,7 +203,7 @@ def _format_dialogue_body(text: str) -> str:
             continue
         sentences = [
             part.strip()
-            for part in re.split(r"(?<=[.!?…])\\s+", section)
+            for part in re.split(r"(?<=[.!?…])\s+", section)
             if part.strip()
         ]
         if len(sentences) <= 2 and len(section) <= 180:
@@ -222,4 +222,4 @@ def _format_dialogue_body(text: str) -> str:
                 size = projected
         if current:
             result.append(" ".join(current))
-    return "\\n\\n".join(result)
+    return "\n\n".join(result)
