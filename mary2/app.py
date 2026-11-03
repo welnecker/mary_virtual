@@ -2437,6 +2437,7 @@ if user_text:
                 pilot_state["hurt"] = False
         scene_direction = parsed_input["scene_direction"]
         dialogue_text = parsed_input["dialogue"]
+        explicit_speaker = str(parsed_input.get("explicit_speaker", "") or "").strip()
         user_spoke = bool(dialogue_text)
         st.session_state.rollback_retry_text = ""
 
@@ -2747,7 +2748,7 @@ if user_text:
                 narrative_state.get("direct_conversation_state", {})
             )
 
-            detected_character_name = extract_direct_character_name(
+            detected_character_name = explicit_speaker or extract_direct_character_name(
                 direct_row,
                 dialogue_text,
             )
