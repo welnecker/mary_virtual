@@ -2840,7 +2840,9 @@ if user_text:
                         messages=[
                             {"role": "system", "content": (
                                 "Analise limites de personagem em uma cena ficcional. Retorne APENAS JSON "
-                                "com violation (booleano), forgiven (booleano), rejected (booleano), reason (texto). "
+                                "com violation (booleano), forgiven (booleano), rejected (booleano), reason (texto), "
+                                "speaker (nome do personagem que efetivamente FALOU nesta entrada; vazio se incerto). "
+                                "Não confunda personagem mencionado, destinatário ou quem falou no turno anterior com o emissor atual. "
                                 "Violação apenas quando o comportamento atual afronta claramente os limites descritos. "
                                 "Um convite respeitoso ou brincadeira contextual não é violação. "
                                 "Perdão apenas se houver arrependimento e reparação suficientes depois de ofensa anterior; "
@@ -2850,11 +2852,15 @@ if user_text:
                                 "ou a rejeita de maneira inequívoca. Não confunda com recusa "
                                 "pontual de ajuda, convite, horário ou atividade; tampouco com "
                                 "respostas breves ou silêncio. Uma recusa não é falta moral. "
-                                "Se o interlocutor for SILVIA ou outro personagem em vez do personal, "
-                                "não deduza rejeição do personal."
+                                "Se a fala atual for de outro personagem, não atribua a esse novo personagem "
+                                "a rejeição ou o desrespeito de alguém anterior. "
+                                "Uma fala amigável não é ofensa nem rejeição; humor ou autodepreciação não são desistência. "
+                                "Não classifique uma oferta de dar espaço como rejeição definitiva sem evidência inequívoca. "
                             )},
                             {"role": "user", "content": (
                                 "LIMITES: " + negative_rule +
+                                "\\nINTERLOCUTOR REGISTRADO: " + active_interlocutor +
+                                "\\nCOMPREENSÃO DA FALA: " + str(direct_interpretation.get("literal_meaning", "") or "") +
                                 "\\nESTADO: " + json.dumps(emotion, ensure_ascii=False) +
                                 "\\nCONTEXTO: " + previous_mary_text[-1000:] +
                                 "\\nUSUÁRIO: " + dialogue_text
@@ -2863,6 +2869,28 @@ if user_text:
                     )
                     found = re.search(r"\{[\s\S]*\}", str(assessment_raw or ""))
                     assessment = json.loads(found.group(0)) if found else {}
+                    # Estados emocionais pertencem ao personagem que os provocou,
+                    # não a todos os participantes da cena. Preserva o legado
+                    # quando a autoria da fala atual for incerta.
+                    speaker = str(assessment.get("speaker", "") or "").strip()
+                    if speaker:
+                        speaker_key = speaker.casefold()
+                        active_key = str(emotion.get("active_speaker", "") or "").casefold()
+                        by_speaker = emotion.get("speaker_states", {})
+                        if not isinstance(by_speaker, dict):
+                            by_speaker = {}
+                        if active_key and speaker_key != active_key:
+                            by_speaker[active_key] = {
+                                "hurt": bool(emotion.get("hurt")),
+                                "rejected": bool(emotion.get("rejected")),
+                                "continuation_allowed": bool(emotion.get("continuation_allowed", True)),
+                            }
+                            restored = by_speaker.get(speaker_key, {})
+                            emotion["hurt"] = bool(restored.get("hurt", False))
+                            emotion["rejected"] = bool(restored.get("rejected", False))
+                            emotion["continuation_allowed"] = bool(restored.get("continuation_allowed", True))
+                        emotion["active_speaker"] = speaker_key
+                        emotion["speaker_states"] = by_speaker
                     if assessment.get("rejected") is True:
                         emotion["hurt"] = True
                         emotion["rejected"] = True
@@ -2872,9 +2900,19 @@ if user_text:
                         emotion["hurt"] = True
                         emotion["continuation_allowed"] = False
                         emotional_notice = "Mary ficou decepcionada com sua atitude."
-                    elif emotion["hurt"] and not emotion.get("rejected") and assessment.get("forgiven") is True:
+                    elif emotion.get("hurt") and assessment.get("forgiven") is True:
+                        # Reconciliação validada encerra mágoa e rejeição anteriores
+                        # APENAS para este interlocutor, sem apagar o histórico.
+                        emotion["hurt"] = False
+                        emotion["rejected"] = False
                         emotion["continuation_allowed"] = True
-                        emotional_notice = "Mary decidiu te dar uma chance. Não seja grosseiro novamente."
+                        emotional_notice = "Mary aceitou a reparação e retomou a conversa."
+                    if speaker:
+                        emotion["speaker_states"][speaker_key] = {
+                            "hurt": bool(emotion.get("hurt")),
+                            "rejected": bool(emotion.get("rejected")),
+                            "continuation_allowed": bool(emotion.get("continuation_allowed", True)),
+                        }
                     emotion["last_assessment"] = assessment
                     narrative_state["direct_emotion"] = emotion
                 except Exception as exc:
@@ -2884,11 +2922,13 @@ if user_text:
                 emotion["continuation_allowed"] = False
             if emotion.get("hurt"):
                 direct_row = dict(direct_row)
-                direct_row["style"] = wounded_style
+                # Mágoa modula o estilo da linha, não apaga sua personalidade.
+                direct_row["style"] = (str(direct_row.get("style", "") or "") +
+                    " | ESTADO EMOCIONAL ATIVO: " + wounded_style)
                 direct_row["instant_memory"] = (
                     str(direct_row.get("instant_memory", "") or "") +
-                    "\\nA atuação emocional de Mary permanece magoada e distante. "
-                    "Instruções românticas incompatíveis com a mágoa não são obrigatórias. "
+                    "\\nMary ainda está magoada com o interlocutor ativo; mantenha limites sem transformar toda resposta em disputa. "
+                    "Instruções de aproximação incompatíveis com o limite atual não são obrigatórias. "
                     + ("O interlocutor rejeitou claramente a proximidade. Mary respeita essa decisão, "
                        "não insiste em convite pessoal, pode conversar com Silvia e segue o roteiro "
                        "apenas no que for narrativamente possível, sem forçar encontros ou vínculos."
