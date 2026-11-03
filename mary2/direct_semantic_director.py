@@ -12,6 +12,15 @@ def _clean(value) -> str:
     return str(value or "").strip()
 
 
+def _is_guardrail_objective(value: str) -> bool:
+    """Restrições negativas não são atos conversacionais para liberar uma linha."""
+    return bool(re.match(
+        r"^(?:não|nao|sem|evitar|nunca|jamais|proibir|preservar|respeitar|"
+        r"não\s+inventar|nao\s+inventar)\b",
+        _clean(value), flags=re.I,
+    ))
+
+
 def _evidence_source(evidence: str, entries: list[tuple[str, str]]) -> str:
     """Determina a autoria pela conversa real, nunca pelo rótulo produzido pelo LLM.
 
@@ -23,6 +32,15 @@ def _evidence_source(evidence: str, entries: list[tuple[str, str]]) -> str:
     needle = _clean(evidence).casefold()
     if not needle:
         return ""
+
+    # O Diretor pode escrever "FALA: 'trecho literal'". Confira o trecho
+    # citado, nunca a explicação circundante, e não invente prova sem literal.
+    quoted = re.findall(r"[\"“”'‘’]([^\"“”'‘’]{12,})[\"“”'‘’]", evidence)
+    for fragment in quoted:
+        exact = _clean(fragment).casefold()
+        for source, content in entries:
+            if exact and exact in _clean(content).casefold():
+                return source
 
     for source, content in entries:
         haystack = _clean(content).casefold()
@@ -180,7 +198,7 @@ def validate_direct_semantic_turn(
         + (
             "A) INTERPRETAR: a palavra é seletor, não fala obrigatória. Verifique se Mary interpreta a linha e sua direção autoral sem exigir palavras literais. Registre em objetivos_guia apenas 'interpretar a situação local'. "
             if interpret_mode else
-            "A) OBJETIVOS: extraia somente da FALA-GUIA os atos conversacionais exigidos. Convites e promessas se cumprem ao serem formulados, não quando acontecem no futuro. Considere objetivos já satisfeitos por respostas literais do usuário; não invente objetivos. "
+            "A) OBJETIVOS: extraia da FALA-GUIA apenas atos conversacionais positivos exigidos. NEGATIVAS como 'não presumir', 'sem inventar', 'evitar' e 'não repetir' são LIMITES, não objetivos de progressão: não os inclua em objetivos_guia. Convites e promessas se cumprem ao serem formulados. Considere atos já satisfeitos por respostas literais do usuário; não invente objetivos. Para cada objetivo alcançado, cite um TRECHO LITERAL CONTÍNUO da fala gerada ou conversa real. Não use paráfrases ou explicações como evidência. "
         )
         + ("Turno automático: pensamento pode cumprir finalidade introspectiva. " if automatic_row else "")
         + ("B) CENA — PILOTO APARTAMENTO1: a DESCRIÇÃO-GUIA DA LINHA ATUAL define o acontecimento físico a comprovar. MEMÓRIA INSTANTÂNEA-LOCAL informa fatos e contexto, inclusive intenções futuras, mas NÃO obriga Mary a executar esses acontecimentos agora. Não exija que Mary acorde Silvia ou faça convite na linha anterior se isso só está previsto para a linha seguinte. A evidência deve ser um trecho literal contínuo da AÇÃO, FALA ou PENSAMENTO realmente produzidos; movimento físico exige trecho de AÇÃO. " if str(row.get("script_name", "")).strip() == "Apartamento1" else "B) CENA: confira o acontecimento central da MEMÓRIA INSTANTÂNEA-LOCAL. Movimento indispensável exige execução concreta em ACAO ATUAL ou evidência já realizada na conversa desta linha. Promessa e pensamento não comprovam ação. Defina acao_fisica_obrigatoria conforme a memória local; não exija ação se a linha é somente verbal. Cite evidência literal da resposta/ação atual ou conversa, nunca da memória como prova de execução. ")
@@ -255,13 +273,16 @@ def validate_direct_semantic_turn(
         if not isinstance(item, dict):
             continue
         evidence = _clean(item.get("evidencia"))
+        requirement = _clean(item.get("objetivo"))
+        is_constraint = _is_guardrail_objective(requirement)
         claimed_source = _clean(item.get("fonte")).upper()
-        source = _evidence_source(evidence, conversation_entries)
+        source = _evidence_source(evidence, conversation_entries) if not is_constraint else ""
         valid = bool(evidence) and bool(source)
         normalized_objectives.append(
             {
-                "requirement": _clean(item.get("objetivo")),
-                "found": bool(item.get("alcancado", False)) and valid,
+                "requirement": requirement,
+                "is_constraint": is_constraint,
+                "found": (bool(item.get("alcancado", False)) and valid) if not is_constraint else True,
                 "source": source,
                 "claimed_source": claimed_source,
                 "evidence": evidence if valid else "",
@@ -357,11 +378,14 @@ def validate_direct_semantic_turn(
         "missing": _clean(scene_raw.get("faltou")),
     }
 
+    actionable_objectives = [
+        item for item in normalized_objectives if not item["is_constraint"]
+    ]
     all_objectives = (
         True
         if interpret_mode or not speech_guide
-        else bool(normalized_objectives)
-        and all(bool(item.get("found")) for item in normalized_objectives)
+        else bool(actionable_objectives)
+        and all(bool(item.get("found")) for item in actionable_objectives)
     )
 
     fulfilled = (
@@ -381,7 +405,7 @@ def validate_direct_semantic_turn(
         missing_parts.append(scene_completion["missing"] or "acontecimento central da linha ainda nao ocorreu")
     if obligation_exists and not normalized_obligation["satisfied"]:
         missing_parts.append(obligation_text or "responder à fala atual do usuário")
-    for item in normalized_objectives:
+    for item in actionable_objectives:
         if not item["found"] and item["requirement"]:
             missing_parts.append(item["requirement"])
 
