@@ -331,7 +331,7 @@ def _lookup_direct_info_board(values: list[list], script_name: str) -> str:
         return exact[0]
     if len(exact) > 1:
         raise ValueError(f"QUADROS_INFORMATIVOS: roteiro duplicado {script_name!r}")
-    compact = lambda value: re.sub(r"\\s+", "", value)
+    compact = lambda value: re.sub(r"\s+", "", value)
     candidates = [board for title, board in entries if compact(title) == compact(target)]
     if len(candidates) == 1:
         return candidates[0]
