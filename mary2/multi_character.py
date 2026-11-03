@@ -60,15 +60,17 @@ def multi_character_contract(row: dict, *, user_speaker: str = "") -> str:
         if person != "mary":
             entries.append(person.upper() + ": " + ", ".join(sorted(kinds)))
     return (
-        "CONTRATO MULTIPERSONAGEM — SOMENTE LINHA ATIVA\\n"
+        "CONTRATO MULTIPERSONAGEM — SOMENTE LINHA ATIVA\n"
         "As rubricas NOME: nos três guias autorizam APENAS aquele componente "
         "para aquele personagem. Guias sem rubrica são da Mary. "
         "Fale e pense em nome de coadjuvantes apenas quando a rubrica autorizar. "
         "Use [AÇÃO: NOME], [FALA: NOME], [PENSAMENTO: NOME] conforme indicado. "
         "Para Mary use [AÇÃO: MARY], [FALA: MARY], [PENSAMENTO: MARY]. "
+        "As regras gerais que mencionam somente Mary aplicam-se somente aos blocos de Mary. "
         "Gere os blocos na ordem causal da cena; não transfira ações ou "
         "palavras de Silvia para Mary. "
         "Não invente fala ou pensamento de quem está sendo interpretado pelo usuário. "
+        "Pensamentos de cada personagem são privados e não devem ser conhecidos pelos demais. "
         "Não reproduza rubricas de personagens não autorizados. "
         "Coadjuvantes autorizados: " + "; ".join(entries) + ". "
         + ("Interlocutor atual indicado: " + user_speaker + ". " if user_speaker else "")
