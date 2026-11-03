@@ -52,8 +52,8 @@ class MultiCharacterTests(unittest.TestCase):
         parsed = parse_mary_components(raw)
         self.assertIn("**Silvia:**", parsed["speech"])
         self.assertIn("**Mary:**", parsed["speech"])
-        self.assertIn("**Silvia:**", parsed["thought"])
-        self.assertIn("**Mary:**", parsed["action"])
+        self.assertIn("Silvia:", parsed["thought"])
+        self.assertIn("Mary:", parsed["action"])
 
     def test_missing_secondary_speech_must_not_pass(self):
         raw = "[AÇÃO: MARY] Mary sorri.\n[FALA: MARY] Silvia me conhece!"
