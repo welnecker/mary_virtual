@@ -15,7 +15,10 @@ from typing import Any
 _STOP = frozenset("""
 a o as os um uma uns umas de da do das dos e em no na nos nas por para
 com que se eu voce voces ele ela eles elas meu minha seu sua esse essa isso
-aqui ali agora entao mais muito muito bem foi era estou esta tava ta nao sim
+aqui ali agora entao mais muito bem foi era estou esta tava ta nao sim
+mary janio donisete silvia gente quer quero queria vamos voces
+nossa nessa nesse dessa desse duas dois toda todos pouco outra outro assim
+olha gostei tipo isso voce falou falou fala falou cruzeiro ahh ahhh
 me te lhe pra pro ja ao aos como quando onde porque mas ou tem tinha ser
 ter vai vou voce so tudo isso sobre olha hein rsrs rsrsrs
 """.split())
@@ -108,6 +111,9 @@ def select_episodic_candidates(
         seen.add(duplicate_key)
         result.append({
             "seq": seq,
+            "age_turns": before_seq - seq,
+            "matched_terms_count": len(shared),
+            "relevance_band": "MEDIUM" if len(shared) >= 3 else "LOW",
             "score": score,
             "shared_terms": list(shared),
             "user_evidence": user_text,
@@ -117,3 +123,24 @@ def select_episodic_candidates(
         if len(result) >= max(0, min(max_items, 3)):
             break
     return result
+
+
+def describe_episode_selection(
+    current_user_text: str, candidates: list[dict], *, before_seq: int
+) -> dict:
+    """Metadados diagnósticos sem análise de modelo e sem fatos inferidos."""
+    terms = sorted(_tokens(current_user_text))
+    if not str(current_user_text or "").strip():
+        reason = "SEM_FALA_VERBAL"
+    elif len(terms) < 2:
+        reason = "MENOS_DE_DUAS_PALAVRAS_DISTINTIVAS"
+    elif not candidates:
+        reason = "NENHUMA_CORRESPONDENCIA_DISTINTIVA_NO_PASSADO"
+    else:
+        reason = "CORRESPONDENCIA_LEXICAL_LITERAL"
+    return {
+        "query_terms": terms[:35],
+        "reason": reason,
+        "filter_version": "lexical-shadow-v2",
+        "before_seq": before_seq,
+    }
