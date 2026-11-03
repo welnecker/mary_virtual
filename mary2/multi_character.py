@@ -135,5 +135,6 @@ def formatted_components(raw: str, row: dict) -> dict[str, str]:
     parts = {"action": [], "thought": [], "speech": []}
     for block in parsed_character_blocks(raw):
         key = {"ACAO": "action", "FALA": "speech", "PENSAMENTO": "thought"}[block["kind"]]
-        parts[key].append("**" + block["speaker"] + ":** " + block["text"])
+        attribution = ("**" + block["speaker"] + ":** ") if key == "speech" else (block["speaker"] + ": ")
+        parts[key].append(attribution + block["text"])
     return {key: "\n\n".join(value) for key, value in parts.items()}
