@@ -147,3 +147,79 @@ def looks_like_action_narration(text: str) -> bool:
             action_lines += 1
 
     return action_lines == len(meaningful_lines)
+
+
+# Nomes de personagens são detectados apenas como rótulos de fala.
+# O formatador não muda o texto armazenado, nem o contrato do Redator.
+_DIALOGUE_SPEAKER_RE = re.compile(
+    r"(?P<name>[A-ZÀ-ÖØ-Þ][a-zà-öø-ÿ]{1,29}(?:[ ]+[A-ZÀ-ÖØ-Þ][a-zà-öø-ÿ]{1,29}){0,2}):(?=\\s|$)"
+)
+
+
+def format_dialogue_paragraphs(text: str) -> str:
+    """Agrupa falas por personagem apenas na apresentação em Markdown.
+
+    Preserva o conteúdo e parágrafos autorais; aceita 'Silvia: ... Mary: ...'
+    mesmo quando ambos vieram dentro de um único bloco [FALA].
+    """
+    value = str(text or "").strip()
+    if not value:
+        return ""
+
+    speakers = []
+    for match in _DIALOGUE_SPEAKER_RE.finditer(value):
+        prefix = value[:match.start()].rstrip()
+        # Evita tomar 'Exemplo:' ou um nome no meio da frase por personagem.
+        if not prefix or prefix.endswith((".", "!", "?", "…", "\\n")):
+            speakers.append(match)
+
+    if not speakers:
+        return _format_dialogue_body(value)
+
+    paragraphs = []
+    before = value[:speakers[0].start()].strip()
+    if before:
+        paragraphs.append(_format_dialogue_body(before))
+
+    for i, speaker in enumerate(speakers):
+        end = speakers[i + 1].start() if i + 1 < len(speakers) else len(value)
+        body = value[speaker.end():end].strip()
+        name = speaker.group("name")
+        if body:
+            paragraphs.append(f"**{name}:** " + _format_dialogue_body(body))
+        else:
+            paragraphs.append(f"**{name}:**")
+
+    return "\\n\\n".join(part for part in paragraphs if part)
+
+
+def _format_dialogue_body(text: str) -> str:
+    """Mantém quebras explícitas e acrescenta respiro a blocos muito longos."""
+    sections = re.split(r"\\n[ \\t]*\\n+", str(text or "").strip())
+    result = []
+    for section in sections:
+        section = section.strip()
+        if not section:
+            continue
+        sentences = [
+            part.strip()
+            for part in re.split(r"(?<=[.!?…])\\s+", section)
+            if part.strip()
+        ]
+        if len(sentences) <= 2 and len(section) <= 180:
+            result.append(section)
+            continue
+        current = []
+        size = 0
+        for sentence in sentences:
+            projected = size + (1 if current else 0) + len(sentence)
+            if current and (len(current) >= 2 or projected > 180):
+                result.append(" ".join(current))
+                current = [sentence]
+                size = len(sentence)
+            else:
+                current.append(sentence)
+                size = projected
+        if current:
+            result.append(" ".join(current))
+    return "\\n\\n".join(result)
