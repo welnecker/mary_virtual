@@ -159,6 +159,7 @@ from funnel_script import (
 )
 from openrouter_client import OpenRouterError, chat
 from output_filter import looks_like_action_narration, parse_mary_response, parse_mary_components, sanitize_mary_output
+from multi_character import multi_character_contract, verify_character_blocks, parsed_character_blocks
 from user_understanding_audit import (
     analyze_user_understanding,
     save_user_understanding_audit,
@@ -3314,6 +3315,45 @@ if user_text:
                     "O modelo não produziu fala verbal limpa de Mary após duas tentativas."
                 )
 
+            # Uma linha com vários autores exige execução dos canais explicitamente
+            # indicados: o Redator não pode trocar a fala de Silvia por uma menção.
+            character_contract = multi_character_contract(direct_row) if script_mode == "direct_sheet" else ""
+            if character_contract:
+                stage_speaker = str(explicit_speaker or "").strip()
+                valid_characters, character_issue = verify_character_blocks(
+                    raw_answer, direct_row, user_speaker=stage_speaker,
+                )
+                if not valid_characters:
+                    character_retry_messages = [
+                        *llm_messages,
+                        {"role": "assistant", "content": raw_answer},
+                        {"role": "system", "content": (
+                            "CORREÇÃO DE AUTORIA OBRIGATÓRIA: " + character_issue
+                            + " Reescreva o turno inteiro. Respeite as rubricas "
+                              "[AÇÃO: NOME], [FALA: NOME] e [PENSAMENTO: NOME] "
+                              "apenas quando autorizadas pelo guia da linha. "
+                              "Não substitua fala de coadjuvante por relato de Mary. "
+                              "Preserve a fala espontânea e a reação à última entrada real."
+                        )},
+                    ]
+                    model_audit["retry_used"] = True
+                    model_audit["retry_messages"] = deepcopy(character_retry_messages)
+                    raw_answer = chat(
+                        api_key=api_key, model=model, fallback_model=fallback,
+                        messages=character_retry_messages,
+                        temperature=max(0.2, min(float(temperature), 0.8)),
+                    )
+                    model_audit["retry_raw_response"] = raw_answer
+                    mary_intent, mary_speech_raw = _parse_direct_flexible_response(raw_answer, script_mode)
+                    answer = sanitize_mary_output(mary_speech_raw)
+                    valid_characters, character_issue = verify_character_blocks(
+                        raw_answer, direct_row, user_speaker=stage_speaker,
+                    )
+                    if not valid_characters:
+                        raise OpenRouterError(
+                            "Participação de personagens não aprovada: " + character_issue
+                        )
+
             if (
                 script_mode == "direct_sheet"
                 and direct_state is not None
@@ -4023,6 +4063,13 @@ if user_text:
             st.session_state.messages = messages_before_turn
             raise
 
+        if script_mode == "direct_sheet" and multi_character_contract(direct_row):
+            authors_ok, authors_issue = verify_character_blocks(
+                raw_answer, direct_row, user_speaker=str(explicit_speaker or "").strip()
+            )
+            if not authors_ok:
+                raise OpenRouterError("Autoria dos personagens inconsistente: " + authors_issue)
+            model_audit["character_components"] = parsed_character_blocks(raw_answer)
         if emotional_notice:
             st.info(emotional_notice)
         direct_action_text = parse_mary_components(raw_answer)["action"] if script_mode == "direct_sheet" else ""
