@@ -23,6 +23,11 @@ def parse_mary_components(text: str) -> dict[str, str]:
     Mantem compatibilidade com respostas antigas sem marcadores.
     """
     value = str(text or "").strip()
+    # Blocos com autoria explícita são preservados com rótulo de personagem.
+    # Saídas legadas sem :NOME continuam usando o parser anterior.
+    if re.search(r"\[(?:FALA|PENSAMENTO|A(?:Ç|C)ÃO|ACAO)\s*:\s*[^\]\n]+\]", value, re.I):
+        from multi_character import formatted_components
+        return formatted_components(value, {})
     parts = {"speech": "", "thought": "", "action": ""}
     markers = list(_COMPONENT_RE.finditer(value))
     if not markers:
