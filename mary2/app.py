@@ -158,7 +158,7 @@ from funnel_script import (
     required_markers,
 )
 from openrouter_client import OpenRouterError, chat
-from output_filter import looks_like_action_narration, parse_mary_response, parse_mary_components, sanitize_mary_output
+from output_filter import looks_like_action_narration, parse_mary_response, parse_mary_components, sanitize_mary_output, format_dialogue_paragraphs
 from user_understanding_audit import (
     analyze_user_understanding,
     save_user_understanding_audit,
@@ -271,37 +271,8 @@ INITIAL_SCENE = _initial_scene()
 
 
 def _mary_display_text(text: str) -> str:
-    """Cria respiro visual sem alterar a fala persistida nem o contexto da LLM."""
-    value = str(text or "").strip()
-    if not value:
-        return ""
-
-    sentences = [
-        part.strip()
-        for part in re.split(r"(?<=[.!?…])\s+", value)
-        if part.strip()
-    ]
-    if len(sentences) <= 2 and len(value) <= 180:
-        return value
-
-    paragraphs: list[str] = []
-    current: list[str] = []
-    current_len = 0
-
-    for sentence in sentences:
-        projected = current_len + (1 if current else 0) + len(sentence)
-        if current and (len(current) >= 2 or projected > 180):
-            paragraphs.append(" ".join(current))
-            current = [sentence]
-            current_len = len(sentence)
-        else:
-            current.append(sentence)
-            current_len = projected
-
-    if current:
-        paragraphs.append(" ".join(current))
-
-    return "\n\n".join(paragraphs)
+    """Formata falas por personagem apenas na interface, sem tocar no histórico."""
+    return format_dialogue_paragraphs(text)
 
 
 def _render_scene_action(text: str) -> None:
