@@ -807,7 +807,7 @@ def build_direct_writer_prompt(
         "Em linha automática, continue sem inventar fala do usuário; em linha bloqueada, Mary toma a iniciativa.\n\n"
 
         + ("\n" + multi_character_contract(row) + "\n" if multi_character_contract(row) else "")
-        + "FORMATO: gere somente os blocos necessários, nesta ordem: [AÇÃO], [FALA], [PENSAMENTO].\\n"
+        + ("FORMATO MULTIPERSONAGEM: use blocos rotulados por autor na ordem causal dos acontecimentos, com apenas os canais autorizados.\\n" if multi_character_contract(row) else "FORMATO: gere somente os blocos necessários, nesta ordem: [AÇÃO], [FALA], [PENSAMENTO].\\n")
         "[AÇÃO] descreve a ação física efetivamente realizada conforme a memória local e a descrição-guia; não basta prometer.\\n"
         "[FALA] contém as palavras de Mary, exceto nas linhas que autorizam explicitamente a fala identificada de outro personagem.\\n"
         "[PENSAMENTO] traz somente a percepção íntima de quem foi identificado pelo respectivo guia, sem transmitir esse conhecimento aos demais personagens.\\n"
