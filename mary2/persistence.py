@@ -1646,3 +1646,44 @@ def delete_interactions_from_seq(
         "scene_state": scene_before,
         "story_state": story_before,
     }
+
+
+EPISODIC_MEMORY_AUDIT_SHEET = "EPISODIC_MEMORY_AUDIT"
+EPISODIC_MEMORY_AUDIT_HEADERS = ["run_id","seq","created_at","chapter_id","chapter_instance_id","branch_id","line_order","status","candidates_count","candidate_seqs","candidate_evidence_json","current_user_text","error"]
+
+def save_episodic_memory_audit(
+    *,
+    service_account_info: dict,
+    run_id: str,
+    seq: int,
+    chapter_id: str,
+    chapter_instance_id: str,
+    branch_id: str,
+    line_order: int,
+    user_text: str,
+    candidates: list[dict],
+    spreadsheet_id: str = "",
+    spreadsheet_title: str = "MARY_CORE_PERSISTENCE",
+    owner_email: str = "",
+) -> None:
+    """Registra apenas observação. Não altera roteiro, memória ou resposta."""
+    book = open_or_create_book(
+        service_account_info=service_account_info,
+        spreadsheet_id=spreadsheet_id,
+        spreadsheet_title=spreadsheet_title,
+        owner_email=owner_email,
+    )
+    ws = _ensure_worksheet(
+        book, EPISODIC_MEMORY_AUDIT_SHEET, EPISODIC_MEMORY_AUDIT_HEADERS
+    )
+    ws.append_row(
+        [
+            run_id, seq, _now(), chapter_id, chapter_instance_id, branch_id,
+            line_order, "CANDIDATES" if candidates else "NO_MATCH",
+            len(candidates),
+            ",".join(str(item.get("seq", "")) for item in candidates),
+            json.dumps(candidates, ensure_ascii=False),
+            str(user_text or "")[:1000], "",
+        ],
+        value_input_option="RAW",
+    )
