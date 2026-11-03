@@ -10,6 +10,7 @@ import re
 import unicodedata
 
 _CHANNELS = ("action_guide", "thought_guide", "speech_guide")
+_RESERVED = frozenset({"interpretar", "adaptar", "objetivo", "contexto", "descricao", "pensamento", "fala", "tom", "estilo", "nota", "observacao", "direcao", "revelacao", "atitude"})
 _COMPONENT = {"action_guide": "AÇÃO", "thought_guide": "PENSAMENTO",
               "speech_guide": "FALA"}
 _GUIDE_LABEL = re.compile(r"(?m)(?:^|[\n;])\s*([A-Za-zÀ-ÿ][A-Za-zÀ-ÿ' -]{1,40})\s*:\s*")
@@ -44,7 +45,7 @@ def guide_characters(row: dict) -> dict[str, set[str]]:
             continue
         for match in matches:
             name = _label(match.group(1))
-            if not name:
+            if not name or _fold(name) in _RESERVED:
                 continue
             mapping.setdefault(_fold(name), set()).add(_COMPONENT[key])
     return mapping
@@ -110,6 +111,8 @@ def verify_character_blocks(raw: str, row: dict, *, user_speaker: str = "") -> t
         if who != "mary" and _normalize_component(block["kind"]) not in mapping.get(who, set()):
             return False, "Componente não autorizado: " + block["kind"] + " de " + block["speaker"]
     for name, kinds in extra.items():
+        if user_speaker and name == _fold(user_speaker):
+            continue
         for kind in kinds:
             if not any(_fold(b["speaker"]) == name and _normalize_component(b["kind"]) == kind for b in blocks):
                 return False, "Faltou " + kind + " do personagem " + name
