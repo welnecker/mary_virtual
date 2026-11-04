@@ -629,7 +629,7 @@ def direct_line_correction_prompt(row: dict, evaluation: dict) -> str:
         "Reaja ao significado da fala atual do usuário sem repeti-la ou parafraseá-la mecanicamente. "
         "Não copie literalmente a FALA-GUIA se puder cumprir a mesma intenção com naturalidade. "
         "Não invente fatos, dados, ações ou informações para compensar a falha. "
-        "Não explique a correção. Mantenha exatamente o formato [FALA] seguido de [PENSAMENTO]."
+        "Não explique a correção. Preserve [FALA] como padrão e mantenha [PENSAMENTO] apenas se houver intenção íntima significativa; nunca o acrescente para completar o formato."
     )
 
 
@@ -805,8 +805,10 @@ def build_direct_writer_prompt(
         "FORMATO PADRÃO: [FALA] com as palavras de Mary, guiadas pela conversa real e pela Fala-guia.\n"
         "CANAIS OPCIONAIS: [AÇÃO] só para movimento concreto autorizado na Descrição-guia; "
         "[PENSAMENTO] só para intenção espontânea significativa que Mary concretiza na FALA ou AÇÃO deste turno. "
+        "Se aparecer, escreva como pensamento vivo da própria Mary em primeira pessoa (eu/meu/vou), "
+        "com voz íntima, imediata e coloquial; nunca como narrador em terceira pessoa descrevendo o que Mary nota, sente ou pretende. "
         "Pensamento-guia, se preenchido, orienta o conteúdo; não obriga emissão. "
-        "Sem iniciativa significativa, omita [PENSAMENTO]; não o use para comentar ambiente ou repetir a fala.\n"
+        "Sem iniciativa significativa, omita [PENSAMENTO]; não o use para comentar ambiente, interpretar a personalidade alheia ou repetir a fala.\n"
         "Se necessário, posicione [PENSAMENTO] antes da iniciativa; o parser aceita os blocos em qualquer ordem. "
         "Não produza blocos opcionais para completar formato, nem invente ação ou antecipação de roteiro. "
         "Não coloque ações dentro de [FALA]."
