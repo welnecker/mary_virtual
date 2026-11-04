@@ -3311,9 +3311,12 @@ if user_text:
                     and bool(raw_item.get("alcancado", False))
                     and (
                         idx >= len(normalized_objectives)
-                        or not str(
+                        or (
+                            not bool((normalized_objectives[idx] or {}).get("optional", False))
+                            and not str(
                             (normalized_objectives[idx] or {}).get("evidence", "") or ""
                         ).strip()
+                        )
                     )
                     for idx, raw_item in enumerate(parsed_objectives or [])
                 )
