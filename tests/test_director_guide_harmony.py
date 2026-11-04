@@ -143,7 +143,7 @@ def test_required_act_supported_by_evidence_passes_even_if_global_cumpriu_is_fal
 
 
 def test_explicit_mary_requirement_in_secondary_guide_is_not_dropped():
-    guide = "SILVIA: pode brincar.\\nMARY: deve revelar um segredo importante."
+    guide = "SILVIA: pode brincar.\nMARY: deve revelar um segredo importante."
     assert not director._guide_objective_is_optional(
         "MARY: deve revelar um segredo importante", guide
     )
