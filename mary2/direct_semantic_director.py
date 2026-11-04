@@ -480,7 +480,7 @@ def validate_direct_semantic_turn(
 
     return {
         "fulfilled": fulfilled,
-        "missing": "; ".join(missing_parts) or _clean(parsed.get("faltou")),
+        "missing": "" if fulfilled else ("; ".join(missing_parts) or _clean(parsed.get("faltou"))),
         "reason": _clean(parsed.get("motivo")),
         "elements": normalized_objectives,
         "user_obligation": normalized_obligation,
