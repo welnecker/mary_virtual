@@ -110,6 +110,18 @@ def _guide_objective_is_optional(objective: str, speech_guide: str) -> bool:
     if any(re.search(p, obj) for p in optional_patterns):
         return True
 
+    # Guias mistos: a primeira frase pode ser obrigatória, enquanto a
+    # sugestão após "Se fizer sentido..." é opcional mesmo que o Diretor
+    # a reformule como um imperativo isolado.
+    if not re.search(r"\\b(?:deve|precisa|obrigatóri[oa]|obrigatoriamente)\\b", obj):
+        objective_terms = set(re.findall(r"[a-zà-ÿ]{5,}", obj))
+        for clause in re.split(r"[.!?;\\n]+", guide):
+            if re.match(r"\\s*(?:se |caso |quando |pode |poderá |poderia )", clause):
+                conditional_terms = set(re.findall(r"[a-zà-ÿ]{5,}", clause))
+                shared = objective_terms & conditional_terms
+                if len(shared) >= 2 or (len(objective_terms) == 1 and shared):
+                    return True
+
     # A qualified guide can be paraphrased as a bare imperative by the LLM.
     # Keep its conditional meaning rather than promoting it into an order.
     # A guide beginning with a conditional is optional as a whole, even
