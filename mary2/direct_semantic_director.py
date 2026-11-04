@@ -11,6 +11,19 @@ def _clean(value) -> str:
     return str(value or "").strip()
 
 
+def _normalize_evidence_text(value: str) -> str:
+    """Ignore Markdown around speaker labels without weakening factual evidence.
+
+    'Silvia:' and '**Silvia:**' are the same spoken label, while the
+    words, punctuation, and evidence source remain otherwise unchanged.
+    """
+    normalized = _clean(value)
+    # Supports **Silvia:** and **Silvia**: without removing emphasis from prose.
+    normalized = re.sub(r"\\*\\*([^*\\n]{1,80}:)\\*\\*", r"\\1", normalized)
+    normalized = re.sub(r"\\*\\*([^*\\n]{1,80})\\*\\*:", r"\\1:", normalized)
+    return re.sub(r"\\s+", " ", normalized).strip().casefold()
+
+
 def _evidence_source(evidence: str, entries: list[tuple[str, str]]) -> str:
     """Determina a autoria pela conversa real, nunca pelo rótulo produzido pelo LLM.
 
@@ -19,12 +32,12 @@ def _evidence_source(evidence: str, entries: list[tuple[str, str]]) -> str:
     Isso evita falso negativo quando o Diretor encurta uma evidência real sem
     permitir que uma paráfrase inventada conte como prova.
     """
-    needle = _clean(evidence).casefold()
+    needle = _normalize_evidence_text(evidence)
     if not needle:
         return ""
 
     for source, content in entries:
-        haystack = _clean(content).casefold()
+        haystack = _normalize_evidence_text(content)
         if needle in haystack:
             return source
 
@@ -32,7 +45,7 @@ def _evidence_source(evidence: str, entries: list[tuple[str, str]]) -> str:
     # ou "(...)". Valide somente se todos os fragmentos relevantes forem literais
     # e pertencerem ao mesmo enunciado.
     fragments = [
-        _clean(part).casefold().strip(" .,!?:;()[]{}-—")
+        _normalize_evidence_text(part).strip(" .,!?:;()[]{}-—")
         for part in re.split(r"(?:\.\.\.|…|\(\.\.\.\)|\[…\])", evidence)
     ]
     fragments = [part for part in fragments if len(part) >= 8]
@@ -40,7 +53,7 @@ def _evidence_source(evidence: str, entries: list[tuple[str, str]]) -> str:
         return ""
 
     for source, content in entries:
-        haystack = _clean(content).casefold()
+        haystack = _normalize_evidence_text(content)
         if all(fragment in haystack for fragment in fragments):
             return source
     return ""
@@ -328,12 +341,12 @@ def validate_direct_semantic_turn(
     # memoria local especificam a meta, mas nunca comprovam sua execucao.
     evidence = _clean(scene_raw.get("evidencia"))
     observed = " ".join(filter(None, [_clean(mary_text), _clean(mary_thought), _clean(mary_action), _clean(user_scene_direction)]))
-    evidence_grounded = bool(evidence and evidence.casefold() in observed.casefold())
+    evidence_grounded = bool(evidence and _normalize_evidence_text(evidence) in _normalize_evidence_text(observed))
     scene_claim = bool(scene_raw.get("cumprida", False))
     physical_required = bool(scene_raw.get("acao_fisica_obrigatoria", False))
     # A fala, a promessa e o pensamento nao comprovam deslocamento fisico.
     physical_evidence = bool(_clean(mary_action)) and bool(
-        evidence and evidence.casefold() in _clean(mary_action).casefold()
+        evidence and _normalize_evidence_text(evidence) in _normalize_evidence_text(mary_action)
     )
     if interpret_mode and physical_required and not physical_evidence:
         scene_raw["faltou"] = "Movimento obrigatorio sem evidencia em [AÇÃO]."
