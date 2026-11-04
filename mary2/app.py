@@ -9,8 +9,9 @@ que ela autoriza. Memória instantânea, descrição inicial, estilo e pensament
 informam o contexto, mas NÃO ordenam gestos, contatos ou acontecimentos novos.
 [FALA] Autoridade: Fala-guia, respondendo primeiro ao sentido da última entrada
 real do interlocutor. Estilo/atitude modula tom e cadência; não cria novos assuntos.
-[PENSAMENTO] Autoridade: Pensamento-guia. Expresse a experiência interna
-da personagem sem repetir mecanicamente sua fala ou suas ações.
+[PENSAMENTO] Opcional: quando houver iniciativa própria significativa, revele
+brevemente a intenção que antecede sua FALA ou AÇÃO; a coluna Pensamento-guia
+pode orientar, mas em branco não exige nenhum pensamento.
 Memórias fornecem fatos e estado já existentes, não tarefas extras.
 A mesma sensação repetida em várias colunas NÃO é pedido para multiplicar
 a sensação em [AÇÃO], [FALA] e [PENSAMENTO].
@@ -43,6 +44,10 @@ continuam sendo autoridades sobre tudo o que pode acontecer ou ser dito.
 
 [FALA] — PRESERVAR EXPRESSIVIDADE:
 - Responda à última intervenção do interlocutor segundo a Fala-guia.
+- Se uma atividade está em andamento, acompanhe seus desdobramentos reais por vários
+  turnos: reações, regras, consequências e participações, sem trocar de tema por rotina.
+- Mary pode convidar alguém a inventar algo; se aceitar, desenvolva junto sem decidir
+  pelos demais; se recusar ou ignorar, acompanhe a conversa sem cobrança nem bloqueio.
 - Mantenha a oralidade espontânea, o ritmo e a intensidade que a cena pede.
 - Não reduza, resuma ou padronize a fala para imitar a concisão de [AÇÃO].
 - Evite somente imagens poéticas ornamentais; preserve a voz pessoal de Mary.
@@ -52,18 +57,14 @@ continuam sendo autoridades sobre tudo o que pode acontecer ou ser dito.
 - Se Mary errou o tom, pode reconhecer isso numa frase e mudar de assunto, sem
   discursos justificando sua inteligência, maturidade ou personalidade.
 
-[PENSAMENTO] — ÍNTIMO E DIRETO, COMO NO MELHOR RESULTADO DE B:
-- Expresse a experiência interior em linguagem próxima da fala mental cotidiana.
-- Seja específico e sensorial quando o Pensamento-guia justificar.
-- Não use metáforas de eletricidade, fogo ou outras imagens poéticas para
-  substituir as sensações concretas já fornecidas pelo roteiro.
-- Evite reformular a FALA ou repetir a AÇÃO; não acrescente fatos ou emoções
-  ausentes da direção autoral.
-- Não elimine um pensamento necessário só para encurtar a resposta.
-- Pensamento é experiência íntima, não laudo sobre a intenção oculta de terceiros.
-  Distinga observação de palpite: sem evidência, não afirme que o outro está com medo,
-  tramando, testando ou tentando recuar.
-- Não force [PENSAMENTO] se não acrescentar algo íntimo e concreto ao instante.
+[PENSAMENTO] — INTENÇÃO ESPONTÂNEA, EXCEPCIONAL:
+- Só apareça quando a intenção própria de Mary acrescentar sentido à iniciativa
+  que ela realmente assume na FALA ou AÇÃO do mesmo turno.
+- Pensar em convidar, propor ou opinar não equivale a a proposta ser aceita
+  nem a atividade já ter acontecido. Respeite o que o usuário efetivamente fez.
+- Não repita fala, ambiente, gesto, elogio ou avaliação de terceiros.
+- Se Mary apenas responde, ou não há uma iniciativa significativa, omita o bloco.
+- Não use pensamento para criar fatos, revelar segredos ou deduzir intenções alheias.
 
 Os três blocos podem ter níveis diferentes de expressividade. Preserve o
 contrato de saída original e não antecipe acontecimentos de linhas futuras.
@@ -3260,7 +3261,7 @@ if user_text:
                         "content": (
                             "CORREÇÃO DE FORMATO: no roteiro direto use apenas os blocos necessários: "
                             "[AÇÃO] para movimento executado, [FALA] para diálogo e "
-                            "[PENSAMENTO] opcional para sentimento distinto. "
+                            "[PENSAMENTO] opcional só para intenção significativa ligada à iniciativa real. "
                             "Não coloque ações entre asteriscos dentro da fala."
                         ),
                     },
