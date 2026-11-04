@@ -101,3 +101,21 @@ def test_parser_accepts_thought_before_speech_and_speech_alone():
     assert parts["action"] == ""
     only_speech = module.parse_mary_components("[FALA] Prazer, Donisete!")
     assert only_speech == {"speech": "Prazer, Donisete!", "thought": "", "action": ""}
+
+
+def test_thought_voice_is_first_person_without_forcing_thought():
+    prompt = _prompt("Você aceita o desafio?")
+    assert "pensamento vivo da própria Mary em primeira pessoa" in prompt
+    assert "nunca como narrador em terceira pessoa" in prompt
+    assert "Sem iniciativa significativa, omita [PENSAMENTO]" in prompt
+    assert "não obriga emissão" in prompt
+
+
+def test_line_correction_does_not_require_thought():
+    correction = writer.direct_line_correction_prompt(
+        {"speech_guide": "Responder à apresentação."},
+        {"missing": "Responder ao cumprimento."},
+    )
+    assert "Preserve [FALA] como padrão" in correction
+    assert "nunca o acrescente para completar o formato" in correction
+    assert "seguido de [PENSAMENTO]" not in correction
