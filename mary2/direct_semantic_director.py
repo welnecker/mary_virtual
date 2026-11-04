@@ -73,10 +73,10 @@ def _guide_objective_is_optional(objective: str, speech_guide: str) -> bool:
 
     # The author may explicitly require a secondary intervention.
     explicit = bool(re.search(
-        r"\\b(?:silvia|sílvia)\\s*:\\s*(?:deve|precisa|obrigatoriamente|é obrigatório)",
+        r"\b(?:silvia|sílvia)\s*:\s*(?:deve|precisa|obrigatoriamente|é obrigatório)",
         guide,
     ))
-    if re.match(r"^(?:silvia|sílvia)\\s*:", obj) and not explicit:
+    if re.match(r"^(?:silvia|sílvia)\s*:", obj) and not explicit:
         return True
     if ("silvia:" in guide or "sílvia:" in guide) and not explicit:
         # Secondary dialogue and Mary's response to it are an opportunity:
@@ -93,18 +93,19 @@ def _guide_objective_is_optional(objective: str, speech_guide: str) -> bool:
         return True
 
     optional_patterns = (
-        r"\\b(?:pode|poderá|poderia|podendo|talvez|opcional|se couber)\\b",
-        r"\\bse (?:a conversa|houver|surgir|fizer sentido|for pertinente)\\b",
-        r"\\b(?:sem exigir|sem forçar|evitar|não repetir|não transformar)\\b",
+        r"\b(?:pode|poderá|poderia|podendo|talvez|opcional|se couber)\b",
+        r"\bse (?:a conversa|houver|surgir|fizer sentido|for pertinente)\b",
+        r"\b(?:sem exigir|sem forçar|evitar|não repetir|não transformar)\b",
     )
     if any(re.search(p, obj) for p in optional_patterns):
         return True
 
     # A qualified guide can be paraphrased as a bare imperative by the LLM.
     # Keep its conditional meaning rather than promoting it into an order.
-    if any(re.search(p, guide) for p in optional_patterns):
-        required_words = ("deve", "precisa", "obrigatório", "obrigatoriamente")
-        if not any(word in obj for word in required_words):
+    # A guide beginning with a conditional is optional as a whole, even
+    # if the Director paraphrases that opportunity as a bare command.
+    if guide.startswith(("se ", "caso ", "quando ", "pode ", "poderá ", "poderia ")):
+        if not re.search(r"\\b(?:deve|precisa|obrigatóri[oa]|obrigatoriamente)\\b", obj):
             return True
     return False
 
