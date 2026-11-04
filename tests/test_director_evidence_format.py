@@ -7,11 +7,20 @@ from pathlib import Path
 
 
 # The evidence utilities are pure; do not require a network call to import them.
-sys.modules.setdefault("openrouter_client", types.SimpleNamespace(chat=lambda **_: None))
 module_path = Path(__file__).resolve().parents[1] / "mary2" / "direct_semantic_director.py"
 spec = importlib.util.spec_from_file_location("mary_director_evidence", module_path)
 module = importlib.util.module_from_spec(spec)
-spec.loader.exec_module(module)
+stub = types.ModuleType("openrouter_client")
+stub.chat = lambda **_: None
+previous_client = sys.modules.get("openrouter_client")
+try:
+    sys.modules["openrouter_client"] = stub
+    spec.loader.exec_module(module)
+finally:
+    if previous_client is None:
+        sys.modules.pop("openrouter_client", None)
+    else:
+        sys.modules["openrouter_client"] = previous_client
 
 
 def test_bold_speaker_label_matches_unformatted_evidence():
