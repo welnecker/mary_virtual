@@ -71,16 +71,20 @@ def _guide_objective_is_optional(objective: str, speech_guide: str) -> bool:
     if not obj:
         return True
 
-    # The author may explicitly require a secondary intervention.
-    explicit = bool(re.search(
-        r"\b(?:silvia|sílvia)\s*:\s*(?:deve|precisa|obrigatoriamente|é obrigatório)",
+    # Personagens secundários indicados por rótulos autorais de fala
+    # (SILVIA:, RICARDO:, etc.) são oportunidades, salvo obrigação explícita.
+    secondary_labels = [
+        label.casefold() for label in re.findall(
+            r"(?m)^([A-ZÀ-Ý][A-ZÀ-Ý]{1,39}):", speech_guide or ""
+        ) if label.casefold() != "mary"
+    ]
+    explicit = any(re.search(
+        rf"\\b{re.escape(label)}\\s*:\\s*(?:deve|precisa|obrigatoriamente|é obrigatório)",
         guide,
-    ))
-    if re.match(r"^(?:silvia|sílvia)\s*:", obj) and not explicit:
-        return True
-    if ("silvia:" in guide or "sílvia:" in guide) and not explicit:
-        # Secondary dialogue and Mary's response to it are an opportunity:
-        # she must still answer the actual user's current turn.
+    ) for label in secondary_labels)
+    if secondary_labels and not explicit:
+        # O vínculo Mary<->personagem secundário não deve prender a linha.
+        # A obrigação conversacional atual e as verificações factuais permanecem.
         return True
 
     optional_prefix = (
@@ -417,12 +421,21 @@ def validate_direct_semantic_turn(
     all_objectives = (
         True
         if interpret_mode or not speech_guide
-        else all(bool(item.get("found")) for item in required_objectives)
+        else (
+            all(bool(item.get("found")) for item in required_objectives)
+            and (
+                bool(required_objectives)
+                or _guide_objective_is_optional(speech_guide, speech_guide)
+            )
+        )
     )
     # 'cumpriu' may reflect a missing OPTIONAL suggestion. Never let it
     # override the deterministic distinction while still requiring valid
     # factual, coherence, revelation and current-user-obligation checks.
-    guide_completion = bool(parsed.get("cumpriu", False)) if required_objectives else True
+    # O parecer global 'cumpriu' é informativo; pode ser falso apenas porque
+    # uma oportunidade ou orientação de estilo não foi utilizada. A decisão
+    # segue as obrigações explicitamente verificadas, nunca essa impressão.
+    guide_completion = all_objectives
 
     fulfilled = (
         not parse_error
@@ -441,6 +454,8 @@ def validate_direct_semantic_turn(
         missing_parts.append(scene_completion["missing"] or "acontecimento central da linha ainda nao ocorreu")
     if obligation_exists and not normalized_obligation["satisfied"]:
         missing_parts.append(obligation_text or "responder à fala atual do usuário")
+    if speech_guide and not interpret_mode and not required_objectives and not _guide_objective_is_optional(speech_guide, speech_guide):
+        missing_parts.append("Ato obrigatório da FALA-GUIA sem evidência validada")
     for item in normalized_objectives:
         if not item["optional"] and not item["found"] and item["requirement"]:
             missing_parts.append(item["requirement"])
