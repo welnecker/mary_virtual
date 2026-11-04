@@ -625,7 +625,7 @@ def direct_line_correction_prompt(row: dict, evaluation: dict) -> str:
         f"Elementos ainda não satisfeitos: {detail}. "
         f"A FALA-GUIA continua sendo: {guide}. "
         "Se a lacuna for uma obrigação conversacional trazida pelo usuário, responda primeiro a ela de forma natural; use as memórias autoritativas quando a obrigação for factual. "
-        "Depois preserve e cumpra a FALA-GUIA na mesma resposta, de modo natural. "
+        "Preserve obrigações IMEDIATAS explícitas da FALA-GUIA, mas nunca insira uma pergunta, uma história ou fala de personagem secundário apenas para cumprir uma sugestão opcional. "
         "Reaja ao significado da fala atual do usuário sem repeti-la ou parafraseá-la mecanicamente. "
         "Não copie literalmente a FALA-GUIA se puder cumprir a mesma intenção com naturalidade. "
         "Não invente fatos, dados, ações ou informações para compensar a falha. "
@@ -773,7 +773,9 @@ def build_direct_writer_prompt(
         "LINHA ATIVA AGORA\n"
         "==================================================\n"
         f"Ordem: {active_order}\n"
-        "Fala-guia: " + ("Interpretar (modo técnico)" if interpret_mode else (speech_guide or "(nenhuma)")) + "\n"
+        "Fala-guia: " + ("Interpretar (modo técnico)" if interpret_mode else (speech_guide or "(nenhuma)")) + "\n"        + "CONTRATO DE FLUIDEZ: expressões como 'pode', 'se houver', 'se fizer sentido' e 'evitar' são oportunidades ou limites de estilo, não tarefas obrigatórias nesta resposta. A Fala-guia só exige realização imediata quando a obrigação é explícita e compatível com a situação. Nunca desvie de uma brincadeira ou resposta atual para encaixar uma pergunta de outra temática.\n"
+        + "PERSONAGENS SECUNDÁRIOS: quando a Fala-guia mencionar SILVIA ou outra pessoa, autorize uma intervenção espontânea somente se acrescentar algo ao assunto atual. Não repita a mesma provocação ao permanecer na mesma linha; se ela já participou, Mary pode responder sozinha. Não decida pelo usuário nem fale pelo personagem que ele estiver interpretando neste turno.\n"
+
         + ("Direção autoral desta linha: " + interpret_direction + "\n" if interpret_direction else "")
         + ("Descrição-guia: " + action_guide + "\n" if action_guide else "")
         + ("Pensamento-guia: " + thought_guide + "\n" if thought_guide else "")
