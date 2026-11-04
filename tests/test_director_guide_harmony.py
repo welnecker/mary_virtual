@@ -147,3 +147,21 @@ def test_explicit_mary_requirement_in_secondary_guide_is_not_dropped():
     assert not director._guide_objective_is_optional(
         "MARY: deve revelar um segredo importante", guide
     )
+
+def test_mary_optional_game_invitation_does_not_block_completion():
+    result = _validation(
+        "Se houver oportunidade, Mary pode convidar Donisete a inventar uma brincadeira.",
+        "Convidar Donisete a inventar uma brincadeira",
+        met=False,
+    )
+    assert result["fulfilled"] is True
+    assert result["elements"][0]["optional"] is True
+    assert result["missing"] == ""
+
+
+def test_declined_optional_activity_cannot_become_required():
+    guide = "Se o grupo estiver sem assunto, Mary pode sugerir uma atividade."
+    assert director._guide_objective_is_optional("Sugerir uma atividade", guide)
+    # Fatos duros e obrigações reais continuam independentes da sugestão.
+    result = _validation(guide, "Sugerir uma atividade", contradictory=True)
+    assert result["fulfilled"] is False
