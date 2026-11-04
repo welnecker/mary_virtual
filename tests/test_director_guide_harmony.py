@@ -120,3 +120,30 @@ def test_factual_contradiction_still_blocks_optional_line():
 def test_current_user_obligation_remains_required():
     result = _validation("Mary responde ao convite.", "Responder ao convite")
     assert result["fulfilled"] is False  # Requirement was not evidenced.
+
+
+def test_mixed_guide_keeps_required_act_and_defers_conditional_addon():
+    guide = (
+        "Responder a quem falou. "
+        "Se fizer sentido, incluir o outro rapaz com um comentário simples."
+    )
+    assert not director._guide_objective_is_optional("Responder a quem falou", guide)
+    assert director._guide_objective_is_optional(
+        "Incluir o outro rapaz com um comentário simples", guide
+    )
+
+
+def test_required_act_supported_by_evidence_passes_even_if_global_cumpriu_is_false():
+    result = _validation(
+        "Mary deve responder à proposta da brincadeira.",
+        "Responder à proposta da brincadeira",
+        met=True,
+    )
+    assert result["fulfilled"] is True
+
+
+def test_explicit_mary_requirement_in_secondary_guide_is_not_dropped():
+    guide = "SILVIA: pode brincar.\\nMARY: deve revelar um segredo importante."
+    assert not director._guide_objective_is_optional(
+        "MARY: deve revelar um segredo importante", guide
+    )
