@@ -654,7 +654,7 @@ def build_direct_writer_prompt(
             "sem iniciar nova etapa narrativa.\n\n"
             "FALA ATUAL DO USUÁRIO\n"
             f"{_clean(user_text) or '(sem fala verbal)'}\n\n"
-            "FORMATO\n[FALA] fala de Mary\n[PENSAMENTO] opcional apenas para intenção significativa."
+            "FORMATO PADRÃO\n[FALA] fala de Mary. Outros canais somente se necessários."
         )
 
     interpretation = interpretation if isinstance(interpretation, dict) else {}
@@ -782,9 +782,8 @@ def build_direct_writer_prompt(
         + "Estilo/atitude: " + (_clean(row.get("style")) or "natural") + "\n"
         "Revelação permitida nesta linha: " + (_clean(row.get("revelation_policy")) or "(sem restrição autoral específica)") + "\n\n"
 
-        "INTEGRAÇÃO DOS CANAIS — INICIATIVA SEM OBRIGAÇÃO\n"
-        "A Descrição-guia autoriza ações; a Fala-guia dirige o conteúdo verbal. "
-        "A coluna Pensamento-guia, quando preenchida, informa uma intenção íntima, nunca exige um bloco. "
+        "CONTINUIDADE E INICIATIVA — SEM OBRIGAÇÃO\n"
+         "A Descrição-guia autoriza ações; a Fala-guia dirige o conteúdo verbal. "
         "Em momentos oportunos Mary pode contribuir com opinião, brincadeira ou convite próprio, "
         "sem interromper um assunto em desenvolvimento. Uma iniciativa proposta deve aguardar a decisão "
         "do interlocutor: se aceita, acompanhe regras e consequências; se recusada ou ignorada, siga a "
@@ -795,21 +794,21 @@ def build_direct_writer_prompt(
         "o que todos vieram fazer ou uma disputa que já foi resolvida. "
         "Não obrigue perguntas de efeito, metáforas, humor, justificativas ou frases de encerramento. "
         "Intensidade e extensão seguem a Fala-guia, o estado emocional e a conversa, não um padrão fixo. "
-        "Se houver pensamento significativo, ele pode anteceder na leitura a iniciativa que Mary efetivamente "
-        "expressa na fala ou ação do mesmo turno; não explique toda resposta com um pensamento. "
-        "Não use a emoção como licença para inventar fatos, contatos, revelações ou "
+         "Não use a emoção como licença para inventar fatos, contatos, revelações ou "
         "passos de roteiro.\n\n"
         "DIREÇÃO: A linha ativa e suas memórias estabelecem o acontecimento, os fatos e o estilo. "
-        "As orientações autorais de FALA, DESCRIÇÃO e PENSAMENTO dirigem apenas seu componente e apenas esta linha; "
+         "As orientações autorais de FALA, DESCRIÇÃO e PENSAMENTO, quando presentes, dirigem apenas seu componente nesta linha; "
         "interprete-as sem copiar literalmente. Responda à entrada atual e preserve a continuidade. "
         "Não antecipe linhas nem revele fatos proibidos pela regra REVELACAO. "
         "Em linha automática, continue sem inventar fala do usuário; em linha bloqueada, Mary toma a iniciativa.\n\n"
 
-        "FORMATO: gere somente os blocos necessários, nesta ordem: [AÇÃO], [FALA], [PENSAMENTO].\\n"
-        "[AÇÃO] descreve a ação física efetivamente realizada conforme a memória local e a descrição-guia; não basta prometer.\\n"
-        "[FALA] contém só as palavras de Mary, guiadas pela Fala-guia e pela conversa real.\\n"
-        "[PENSAMENTO] é opcional e raro: mostre uma intenção que leva Mary a iniciar algo concreto na FALA ou AÇÃO; omita comentários sobre ambiente, elogios repetidos e explicações do óbvio.\\n"
-        "Todos os blocos pertencem ao mesmo instante, sem repetir a mesma informação. Não copie literalmente orientações, não intensifique nem enfeite a narração além do que pede a linha ativa. "
-        "Não invente ações ou pensamentos para preencher blocos; gere pelo menos um. Não coloque ações dentro de [FALA]."
+        "FORMATO PADRÃO: [FALA] com as palavras de Mary, guiadas pela conversa real e pela Fala-guia.\n"
+        "CANAIS OPCIONAIS: [AÇÃO] só para movimento concreto autorizado na Descrição-guia; "
+        "[PENSAMENTO] só para intenção espontânea significativa que Mary concretiza na FALA ou AÇÃO deste turno. "
+        "Pensamento-guia, se preenchido, orienta o conteúdo; não obriga emissão. "
+        "Sem iniciativa significativa, omita [PENSAMENTO]; não o use para comentar ambiente ou repetir a fala.\n"
+        "Se necessário, posicione [PENSAMENTO] antes da iniciativa; o parser aceita os blocos em qualquer ordem. "
+        "Não produza blocos opcionais para completar formato, nem invente ação ou antecipação de roteiro. "
+        "Não coloque ações dentro de [FALA]."
     )
 
