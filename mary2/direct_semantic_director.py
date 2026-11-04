@@ -59,6 +59,56 @@ def _evidence_source(evidence: str, entries: list[tuple[str, str]]) -> str:
     return ""
 
 
+def _guide_objective_is_optional(objective: str, speech_guide: str) -> bool:
+    """Separate opportunities/style from required acts without weakening safety gates.
+
+    This is deliberately conservative: unqualified, concrete obligations
+    remain mandatory. A secondary character's optional contribution never
+    blocks Mary's turn or forces the character to repeat a line.
+    """
+    obj = _clean(objective).casefold()
+    guide = _clean(speech_guide).casefold()
+    if not obj:
+        return True
+
+    # The author may explicitly require a secondary intervention.
+    explicit = bool(re.search(
+        r"\\b(?:silvia|sílvia)\\s*:\\s*(?:deve|precisa|obrigatoriamente|é obrigatório)",
+        guide,
+    ))
+    if re.match(r"^(?:silvia|sílvia)\\s*:", obj) and not explicit:
+        return True
+    if ("silvia:" in guide or "sílvia:" in guide) and not explicit:
+        # Secondary dialogue and Mary's response to it are an opportunity:
+        # she must still answer the actual user's current turn.
+        return True
+
+    optional_prefix = (
+        "se ", "caso ", "quando ", "pode ", "poderá ", "poderia ",
+        "se fizer sentido", "se a conversa", "se houver",
+        "evitar ", "não ", "sem ", "preferir ", "manter ",
+        "permitir ", "podendo ", "com naturalidade",
+    )
+    if obj.startswith(optional_prefix):
+        return True
+
+    optional_patterns = (
+        r"\\b(?:pode|poderá|poderia|podendo|talvez|opcional|se couber)\\b",
+        r"\\bse (?:a conversa|houver|surgir|fizer sentido|for pertinente)\\b",
+        r"\\b(?:sem exigir|sem forçar|evitar|não repetir|não transformar)\\b",
+    )
+    if any(re.search(p, obj) for p in optional_patterns):
+        return True
+
+    # A qualified guide can be paraphrased as a bare imperative by the LLM.
+    # Keep its conditional meaning rather than promoting it into an order.
+    if any(re.search(p, guide) for p in optional_patterns):
+        required_words = ("deve", "precisa", "obrigatório", "obrigatoriamente")
+        if not any(word in obj for word in required_words):
+            return True
+    return False
+
+
 def validate_direct_semantic_turn(
     *,
     api_key: str,
@@ -182,7 +232,7 @@ def validate_direct_semantic_turn(
         + (
             "A) INTERPRETAR: a palavra é seletor, não fala obrigatória. Verifique se Mary interpreta a linha e sua direção autoral sem exigir palavras literais. Registre em objetivos_guia apenas 'interpretar a situação local'. "
             if interpret_mode else
-            "A) OBJETIVOS: extraia somente da FALA-GUIA os atos conversacionais exigidos. Convites e promessas se cumprem ao serem formulados, não quando acontecem no futuro. Considere objetivos já satisfeitos por respostas literais do usuário; não invente objetivos. "
+            "A) OBJETIVOS: separe obrigações expressas (DEVE, PRECISA, OBRIGATÓRIO) de oportunidades (PODE, SE HOUVER GANCHO, SE FIZER SENTIDO), sugestões e limites de estilo (EVITAR, SEM, NÃO REPETIR). Só obrigações imediatas bloqueiam a conclusão. Um assunto opcional pode ocorrer mais tarde no capítulo, sem cobrança neste turno. SILVIA e outras personagens secundárias participam quando o fluxo pedir; não exija uma fala nova delas a cada turno nem faça Mary interromper o usuário para provocar participação. Convites e promessas se cumprem ao serem formulados, não quando acontecem no futuro. Considere objetivos já satisfeitos por respostas literais do usuário; não invente objetivos. "
         )
         + ("Turno automático: pensamento pode cumprir finalidade introspectiva. " if automatic_row else "")
         + ("B) CENA — PILOTO APARTAMENTO1: a DESCRIÇÃO-GUIA DA LINHA ATUAL define o acontecimento físico a comprovar. MEMÓRIA INSTANTÂNEA-LOCAL informa fatos e contexto, inclusive intenções futuras, mas NÃO obriga Mary a executar esses acontecimentos agora. Não exija que Mary acorde Silvia ou faça convite na linha anterior se isso só está previsto para a linha seguinte. A evidência deve ser um trecho literal contínuo da AÇÃO, FALA ou PENSAMENTO realmente produzidos; movimento físico exige trecho de AÇÃO. " if str(row.get("script_name", "")).strip() == "Apartamento1" else "B) CENA: confira o acontecimento central da MEMÓRIA INSTANTÂNEA-LOCAL. Movimento indispensável exige execução concreta em ACAO ATUAL ou evidência já realizada na conversa desta linha. Promessa e pensamento não comprovam ação. Defina acao_fisica_obrigatoria conforme a memória local; não exija ação se a linha é somente verbal. Cite evidência literal da resposta/ação atual ou conversa, nunca da memória como prova de execução. ")
@@ -216,7 +266,7 @@ def validate_direct_semantic_turn(
                     + (
                         "Se a fala-guia for Interpretar, avalie apenas a atuação contextual na memória instantânea, não o termo literal. "
                         if interpret_mode else
-                        "Os objetivos da linha vêm somente da FALA-GUIA ORIGINAL e devem ser entendidos como atos conversacionais de Mary, não como resultados futuros. "
+                        "A FALA-GUIA define direção, não uma lista de perguntas obrigatórias. Distinga exigências explícitas de opções, oportunidades contextuais e limites de estilo. Silvia só deve intervir quando acrescentar algo real; não reitere uma participação que já ocorreu durante a mesma linha. "
                     )
                     + "Não exija repetição literal da fala-guia. "
                     "Nunca invente evidência."
@@ -260,9 +310,12 @@ def validate_direct_semantic_turn(
         claimed_source = _clean(item.get("fonte")).upper()
         source = _evidence_source(evidence, conversation_entries)
         valid = bool(evidence) and bool(source)
+        requirement = _clean(item.get("objetivo"))
+        optional = _guide_objective_is_optional(requirement, speech_guide)
         normalized_objectives.append(
             {
-                "requirement": _clean(item.get("objetivo")),
+                "requirement": requirement,
+                "optional": optional,
                 "found": bool(item.get("alcancado", False)) and valid,
                 "source": source,
                 "claimed_source": claimed_source,
@@ -359,12 +412,16 @@ def validate_direct_semantic_turn(
         "missing": _clean(scene_raw.get("faltou")),
     }
 
+    required_objectives = [item for item in normalized_objectives if not item["optional"]]
     all_objectives = (
         True
         if interpret_mode or not speech_guide
-        else bool(normalized_objectives)
-        and all(bool(item.get("found")) for item in normalized_objectives)
+        else all(bool(item.get("found")) for item in required_objectives)
     )
+    # 'cumpriu' may reflect a missing OPTIONAL suggestion. Never let it
+    # override the deterministic distinction while still requiring valid
+    # factual, coherence, revelation and current-user-obligation checks.
+    guide_completion = bool(parsed.get("cumpriu", False)) if required_objectives else True
 
     fulfilled = (
         not parse_error
@@ -375,7 +432,7 @@ def validate_direct_semantic_turn(
         and normalized_obligation["satisfied"]
         and all_objectives
         and scene_completion["fulfilled"]
-        and bool(parsed.get("cumpriu", False))
+        and guide_completion
     )
 
     missing_parts = []
@@ -384,7 +441,7 @@ def validate_direct_semantic_turn(
     if obligation_exists and not normalized_obligation["satisfied"]:
         missing_parts.append(obligation_text or "responder à fala atual do usuário")
     for item in normalized_objectives:
-        if not item["found"] and item["requirement"]:
+        if not item["optional"] and not item["found"] and item["requirement"]:
             missing_parts.append(item["requirement"])
 
     return {
