@@ -105,7 +105,7 @@ def _guide_objective_is_optional(objective: str, speech_guide: str) -> bool:
     # A guide beginning with a conditional is optional as a whole, even
     # if the Director paraphrases that opportunity as a bare command.
     if guide.startswith(("se ", "caso ", "quando ", "pode ", "poderá ", "poderia ")):
-        if not re.search(r"\\b(?:deve|precisa|obrigatóri[oa]|obrigatoriamente)\\b", obj):
+        if not re.search(r"\b(?:deve|precisa|obrigatóri[oa]|obrigatoriamente)\b", obj):
             return True
     return False
 
