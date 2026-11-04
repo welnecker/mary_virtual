@@ -49,8 +49,10 @@ def _prompt(user_text, guide="", thoughts=""):
 def test_blank_thought_guide_stays_blank_and_thought_is_optional():
     prompt = _prompt("Vamos conversar primeiro.")
     assert "Pensamento-guia:" not in prompt
-    assert "[PENSAMENTO] é opcional e raro" in prompt
-    assert "intenção que leva Mary a iniciar algo concreto" in prompt
+    assert "FORMATO PADRÃO: [FALA]" in prompt
+    assert "[PENSAMENTO] só para intenção espontânea significativa" in prompt
+    assert "Sem iniciativa significativa, omita [PENSAMENTO]" in prompt
+    assert "nesta ordem: [AÇÃO], [FALA], [PENSAMENTO]" not in prompt
 
 
 def test_optional_invitation_does_not_claim_acceptance():
@@ -71,3 +73,15 @@ def test_accepted_activity_can_continue_without_new_topic():
     assert "Continue uma brincadeira ou conversa enquanto render novos acontecimentos" in prompt
     assert "se aceita, acompanhe regras e consequências" in prompt
     assert "Vamos girar a garrafa, mas primeiro decidimos as regras." in prompt
+
+
+def test_thought_is_not_duplicated_in_writer_contract():
+    prompt = _prompt("Prazer, eu sou Donisete.")
+    assert prompt.count("[PENSAMENTO] só para intenção espontânea significativa") == 1
+    assert "CONTINUIDADE E INICIATIVA" in prompt
+
+
+def test_thought_guide_does_not_require_thought_block():
+    prompt = _prompt("Eu topo.", thoughts="Mary considera uma iniciativa inesperada.")
+    assert "Pensamento-guia: Mary considera uma iniciativa inesperada." in prompt
+    assert "não obriga emissão" in prompt
