@@ -654,7 +654,7 @@ def build_direct_writer_prompt(
             "sem iniciar nova etapa narrativa.\n\n"
             "FALA ATUAL DO USUÁRIO\n"
             f"{_clean(user_text) or '(sem fala verbal)'}\n\n"
-            "FORMATO\n[FALA] fala de Mary\n[PENSAMENTO] uma frase íntima curta."
+            "FORMATO\n[FALA] fala de Mary\n[PENSAMENTO] opcional apenas para intenção significativa."
         )
 
     interpretation = interpretation if isinstance(interpretation, dict) else {}
@@ -773,7 +773,7 @@ def build_direct_writer_prompt(
         "LINHA ATIVA AGORA\n"
         "==================================================\n"
         f"Ordem: {active_order}\n"
-        "Fala-guia: " + ("Interpretar (modo técnico)" if interpret_mode else (speech_guide or "(nenhuma)")) + "\n"        + "CONTRATO DE FLUIDEZ: expressões como 'pode', 'se houver', 'se fizer sentido' e 'evitar' são oportunidades ou limites de estilo, não tarefas obrigatórias nesta resposta. A Fala-guia só exige realização imediata quando a obrigação é explícita e compatível com a situação. Nunca desvie de uma brincadeira ou resposta atual para encaixar uma pergunta de outra temática.\n"
+        "Fala-guia: " + ("Interpretar (modo técnico)" if interpret_mode else (speech_guide or "(nenhuma)")) + "\n"        + "CONTRATO DE FLUIDEZ: expressões como 'pode', 'se houver', 'se fizer sentido' e 'evitar' são oportunidades ou limites de estilo, não tarefas obrigatórias nesta resposta. A Fala-guia só exige realização imediata quando a obrigação é explícita e compatível com a situação. Continue uma brincadeira ou conversa enquanto render novos acontecimentos; não introduza outra pergunta só para mudar de tema. Mary pode convidar alguém a propor uma atividade, mas aceitação, recusa ou silêncio não bloqueiam o roteiro nem autorizam insistência repetida.\n"
         + "PERSONAGENS SECUNDÁRIOS: quando a Fala-guia mencionar SILVIA ou outra pessoa, autorize uma intervenção espontânea somente se acrescentar algo ao assunto atual. Não repita a mesma provocação ao permanecer na mesma linha; se ela já participou, Mary pode responder sozinha. Não decida pelo usuário nem fale pelo personagem que ele estiver interpretando neste turno.\n"
 
         + ("Direção autoral desta linha: " + interpret_direction + "\n" if interpret_direction else "")
@@ -782,20 +782,22 @@ def build_direct_writer_prompt(
         + "Estilo/atitude: " + (_clean(row.get("style")) or "natural") + "\n"
         "Revelação permitida nesta linha: " + (_clean(row.get("revelation_policy")) or "(sem restrição autoral específica)") + "\n\n"
 
-        "INTEGRAÇÃO EMOCIONAL DOS TRÊS CANAIS — SEM CRUZAR AUTORIDADES\n"
-        "Descrição-guia, Pensamento-guia e Fala-guia descrevem um único instante vivido por Mary. "
-        "Considere conjuntamente o que ela percebe, sente e pretende antes de redigir, mas respeite "
-        "a autoridade de cada guia sobre seu próprio conteúdo. A Descrição-guia autoriza ações; "
-        "o Pensamento-guia informa a experiência interna; a Fala-guia dirige o conteúdo verbal. "
-        "O sentimento estabelecido no pensamento deve influenciar naturalmente ritmo, vocabulário, "
-        "subtexto e atitude da FALA, sem virar confissão literal, narração do ambiente ou ação inventada. "
+        "INTEGRAÇÃO DOS CANAIS — INICIATIVA SEM OBRIGAÇÃO\n"
+        "A Descrição-guia autoriza ações; a Fala-guia dirige o conteúdo verbal. "
+        "A coluna Pensamento-guia, quando preenchida, informa uma intenção íntima, nunca exige um bloco. "
+        "Em momentos oportunos Mary pode contribuir com opinião, brincadeira ou convite próprio, "
+        "sem interromper um assunto em desenvolvimento. Uma iniciativa proposta deve aguardar a decisão "
+        "do interlocutor: se aceita, acompanhe regras e consequências; se recusada ou ignorada, siga a "
+        "conversa sem cobrar, podendo recordá-la futuramente se houver gancho real. "
+        "A proposta não vira fato realizado nem objetivo obrigatório da linha. "
         "Fale em primeira pessoa para um interlocutor concreto quando houver um, respondendo primeiro "
         "à última fala real. Prefira reação específica e situada a discursos sobre o clima, o capítulo, "
         "o que todos vieram fazer ou uma disputa que já foi resolvida. "
         "Não obrigue perguntas de efeito, metáforas, humor, justificativas ou frases de encerramento. "
         "Intensidade e extensão seguem a Fala-guia, o estado emocional e a conversa, não um padrão fixo. "
-        "Se pensamento e fala tiverem propósitos diferentes, preserve ambos sem fazer Mary verbalizar "
-        "aquilo que só pensa. Não use a emoção como licença para inventar fatos, contatos, revelações ou "
+        "Se houver pensamento significativo, ele pode anteceder na leitura a iniciativa que Mary efetivamente "
+        "expressa na fala ou ação do mesmo turno; não explique toda resposta com um pensamento. "
+        "Não use a emoção como licença para inventar fatos, contatos, revelações ou "
         "passos de roteiro.\n\n"
         "DIREÇÃO: A linha ativa e suas memórias estabelecem o acontecimento, os fatos e o estilo. "
         "As orientações autorais de FALA, DESCRIÇÃO e PENSAMENTO dirigem apenas seu componente e apenas esta linha; "
@@ -806,7 +808,7 @@ def build_direct_writer_prompt(
         "FORMATO: gere somente os blocos necessários, nesta ordem: [AÇÃO], [FALA], [PENSAMENTO].\\n"
         "[AÇÃO] descreve a ação física efetivamente realizada conforme a memória local e a descrição-guia; não basta prometer.\\n"
         "[FALA] contém só as palavras de Mary, guiadas pela Fala-guia e pela conversa real.\\n"
-        "[PENSAMENTO] é opcional; inclua apenas percepção íntima que acrescente algo novo, guiada pelo Pensamento-guia.\\n"
+        "[PENSAMENTO] é opcional e raro: mostre uma intenção que leva Mary a iniciar algo concreto na FALA ou AÇÃO; omita comentários sobre ambiente, elogios repetidos e explicações do óbvio.\\n"
         "Todos os blocos pertencem ao mesmo instante, sem repetir a mesma informação. Não copie literalmente orientações, não intensifique nem enfeite a narração além do que pede a linha ativa. "
         "Não invente ações ou pensamentos para preencher blocos; gere pelo menos um. Não coloque ações dentro de [FALA]."
     )
