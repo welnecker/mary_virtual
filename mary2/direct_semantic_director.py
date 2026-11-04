@@ -19,9 +19,9 @@ def _normalize_evidence_text(value: str) -> str:
     """
     normalized = _clean(value)
     # Supports **Silvia:** and **Silvia**: without removing emphasis from prose.
-    normalized = re.sub(r"\\*\\*([^*\\n]{1,80}:)\\*\\*", r"\\1", normalized)
-    normalized = re.sub(r"\\*\\*([^*\\n]{1,80})\\*\\*:", r"\\1:", normalized)
-    return re.sub(r"\\s+", " ", normalized).strip().casefold()
+    normalized = re.sub(r"\*\*([^*\n]{1,80}:)\*\*", r"\1", normalized)
+    normalized = re.sub(r"\*\*([^*\n]{1,80})\*\*:", r"\1:", normalized)
+    return re.sub(r"\s+", " ", normalized).strip().casefold()
 
 
 def _evidence_source(evidence: str, entries: list[tuple[str, str]]) -> str:
