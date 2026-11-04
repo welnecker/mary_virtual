@@ -447,13 +447,9 @@ def validate_direct_semantic_turn(
             )
         )
     )
-    # 'cumpriu' may reflect a missing OPTIONAL suggestion. Never let it
-    # override the deterministic distinction while still requiring valid
-    # factual, coherence, revelation and current-user-obligation checks.
-    # O parecer global 'cumpriu' é informativo; pode ser falso apenas porque
-    # uma oportunidade ou orientação de estilo não foi utilizada. A decisão
-    # segue as obrigações explicitamente verificadas, nunca essa impressão.
-    guide_completion = all_objectives
+    # A resposta global "cumpriu" do Diretor é apenas diagnóstica:
+    # oportunidades não utilizadas não podem reverter os critérios verificáveis.
+    # Mantemos todas as checagens independentes de coerência e fatos.
 
     fulfilled = (
         not parse_error
@@ -464,7 +460,6 @@ def validate_direct_semantic_turn(
         and normalized_obligation["satisfied"]
         and all_objectives
         and scene_completion["fulfilled"]
-        and guide_completion
     )
 
     missing_parts = []
