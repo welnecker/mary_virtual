@@ -85,3 +85,19 @@ def test_thought_guide_does_not_require_thought_block():
     prompt = _prompt("Eu topo.", thoughts="Mary considera uma iniciativa inesperada.")
     assert "Pensamento-guia: Mary considera uma iniciativa inesperada." in prompt
     assert "não obriga emissão" in prompt
+
+
+def test_parser_accepts_thought_before_speech_and_speech_alone():
+    path = Path(__file__).resolve().parents[1] / "mary2" / "output_filter.py"
+    spec = importlib.util.spec_from_file_location("mary2_output_filter_initiative", path)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    parts = module.parse_mary_components(
+        "[PENSAMENTO] Vou chamar o Doni para brincar.\n"
+        "[FALA] Doni, inventa uma brincadeira aí!"
+    )
+    assert parts["thought"] == "Vou chamar o Doni para brincar."
+    assert parts["speech"] == "Doni, inventa uma brincadeira aí!"
+    assert parts["action"] == ""
+    only_speech = module.parse_mary_components("[FALA] Prazer, Donisete!")
+    assert only_speech == {"speech": "Prazer, Donisete!", "thought": "", "action": ""}
