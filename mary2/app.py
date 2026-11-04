@@ -163,6 +163,7 @@ from user_understanding_audit import (
     analyze_user_understanding,
     save_user_understanding_audit,
 )
+from episodic_memory_shadow import select_episodic_candidates, describe_episode_selection
 from persistence import (
     PersistenceError,
     create_run,
@@ -183,6 +184,7 @@ from persistence import (
     save_funnel_audit,
     save_funnel_rejection,
     save_model_audit,
+    save_episodic_memory_audit,
     save_turn,
     update_run_snapshot,
 )
@@ -4219,6 +4221,60 @@ if user_text:
                 )
                 turn_record["seq"] = saved_seq
                 st.session_state.run_last_seq = saved_seq
+
+                # Piloto observacional: audita cada turno persistido do roteiro
+                # direto. Não injeta lembranças nos prompts e não altera estado.
+                if script_mode == "direct_sheet":
+                    try:
+                        run = str(st.session_state.run_id or "")
+                        instance = str(narrative.get("chapter_instance_id", "") or "")
+                        branch = str(narrative.get("branch_id", "main") or "main")
+                        historical_rows = [
+                            {**record, "run_id": run}
+                            for record in st.session_state.turn_records
+                            if isinstance(record, dict)
+                        ]
+                        candidates = select_episodic_candidates(
+                            historical_rows,
+                            run_id=run,
+                            chapter_instance_id=instance,
+                            branch_id=branch,
+                            before_seq=saved_seq,
+                            current_user_text=dialogue_text,
+                            recent_context=" ".join(
+                                str(message.get("content", "") or "")
+                                for message in messages_before_turn[-4:]
+                                if isinstance(message, dict)
+                            ),
+                        )
+                        save_episodic_memory_audit(
+                            service_account_info=persistence["service_account_info"],
+                            spreadsheet_id=info["spreadsheet_id"],
+                            spreadsheet_title=persistence["spreadsheet_title"],
+                            owner_email=persistence["owner_email"],
+                            run_id=run,
+                            seq=saved_seq,
+                            chapter_id=_chapter_id(),
+                            chapter_instance_id=instance,
+                            branch_id=branch,
+                            line_order=int(direct_row.get("order", 0) or 0),
+                            user_text=dialogue_text,
+                            candidates=candidates,
+                            scene_direction=scene_direction,
+                            speaker_explicit=str(
+                                (direct_interpretation or {}).get("speaker", "") or ""
+                            ),
+                            diagnostics=describe_episode_selection(
+                                dialogue_text, candidates, before_seq=saved_seq
+                            ),
+                        )
+                    except Exception as episodic_exc:
+                        # Auditoria sombra jamais impede a interação principal.
+                        _LOG.warning("EPISODIC_MEMORY_AUDIT failed: %s", episodic_exc)
+                        st.session_state.audit_error = (
+                            "EPISODIC_MEMORY_AUDIT: " + str(episodic_exc)
+                        )
+
                 try:
                     save_model_audit(
                         service_account_info=persistence["service_account_info"],
