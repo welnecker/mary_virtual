@@ -3312,10 +3312,12 @@ if user_text:
                     and (
                         idx >= len(normalized_objectives)
                         or (
-                            not bool((normalized_objectives[idx] or {}).get("optional", False))
+                            not bool(
+                                (normalized_objectives[idx] or {}).get("optional", False)
+                            )
                             and not str(
-                            (normalized_objectives[idx] or {}).get("evidence", "") or ""
-                        ).strip()
+                                (normalized_objectives[idx] or {}).get("evidence", "") or ""
+                            ).strip()
                         )
                     )
                     for idx, raw_item in enumerate(parsed_objectives or [])
