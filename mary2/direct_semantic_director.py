@@ -79,10 +79,16 @@ def _guide_objective_is_optional(objective: str, speech_guide: str) -> bool:
         ) if label.casefold() != "mary"
     ]
     explicit = any(re.search(
-        rf"\\b{re.escape(label)}\\s*:\\s*(?:deve|precisa|obrigatoriamente|é obrigatório)",
+        rf"\b{re.escape(label)}\s*:\s*(?:deve|precisa|obrigatoriamente|é obrigatório)",
         guide,
     ) for label in secondary_labels)
-    if secondary_labels and not explicit:
+    mary_must_act = bool(re.search(
+        r"\bmary\s*:\s*(?:deve|precisa|obrigatoriamente|é obrigatório)",
+        guide,
+    ))
+    if secondary_labels and not explicit and not mary_must_act and not re.search(
+        r"\b(?:deve|precisa|obrigatóri[oa]|obrigatoriamente)\b", obj
+    ):
         # O vínculo Mary<->personagem secundário não deve prender a linha.
         # A obrigação conversacional atual e as verificações factuais permanecem.
         return True
