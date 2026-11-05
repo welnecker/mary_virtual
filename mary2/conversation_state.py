@@ -73,7 +73,8 @@ def _ground_decisions(parsed: dict, mary_text: str) -> dict:
             if isinstance(decision, str) and _explicit_decision_evidence(quote, mary_text):
                 cleaned = _clean(decision)
                 if cleaned and cleaned not in grounded:
-                    grounded.append(cleaned)
+                    # Guarde a declaração literal, não uma paráfrase potencialmente inventada.
+                    grounded.append(_clean(quote))
                     grounded_quotes.append(_clean(quote))
     state["decisions_created"] = grounded[:8]
     state["decision_evidence"] = grounded_quotes[:8]
@@ -120,7 +121,7 @@ def format_conversation_state(value: dict | None) -> str:
         "Assunto: " + (state["topic"] or "(não determinado)"),
         "Significado: " + (state["meaning"] or "(não determinado)"),
         "Tom: " + (state["tone"] or "(não determinado)"),
-        "Fio aberto: " + (state["open_thread"] or "(nenhum)"),
+        "Gancho conversacional possível (não é decisão nem obrigação): " + (state["open_thread"] or "(nenhum)"),
         "Fatos criados: " + ("; ".join(state["facts_created"]) or "(nenhum)"),
         "Decisões criadas (somente declarações explícitas): " + ("; ".join(state["decisions_created"]) or "(nenhuma)"),
     ]
@@ -198,7 +199,7 @@ def analyze_mary_move(
                     "role": "system",
                     "content": (
                         "Retorne SOMENTE JSON válido no formato "
-                        '{"speaker":"MARY","move":"","target":"","topic":"","meaning":"","tone":"","open_thread":"","facts_created":[],"decisions_created":[]}.'
+                        '{"speaker":"MARY","move":"","target":"","topic":"","meaning":"","tone":"","open_thread":"","facts_created":[],"decisions_created":[],"decision_evidence":[]}.'
                     ),
                 },
                 {"role": "user", "content": payload},
