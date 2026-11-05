@@ -16,6 +16,7 @@ EMPTY_CONVERSATION_STATE = {
     "open_thread": "",
     "facts_created": [],
     "decisions_created": [],
+    "decision_evidence": [],
 }
 
 
@@ -40,14 +41,60 @@ def _parse_json_object(value: str) -> tuple[dict, str]:
         return {}, str(exc)
 
 
+def _explicit_decision_evidence(quote: str, mary_text: str) -> bool:
+    """Aceita decisões apenas quando Mary as declara, não por tom ou subtexto."""
+    evidence = _clean(quote)
+    speech = _clean(mary_text)
+    if len(evidence) < 8 or evidence.casefold() not in speech.casefold():
+        return False
+    # Condicionais, provocações e perguntas não estabelecem uma decisão.
+    if "?" in evidence or re.search(
+        r"\b(?:se|talvez|quem sabe|será que|poderia|pode ser que)\b",
+        evidence, flags=re.I,
+    ):
+        return False
+    return bool(re.search(
+        r"\b(?:eu\s+)?(?:decidi|escolhi|escolho|aceito|recuso|prefiro|"
+        r"quero|não quero|vou|não vou|topo|não topo|fico|não fico|"
+        r"concordo|não concordo)\b",
+        evidence, flags=re.I,
+    ))
+
+
+def _ground_decisions(parsed: dict, mary_text: str) -> dict:
+    """A interpretação pode registrar tom livremente, mas não inventar decisões."""
+    state = dict(parsed)
+    decisions = state.get("decisions_created")
+    quotes = state.get("decision_evidence")
+    grounded: list[str] = []
+    grounded_quotes: list[str] = []
+    if isinstance(decisions, list) and isinstance(quotes, list):
+        for decision, quote in zip(decisions, quotes):
+            if isinstance(decision, str) and _explicit_decision_evidence(quote, mary_text):
+                cleaned = _clean(decision)
+                if cleaned and cleaned not in grounded:
+                    grounded.append(cleaned)
+                    grounded_quotes.append(_clean(quote))
+    state["decisions_created"] = grounded[:8]
+    state["decision_evidence"] = grounded_quotes[:8]
+    return state
+
+
 def normalize_conversation_state(value: dict | None) -> dict:
     source = value if isinstance(value, dict) else {}
     facts = source.get("facts_created", [])
     decisions = source.get("decisions_created", [])
+    decision_evidence = source.get("decision_evidence", [])
     if not isinstance(facts, list):
         facts = []
     if not isinstance(decisions, list):
         decisions = []
+    if not isinstance(decision_evidence, list):
+        decision_evidence = []
+    # Registros antigos sem citação literal não podem afirmar decisões persistentes.
+    if len(decision_evidence) != len(decisions):
+        decisions = []
+        decision_evidence = []
     return {
         "speaker": _clean(source.get("speaker")),
         "move": _clean(source.get("move")),
@@ -57,7 +104,8 @@ def normalize_conversation_state(value: dict | None) -> dict:
         "tone": _clean(source.get("tone")),
         "open_thread": _clean(source.get("open_thread")),
         "facts_created": [_clean(x) for x in facts if _clean(x)][:8],
-        "decisions_created": [_clean(x) for x in decisions if _clean(x)][:8],
+        "decisions_created": [_clean(x) for x in decisions if isinstance(x, str) and _clean(x)][:8],
+        "decision_evidence": [_clean(x) for x in decision_evidence if isinstance(x, str) and _clean(x)][:8],
     }
 
 
@@ -74,7 +122,7 @@ def format_conversation_state(value: dict | None) -> str:
         "Tom: " + (state["tone"] or "(não determinado)"),
         "Fio aberto: " + (state["open_thread"] or "(nenhum)"),
         "Fatos criados: " + ("; ".join(state["facts_created"]) or "(nenhum)"),
-        "Decisões criadas: " + ("; ".join(state["decisions_created"]) or "(nenhuma)"),
+        "Decisões criadas (somente declarações explícitas): " + ("; ".join(state["decisions_created"]) or "(nenhuma)"),
     ]
     return "\n".join(lines)
 
@@ -113,8 +161,12 @@ def analyze_mary_move(
         "ironia, hesitação e comentário não viram automaticamente fatos ou decisões. "
         "facts_created deve conter apenas fatos novos explicitamente afirmados por Mary que possam continuar verdadeiros. "
         "decisions_created deve conter apenas decisões/aceites/recusas explícitos de Mary que alterem o estado. "
+        "Para CADA decisão, forneça no array decision_evidence uma citação LITERAL de Mary, "
+        "na mesma posição, que expresse diretamente a escolha (ex.: 'Eu não quero ir'). "
+        "Perguntas, hipóteses, provocações, subtexto e convites condicionais NÃO comprovam decisão. "
+        "Se não houver decisão expressa literalmente, use os dois arrays vazios. "
         "Retorne somente JSON curto no formato "
-        '{"speaker":"MARY","move":"","target":"","topic":"","meaning":"","tone":"","open_thread":"","facts_created":[],"decisions_created":[]}.'
+        '{"speaker":"MARY","move":"","target":"","topic":"","meaning":"","tone":"","open_thread":"","facts_created":[],"decisions_created":[],"decision_evidence":[]}.'
     )
 
     raw = chat(
@@ -165,6 +217,8 @@ def analyze_mary_move(
             "_parse_error": error,
         }
 
-    state = normalize_conversation_state(parsed)
+    # O LLM descreve livremente o movimento, mas a decisão precisa de
+    # evidência textual verificável no turno de Mary.
+    state = normalize_conversation_state(_ground_decisions(parsed, mary_text))
     state["speaker"] = "MARY"
     return state
