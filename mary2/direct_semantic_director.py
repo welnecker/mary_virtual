@@ -59,6 +59,29 @@ def _evidence_source(evidence: str, entries: list[tuple[str, str]]) -> str:
     return ""
 
 
+def _explicit_physical_requirement(*, speech_guide: str, action_guide: str) -> bool:
+    """Only an explicit authorial physical command may block an Interpretar line.
+
+    The Director cannot upgrade a description, a conditional opportunity or an
+    already enacted user movement into a mandatory new Mary action.
+    """
+    guidance = "\n".join(filter(None, [_clean(speech_guide), _clean(action_guide)]))
+    clauses = re.split(r"[.!?;\n]+", guidance)
+    for clause in clauses:
+        clause = clause.strip()
+        if re.match(r"^(?:se|caso|quando|pode|poderá|poderia|talvez)\b", clause, flags=re.I):
+            continue
+        if re.search(
+            r"\b(?:mary\s+)?(?:deve|precisa|obrigatoriamente|é obrigatório)\s+"
+            r"(?:se\s+)?(?:aproximar|levantar|sentar|abrir|fechar|entrar|sair|"
+            r"beijar|abraçar|pegar|segurar|mover|andar|ir|subir|deitar|"
+            r"juntar|tirar|colocar|entregar|caminhar|tocar)\b",
+            clause, flags=re.I,
+        ):
+            return True
+    return False
+
+
 def _guide_objective_is_optional(objective: str, speech_guide: str) -> bool:
     """Separate opportunities/style from required acts without weakening safety gates.
 
@@ -156,6 +179,10 @@ def validate_direct_semantic_turn(
     interpret_match = re.fullmatch(r"interpretar(?:\s*:\s*(.*))?", speech_guide, flags=re.I | re.S)
     interpret_mode = bool(interpret_match)
     interpret_direction = (interpret_match.group(1) or "").strip() if interpret_match else ""
+    explicit_physical_required = _explicit_physical_requirement(
+        speech_guide=interpret_direction if interpret_mode else speech_guide,
+        action_guide=_clean(row.get("action_guide")),
+    )
     revelation_policy = _clean(row.get("revelation_policy"))
     interaction_mode = _clean(row.get("interaction_mode")).casefold()
     automatic_row = interaction_mode in {"automatico", "automático", "automatic"}
@@ -258,7 +285,7 @@ def validate_direct_semantic_turn(
             "A) OBJETIVOS: separe obrigações expressas (DEVE, PRECISA, OBRIGATÓRIO) de oportunidades (PODE, SE HOUVER GANCHO, SE FIZER SENTIDO), sugestões e limites de estilo (EVITAR, SEM, NÃO REPETIR). Só obrigações imediatas bloqueiam a conclusão. Um assunto opcional pode ocorrer mais tarde no capítulo, sem cobrança neste turno. SILVIA e outras personagens secundárias participam quando o fluxo pedir; não exija uma fala nova delas a cada turno nem faça Mary interromper o usuário para provocar participação. Convites de Mary são iniciativas opcionais: não exija aceite nem realização da atividade para concluir a linha. Se o usuário recusar, ignorar ou mudar de assunto, não cobre repetição da proposta. Uma atividade aceita pode continuar por vários turnos sem precisar inventar nova proposta. Promessas se cumprem apenas conforme a obrigação expressa da linha, não por antecipação. Considere objetivos já satisfeitos por respostas literais do usuário; não invente objetivos. "
         )
         + ("Turno automático: pensamento pode cumprir finalidade introspectiva. " if automatic_row else "")
-        + ("B) CENA — PILOTO APARTAMENTO1: a DESCRIÇÃO-GUIA DA LINHA ATUAL define o acontecimento físico a comprovar. MEMÓRIA INSTANTÂNEA-LOCAL informa fatos e contexto, inclusive intenções futuras, mas NÃO obriga Mary a executar esses acontecimentos agora. Não exija que Mary acorde Silvia ou faça convite na linha anterior se isso só está previsto para a linha seguinte. A evidência deve ser um trecho literal contínuo da AÇÃO, FALA ou PENSAMENTO realmente produzidos; movimento físico exige trecho de AÇÃO. " if str(row.get("script_name", "")).strip() == "Apartamento1" else "B) CENA: confira o acontecimento central da MEMÓRIA INSTANTÂNEA-LOCAL. Movimento indispensável exige execução concreta em ACAO ATUAL ou evidência já realizada na conversa desta linha. Promessa e pensamento não comprovam ação. Defina acao_fisica_obrigatoria conforme a memória local; não exija ação se a linha é somente verbal. Cite evidência literal da resposta/ação atual ou conversa, nunca da memória como prova de execução. ")
+        + ("B) CENA — PILOTO APARTAMENTO1: a DESCRIÇÃO-GUIA DA LINHA ATUAL define o acontecimento físico a comprovar. MEMÓRIA INSTANTÂNEA-LOCAL informa fatos e contexto, inclusive intenções futuras, mas NÃO obriga Mary a executar esses acontecimentos agora. Não exija que Mary acorde Silvia ou faça convite na linha anterior se isso só está previsto para a linha seguinte. A evidência deve ser um trecho literal contínuo da AÇÃO, FALA ou PENSAMENTO realmente produzidos; movimento físico exige trecho de AÇÃO. " if str(row.get("script_name", "")).strip() == "Apartamento1" else "B) CENA: confira o sentido da MEMÓRIA INSTANTÂNEA-LOCAL e da direção autoral. Essa memória descreve contexto, não gera movimento obrigatório. Em linhas Interpretar, apenas um comando físico EXPLÍCITO do autor torna um gesto de Mary obrigatório. O fato de o usuário descrever uma ação não obriga Mary a repeti-la. Reaja ao estado já alcançado e reconheça o foco da linha sem reencenar escolhas ou atos realizados. Citações devem ser literais da saída ou da conversa; uma citação inexata não altera sozinha a avaliação semântica. ")
         + "C) CONTINUIDADE: Mary deve responder ao sentido da entrada atual, preservando interlocutor, autoria de ações, sujeito, destinatário e posição física. Memória local define a cena atual; descrição inicial pode mencionar futuro sem torná-lo presente. Corrija interpretações semânticas incompatíveis com fatos explícitos. "
         + "C1) PARTICIPANTES E EVIDÊNCIA: identifique separadamente quem fala, para quem, quem é citado e quem pratica/recebe cada ação. O usuário pode trocar de personagem entre turnos. Se a resposta de Mary declarar uma ação física de terceiros, exija suporte na fala literal, na encenação ou nos fatos confirmados; uma hipótese do módulo de compreensão ou uma fala equivocada anterior de Mary NÃO comprovam a ação. Se Mary for questionada sobre uma interpretação anterior sem base, aceite esclarecimento ou correção, nunca novos detalhes inventados para defendê-la. Marque coerencia_conversacional.ok=false quando houver transferência de agente/alvo ou acontecimento concreto não sustentado. Não reprove brincadeiras claramente figuradas nem exija certeza impossível em falas genuinamente ambíguas. "
         + "D) FATOS E REVELAÇÃO: fontes autoritativas prevalecem sobre falas anteriores. Marque apenas contradições objetivas; não trate estilo como erro factual. NÃO PODE impede verbalização mesmo sob pergunta, mas Mary deve reagir sem revelar nem inventar. "
@@ -413,26 +440,39 @@ def validate_direct_semantic_turn(
     scene_raw = parsed.get("cena_atual", {})
     if not isinstance(scene_raw, dict):
         scene_raw = {}
-    # Evidencias devem estar na saida realmente produzida; o roteiro e a
-    # memoria local especificam a meta, mas nunca comprovam sua execucao.
+    # O Diretor fornece uma hipótese semântica, não cria obrigações autorais.
+    # Evidência literal é auditável, mas a citação inexata do Diretor não
+    # pode prender indefinidamente uma linha interpretativa já realizada.
     evidence = _clean(scene_raw.get("evidencia"))
-    observed = " ".join(filter(None, [_clean(mary_text), _clean(mary_thought), _clean(mary_action), _clean(user_scene_direction)]))
-    evidence_grounded = bool(evidence and _normalize_evidence_text(evidence) in _normalize_evidence_text(observed))
+    source = _evidence_source(evidence, conversation_entries)
+    evidence_grounded = bool(source)
     scene_claim = bool(scene_raw.get("cumprida", False))
-    physical_required = bool(scene_raw.get("acao_fisica_obrigatoria", False))
-    # A fala, a promessa e o pensamento nao comprovam deslocamento fisico.
-    physical_evidence = bool(_clean(mary_action)) and bool(
-        evidence and _normalize_evidence_text(evidence) in _normalize_evidence_text(mary_action)
+    director_physical_claim = bool(scene_raw.get("acao_fisica_obrigatoria", False))
+    physical_required = bool(interpret_mode and explicit_physical_required)
+    # Somente um comando FÍSICO explícito do autor exige ação concreta de Mary.
+    # Fala, pensamento e encenação do interlocutor não substituem essa ação.
+    physical_evidence = bool(_clean(mary_action)) and (
+        _evidence_source(evidence, [("MARY_ACAO", _clean(mary_action))]) == "MARY_ACAO"
     )
-    if interpret_mode and physical_required and not physical_evidence:
-        scene_raw["faltou"] = "Movimento obrigatorio sem evidencia em [AÇÃO]."
-    if interpret_mode and scene_claim and not evidence_grounded:
-        scene_raw["faltou"] = "Diretor citou evidencia ausente da saida de Mary ou da encenacao do usuario."
+    if physical_required and not physical_evidence:
+        # A citação do Diretor pode ser imprecisa, porém a ação obrigatória
+        # precisa estar comprovada; sem evidência adequada, a linha continua.
+        scene_missing = "Movimento físico explicitamente obrigatório sem evidência em [AÇÃO]."
+    elif not scene_claim:
+        scene_missing = _clean(scene_raw.get("faltou")) or "A finalidade central da linha ainda não foi cumprida."
+    else:
+        scene_missing = ""
     scene_completion = {
-        "fulfilled": (scene_claim and evidence_grounded and (not physical_required or physical_evidence)) if interpret_mode else True,
+        "fulfilled": (
+            scene_claim and (not physical_required or physical_evidence)
+            if interpret_mode else True
+        ),
         "event": _clean(scene_raw.get("acontecimento")),
         "evidence": evidence if evidence_grounded else "",
-        "missing": _clean(scene_raw.get("faltou")),
+        "evidence_grounded": evidence_grounded,
+        "director_physical_claim": director_physical_claim,
+        "physical_required_by_author": physical_required,
+        "missing": scene_missing,
     }
 
     required_objectives = [item for item in normalized_objectives if not item["optional"]]
