@@ -72,7 +72,7 @@ def _explicit_physical_requirement(*, speech_guide: str, action_guide: str) -> b
         if re.match(r"^(?:se|caso|quando|pode|poderá|poderia|talvez)\b", clause, flags=re.I):
             continue
         if re.search(
-            r"\b(?:mary\s+)?(?:deve|precisa|obrigatoriamente|é obrigatório)\s+"
+            r"\bmary\s+(?:deve|precisa|obrigatoriamente)\s+"
             r"(?:se\s+)?(?:aproximar|levantar|sentar|abrir|fechar|entrar|sair|"
             r"beijar|abraçar|pegar|segurar|mover|andar|ir|subir|deitar|"
             r"juntar|tirar|colocar|entregar|caminhar|tocar)\b",
@@ -464,7 +464,8 @@ def validate_direct_semantic_turn(
         scene_missing = ""
     scene_completion = {
         "fulfilled": (
-            scene_claim and (not physical_required or physical_evidence)
+            scene_claim and bool(_clean(mary_text) or _clean(mary_action))
+            and (not physical_required or physical_evidence)
             if interpret_mode else True
         ),
         "event": _clean(scene_raw.get("acontecimento")),
