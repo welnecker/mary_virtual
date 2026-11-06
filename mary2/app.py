@@ -2747,7 +2747,7 @@ if user_text:
             # O LOOP só é habilitado quando há uma linha LOOP autoral e
             # um critério de contrariedade definido na planilha. Não existe
             # motivo emocional presumido pelo código.
-            if loop_direction and (wounded_style or negative_rule or loop_hurt_rule or loop_negative_rule) and dialogue_text.strip() and not (automatic_direct_turn or blocked_direct_turn):
+            if loop_direction and (wounded_style or negative_rule) and dialogue_text.strip() and not (automatic_direct_turn or blocked_direct_turn):
                 try:
                     assessment_raw = chat(
                         api_key=api_key, model=director_model, fallback_model=fallback,
@@ -2849,12 +2849,18 @@ if user_text:
             if not isinstance(loop, dict) or loop.get("chapter_id") != chapter_emotion_id:
                 loop = {"chapter_id": chapter_emotion_id, "active": False, "attempts": 0}
             loop_row = dict(direct_row.get("_emotional_loop_row") or {})
-            if emotion.get("hurt") and loop_row and not loop.get("active"):
+            if (not loop.get("active") and loop_row
+                    and (assessment.get("violation") is True
+                         or assessment.get("frustration") is True
+                         or assessment.get("rejected") is True)):
                 loop.update({"active": True, "attempts": 0,
                              "speaker": str(emotion.get("active_speaker", "") or ""),
                              "origin_order": int(authored_trigger_row.get("order", 0) or 0),
                              "wounded_style": wounded_style,
-                             "negative_rule": negative_rule})
+                             "negative_rule": negative_rule,
+                             "origin_instant_memory": str(authored_trigger_row.get("instant_memory", "") or ""),
+                             "origin_revelation_policy": str(authored_trigger_row.get("revelation_policy", "") or ""),
+                             "origin_initial_description": str(authored_trigger_row.get("initial_description", "") or "")})
                 # Ao contrariar a missão da linha atual, sua resposta é o fato
                 # real ocorrido; o cursor retorna à linha seguinte após reparação.
                 advanced_from_previous = bool(
@@ -2873,7 +2879,17 @@ if user_text:
                     direct_state["current_order"] = (int(direct_rows[direct_state["index"]].get("order", 0) or 0)
                                                      if not direct_state["completed"] else 0)
             if loop.get("active"):
-                if not emotion.get("hurt"):
+                # A mágoa e a reconciliação pertencem ao interlocutor que
+                # originou o LOOP. Fala de Silvia/outro personagem nunca
+                # libera o roteiro nem apaga a pendência desse interlocutor.
+                loop_owner = str(loop.get("speaker", "") or "").casefold()
+                assessed_owner = str(assessment.get("speaker", "") or "").casefold()
+                owner_reconciled = bool(
+                    loop_owner and assessed_owner == loop_owner
+                    and assessment.get("forgiven") is True
+                    and not emotion.get("hurt")
+                )
+                if owner_reconciled:
                     loop["active"] = False
                     loop["attempts"] = 0
                     loop["exhausted"] = False
@@ -2892,6 +2908,9 @@ if user_text:
                     if int(loop.get("attempts", 0) or 0) >= 3:
                         loop["exhausted"] = True
                     direct_row = dict(loop_row)
+                    direct_row["instant_memory"] = str(direct_row.get("instant_memory") or loop.get("origin_instant_memory", "") or "")
+                    direct_row["revelation_policy"] = str(direct_row.get("revelation_policy") or loop.get("origin_revelation_policy", "") or "")
+                    direct_row["initial_description"] = str(direct_row.get("initial_description") or loop.get("origin_initial_description", "") or "")
                     # A linha LOOP é soberana durante o desvio; instruções da
                     # origem permanecem como contexto, não substituem o LOOP.
                     direct_row["negative_prompt"] = loop_negative_rule or negative_rule
@@ -2905,7 +2924,7 @@ if user_text:
                         "não presuma perdão, culpa, intensidade nem atitude fora da planilha."
                     )
             narrative_state["direct_hurt_loop"] = loop
-            if emotion.get("hurt"):
+            if emotion.get("hurt") or loop.get("active"):
                 direct_row = dict(direct_row)
                 # Quando a linha LOOP traz estilo/atitude, ele governa a cena.
                 # O texto de Orgulho Ferido é a orientação autoral da condição.
