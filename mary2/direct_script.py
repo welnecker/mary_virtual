@@ -629,7 +629,9 @@ def direct_line_correction_prompt(row: dict, evaluation: dict) -> str:
         "Reaja ao significado da fala atual do usuário sem repeti-la ou parafraseá-la mecanicamente. "
         "Não copie literalmente a FALA-GUIA se puder cumprir a mesma intenção com naturalidade. "
         "Não invente fatos, dados, ações ou informações para compensar a falha. "
-        "Não explique a correção. Preserve [FALA] como padrão e mantenha [PENSAMENTO] apenas se houver intenção íntima significativa; nunca o acrescente para completar o formato."
+        "Não explique a correção. Preserve os canais que já estão coerentes. "
+        "[PENSAMENTO] é opcional e pode expressar emoções, dúvidas ou conflitos internos sem gerar ação ou fala; "
+        "não o acrescente apenas para completar o formato."
     )
 
 
@@ -780,8 +782,9 @@ def build_direct_writer_prompt(
         "LINHA ATIVA AGORA\n"
         "==================================================\n"
         f"Ordem: {active_order}\n"
-        "Fala-guia: " + ("Interpretar (modo técnico)" if interpret_mode else (speech_guide or "(nenhuma)")) + "\n"        + "CONTRATO DE FLUIDEZ: expressões como 'pode', 'se houver', 'se fizer sentido' e 'evitar' são oportunidades ou limites de estilo, não tarefas obrigatórias nesta resposta. A Fala-guia só exige realização imediata quando a obrigação é explícita e compatível com a situação. Continue uma brincadeira ou conversa enquanto render novos acontecimentos; não introduza outra pergunta só para mudar de tema. Mary pode convidar alguém a propor uma atividade, mas aceitação, recusa ou silêncio não bloqueiam o roteiro nem autorizam insistência repetida.\n"
-        + "PERSONAGENS SECUNDÁRIOS: quando a Fala-guia mencionar SILVIA ou outra pessoa, autorize uma intervenção espontânea somente se acrescentar algo ao assunto atual. Não repita a mesma provocação ao permanecer na mesma linha; se ela já participou, Mary pode responder sozinha. Em uma abertura com assuntos alternativos, Silvia pode comentar sem adicionar outra pergunta antes da resposta do interlocutor. Não decida pelo usuário nem fale pelo personagem que ele estiver interpretando neste turno.\n"
+        "Fala-guia: " + ("Interpretar (modo técnico)" if interpret_mode else (speech_guide or "(nenhuma)")) + "\n"
+        + "EXECUÇÃO DA LINHA: cumpra obrigações explícitas; 'pode' e 'se fizer sentido' não impõem ações. "
+        "Personagens secundários podem participar quando a cena pedir, sem falar pelo usuário nem competir com a resposta dele.\n"
 
         + ("Direção autoral desta linha: " + interpret_direction + "\n" if interpret_direction else "")
         + ("Descrição-guia: " + action_guide + "\n" if action_guide else "")
@@ -789,33 +792,15 @@ def build_direct_writer_prompt(
         + "Estilo/atitude: " + (_clean(row.get("style")) or "natural") + "\n"
         "Revelação permitida nesta linha: " + (_clean(row.get("revelation_policy")) or "(sem restrição autoral específica)") + "\n\n"
 
-        "CONTINUIDADE OPERACIONAL: cumpra a missão da linha ativa sem criar novas "
-        "iniciativas por padrão. Responda à entrada real quando houver. "
-        "Não presuma decisões de personagens controlados pelo usuário; "
-        "preserve os fatos consumados e não antecipe outras linhas.\n\n"
-        "DIREÇÃO: a linha ativa estabelece a missão e o estilo; as memórias estabelecem fatos e continuidade. "
-         "As orientações autorais de FALA, DESCRIÇÃO e PENSAMENTO, quando presentes, dirigem apenas seu componente nesta linha; "
-        "interprete-as sem copiar literalmente. Responda à entrada atual e preserve a continuidade. "
-        "Não antecipe linhas nem revele fatos proibidos pela regra REVELACAO. "
-        "Em linha automática, continue sem inventar fala do usuário; em linha bloqueada, Mary toma a iniciativa.\n\n"
-        "AUTORIA DAS FALAS: quando duas ou mais personagens falarem no mesmo turno, "
-        "identifique cada intervenção com o nome da personagem seguido de dois-pontos, "
-        "em linha própria: Mary: ... / Silvia: ... . Mantenha a ordem real da conversa. "
-        "Nunca atribua falas de Silvia a Mary nem faça Mary relatar falas que Silvia deve pronunciar. "
-        "Não acrescente falas de terceiros apenas para preencher a sequência.\n\n"
-
-        "FORMATO PADRÃO: [FALA] com as palavras de Mary, guiadas pela conversa real e pela Fala-guia.\n"
-        "CANAIS OPCIONAIS: [AÇÃO] em terceira pessoa, com sujeito explícito (Mary, Silvia etc.), "
-        "para posições, ações e reações visíveis relevantes à Descrição-guia, sem microgestos de preenchimento ou comentário de clima; não repita a fala ou o pensamento; "
-        "[PENSAMENTO] expressa a experiência interior orientada pelo Pensamento-guia, sem exigir ação ou fala correspondente. "
-        "Se aparecer, escreva como pensamento vivo da própria Mary em primeira pessoa (eu/meu/vou), "
-        "com voz íntima, imediata e coloquial; nunca como narrador em terceira pessoa descrevendo o que Mary nota, sente ou pretende. "
-        "Pensamento-guia, se preenchido, orienta o conteúdo; não obriga emissão. "
-        "Omitir [PENSAMENTO] só quando não acrescentar experiência interior relevante; evite repetir a fala.\n"
-        "Se necessário, posicione [PENSAMENTO] antes da iniciativa; o parser aceita os blocos em qualquer ordem. "
-        "Não produza blocos opcionais para completar formato, nem invente ação ou antecipação de roteiro. "
-        "Não coloque ações dentro de [FALA]. A cada mudança entre ação e fala, "
-        "repita explicitamente o marcador correto: [AÇÃO] ... [FALA] ... [AÇÃO] ... [FALA]. "
-        "Nunca escreva 'Mary: ...' ou falas de terceiros dentro de [AÇÃO]."
+        "CONTINUIDADE E AUTORIA: responda à entrada real; a linha ativa determina a missão "
+        "e os três guias determinam cada canal. A memória preserva fatos, não cria tarefas. "
+        "Não antecipe linhas, ultrapasse REVELACAO ou decida por personagens do usuário. "
+        "Em linha automática, avance sem inventar fala do usuário; em linha bloqueada, Mary toma a iniciativa.\n\n"
+        "CANAIS: [FALA] contém diálogo; identifique cada personagem que fale (Mary:, Silvia: etc.). "
+        "[AÇÃO] contém ações visíveis em terceira pessoa, com sujeito explícito. "
+        "[PENSAMENTO] é opcional, em primeira pessoa, orientado pelo PENSAMENTO-GUIA; "
+        "pode conter emoções, dúvidas, memórias e conflitos sem produzir ação ou fala. "
+        "Não misture os canais. Repita [FALA] ou [AÇÃO] sempre que alternar entre eles; "
+        "não escreva fala de personagem dentro de [AÇÃO]."
     )
 
