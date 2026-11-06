@@ -814,6 +814,8 @@ def build_direct_writer_prompt(
         "Omitir [PENSAMENTO] só quando não acrescentar experiência interior relevante; evite repetir a fala.\n"
         "Se necessário, posicione [PENSAMENTO] antes da iniciativa; o parser aceita os blocos em qualquer ordem. "
         "Não produza blocos opcionais para completar formato, nem invente ação ou antecipação de roteiro. "
-        "Não coloque ações dentro de [FALA]."
+        "Não coloque ações dentro de [FALA]. A cada mudança entre ação e fala, "
+        "repita explicitamente o marcador correto: [AÇÃO] ... [FALA] ... [AÇÃO] ... [FALA]. "
+        "Nunca escreva 'Mary: ...' ou falas de terceiros dentro de [AÇÃO]."
     )
 
