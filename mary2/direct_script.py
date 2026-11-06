@@ -64,6 +64,31 @@ def _clean(value: Any) -> str:
     return str(value or "").strip()
 
 
+def hurt_loop_max_interactions(loop_row: dict | None) -> int:
+    """Lê o limite autoral da linha LOOP; três é fallback legado.
+
+    Aceita LIMITE_INTERACOES=4 ou descrições como 'após três tentativas'.
+    O número limita turnos sem reconciliação, não exige pedido de desculpas.
+    """
+    text = _clean((loop_row or {}).get("speech_guide"))
+    explicit = re.search(r"\bLIMITE[_ ]INTERACOES\s*[:=]\s*(\d+)\b", text, flags=re.I)
+    if explicit:
+        return max(1, min(20, int(explicit.group(1))))
+    natural = re.search(
+        r"\b(?:ap[oó]s|depois\s+de|at[eé])\s+"
+        r"(um|uma|dois|duas|tr[eê]s|quatro|cinco|seis|sete|oito|nove|dez|\d+)\s+"
+        r"(?:intera[çc][õo]es|tentativas|turnos)\b",
+        text, flags=re.I,
+    )
+    if natural:
+        names = {"um": 1, "uma": 1, "dois": 2, "duas": 2, "três": 3,
+                 "tres": 3, "quatro": 4, "cinco": 5, "seis": 6, "sete": 7,
+                 "oito": 8, "nove": 9, "dez": 10}
+        word = natural.group(1).casefold()
+        return max(1, min(20, names.get(word, int(word) if word.isdigit() else 3)))
+    return 3
+
+
 def is_automatic_direct_row(row: dict | None) -> bool:
     """Linha automática: Mary conduz sozinha e a linha termina sem resposta do usuário."""
     if not isinstance(row, dict):
