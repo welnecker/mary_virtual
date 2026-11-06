@@ -278,6 +278,25 @@ def analyze_user_understanding(
     reference = str(parsed.get("reference", "") or "").strip()
     obligation = str(parsed.get("obligation", "") or "").strip()
     conflict = str(parsed.get("conflict", "") or "").strip()
+
+    # Defesa de contrato: modelos podem produzir ordens dramáticas mesmo sem
+    # o campo reaction. A obrigação enviada ao Redator/Diretor é apenas a
+    # demanda de reconhecimento, resposta ou esclarecimento do interlocutor.
+    dramatic_obligation = re.search(
+        r"\\b(?:mary\\s+(?:deve|precisa|tem\\s+que)|(?:reagir|responder)\\s+com\\s+"
+        r"(?:ironia|sarcasmo|indigna[çc][ãa]o|raiva|ci[úu]mes|flert[eoa]?)|"
+        r"decid(?:ir|indo|a)\\s+se|revidar|seduzir|provocar\\s+de\\s+volta)\\b",
+        obligation, flags=re.IGNORECASE,
+    )
+    if dramatic_obligation:
+        # Uma pergunta explícita continua exigindo resposta; o modelo não
+        # recebe autorização para definir o tom ou a atitude da personagem.
+        if "?" in str(user_text or ""):
+            obligation = "Responder à pergunta explícita do interlocutor, respeitando as regras de revelação."
+        elif str(parsed.get("move", "") or "").strip():
+            obligation = "Reconhecer o movimento conversacional do interlocutor: " + str(parsed["move"]).strip()
+        else:
+            obligation = "Reconhecer a fala atual do interlocutor sem prescrever atitude emocional."
     # Ignora qualquer campo reaction legado; a auditoria mantém sua coluna.
 
     result = {
