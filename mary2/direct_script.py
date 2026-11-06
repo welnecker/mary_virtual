@@ -380,6 +380,7 @@ def load_direct_script_rows(
         raise ValueError("cabeçalho do roteiro direto não encontrado")
 
     rows: list[dict] = []
+    emotional_loop_row: dict = {}
     for source_row in values[header_index + 1 :]:
         if not any(_clean(cell) for cell in source_row):
             continue
@@ -394,6 +395,12 @@ def load_direct_script_rows(
 
         if _clean(record.get("script_name")).casefold() != _clean(script_name).casefold():
             continue
+        if _clean(record.get("order")).casefold() == "loop":
+            if _clean(record.get("speech_guide")):
+                record["order"] = 0
+                record["line_id"] = "loop_orgulho_ferido"
+                emotional_loop_row = record
+            continue  # A linha especial nunca pertence à progressão sequencial.
         try:
             record["order"] = int(float(_clean(record.get("order"))))
         except Exception:
@@ -423,6 +430,8 @@ def load_direct_script_rows(
         item["physical_memory"] = physical_memory_global
         item["hurt_style"] = hurt_style_global
         item["negative_prompt"] = negative_prompt_global
+        if emotional_loop_row:
+            item["_emotional_loop_row"] = dict(emotional_loop_row)
 
     return rows
 
