@@ -2230,7 +2230,7 @@ if (navigation_script_mode == "direct_sheet" and isinstance(loop_ui_status, dict
     st.warning(
         "Mary está contrariada. O roteiro principal está suspenso enquanto ela avalia "
         "uma reparação contextual. "
-        f"Tentativas de reparação: {int(loop_ui_status.get('attempts', 0) or 0)}/3."
+        f"Interações sem reconciliação: {int(loop_ui_status.get('attempts', 0) or 0)}/3."
     )
 
 automatic_turn = bool(
@@ -2856,10 +2856,15 @@ if user_text:
                     direct_row = current_direct_row(direct_rows, direct_state)
                     emotional_notice = "Mary aceitou a reparação; o roteiro será retomado."
                 else:
-                    if bool(assessment.get("repair_attempt")) and not (
-                        assessment.get("violation") or assessment.get("frustration")
-                    ):
-                        loop["attempts"] = int(loop.get("attempts", 0) or 0) + 1
+                    # Cada intervenção válida do interlocutor responsável no LOOP
+                    # consome uma oportunidade, inclusive novas ofensas, recusas
+                    # e evasivas. Não confundir oportunidade com pedido de desculpas.
+                    # Falas de outros personagens não penalizam o responsável.
+                    assessed_speaker = str(assessment.get("speaker", "") or "").strip().casefold()
+                    loop_speaker = str(loop.get("speaker", "") or "").strip().casefold()
+                    same_speaker = bool(assessed_speaker and loop_speaker and assessed_speaker == loop_speaker)
+                    if dialogue_text.strip() and user_spoke and same_speaker:
+                        loop["attempts"] = min(3, int(loop.get("attempts", 0) or 0) + 1)
                     if int(loop.get("attempts", 0) or 0) >= 3:
                         loop["exhausted"] = True
                     direct_row = dict(loop_row)
