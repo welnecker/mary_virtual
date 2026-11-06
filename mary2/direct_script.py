@@ -747,6 +747,9 @@ def build_direct_writer_prompt(
             "e ESTILO/ATITUDE definidos pela planilha. Pode conversar e atuar com outros "
             "personagens presentes, conforme a missão da linha, sem esperar resposta "
             "do usuário nem inventar falas dele. 'Prosseguir' é somente um controle. "
+            "Quando a missão terminar em pedido ou pergunta a outro personagem, encerre "
+            "a resposta com essa iniciativa já verbalizada e deixe a reação do destinatário "
+            "para a próxima linha; não encene a resposta dele neste turno. "
             "Não execute acontecimentos de linhas futuras.\n\n"
             if automatic_line
             else (
