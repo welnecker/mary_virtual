@@ -806,7 +806,7 @@ def build_direct_writer_prompt(
 
         "FORMATO PADRÃO: [FALA] com as palavras de Mary, guiadas pela conversa real e pela Fala-guia.\n"
         "CANAIS OPCIONAIS: [AÇÃO] em terceira pessoa, com sujeito explícito (Mary, Silvia etc.), "
-        "só para movimentos concretos autorizados na Descrição-guia; "
+        "para posições, ações e reações visíveis relevantes à Descrição-guia, sem microgestos de preenchimento ou comentário de clima; não repita a fala ou o pensamento; "
         "[PENSAMENTO] expressa a experiência interior orientada pelo Pensamento-guia, sem exigir ação ou fala correspondente. "
         "Se aparecer, escreva como pensamento vivo da própria Mary em primeira pessoa (eu/meu/vou), "
         "com voz íntima, imediata e coloquial; nunca como narrador em terceira pessoa descrevendo o que Mary nota, sente ou pretende. "
