@@ -2766,7 +2766,13 @@ if user_text:
             # O LOOP só é habilitado quando há uma linha LOOP autoral e
             # um critério de contrariedade definido na planilha. Não existe
             # motivo emocional presumido pelo código.
-            if loop_direction and (wounded_style or negative_rule) and dialogue_text.strip() and not (automatic_direct_turn or blocked_direct_turn):
+            # Roteiros antigos sem linha LOOP conservam a avaliação emocional
+            # legada; capítulos com LOOP podem declarar os critérios por linha.
+            has_emotional_policy = bool(
+                (negative_rule and wounded_style)
+                or (loop_direction and (negative_rule or wounded_style))
+            )
+            if has_emotional_policy and dialogue_text.strip() and not (automatic_direct_turn or blocked_direct_turn):
                 try:
                     assessment_raw = chat(
                         api_key=api_key, model=director_model, fallback_model=fallback,
