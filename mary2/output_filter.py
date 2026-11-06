@@ -15,6 +15,12 @@ _SPEECH_RE = re.compile(
 
 
 _COMPONENT_RE = re.compile(r"\[(FALA|PENSAMENTO|AÇÃO|ACAO)\]", flags=re.I)
+# Recupera falas nominais que o modelo deixou indevidamente no fim de [AÇÃO].
+# Restringe ao início de linha, para não converter menções narrativas em fala.
+_DIALOGUE_LINE_RE = re.compile(
+    r"(?m)^(?:[A-ZÀ-Ý][a-zà-ÿ]{1,29}(?: [A-ZÀ-Ý][a-zà-ÿ]{1,29}){0,2}):[ \t]*"
+)
+
 
 
 def parse_mary_components(text: str) -> dict[str, str]:
@@ -37,8 +43,22 @@ def parse_mary_components(text: str) -> dict[str, str]:
         text_part = value[marker.end():end].strip()
         kind = marker.group(1).upper()
         key = "speech" if kind == "FALA" else "thought" if kind == "PENSAMENTO" else "action"
-        if text_part:
-            chunks[key].append(text_part)
+        if not text_part:
+            continue
+        if key == "action":
+            # Ex.: [AÇÃO] Mary se levanta...\nMary: Oi, vocês podem ajudar?
+            # O último turno é fala, embora o modelo tenha omitido [FALA].
+            # Não apague o bloco físico e não publique diálogos na caixa de ação.
+            speaker_start = _DIALOGUE_LINE_RE.search(text_part)
+            if speaker_start:
+                action_text = text_part[:speaker_start.start()].strip()
+                dialogue_text = text_part[speaker_start.start():].strip()
+                if action_text:
+                    chunks["action"].append(action_text)
+                if dialogue_text:
+                    chunks["speech"].append(dialogue_text)
+                continue
+        chunks[key].append(text_part)
     return {key: "\n".join(chunks[key]).strip() for key in chunks}
 
 
