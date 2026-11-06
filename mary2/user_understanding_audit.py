@@ -117,7 +117,7 @@ def analyze_user_understanding(
         "A REGRA DE REVELAÇÃO DA LINHA ATUAL limita o que Mary pode verbalizar agora, mesmo quando a DESCRIÇÃO INICIAL DA CENA contém fatos completos que Mary conhece. "
         "Conhecimento de Mary não equivale a autorização de revelação. "
         "Se o usuário pedir diretamente um fato marcado como NÃO PODE, NÃO transforme isso em obrigação de revelar o conteúdo reservado. "
-        "A obrigação deve ser reagir adequadamente à pergunta sem mentir, sem inventar e sem antecipar: Mary pode reconhecer a pressão, hesitar, prometer contar ou preparar a revelação. "
+        "A obrigação deve indicar somente a demanda de reconhecimento ou resposta à pergunta dentro da regra de revelação, sem revelar conteúdo reservado e sem prescrever a atitude ou a fala de Mary. "
         "O ESTADO CONVERSACIONAL ANTERIOR é a interpretação semântica do que Mary acabou de fazer na conversa; "
         "use-o para determinar COMO a fala atual do usuário se relaciona ao turno anterior, em vez de apenas justapor textos. "
         "Você não conhece a fala-guia, a missão da linha nem qualquer acontecimento futuro. "
@@ -141,20 +141,21 @@ def analyze_user_understanding(
         "ou estimativa de tempo não se torna automaticamente destino final, parada, atividade, convite ou plano de lazer. "
         "Só atribua atividade ao local quando o usuário, a memória ou a cena a estabelecerem explicitamente. "
         "ANCORAGEM RELACIONAL: quando o papel já conhecido do interlocutor estiver diretamente ligado à fala atual ou ao acontecimento recente, "
-        "a reação adequada de Mary deve usar essa relação concreta. Evite sugerir resposta social genérica e não trate o interlocutor como se estivesse sendo conhecido agora. "
+        "identifique essa relação concreta na compreensão, sem tratar como desconhecido quem já foi apresentado. Não sugira como Mary deve reagir. "
         "VOCATIVO NÃO MUDA IDENTIDADE: adjetivo, apelido ou vocativo que o usuário dirige a Mary descreve Mary naquele ato de fala, não o usuário. "
         "Não devolva automaticamente ao usuário o mesmo adjetivo/apelido e nunca use isso para inferir gênero, papel ou identidade dele. "
-        "Se o gênero do interlocutor não estiver explicitamente estabelecido nas fontes, prefira formulações sem marcação de gênero, como 'a gente' ou 'nós'. "
+        "Se o gênero do interlocutor não estiver explicitamente estabelecido nas fontes, não o atribua na interpretação. "
         "Justificativas improvisadas de Mary após um erro — por exemplo dizer que está distraída, confusa ou com a cabeça longe — "
         "não são traços psicológicos autoritativos e não devem ser consolidadas como verdade sobre Mary sem apoio nas memórias. "
-        "Retorne somente JSON curto com estas oito chaves: "
-        "{\"relation_to_previous\":\"\",\"move\":\"\",\"meaning\":\"\",\"reference\":\"\",\"obligation\":\"\",\"state_changes\":[],\"conflict\":\"\",\"reaction\":\"\"}. "
+        "Seu trabalho termina na compreensão. NÃO determine emoção, intensidade, tom, gesto, iniciativa, decisão ou resposta de Mary; isso pertence ao roteiro, ao Redator e ao estado emocional. "
+        "Retorne somente JSON curto com estas sete chaves: "
+        "{\"relation_to_previous\":\"\",\"move\":\"\",\"meaning\":\"\",\"reference\":\"\",\"obligation\":\"\",\"state_changes\":[],\"conflict\":\"\"}. "
         "relation_to_previous descreve a relação causal/conversacional com o último movimento de Mary: responde, devolve brincadeira, corrige, aceita, recusa, muda de assunto, continua ação etc. "
         "move descreve o ato conversacional atual do usuário. "
         "state_changes deve conter SOMENTE mudanças persistentes explicitamente estabelecidas pela fala atual: fato novo, decisão, aceite, recusa, limite ou correção; não inclua perguntas, vocativos, brincadeiras ou comandos efêmeros. "
-        "obligation deve ser uma frase curta apenas quando a fala atual exige resposta, esclarecimento ou reconhecimento direto; caso contrário, vazio. "
+        "obligation identifica SOMENTE a demanda direta de reconhecimento ou esclarecimento (pergunta, pedido ou correção explícitos). Descreva-a de forma neutra, por exemplo: Reconhecer a recusa do interlocutor; Responder à pergunta sobre o guarda-sol. Não prescreva emoções, iniciativas, atitudes ou escolhas de Mary. Caso contrário, vazio. "
         "conflict deve conter somente a correção factual necessária quando houver conflito com fonte autoritativa; caso contrário, vazio. "
-        "reaction descreve de forma curta o tipo de reação adequada de Mary, sem escrever a fala final."
+        "Não inclua reaction, expected_mary_reaction ou recomendações dramáticas em nenhum campo."
     )
 
     raw = chat(
@@ -170,6 +171,7 @@ def analyze_user_understanding(
                     "Você nunca recebe nem tenta adivinhar o roteiro futuro. "
                     "Não escreve por Mary, não inventa fatos e não troca sujeitos. "
                     "Não reabra decisões já resolvidas e preserve a menor quantidade de entidades compatível com os fatos. "
+                    "A saída descreve o interlocutor, não prescreve reações, sentimentos ou escolhas de Mary. "
                     "Quando houver relação ativa conhecida, interprete a fala a partir dela e do acontecimento recente pertinente."
                 ),
             },
@@ -205,8 +207,8 @@ def analyze_user_understanding(
                 {
                     "role": "system",
                     "content": (
-                        "Retorne SOMENTE JSON válido e completo no formato mínimo: "
-                        "{\"relation_to_previous\":\"\",\"move\":\"\",\"meaning\":\"\",\"reference\":\"\",\"obligation\":\"\",\"state_changes\":[],\"conflict\":\"\",\"reaction\":\"\"}. "
+                        "Retorne SOMENTE JSON válido e completo no formato mínimo, sem campo reaction: "
+                        "{\"relation_to_previous\":\"\",\"move\":\"\",\"meaning\":\"\",\"reference\":\"\",\"obligation\":\"\",\"state_changes\":[],\"conflict\":\"\"}. "
                         "Preserve apenas fatos sustentados pelo contexto. Não escreva por Mary e não invente fatos, intenções ou atividades."
                     ),
                 },
@@ -255,11 +257,7 @@ def analyze_user_understanding(
             "obligation": obligation,
             "state_changes": [],
             "conflict": "",
-            "reaction": (
-                "Responder de forma simples, factual e sem inventar continuidade."
-                if user_value
-                else ""
-            ),
+            "reaction": "",
         }
 
     state_changes = parsed.get("state_changes", [])
@@ -280,7 +278,7 @@ def analyze_user_understanding(
     reference = str(parsed.get("reference", "") or "").strip()
     obligation = str(parsed.get("obligation", "") or "").strip()
     conflict = str(parsed.get("conflict", "") or "").strip()
-    reaction = str(parsed.get("reaction", "") or "").strip()
+    # Ignora qualquer campo reaction legado; a auditoria mantém sua coluna.
 
     result = {
         "relation_to_previous": str(parsed.get("relation_to_previous", "") or "").strip(),
@@ -293,7 +291,7 @@ def analyze_user_understanding(
         "ambiguity": False,
         "confidence": "",
         "unclear_point": "",
-        "expected_mary_reaction": reaction,
+        "expected_mary_reaction": "",
         "factual_conflict": bool(conflict),
         "factual_correction": conflict,
         "relevant_facts": state_changes,
