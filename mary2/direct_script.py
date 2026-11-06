@@ -423,8 +423,11 @@ def load_direct_script_rows(
         (_clean(item.get("physical_memory")) for item in rows if _clean(item.get("physical_memory"))),
         "",
     )
-    hurt_style_global = next((_clean(item.get("hurt_style")) for item in rows if _clean(item.get("hurt_style"))), "")
-    negative_prompt_global = next((_clean(item.get("negative_prompt")) for item in rows if _clean(item.get("negative_prompt"))), "")
+    # Apenas a PRIMEIRA linha pode oferecer um padrão geral do capítulo.
+    # A primeira orientação encontrada em uma linha posterior é local e não
+    # pode contaminar linhas anteriores nem outros momentos do roteiro.
+    hurt_style_global = _clean(rows[0].get("hurt_style")) if rows else ""
+    negative_prompt_global = _clean(rows[0].get("negative_prompt")) if rows else ""
     for item in rows:
         item["permanent_memory"] = permanent_memory_global
         item["physical_memory"] = physical_memory_global
