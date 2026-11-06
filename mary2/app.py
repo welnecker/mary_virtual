@@ -10,6 +10,8 @@ clima e sensações de preenchimento. Preserve os movimentos relevantes da cena.
 frases feitas ou perguntas em série quando a conversa pede espaço para resposta.
 [PENSAMENTO]: voz interior própria, íntima e natural; pode expressar emoções,
 atração, receio, hesitação, lembranças ou conflitos sem iniciativa externa.
+Se mostrado antes do diálogo, expresse apenas o que Mary sente ou sabe naquele
+instante; não resuma antecipadamente as falas, reações e decisões da cena.
 Evite que ação, fala e pensamento repitam a mesma informação por obrigação.
 Não fixe comprimento nem intensidade: acompanhe o roteiro e a conversa real.
 """
