@@ -254,7 +254,8 @@ def validate_direct_semantic_turn(
         + "\n\nFALA-GUIA ORIGINAL\n"
         + ("Interpretar (modo técnico)" if interpret_mode else (speech_guide or "(nenhuma)"))
         + ("\n\nDIREÇÃO AUTORAL DE INTERPRETAÇÃO — FOCO, NÃO TEXTO LITERAL\n" + interpret_direction if interpret_direction else "")
-        + ("\n\nDESCRIÇÃO-GUIA DA LINHA ATUAL — AÇÕES A EXECUTAR\n" + _clean(row.get("action_guide")) if str(row.get("script_name", "")).strip() == "Apartamento1" else "")
+        + "\n\nDESCRIÇÃO-GUIA DA LINHA ATUAL — MISSÃO FÍSICA\n"
+        + (_clean(row.get("action_guide")) or "(sem ação especificada)")
         + "\n\nREGRA DE REVELAÇÃO DA LINHA ATUAL\n"
         + (revelation_policy or "(sem restrição autoral específica)")
         + "\n\nENTRADA ORIGINAL DO USUÁRIO — CONFERÊNCIA INDEPENDENTE\n"
@@ -285,7 +286,7 @@ def validate_direct_semantic_turn(
             "A) OBJETIVOS: separe obrigações expressas (DEVE, PRECISA, OBRIGATÓRIO) de oportunidades (PODE, SE HOUVER GANCHO, SE FIZER SENTIDO), sugestões e limites de estilo (EVITAR, SEM, NÃO REPETIR). Só obrigações imediatas bloqueiam a conclusão. Um assunto opcional pode ocorrer mais tarde no capítulo, sem cobrança neste turno. SILVIA e outras personagens secundárias participam quando o fluxo pedir; não exija uma fala nova delas a cada turno nem faça Mary interromper o usuário para provocar participação. Convites de Mary são iniciativas opcionais: não exija aceite nem realização da atividade para concluir a linha. Se o usuário recusar, ignorar ou mudar de assunto, não cobre repetição da proposta. Uma atividade aceita pode continuar por vários turnos sem precisar inventar nova proposta. Promessas se cumprem apenas conforme a obrigação expressa da linha, não por antecipação. Considere objetivos já satisfeitos por respostas literais do usuário; não invente objetivos. "
         )
         + ("Turno automático: pensamento pode cumprir finalidade introspectiva. " if automatic_row else "")
-        + ("B) CENA — PILOTO APARTAMENTO1: a DESCRIÇÃO-GUIA DA LINHA ATUAL define o acontecimento físico a comprovar. MEMÓRIA INSTANTÂNEA-LOCAL informa fatos e contexto, inclusive intenções futuras, mas NÃO obriga Mary a executar esses acontecimentos agora. Não exija que Mary acorde Silvia ou faça convite na linha anterior se isso só está previsto para a linha seguinte. A evidência deve ser um trecho literal contínuo da AÇÃO, FALA ou PENSAMENTO realmente produzidos; movimento físico exige trecho de AÇÃO. " if str(row.get("script_name", "")).strip() == "Apartamento1" else "B) CENA: confira o sentido da MEMÓRIA INSTANTÂNEA-LOCAL e da direção autoral. Essa memória descreve contexto, não gera movimento obrigatório. Em linhas Interpretar, apenas um comando físico EXPLÍCITO do autor torna um gesto de Mary obrigatório. O fato de o usuário descrever uma ação não obriga Mary a repeti-la. Reaja ao estado já alcançado e reconheça o foco da linha sem reencenar escolhas ou atos realizados. Citações devem ser literais da saída ou da conversa; uma citação inexata não altera sozinha a avaliação semântica. ")
+        + "B) CENA: a DESCRIÇÃO-GUIA determina ações e acontecimentos da linha ativa; a MEMÓRIA INSTANTÂNEA-LOCAL contextualiza e não cria tarefas. Diferencie ações obrigatórias de possibilidades. Comandos físicos explícitos de Mary precisam aparecer em [AÇÃO], sem exigir repetição de atos já realizados. Não obrigue personagens secundários a falar por rotina. Evidências vêm da saída atual ou da conversa, nunca da memória como prova de execução. "
         + "C) CONTINUIDADE: Mary deve responder ao sentido da entrada atual, preservando interlocutor, autoria de ações, sujeito, destinatário e posição física. Memória local define a cena atual; descrição inicial pode mencionar futuro sem torná-lo presente. Corrija interpretações semânticas incompatíveis com fatos explícitos. "
         + "C1) PARTICIPANTES E EVIDÊNCIA: identifique separadamente quem fala, para quem, quem é citado e quem pratica/recebe cada ação. O usuário pode trocar de personagem entre turnos. Se a resposta de Mary declarar uma ação física de terceiros, exija suporte na fala literal, na encenação ou nos fatos confirmados; uma hipótese do módulo de compreensão ou uma fala equivocada anterior de Mary NÃO comprovam a ação. Se Mary for questionada sobre uma interpretação anterior sem base, aceite esclarecimento ou correção, nunca novos detalhes inventados para defendê-la. Marque coerencia_conversacional.ok=false quando houver transferência de agente/alvo ou acontecimento concreto não sustentado. Não reprove brincadeiras claramente figuradas nem exija certeza impossível em falas genuinamente ambíguas. "
         + "D) FATOS E REVELAÇÃO: fontes autoritativas prevalecem sobre falas anteriores. Marque apenas contradições objetivas; não trate estilo como erro factual. NÃO PODE impede verbalização mesmo sob pergunta, mas Mary deve reagir sem revelar nem inventar. "
@@ -448,7 +449,7 @@ def validate_direct_semantic_turn(
     evidence_grounded = bool(source)
     scene_claim = bool(scene_raw.get("cumprida", False))
     director_physical_claim = bool(scene_raw.get("acao_fisica_obrigatoria", False))
-    physical_required = bool(interpret_mode and explicit_physical_required)
+    physical_required = bool(explicit_physical_required)
     # Somente um comando FÍSICO explícito do autor exige ação concreta de Mary.
     # Fala, pensamento e encenação do interlocutor não substituem essa ação.
     physical_evidence = bool(_clean(mary_action)) and (
@@ -466,7 +467,6 @@ def validate_direct_semantic_turn(
         "fulfilled": (
             scene_claim and bool(_clean(mary_text) or _clean(mary_action))
             and (not physical_required or physical_evidence)
-            if interpret_mode else True
         ),
         "event": _clean(scene_raw.get("acontecimento")),
         "evidence": evidence if evidence_grounded else "",
