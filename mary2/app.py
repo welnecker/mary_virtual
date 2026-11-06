@@ -2611,8 +2611,18 @@ if user_text:
             # que provocou o conflito, nunca na próxima linha do cursor.
             loop_snapshot = narrative_state.get("direct_hurt_loop", {})
             loop_active = bool(isinstance(loop_snapshot, dict) and loop_snapshot.get("active"))
-            negative_rule = str((loop_snapshot.get("negative_rule") if loop_active else direct_row.get("negative_prompt", "")) or "")
-            wounded_style = str((loop_snapshot.get("wounded_style") if loop_active else direct_row.get("hurt_style", "")) or "")
+            # O usuário pode ter acabado de responder à linha anterior.
+            # register_direct_user_reply já avançou o cursor; para avaliar
+            # a contrariedade use a linha à qual ele realmente respondeu,
+            # não a próxima missão ainda não iniciada.
+            authored_trigger_row = direct_row
+            origin_index = int(registration_before.get("index", -1) if registration_before else -1)
+            if (user_spoke and not loop_active
+                    and int(registration_before.get("awaiting_reply_order", 0) or 0) > 0
+                    and 0 <= origin_index < len(direct_rows)):
+                authored_trigger_row = direct_rows[origin_index]
+            negative_rule = str((loop_snapshot.get("negative_rule") if loop_active else authored_trigger_row.get("negative_prompt", "")) or "")
+            wounded_style = str((loop_snapshot.get("wounded_style") if loop_active else authored_trigger_row.get("hurt_style", "")) or "")
             loop_authorial_row = dict(direct_row.get("_emotional_loop_row") or {})
             loop_direction = str(loop_authorial_row.get("speech_guide", "") or "")
             loop_hurt_rule = str(loop_authorial_row.get("hurt_style", "") or "")
@@ -2842,7 +2852,7 @@ if user_text:
             if emotion.get("hurt") and loop_row and not loop.get("active"):
                 loop.update({"active": True, "attempts": 0,
                              "speaker": str(emotion.get("active_speaker", "") or ""),
-                             "origin_order": int(direct_row.get("order", 0) or 0),
+                             "origin_order": int(authored_trigger_row.get("order", 0) or 0),
                              "wounded_style": wounded_style,
                              "negative_rule": negative_rule})
                 # Ao contrariar a missão da linha atual, sua resposta é o fato
