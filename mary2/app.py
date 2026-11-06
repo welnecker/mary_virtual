@@ -3565,7 +3565,7 @@ if user_text:
                     )
                     auto_parts = parse_mary_components(auto_raw)
                     auto_speech = sanitize_mary_output(auto_parts["speech"])
-                    if not auto_speech or looks_like_action_narration(auto_speech):
+                    if (not auto_speech and not auto_parts["action"]) or looks_like_action_narration(auto_speech):
                         raise OpenRouterError(
                             "Linha automática sem resposta válida após correção interna; nada foi publicado."
                         )
@@ -3606,7 +3606,7 @@ if user_text:
                         )
                         last_parts = parse_mary_components(last_raw)
                         last_speech = sanitize_mary_output(last_parts["speech"])
-                        if last_speech and not looks_like_action_narration(last_speech):
+                        if (last_speech or last_parts["action"]) and not looks_like_action_narration(last_speech):
                             last_validation = validate_direct_semantic_turn(
                                 api_key=api_key, model=director_model, fallback_model=fallback,
                                 row=direct_row, interpretation=direct_interpretation,
