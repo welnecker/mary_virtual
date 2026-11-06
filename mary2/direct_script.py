@@ -428,8 +428,12 @@ def load_direct_script_rows(
     for item in rows:
         item["permanent_memory"] = permanent_memory_global
         item["physical_memory"] = physical_memory_global
-        item["hurt_style"] = hurt_style_global
-        item["negative_prompt"] = negative_prompt_global
+        # A orientação específica da linha prevalece; a primeira instrução
+        # disponível no capítulo é apenas fallback para linhas não preenchidas.
+        # Isso permite que a mesma personagem seja contrariada por causas
+        # diferentes conforme a missão atual.
+        item["hurt_style"] = _clean(item.get("hurt_style")) or hurt_style_global
+        item["negative_prompt"] = _clean(item.get("negative_prompt")) or negative_prompt_global
         if emotional_loop_row:
             item["_emotional_loop_row"] = dict(emotional_loop_row)
 
