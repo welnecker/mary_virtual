@@ -62,6 +62,7 @@ from direct_script import (
     direct_script_ready_for_choice,
     ensure_direct_state,
     extract_direct_character_name,
+    hurt_loop_max_interactions,
     is_automatic_direct_row,
     is_blocked_direct_row,
     load_direct_script_catalog,
@@ -2231,7 +2232,8 @@ if (navigation_script_mode == "direct_sheet" and isinstance(loop_ui_status, dict
     st.warning(
         "Mary está contrariada. O roteiro principal está suspenso enquanto ela avalia "
         "uma reparação contextual. "
-        f"Interações sem reconciliação: {int(loop_ui_status.get('attempts', 0) or 0)}/3."
+        f"Interações sem reconciliação: {int(loop_ui_status.get('attempts', 0) or 0)}/"
+        f"{int(loop_ui_status.get('max_attempts', 3) or 3)}."
     )
 
 automatic_turn = bool(
@@ -2871,6 +2873,7 @@ if user_text:
                          or assessment.get("frustration") is True
                          or assessment.get("rejected") is True)):
                 loop.update({"active": True, "attempts": 0,
+                             "max_attempts": hurt_loop_max_interactions(loop_row),
                              "speaker": str(emotion.get("active_speaker", "") or ""),
                              "origin_order": int(authored_trigger_row.get("order", 0) or 0),
                              "wounded_style": wounded_style,
@@ -2920,9 +2923,10 @@ if user_text:
                     assessed_speaker = str(assessment.get("speaker", "") or "").strip().casefold()
                     loop_speaker = str(loop.get("speaker", "") or "").strip().casefold()
                     same_speaker = bool(assessed_speaker and loop_speaker and assessed_speaker == loop_speaker)
+                    max_attempts = max(1, int(loop.get("max_attempts", 3) or 3))
                     if dialogue_text.strip() and user_spoke and same_speaker:
-                        loop["attempts"] = min(3, int(loop.get("attempts", 0) or 0) + 1)
-                    if int(loop.get("attempts", 0) or 0) >= 3:
+                        loop["attempts"] = min(max_attempts, int(loop.get("attempts", 0) or 0) + 1)
+                    if int(loop.get("attempts", 0) or 0) >= max_attempts:
                         loop["exhausted"] = True
                     direct_row = dict(loop_row)
                     direct_row["instant_memory"] = str(direct_row.get("instant_memory") or loop.get("origin_instant_memory", "") or "")
@@ -2936,7 +2940,8 @@ if user_text:
                     direct_row["physical_memory"] = str(direct_rows[0].get("physical_memory", "") or "") if direct_rows else ""
                     direct_interpretation["emotional_status"] = (
                         "Orgulho ferido ativo; interlocutor=" + str(loop.get("speaker", "")) +
-                        "; interações sem reconciliação=" + str(loop.get("attempts", 0)) + "/3. "
+                        "; interações sem reconciliação=" + str(loop.get("attempts", 0)) +
+                        "/" + str(loop.get("max_attempts", 3)) + ". "
                         "Mary interpreta a reação conforme os guias e limites da LINHA LOOP; "
                         "não presuma perdão, culpa, intensidade nem atitude fora da planilha."
                     )
