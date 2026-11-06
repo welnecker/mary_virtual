@@ -3618,11 +3618,38 @@ if user_text:
                                 user_scene_direction=scene_direction,
                                 line_dialogue=list(direct_state.get("line_dialogue", []) or []),
                             )
+                            # Registrar a avaliação MAIS RECENTE mesmo quando a
+                            # última correção não resolver o problema; o erro anterior
+                            # não pode mascarar a verdadeira causa de rejeição.
+                            auto_validation = last_validation
                             if bool(last_validation.get("fulfilled", False)) and not last_validation.get("parse_error"):
-                                auto_raw, auto_parts, auto_speech, auto_validation = (
-                                    last_raw, last_parts, last_speech, last_validation
+                                auto_raw, auto_parts, auto_speech = (
+                                    last_raw, last_parts, last_speech
                                 )
                         if not bool(auto_validation.get("fulfilled", False)) or auto_validation.get("parse_error"):
+                            # Uma falha de execução não vira interação, mas DEVE
+                            # ser auditável para diagnosticar a linha sem adivinhar.
+                            if persistence:
+                                try:
+                                    save_director_validation_audit(
+                                        service_account_info=persistence["service_account_info"],
+                                        spreadsheet_id=persistence["spreadsheet_id"],
+                                        spreadsheet_title=persistence["spreadsheet_title"],
+                                        owner_email=persistence["owner_email"],
+                                        run_id=str(st.session_state.run_id or ""),
+                                        seq_candidate=int(st.session_state.run_last_seq or 0) + 1,
+                                        chapter_id=_chapter_id(),
+                                        chapter_instance_id=str(narrative_state.get("chapter_instance_id", "") or ""),
+                                        chapter_turn=current_turn_number,
+                                        row=direct_row,
+                                        user_text=dialogue_text,
+                                        attempt=3,
+                                        mary_text=last_speech,
+                                        evaluation=auto_validation,
+                                        status="AUTO_REJECTED_NOT_PUBLISHED",
+                                    )
+                                except Exception as rejected_audit_exc:
+                                    _LOG.warning("Falha ao auditar linha automática rejeitada: %s", rejected_audit_exc)
                             _LOG.warning(
                                 "AUTO_LINE_VALIDATION_REJECTED chapter=%s line=%s missing=%s scene=%s parse=%s",
                                 str(narrative_state.get("chapter_id", "")),
