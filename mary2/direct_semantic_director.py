@@ -67,8 +67,8 @@ _AUTHORED_ACTION_VERBS = (
     r"ergue|abaixa|inclina|caminha|anda|entra|sai|abre|fecha|pega|"
     r"segura|toca|beija|abraça|move|junta|tira|coloca|entrega|"
     r"estende|aponta|avança|avista|observa|encosta|puxa|empurra|"
-    r"atravessa|corre|estica|chama|acena|olha|alcança|desliza|"
-    r"descreve|mostra|trava|destrava|solta|apoia|passa)"
+    r"atravessa|corre|estica|acena|olha|alcança|desliza|"
+    r"mostra|trava|destrava|solta|apoia|passa)"
 )
 _AUTHORIAL_ACTION_PATTERN = re.compile(
     rf"^(?:mary|ela)\s+(?:(?:deve|precisa|vai|irá)\s+)?"
@@ -79,7 +79,7 @@ _AUTHORIAL_INFINITIVE_PATTERN = re.compile(
     r"(?:se\s+)?(?:aproximar|levantar|sentar|abrir|fechar|entrar|sair|"
     r"beijar|abraçar|pegar|segurar|mover|andar|ir|subir|deitar|"
     r"juntar|tirar|colocar|entregar|caminhar|tocar|estender|apontar|"
-    r"avançar|avistar|olhar|observar|chamar|acenar)\b", flags=re.I
+    r"avançar|avistar|olhar|observar|acenar)\b", flags=re.I
 )
 _AUTHORIAL_CONDITIONAL_PATTERN = re.compile(
     r"^(?:se|caso|quando|talvez|opcionalmente|pode|poderá|poderia)\b"
@@ -90,18 +90,27 @@ _AUTHORIAL_CONDITIONAL_PATTERN = re.compile(
 
 
 def _authored_physical_actions(action_guide: str) -> list[str]:
-    """Extrai ações afirmativas para exigir execução sem obrigar 'Mary deve'.
+    """Extrai movimentos afirmativos de Mary sem promover falas ou condições.
 
-    Não promove possibilidade, estado, proposta, ação de Silvia ou ação
-    condicionada à resposta de terceiros a movimento obrigatório.
+    Pronome 'ela' só é atribuído a Mary quando a última mulher nomeada
+    como sujeito nas cláusulas anteriores foi Mary. Não sequestra ação
+    de Silvia nem exige [AÇÃO] para um simples pedido verbal.
     """
     actions = []
+    last_actor = ""
     for clause in re.split(r"[.!?;\n]+", _clean(action_guide)):
         clause = clause.strip(" \t,—–-")
-        if not clause or _AUTHORIAL_CONDITIONAL_PATTERN.search(clause):
+        if not clause:
             continue
-        # Enumera somente ações cujo sujeito é Mary ou 'ela' (Mary).
-        # Não atribui movimentos descritos para Silvia ou o usuário a Mary.
+        explicit_actor = re.match(r"^(Mary|Silvia)\b", clause, flags=re.I)
+        if explicit_actor:
+            last_actor = explicit_actor.group(1).casefold()
+        actor_is_mary = (
+            clause.casefold().startswith("mary ")
+            or (clause.casefold().startswith("ela ") and last_actor == "mary")
+        )
+        if not actor_is_mary or _AUTHORIAL_CONDITIONAL_PATTERN.search(clause):
+            continue
         if _AUTHORIAL_ACTION_PATTERN.match(clause) or _AUTHORIAL_INFINITIVE_PATTERN.match(clause):
             actions.append(clause)
     return actions
