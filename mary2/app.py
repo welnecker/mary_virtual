@@ -2833,7 +2833,10 @@ if user_text:
                              "origin_order": int(direct_row.get("order", 0) or 0)})
                 # Ao contrariar a missão da linha atual, sua resposta é o fato
                 # real ocorrido; o cursor retorna à linha seguinte após reparação.
-                if not direct_registration and direct_state and direct_row:
+                advanced_from_previous = bool(
+                    (direct_registration.get("state_before", {}) if isinstance(direct_registration, dict) else {}).get("awaiting_reply_order", 0)
+                )
+                if not advanced_from_previous and direct_state and direct_row:
                     idx = int(direct_state.get("index", 0) or 0)
                     order = int(direct_row.get("order", 0) or 0)
                     completed = set(direct_state.get("completed_orders", []) or [])
