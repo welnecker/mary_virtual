@@ -3225,10 +3225,18 @@ if user_text:
                     for idx, raw_item in enumerate(parsed_objectives or [])
                 )
 
+                thought_check_missing = (
+                    bool(str(direct_row.get("thought_guide", "") or "").strip())
+                    and bool(str(mary_intent or "").strip())
+                    and "pensamento_autoral" not in (
+                        direct_validation.get("parsed_response", {}) or {}
+                    )
+                )
                 if (
                     str(direct_validation.get("parse_error", "") or "").strip()
                     or bool(direct_validation.get("invalid_guide_evidence", False))
                     or claimed_without_real_evidence
+                    or thought_check_missing
                 ):
                     # Falha técnica ou evidência sem apoio real na conversa
                     # não deve prolongar artificialmente a linha.
@@ -3244,6 +3252,17 @@ if user_text:
                         user_text=dialogue_text,
                         user_scene_direction=scene_direction,
                         line_dialogue=list(direct_state.get("line_dialogue", []) or []),
+                    )
+
+                if (
+                    str(direct_row.get("thought_guide", "") or "").strip()
+                    and str(mary_intent or "").strip()
+                    and "pensamento_autoral" not in (
+                        direct_validation.get("parsed_response", {}) or {}
+                    )
+                ):
+                    raise OpenRouterError(
+                        "O Diretor não devolveu a avaliação do PENSAMENTO-GUIA após duas tentativas."
                     )
 
                 if str(direct_validation.get("parse_error", "") or "").strip():
