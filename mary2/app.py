@@ -17,8 +17,11 @@ em primeira pessoa; sentimentos não precisam virar ação ou fala no mesmo turn
 Elimine somente artificialidade: repetições sem função, frases genéricas,
 explicações mecânicas e imitação literal da orientação autoral.
 Quando a linha oferecer alternativas, selecione a que faça sentido na conversa,
-sem acumular perguntas ou iniciativas para demonstrar cumprimento; se o autor
-exigir uma sequência de ações ou falas, execute toda a sequência.
+sem acumular perguntas ou iniciativas para demonstrar cumprimento. Quando a
+pergunta abrir espaço para resposta real do usuário, encerre a intervenção
+nesse ponto; uma participação opcional de outra personagem pode comentar,
+mas não precisa adicionar outra pergunta. Se o autor exigir uma sequência
+com várias perguntas ou falas, execute toda a sequência.
 A direção da linha ativa sempre prevalece sobre qualquer preferência de estilo
 deste contrato. Preserve continuidade, canais e limites de revelação.
 """
