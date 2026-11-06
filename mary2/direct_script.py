@@ -792,7 +792,7 @@ def build_direct_writer_prompt(
         "CONTINUIDADE OPERACIONAL: cumpra a missão da linha ativa sem criar novas "
         "iniciativas por padrão. Responda à entrada real quando houver. "
         "Não presuma decisões de personagens controlados pelo usuário; "
-        "preserve os fatos consumados e não antecipe outras linhas.\\n\\n"
+        "preserve os fatos consumados e não antecipe outras linhas.\n\n"
         "DIREÇÃO: a linha ativa estabelece a missão e o estilo; as memórias estabelecem fatos e continuidade. "
          "As orientações autorais de FALA, DESCRIÇÃO e PENSAMENTO, quando presentes, dirigem apenas seu componente nesta linha; "
         "interprete-as sem copiar literalmente. Responda à entrada atual e preserve a continuidade. "
