@@ -2217,14 +2217,16 @@ try:
         )
         direct_ui_row = current_direct_row(ui_rows, ui_state)
         loop_ui = st.session_state.story_state.get("narrative", {}).get("direct_hurt_loop", {})
-        if isinstance(loop_ui, dict) and loop_ui.get("active") and direct_ui_row:
-            direct_ui_row = dict(direct_ui_row.get("_emotional_loop_row") or direct_ui_row)
+        if isinstance(loop_ui, dict) and loop_ui.get("active") and ui_rows:
+            loop_source = direct_ui_row or ui_rows[0]
+            direct_ui_row = dict(loop_source.get("_emotional_loop_row") or direct_ui_row)
 except Exception as exc:
     direct_ui_error = str(exc)
 
 # A faixa emocional é reconstruída a cada rerun a partir do estado persistido.
 loop_ui_status = st.session_state.story_state.get("narrative", {}).get("direct_hurt_loop", {})
-if navigation_script_mode == "direct_sheet" and isinstance(loop_ui_status, dict) and loop_ui_status.get("active"):
+if (navigation_script_mode == "direct_sheet" and isinstance(loop_ui_status, dict)
+        and loop_ui_status.get("active") and not loop_ui_status.get("exhausted")):
     st.warning(
         "Mary está contrariada. O roteiro principal está suspenso enquanto ela avalia "
         "uma reparação contextual. "
@@ -2384,6 +2386,8 @@ if user_text:
                 direct_rows,
                 direct_state,
             )
+            if in_hurt_loop and not direct_row and direct_rows:
+                direct_row = dict(direct_rows[0])  # Fonte do LOOP quando a última linha foi interrompida.
             current_phase = {
                 "id": str(direct_row.get("line_id", "") or "roteiro_concluido"),
                 "goal": str(direct_row.get("speech_guide", "") or "encerrar a Carona"),
@@ -2721,6 +2725,7 @@ if user_text:
                     initial_description=str(direct_row.get("initial_description", "") or ""),
                     revelation_policy=str(direct_row.get("revelation_policy", "") or ""),
                 )
+            assessment = {}
             if negative_rule and wounded_style and dialogue_text.strip() and not (automatic_direct_turn or blocked_direct_turn):
                 try:
                     assessment_raw = chat(
