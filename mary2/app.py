@@ -2607,8 +2607,16 @@ if user_text:
                 emotion = {"chapter_id": chapter_emotion_id, "hurt": False, "continuation_allowed": True, "rejected": False}
                 narrative_state["direct_emotion"] = emotion
                 narrative_state["direct_emotional_ending_blocked"] = False
-            negative_rule = str(direct_row.get("negative_prompt", "") or "")
-            wounded_style = str(direct_row.get("hurt_style", "") or "")
+            # Enquanto o LOOP está ativo, as regras ficam ancoradas na linha
+            # que provocou o conflito, nunca na próxima linha do cursor.
+            loop_snapshot = narrative_state.get("direct_hurt_loop", {})
+            loop_active = bool(isinstance(loop_snapshot, dict) and loop_snapshot.get("active"))
+            negative_rule = str((loop_snapshot.get("negative_rule") if loop_active else direct_row.get("negative_prompt", "")) or "")
+            wounded_style = str((loop_snapshot.get("wounded_style") if loop_active else direct_row.get("hurt_style", "")) or "")
+            loop_authorial_row = dict(direct_row.get("_emotional_loop_row") or {})
+            loop_direction = str(loop_authorial_row.get("speech_guide", "") or "")
+            loop_hurt_rule = str(loop_authorial_row.get("hurt_style", "") or "")
+            loop_negative_rule = str(loop_authorial_row.get("negative_prompt", "") or "")
             previous_mary_text = next(
                 (
                     str(message.get("content", "") or "").strip()
@@ -2726,41 +2734,45 @@ if user_text:
                     revelation_policy=str(direct_row.get("revelation_policy", "") or ""),
                 )
             assessment = {}
-            if negative_rule and wounded_style and dialogue_text.strip() and not (automatic_direct_turn or blocked_direct_turn):
+            # O LOOP só é habilitado quando há uma linha LOOP autoral e
+            # um critério de contrariedade definido na planilha. Não existe
+            # motivo emocional presumido pelo código.
+            if loop_direction and (wounded_style or negative_rule or loop_hurt_rule or loop_negative_rule) and dialogue_text.strip() and not (automatic_direct_turn or blocked_direct_turn):
                 try:
                     assessment_raw = chat(
                         api_key=api_key, model=director_model, fallback_model=fallback,
                         temperature=0.0, max_tokens=350,
                         messages=[
                             {"role": "system", "content": (
-                                "Analise limites de personagem em uma cena ficcional. Retorne APENAS JSON "
-                                "com violation (booleano), frustration (booleano), repair_attempt (booleano), "
-                                "forgiven (booleano), rejected (booleano), reason (texto), "
-                                "speaker (nome do personagem que efetivamente FALOU nesta entrada; vazio se incerto), "
-                                "repair_evidence (citação LITERAL curta da fala atual que demonstra reparação; vazio quando forgiven=false). "
-                                "Não confunda personagem mencionado, destinatário ou quem falou no turno anterior com o emissor atual. "
-                                "Violação apenas quando o comportamento atual afronta claramente os limites descritos. "
-                                "Um convite respeitoso ou brincadeira contextual não é violação. "
-                                "frustration=true apenas quando o interlocutor contraria claramente uma "
-                                "expectativa concreta de Mary na cena (por exemplo, rejeita secamente o "
-                                "pedido do guarda-sol). Isso não equivale a uma ofensa moral; recusa gentil "
-                                "pode ser apenas frustração leve, não humilhação. "
-                                "repair_attempt=true só para tentativa efetiva de reparação: desculpas, "
-                                "explicação responsável ou mudança concreta da atitude. "
-                                "Perdão apenas se houver arrependimento e reparação suficientes depois de ofensa anterior; "
-                                "não presuma perdão por uma mera desculpa. "
-                                "rejected=true SOMENTE quando o interlocutor recusa explicitamente "
-                                "qualquer conversa, companhia ou aproximação pessoal com Mary, "
-                                "ou a rejeita de maneira inequívoca. Não confunda com recusa "
-                                "pontual de ajuda, convite, horário ou atividade; tampouco com "
-                                "respostas breves ou silêncio. Uma recusa não é falta moral. "
-                                "Se a fala atual for de outro personagem, não atribua a esse novo personagem "
-                                "a rejeição ou o desrespeito de alguém anterior. "
-                                "Uma fala amigável não é ofensa nem rejeição; humor ou autodepreciação não são desistência. "
-                                "Não classifique uma oferta de dar espaço como rejeição definitiva sem evidência inequívoca. "
+                                "Você é um classificador de fatos emocionais de uma cena ficcional. "
+                                "Não decida como Mary deve falar, agir, perdoar ou encerrar a cena. "
+                                "Compare a fala atual com as expectativas, os limites e as condições "
+                                "autorais da LINHA ATIVA e da LINHA LOOP informadas abaixo. "
+                                "Retorne APENAS JSON com violation, frustration, repair_attempt, "
+                                "forgiven, rejected (booleanos), reason (texto), speaker (nome de "
+                                "quem realmente falou; vazio se incerto) e repair_evidence "
+                                "(trecho LITERAL da fala atual, ou vazio). "
+                                "violation=true somente se a fala afronta limites explícitos da planilha. "
+                                "frustration=true somente se contraria expectativa concreta prevista "
+                                "pela situação ou por ORGULHO FERIDO; nunca invente uma expectativa. "
+                                "Não confunda recusa pontual com rejeição pessoal definitiva: "
+                                "rejected=true apenas quando há rejeição clara da aproximação pessoal. "
+                                "Uma recusa cordial pode ou não contrariar Mary, conforme a planilha. "
+                                "Humor, brincadeira e disponibilidade não são automaticamente desrespeito. "
+                                "No LOOP, repair_attempt identifica tentativa concreta de reparar; "
+                                "forgiven=true apenas se a fala oferece evidência suficiente de reparação "
+                                "conforme a direção autoral do LOOP e o conflito estabelecido. "
+                                "Não invente perdão; não exija fórmula fixa de desculpas. "
+                                "Não atribua atos de um personagem a outro. A saída deve representar "
+                                "somente o que o interlocutor fez e o que o contrato autoral permite concluir."
                             )},
                             {"role": "user", "content": (
-                                "LIMITES: " + negative_rule +
+                                "ORGULHO FERIDO DA LINHA DE ORIGEM: " + wounded_style +
+                                "\\nPROMPT NEGATIVO DA LINHA DE ORIGEM: " + negative_rule +
+                                "\\nORIENTAÇÃO AUTORAL DO LOOP: " + loop_direction +
+                                "\\nORGULHO FERIDO DA LINHA LOOP: " + loop_hurt_rule +
+                                "\\nLIMITES DA LINHA LOOP: " + loop_negative_rule +
+                                "\\nMEMÓRIA LOCAL: " + str(direct_row.get("instant_memory", "") or "") +
                                 "\\nINTERLOCUTOR REGISTRADO: " + active_interlocutor +
                                 "\\nCOMPREENSÃO DA FALA: " + str(direct_interpretation.get("literal_meaning", "") or "") +
                                 "\\nESTADO: " + json.dumps(emotion, ensure_ascii=False) +
@@ -2830,7 +2842,9 @@ if user_text:
             if emotion.get("hurt") and loop_row and not loop.get("active"):
                 loop.update({"active": True, "attempts": 0,
                              "speaker": str(emotion.get("active_speaker", "") or ""),
-                             "origin_order": int(direct_row.get("order", 0) or 0)})
+                             "origin_order": int(direct_row.get("order", 0) or 0),
+                             "wounded_style": wounded_style,
+                             "negative_rule": negative_rule})
                 # Ao contrariar a missão da linha atual, sua resposta é o fato
                 # real ocorrido; o cursor retorna à linha seguinte após reparação.
                 advanced_from_previous = bool(
@@ -2868,20 +2882,27 @@ if user_text:
                     if int(loop.get("attempts", 0) or 0) >= 3:
                         loop["exhausted"] = True
                     direct_row = dict(loop_row)
-                    direct_row["negative_prompt"] = negative_rule
-                    direct_row["hurt_style"] = wounded_style
+                    # A linha LOOP é soberana durante o desvio; instruções da
+                    # origem permanecem como contexto, não substituem o LOOP.
+                    direct_row["negative_prompt"] = loop_negative_rule or negative_rule
+                    direct_row["hurt_style"] = loop_hurt_rule or wounded_style
                     direct_row["permanent_memory"] = str(direct_rows[0].get("permanent_memory", "") or "") if direct_rows else ""
                     direct_row["physical_memory"] = str(direct_rows[0].get("physical_memory", "") or "") if direct_rows else ""
                     direct_interpretation["emotional_status"] = (
                         "Orgulho ferido ativo; interlocutor=" + str(loop.get("speaker", "")) +
                         "; interações sem reconciliação=" + str(loop.get("attempts", 0)) + "/3. "
-                        "Mary avalia a conversa conforme a gravidade; não pede desculpas pela ofensa sofrida."
+                        "Mary interpreta a reação conforme os guias e limites da LINHA LOOP; "
+                        "não presuma perdão, culpa, intensidade nem atitude fora da planilha."
                     )
             narrative_state["direct_hurt_loop"] = loop
             if emotion.get("hurt"):
                 direct_row = dict(direct_row)
-                direct_row["style"] = (str(direct_row.get("style", "") or "") +
-                    " | ESTADO EMOCIONAL ATIVO: " + wounded_style)
+                # Quando a linha LOOP traz estilo/atitude, ele governa a cena.
+                # O texto de Orgulho Ferido é a orientação autoral da condição.
+                active_hurt_style = str(direct_row.get("hurt_style", "") or wounded_style)
+                if active_hurt_style:
+                    direct_row["style"] = (str(direct_row.get("style", "") or "") +
+                        " | ORGULHO FERIDO AUTORAL: " + active_hurt_style)
                 # Não injetar comandos na memória local de fatos.
                 direct_interpretation.setdefault("emotional_status",
                     "Mágoa persistente; limites e proximidade avaliados pela conversa real.")
