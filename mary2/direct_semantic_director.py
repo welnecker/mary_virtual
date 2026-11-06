@@ -546,7 +546,10 @@ def validate_direct_semantic_turn(
             item = {}
         quote = _clean(item.get("evidencia"))
         quote_source = _evidence_source(quote, [("MARY_ACAO", _clean(mary_action))])
-        same_action = _clean(item.get("acao")).casefold() == authored_action.casefold()
+        # Espaços e pontuação editorial não mudam a identidade da ação.
+        action_from_director = re.sub(r"\\s+", " ", _clean(item.get("acao"))).strip(" .!?;").casefold()
+        canonical_action = re.sub(r"\\s+", " ", authored_action).strip(" .!?;").casefold()
+        same_action = action_from_director == canonical_action
         performed = bool(item.get("cumprida", False)) and same_action and quote_source == "MARY_ACAO"
         normalized_actions.append({
             "action": authored_action,
