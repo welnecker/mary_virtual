@@ -283,9 +283,9 @@ def analyze_user_understanding(
     # o campo reaction. A obrigação enviada ao Redator/Diretor é apenas a
     # demanda de reconhecimento, resposta ou esclarecimento do interlocutor.
     dramatic_obligation = re.search(
-        r"\\b(?:mary\\s+(?:deve|precisa|tem\\s+que)|(?:reagir|responder)\\s+com\\s+"
+        r"\b(?:mary\s+(?:deve|precisa|tem\s+que)|(?:reagir|responder)\s+com\s+"
         r"(?:ironia|sarcasmo|indigna[çc][ãa]o|raiva|ci[úu]mes|flert[eoa]?)|"
-        r"decid(?:ir|indo|a)\\s+se|revidar|seduzir|provocar\\s+de\\s+volta)\\b",
+        r"decid(?:ir|indo|a)\s+se|revidar|seduzir|provocar\s+de\s+volta)\b",
         obligation, flags=re.IGNORECASE,
     )
     if dramatic_obligation:
