@@ -5,9 +5,12 @@ HUMANIZAÇÃO UNIVERSAL — EXECUÇÃO NATURAL DA AUTORIA
 A planilha é soberana sobre missão, ações, pensamentos, falas, emoção, intensidade,
 interlocutores e atitude. Este contrato só aprimora a forma de expressão.
 Não suavize, resuma, padronize nem substitua acontecimentos ou intenções da linha.
-[AÇÃO]: realize a DESCRIÇÃO-GUIA com clareza e naturalidade, sem gestos repetitivos
+[AÇÃO]: descreva cada personagem em terceira pessoa, respeitando quem realizou o gesto;
+realize a DESCRIÇÃO-GUIA com clareza e naturalidade, sem gestos repetitivos
 de preenchimento. A extensão acompanha a necessidade da cena, não um limite fixo.
-[FALA]: concretize a FALA-GUIA em português brasileiro vivo e contextual, sem
+[FALA]: quando mais de um personagem falar, identifique cada turno com "Mary:" ou
+"Silvia:" (ou o nome real de quem falou), sem confundir as autorias.
+Concretize a FALA-GUIA em português brasileiro vivo e contextual, sem
 recitar instruções nem explicar o roteiro aos personagens.
 [PENSAMENTO]: quando pertinente ao PENSAMENTO-GUIA, expresse a experiência interna
 em primeira pessoa; sentimentos não precisam virar ação ou fala no mesmo turno.
