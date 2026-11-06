@@ -233,6 +233,7 @@ def validate_direct_semantic_turn(
     obligation_exists = bool(obligation.get("exists", False))
     obligation_text = _clean(obligation.get("requirement"))
     speech_guide = _clean(row.get("speech_guide"))
+    thought_guide = _clean(row.get("thought_guide"))
     interpret_match = re.fullmatch(r"interpretar(?:\s*:\s*(.*))?", speech_guide, flags=re.I | re.S)
     interpret_mode = bool(interpret_match)
     interpret_direction = (interpret_match.group(1) or "").strip() if interpret_match else ""
@@ -312,6 +313,8 @@ def validate_direct_semantic_turn(
         + "\n\nFALA-GUIA ORIGINAL\n"
         + ("Interpretar (modo técnico)" if interpret_mode else (speech_guide or "(nenhuma)"))
         + ("\n\nDIREÇÃO AUTORAL DE INTERPRETAÇÃO — FOCO, NÃO TEXTO LITERAL\n" + interpret_direction if interpret_direction else "")
+        + "\n\nPENSAMENTO-GUIA ORIGINAL — REFERÊNCIA EMOCIONAL, NÃO FALA OBRIGATÓRIA\n"
+        + (thought_guide or "(não informado)")
         + "\n\nDESCRIÇÃO-GUIA DA LINHA ATUAL — MISSÃO FÍSICA\n"
         + (_clean(row.get("action_guide")) or "(sem ação especificada)")
         + "\n\nAÇÕES AFIRMATIVAS DE MARY A COMPROVAR (somente quando aplicáveis)\n"
@@ -352,6 +355,7 @@ def validate_direct_semantic_turn(
            "Não confunda fim da linha com solução da pergunta: o próximo turno pode trazer a resposta. "
            "Pensamento pode cumprir finalidade introspectiva. " if automatic_row else "")
         + "B) CENA: a DESCRIÇÃO-GUIA determina ações e acontecimentos da linha ativa; a MEMÓRIA INSTANTÂNEA-LOCAL contextualiza e não cria tarefas. Ações afirmativas de Mary são missões mesmo sem 'deve'. Confirme CADA ação autoral aplicável na resposta; ações facultativas ou condicionadas não devem bloquear. Não exija movimentos de outros personagens como ações de Mary. Se a ação já foi efetivamente realizada, não a reencene. Para comprovação física, cite um trecho LITERAL CONTÍNUO de [AÇÃO], com palavras exatas, sem reticências. Se houver apenas pensamento ou intenção de fazer, a ação ainda não ocorreu. Não obrigue personagens secundários a falar por rotina. Nunca use a memória ou a FALA-GUIA como prova de execução. "
+        + "B1) PENSAMENTO: compare [PENSAMENTO], quando existir, com o PENSAMENTO-GUIA ORIGINAL. Avalie a fidelidade à motivação, emoção, atitude e perspectiva autorais, sem exigir palavras literais ou repetição de frases. Não exija [PENSAMENTO] quando ele estiver ausente, mesmo que exista PENSAMENTO-GUIA. Não transforme orientação emocional em gesto ou fala obrigatória. Só marque pensamento_autoral.ok=false se houver CONTRADIÇÃO SEMÂNTICA MATERIAL (por exemplo, a autora define receio de provocar ciúmes e o pensamento declara intenção de provocar ciúmes). Mera nuance, espontaneidade ou intensidade compatível não é contradição. Em caso de conflito, descreva o trecho real e sugira reparar apenas o pensamento, preservando os acontecimentos. Se não houver pensamento ou guia, devolva pensamento_autoral.ok=true e avaliado=false. "
         + "C) CONTINUIDADE: Mary deve responder ao sentido da entrada atual, preservando interlocutor, autoria de ações, sujeito, destinatário e posição física. Memória local define a cena atual; descrição inicial pode mencionar futuro sem torná-lo presente. Corrija interpretações semânticas incompatíveis com fatos explícitos. "
         + "C1) PARTICIPANTES E EVIDÊNCIA: identifique separadamente quem fala, para quem, quem é citado e quem pratica/recebe cada ação. O usuário pode trocar de personagem entre turnos. Se a resposta de Mary declarar uma ação física de terceiros, exija suporte na fala literal, na encenação ou nos fatos confirmados; uma hipótese do módulo de compreensão ou uma fala equivocada anterior de Mary NÃO comprovam a ação. Se Mary for questionada sobre uma interpretação anterior sem base, aceite esclarecimento ou correção, nunca novos detalhes inventados para defendê-la. Marque coerencia_conversacional.ok=false quando houver transferência de agente/alvo ou acontecimento concreto não sustentado. Não reprove brincadeiras claramente figuradas nem exija certeza impossível em falas genuinamente ambíguas. "
         + "D) FATOS E REVELAÇÃO: fontes autoritativas prevalecem sobre falas anteriores. Marque apenas contradições objetivas; não trate estilo como erro factual. NÃO PODE impede verbalização mesmo sob pergunta, mas Mary deve reagir sem revelar nem inventar. "
@@ -362,6 +366,7 @@ def validate_direct_semantic_turn(
         "{\"obrigacao_usuario\":{\"existe\":true,\"requisito\":\"\",\"atendida\":true,\"evidencia\":\"\"},"
         "\"coerencia_conversacional\":{\"ok\":true,\"problema\":\"\",\"trecho_mary\":\"\",\"correcao\":\"\"},"
         "\"naturalidade\":{\"ok\":true,\"problema\":\"\",\"trecho_mary\":\"\",\"correcao\":\"\"},"
+        "\"pensamento_autoral\":{\"avaliado\":false,\"ok\":true,\"problema\":\"\",\"trecho_pensamento\":\"\",\"correcao\":\"\"},"
         "\"cena_atual\":{\"cumprida\":true,\"acao_fisica_obrigatoria\":false,\"acontecimento\":\"\",\"evidencia\":\"\",\"faltou\":\"\"},"
         "\"acoes_autorais\":[{\"acao\":\"\",\"cumprida\":true,\"evidencia\":\"\"}],"
         "\"objetivos_guia\":[{\"objetivo\":\"\",\"alcancado\":true,\"fonte\":\"USUÁRIO\",\"evidencia\":\"\"}],"
@@ -386,7 +391,8 @@ def validate_direct_semantic_turn(
                         if interpret_mode else
                         "A FALA-GUIA define direção, não uma lista de perguntas obrigatórias. Distinga exigências explícitas de opções, oportunidades contextuais e limites de estilo. Silvia só deve intervir quando acrescentar algo real; não reitere uma participação que já ocorreu durante a mesma linha. "
                     )
-                    + "Não exija repetição literal da fala-guia. "
+                    + "Não exija repetição literal da fala-guia nem do pensamento-guia. "
+                    "Pensamento é opcional; se produzido, confira apenas contradição emocional material. "
                     "Nunca invente evidência."
                 ),
             },
@@ -499,6 +505,34 @@ def validate_direct_semantic_turn(
         "mary_excerpt": _clean(natural_raw.get("trecho_mary")),
         "correction": _clean(natural_raw.get("correcao")),
     }
+
+    # Independente da missão física e comunicativa. Ausência de pensamento
+    # é permitida: o guia orienta o conteúdo, não exige sua emissão.
+    thought_required_to_check = bool(thought_guide and _clean(mary_thought))
+    thought_raw = parsed.get("pensamento_autoral", {})
+    if not isinstance(thought_raw, dict):
+        thought_raw = {}
+    thought_alignment = {
+        "evaluated": thought_required_to_check,
+        "ok": bool(thought_raw.get("ok", False)) if thought_required_to_check else True,
+        "issue": _clean(thought_raw.get("problema")) if thought_required_to_check else "",
+        "mary_excerpt": _clean(thought_raw.get("trecho_pensamento")) if thought_required_to_check else "",
+        "correction": _clean(thought_raw.get("correcao")) if thought_required_to_check else "",
+        "guide": thought_guide,
+    }
+    if thought_required_to_check and "ok" not in thought_raw:
+        thought_alignment["issue"] = "Validação de fidelidade ao PENSAMENTO-GUIA não foi fornecida pelo Diretor."
+        thought_alignment["correction"] = "Compare o pensamento produzido com o PENSAMENTO-GUIA, sem exigir transcrição literal."
+    if thought_required_to_check and not thought_alignment["ok"]:
+        # Usa o mecanismo existente de correção seletiva, sem criar outro
+        # pipeline de retries nem afetar respostas sem pensamento.
+        naturalness["ok"] = False
+        naturalness["issue"] = thought_alignment["issue"] or "Contradição emocional relevante com PENSAMENTO-GUIA."
+        naturalness["mary_excerpt"] = thought_alignment["mary_excerpt"] or _clean(mary_thought)[:240]
+        naturalness["correction"] = (
+            "Corrija somente [PENSAMENTO], sem trocar ação, fala ou fatos. "
+            + (thought_alignment["correction"] or "Restaure a motivação definida pelo autor.")
+        )
 
     contradiction_raw = parsed.get("contradicao_dura", {})
     if not isinstance(contradiction_raw, dict):
@@ -640,6 +674,7 @@ def validate_direct_semantic_turn(
         "revelation_violation": revelation_violation,
         "conversation_consistency": conversation_consistency,
         "naturalness": naturalness,
+        "thought_alignment": thought_alignment,
         "scene_completion": scene_completion,
         "model": model,
         "duration_ms": duration_ms,
