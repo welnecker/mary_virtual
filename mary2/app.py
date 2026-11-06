@@ -3650,6 +3650,7 @@ if user_text:
                                     )
                                 except Exception as rejected_audit_exc:
                                     _LOG.warning("Falha ao auditar linha automática rejeitada: %s", rejected_audit_exc)
+                            scene_detail = auto_validation.get("scene_completion", {}) or {}
                             _LOG.warning(
                                 "AUTO_LINE_VALIDATION_REJECTED chapter=%s line=%s missing=%s scene=%s parse=%s",
                                 str(narrative_state.get("chapter_id", "")),
