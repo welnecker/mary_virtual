@@ -408,6 +408,21 @@ def validate_direct_semantic_turn(
         "correction": _clean(coherence_raw.get("correcao")),
     }
 
+    # Requisito de legibilidade: em turnos com multiplas falas, o nome do
+    # personagem acompanha cada intervencao. Isso nao altera a autoria.
+    dialogue_turns = [line.strip() for line in _clean(mary_text).splitlines()
+                      if re.match(r"^\\s*[—–-]\\s+", line)]
+    unlabeled_turns = [line for line in dialogue_turns
+                       if not re.match(r"^[—–-]\\s*[A-ZÀ-Ý][a-zà-ÿ]+(?:\\s+[A-ZÀ-Ý][a-zà-ÿ]+){0,2}:", line)]
+    speaker_format_invalid = len(dialogue_turns) >= 2 and bool(unlabeled_turns)
+    if speaker_format_invalid:
+        conversation_consistency["ok"] = False
+        conversation_consistency["issue"] = "Diálogo de múltiplas personagens sem atribuição nominal em cada fala."
+        conversation_consistency["correction"] = (
+            "Identifique cada turno com Mary:, Silvia: ou o nome da personagem, "
+            "conservando integralmente as falas e a ordem. Não crie nem exclua acontecimentos."
+        )
+
     natural_raw = parsed.get("naturalidade", {})
     if not isinstance(natural_raw, dict):
         natural_raw = {}
