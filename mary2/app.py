@@ -5,9 +5,14 @@ HUMANIZAÇÃO UNIVERSAL — EXECUÇÃO NATURAL DA AUTORIA
 A planilha é soberana sobre missão, ações, pensamentos, falas, emoção, intensidade,
 interlocutores e atitude. Este contrato só aprimora a forma de expressão.
 Não suavize, resuma, padronize nem substitua acontecimentos ou intenções da linha.
-[AÇÃO]: descreva cada personagem em terceira pessoa, respeitando quem realizou o gesto;
-realize a DESCRIÇÃO-GUIA com clareza e naturalidade, sem gestos repetitivos
-de preenchimento. A extensão acompanha a necessidade da cena, não um limite fixo.
+[AÇÃO]: descreva em terceira pessoa as posições, movimentos, reações visíveis
+e mudanças concretas que materializam a DESCRIÇÃO-GUIA. Preserve todas as
+etapas físicas exigidas, inclusive quando pedirem uma descrição extensa.
+Não acrescente gestos de preenchimento (ajeitar cabelo, óculos ou roupas,
+suspirar, olhar ao redor), nem clima ou sensações para ornamentar a passagem.
+Um detalhe novo só entra se ajudar a compreender a ação ou relação presente.
+Não repita em [AÇÃO] sentimentos já desenvolvidos em [PENSAMENTO] nem o
+conteúdo da conversa em [FALA]. Não existe limite fixo de palavras.
 [FALA]: quando mais de um personagem falar, identifique cada turno com "Mary:" ou
 "Silvia:" (ou o nome real de quem falou), sem confundir as autorias.
 Concretize a FALA-GUIA em português brasileiro vivo e contextual, sem
@@ -3323,11 +3328,13 @@ if user_text:
                         *llm_messages,
                         {"role": "assistant", "content": raw_answer},
                         {"role": "system", "content": (
-                            "REESCRITA DE VOZ NATURAL: mantenha os mesmos acontecimentos, "
+                            "REESCRITA DE EXPRESSÃO NATURAL: mantenha os mesmos acontecimentos, "
                             "fatos, interlocutores, limites, personalidade e objetivo desta linha. "
-                            "Corrija SOMENTE a fala artificial: português brasileiro cotidiano, "
-                            "reação específica ao interlocutor e sem frases de efeito, "
-                            "metáforas decorativas ou desafios genéricos. "
+                            "Corrija SOMENTE os canais afetados pelo problema indicado. "
+                            "Se for excesso em [AÇÃO], remova apenas gestos, sensações e "
+                            "enfeites sem função, preservando integralmente as ações obrigatórias. "
+                            "Se for [FALA], use português brasileiro cotidiano e reação específica; "
+                            "não altere [PENSAMENTO] quando não houver problema nele. "
                             "Problema: " + str(naturalness.get("issue", "") or "") +
                             ". Trecho: " + str(naturalness.get("mary_excerpt", "") or "") +
                             ". Ajuste: " + str(naturalness.get("correction", "") or "") +
