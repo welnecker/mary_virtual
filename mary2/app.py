@@ -16,6 +16,9 @@ recitar instruções nem explicar o roteiro aos personagens.
 em primeira pessoa; sentimentos não precisam virar ação ou fala no mesmo turno.
 Elimine somente artificialidade: repetições sem função, frases genéricas,
 explicações mecânicas e imitação literal da orientação autoral.
+Quando a linha oferecer alternativas, selecione a que faça sentido na conversa,
+sem acumular perguntas ou iniciativas para demonstrar cumprimento; se o autor
+exigir uma sequência de ações ou falas, execute toda a sequência.
 A direção da linha ativa sempre prevalece sobre qualquer preferência de estilo
 deste contrato. Preserve continuidade, canais e limites de revelação.
 """
