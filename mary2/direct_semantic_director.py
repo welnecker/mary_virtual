@@ -74,6 +74,13 @@ _AUTHORIAL_ACTION_PATTERN = re.compile(
     rf"^(?:mary|ela)\s+(?:(?:deve|precisa|vai|irá)\s+)?"
     rf"{_AUTHORED_ACTION_VERBS}\b", flags=re.I
 )
+_AUTHORIAL_INFINITIVE_PATTERN = re.compile(
+    r"^(?:mary|ela)\s+(?:deve|precisa|vai|irá)\s+"
+    r"(?:se\s+)?(?:aproximar|levantar|sentar|abrir|fechar|entrar|sair|"
+    r"beijar|abraçar|pegar|segurar|mover|andar|ir|subir|deitar|"
+    r"juntar|tirar|colocar|entregar|caminhar|tocar|estender|apontar|"
+    r"avançar|avistar|olhar|observar|chamar|acenar)\b", flags=re.I
+)
 _AUTHORIAL_CONDITIONAL_PATTERN = re.compile(
     r"^(?:se|caso|quando|talvez|opcionalmente|pode|poderá|poderia)\b"
     r"|\b(?:mary|ela)\s+(?:pode|poderá|poderia|talvez)\b"
@@ -95,7 +102,7 @@ def _authored_physical_actions(action_guide: str) -> list[str]:
             continue
         # Enumera somente ações cujo sujeito é Mary ou 'ela' (Mary).
         # Não atribui movimentos descritos para Silvia ou o usuário a Mary.
-        if _AUTHORIAL_ACTION_PATTERN.match(clause):
+        if _AUTHORIAL_ACTION_PATTERN.match(clause) or _AUTHORIAL_INFINITIVE_PATTERN.match(clause):
             actions.append(clause)
     return actions
 
@@ -340,12 +347,14 @@ def validate_direct_semantic_turn(
         + "C1) PARTICIPANTES E EVIDÊNCIA: identifique separadamente quem fala, para quem, quem é citado e quem pratica/recebe cada ação. O usuário pode trocar de personagem entre turnos. Se a resposta de Mary declarar uma ação física de terceiros, exija suporte na fala literal, na encenação ou nos fatos confirmados; uma hipótese do módulo de compreensão ou uma fala equivocada anterior de Mary NÃO comprovam a ação. Se Mary for questionada sobre uma interpretação anterior sem base, aceite esclarecimento ou correção, nunca novos detalhes inventados para defendê-la. Marque coerencia_conversacional.ok=false quando houver transferência de agente/alvo ou acontecimento concreto não sustentado. Não reprove brincadeiras claramente figuradas nem exija certeza impossível em falas genuinamente ambíguas. "
         + "D) FATOS E REVELAÇÃO: fontes autoritativas prevalecem sobre falas anteriores. Marque apenas contradições objetivas; não trate estilo como erro factual. NÃO PODE impede verbalização mesmo sob pergunta, mas Mary deve reagir sem revelar nem inventar. "
         + "E) NATURALIDADE: respeite ESTILO/ATITUDE e a direção autoral da linha, sem impor vocabulário literal, intensidade fixa ou metáforas genéricas. ACAO e FALA bastam; PENSAMENTO é opcional e nunca é requisito para aprovação. Observe gestos repetidos sem função (sorriso de canto, sustentar o olhar, ajeitar cabelos ou pernas), explicações de intenções alheias sem evidência e perguntas que transformam toda interação amistosa em teste ou avaliação. Reprove quando o artificialismo for evidente, mas NÃO exija sempre silêncio, respostas curtas ou eliminação de sensualidade, humor e iniciativa. Compare com a conversa disponível, não apenas com uma frase isolada. "
+        + "AÇÕES AUTORAIS: devolva acoes_autorais com UM ITEM PARA CADA ação listada, na mesma ordem, campo acao copiado literalmente, cumprida e evidencia. Se foi executada, cite trecho curto literal contínuo do bloco [AÇÃO] que a demonstra; se não, cumprida=false e evidencia vazia. Não cite a descrição-guia como se fosse resposta. Quando não houver ações listadas, devolva []. "
         + "EVIDÊNCIAS: em cena_atual.evidencia e objetivos_guia.evidencia use citações literais contínuas da saída ou conversa, nunca resumos/paráfrases. Se faltar citação literal mas a ação parecer realizada, descreva a dúvida em cena_atual.faltou sem fabricar prova. Não mude o fato ocorrido só para ajustar a evidência. Preserve os campos do JSON. "
         + "Retorne somente JSON com: "
         "{\"obrigacao_usuario\":{\"existe\":true,\"requisito\":\"\",\"atendida\":true,\"evidencia\":\"\"},"
         "\"coerencia_conversacional\":{\"ok\":true,\"problema\":\"\",\"trecho_mary\":\"\",\"correcao\":\"\"},"
         "\"naturalidade\":{\"ok\":true,\"problema\":\"\",\"trecho_mary\":\"\",\"correcao\":\"\"},"
         "\"cena_atual\":{\"cumprida\":true,\"acao_fisica_obrigatoria\":false,\"acontecimento\":\"\",\"evidencia\":\"\",\"faltou\":\"\"},"
+        "\"acoes_autorais\":[{\"acao\":\"\",\"cumprida\":true,\"evidencia\":\"\"}],"
         "\"objetivos_guia\":[{\"objetivo\":\"\",\"alcancado\":true,\"fonte\":\"USUÁRIO\",\"evidencia\":\"\"}],"
         "\"contradicao_dura\":{\"existe\":false,\"fato_autoritativo\":\"\",\"trecho_mary\":\"\",\"correcao\":\"\"},"
         "\"violacao_revelacao\":{\"existe\":false,\"conteudo_reservado\":\"\",\"trecho_mary\":\"\",\"correcao\":\"\"},"
@@ -516,12 +525,42 @@ def validate_direct_semantic_turn(
     physical_required = bool(explicit_physical_required)
     # Ações afirmativas da descrição-guia também exigem demonstração concreta.
     # Fala, pensamento e encenação do interlocutor não substituem essa ação.
-    physical_evidence = bool(_clean(mary_action)) and (
-        _evidence_source(evidence, [("MARY_ACAO", _clean(mary_action))]) == "MARY_ACAO"
+    # Cada ação afirmativa é validada isoladamente. Uma única citação genérica
+    # não comprova todas as ações de uma linha com várias etapas.
+    action_assessments = parsed.get("acoes_autorais", [])
+    if not isinstance(action_assessments, list):
+        action_assessments = []
+    normalized_actions = []
+    for index, authored_action in enumerate(authored_actions):
+        item = action_assessments[index] if index < len(action_assessments) else {}
+        if not isinstance(item, dict):
+            item = {}
+        quote = _clean(item.get("evidencia"))
+        quote_source = _evidence_source(quote, [("MARY_ACAO", _clean(mary_action))])
+        same_action = _clean(item.get("acao")).casefold() == authored_action.casefold()
+        performed = bool(item.get("cumprida", False)) and same_action and quote_source == "MARY_ACAO"
+        normalized_actions.append({
+            "action": authored_action,
+            "fulfilled": performed,
+            "evidence": quote if performed else "",
+            "reason": "" if performed else "Ação não comprovada por citação literal de [AÇÃO].",
+        })
+    # Comandos físicos explícitos vindos da FALA-GUIA ainda usam o contrato
+    # de evidência de cena quando não há ações extraídas da DESCRIÇÃO-GUIA.
+    physical_evidence = (
+        all(item["fulfilled"] for item in normalized_actions)
+        if authored_actions else
+        bool(_clean(mary_action)) and (
+            _evidence_source(evidence, [("MARY_ACAO", _clean(mary_action))]) == "MARY_ACAO"
+        )
     )
     if physical_required and not physical_evidence:
         # Uma ação afirmativa deve estar demonstrada com evidência literal real.
-        scene_missing = "Ação autoral obrigatória sem citação literal verificável em [AÇÃO]."
+        missing_actions = [item["action"] for item in normalized_actions if not item["fulfilled"]]
+        scene_missing = (
+            "Ações obrigatórias sem comprovação em [AÇÃO]: " + "; ".join(missing_actions)
+            if missing_actions else "Ação autoral obrigatória sem citação literal verificável em [AÇÃO]."
+        )
     elif not scene_claim:
         scene_missing = _clean(scene_raw.get("faltou")) or "A finalidade central da linha ainda não foi cumprida."
     else:
@@ -537,6 +576,7 @@ def validate_direct_semantic_turn(
         "director_physical_claim": director_physical_claim,
         "physical_required_by_author": physical_required,
         "authored_actions": authored_actions,
+        "authored_action_evaluations": normalized_actions,
         "missing": scene_missing,
     }
 
