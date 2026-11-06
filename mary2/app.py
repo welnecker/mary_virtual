@@ -2874,7 +2874,7 @@ if user_text:
                     direct_row["physical_memory"] = str(direct_rows[0].get("physical_memory", "") or "") if direct_rows else ""
                     direct_interpretation["emotional_status"] = (
                         "Orgulho ferido ativo; interlocutor=" + str(loop.get("speaker", "")) +
-                        "; tentativas de reparação=" + str(loop.get("attempts", 0)) + "/3. "
+                        "; interações sem reconciliação=" + str(loop.get("attempts", 0)) + "/3. "
                         "Mary avalia a conversa conforme a gravidade; não pede desculpas pela ofensa sofrida."
                     )
             narrative_state["direct_hurt_loop"] = loop
