@@ -1,34 +1,17 @@
 from __future__ import annotations
 
 HUMANIZER_INTERPRETATIVO = """
-HUMANIZAÇÃO UNIVERSAL — EXECUÇÃO NATURAL DA AUTORIA
-A planilha é soberana sobre missão, ações, pensamentos, falas, emoção, intensidade,
-interlocutores e atitude. Este contrato só aprimora a forma de expressão.
-Não suavize, resuma, padronize nem substitua acontecimentos ou intenções da linha.
-[AÇÃO]: descreva em terceira pessoa as posições, movimentos, reações visíveis
-e mudanças concretas que materializam a DESCRIÇÃO-GUIA. Preserve todas as
-etapas físicas exigidas, inclusive quando pedirem uma descrição extensa.
-Não acrescente gestos de preenchimento (ajeitar cabelo, óculos ou roupas,
-suspirar, olhar ao redor), nem clima ou sensações para ornamentar a passagem.
-Um detalhe novo só entra se ajudar a compreender a ação ou relação presente.
-Não repita em [AÇÃO] sentimentos já desenvolvidos em [PENSAMENTO] nem o
-conteúdo da conversa em [FALA]. Não existe limite fixo de palavras.
-[FALA]: quando mais de um personagem falar, identifique cada turno com "Mary:" ou
-"Silvia:" (ou o nome real de quem falou), sem confundir as autorias.
-Concretize a FALA-GUIA em português brasileiro vivo e contextual, sem
-recitar instruções nem explicar o roteiro aos personagens.
-[PENSAMENTO]: quando pertinente ao PENSAMENTO-GUIA, expresse a experiência interna
-em primeira pessoa; sentimentos não precisam virar ação ou fala no mesmo turno.
-Elimine somente artificialidade: repetições sem função, frases genéricas,
-explicações mecânicas e imitação literal da orientação autoral.
-Quando a linha oferecer alternativas, selecione a que faça sentido na conversa,
-sem acumular perguntas ou iniciativas para demonstrar cumprimento. Quando a
-pergunta abrir espaço para resposta real do usuário, encerre a intervenção
-nesse ponto; uma participação opcional de outra personagem pode comentar,
-mas não precisa adicionar outra pergunta. Se o autor exigir uma sequência
-com várias perguntas ou falas, execute toda a sequência.
-A direção da linha ativa sempre prevalece sobre qualquer preferência de estilo
-deste contrato. Preserve continuidade, canais e limites de revelação.
+HUMANIZAÇÃO — QUALIDADE EXPRESSIVA
+Os três guias e o estilo da linha definem o conteúdo, as emoções e a intensidade;
+este contrato aprimora apenas a expressão, sem mudar a autoria.
+[AÇÃO]: linguagem concreta e proporcional ao acontecimento; evite microgestos,
+clima e sensações de preenchimento. Preserve os movimentos relevantes da cena.
+[FALA]: português brasileiro vivo, situado e espontâneo, sem discurso explicativo,
+frases feitas ou perguntas em série quando a conversa pede espaço para resposta.
+[PENSAMENTO]: voz interior própria, íntima e natural; pode expressar emoções,
+atração, receio, hesitação, lembranças ou conflitos sem iniciativa externa.
+Evite que ação, fala e pensamento repitam a mesma informação por obrigação.
+Não fixe comprimento nem intensidade: acompanhe o roteiro e a conversa real.
 """
 
 
@@ -3160,7 +3143,7 @@ if user_text:
                         "content": (
                             "CORREÇÃO DE FORMATO: no roteiro direto use apenas os blocos necessários: "
                             "[AÇÃO] para movimento executado, [FALA] para diálogo e "
-                            "[PENSAMENTO] opcional só para intenção significativa ligada à iniciativa real. "
+                            "[PENSAMENTO] opcional para experiência interior, sem obrigação de ação ou fala correspondente. "
                             "Não coloque ações entre asteriscos dentro da fala."
                         ),
                     },
