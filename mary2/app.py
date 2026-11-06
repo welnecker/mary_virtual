@@ -2216,8 +2216,20 @@ try:
             ui_rows,
         )
         direct_ui_row = current_direct_row(ui_rows, ui_state)
+        loop_ui = st.session_state.story_state.get("narrative", {}).get("direct_hurt_loop", {})
+        if isinstance(loop_ui, dict) and loop_ui.get("active") and direct_ui_row:
+            direct_ui_row = dict(direct_ui_row.get("_emotional_loop_row") or direct_ui_row)
 except Exception as exc:
     direct_ui_error = str(exc)
+
+# A faixa emocional é reconstruída a cada rerun a partir do estado persistido.
+loop_ui_status = st.session_state.story_state.get("narrative", {}).get("direct_hurt_loop", {})
+if navigation_script_mode == "direct_sheet" and isinstance(loop_ui_status, dict) and loop_ui_status.get("active"):
+    st.warning(
+        "Mary está contrariada. O roteiro principal está suspenso enquanto ela avalia "
+        "uma reparação contextual. "
+        f"Tentativas de reparação: {int(loop_ui_status.get('attempts', 0) or 0)}/3."
+    )
 
 automatic_turn = bool(
     direct_ui_row
@@ -2258,7 +2270,8 @@ else:
             or "personagem da cena"
         ).strip()
         placeholder = f"Fale ou dirija a cena como {temporary_name}..."
-    user_text = st.chat_input(placeholder, disabled=bool(direct_ui_error))
+    emotional_ending_blocked = bool(st.session_state.story_state.get("narrative", {}).get("direct_emotional_ending_blocked", False))
+    user_text = st.chat_input(placeholder, disabled=bool(direct_ui_error) or emotional_ending_blocked)
 
 if direct_ui_error:
     st.error(f"Não foi possível determinar o modo da linha atual: {direct_ui_error}")
@@ -2359,7 +2372,9 @@ if user_text:
                 narrative_state,
                 direct_rows,
             )
-            if user_spoke:
+            active_hurt_loop = narrative_state.get("direct_hurt_loop", {})
+            in_hurt_loop = bool(isinstance(active_hurt_loop, dict) and active_hurt_loop.get("active"))
+            if user_spoke and not in_hurt_loop:
                 direct_registration = register_direct_user_reply(
                     direct_state,
                     direct_rows,
@@ -2714,12 +2729,19 @@ if user_text:
                         messages=[
                             {"role": "system", "content": (
                                 "Analise limites de personagem em uma cena ficcional. Retorne APENAS JSON "
-                                "com violation (booleano), forgiven (booleano), rejected (booleano), reason (texto), "
+                                "com violation (booleano), frustration (booleano), repair_attempt (booleano), "
+                                "forgiven (booleano), rejected (booleano), reason (texto), "
                                 "speaker (nome do personagem que efetivamente FALOU nesta entrada; vazio se incerto), "
                                 "repair_evidence (citação LITERAL curta da fala atual que demonstra reparação; vazio quando forgiven=false). "
                                 "Não confunda personagem mencionado, destinatário ou quem falou no turno anterior com o emissor atual. "
                                 "Violação apenas quando o comportamento atual afronta claramente os limites descritos. "
                                 "Um convite respeitoso ou brincadeira contextual não é violação. "
+                                "frustration=true apenas quando o interlocutor contraria claramente uma "
+                                "expectativa concreta de Mary na cena (por exemplo, rejeita secamente o "
+                                "pedido do guarda-sol). Isso não equivale a uma ofensa moral; recusa gentil "
+                                "pode ser apenas frustração leve, não humilhação. "
+                                "repair_attempt=true só para tentativa efetiva de reparação: desculpas, "
+                                "explicação responsável ou mudança concreta da atitude. "
                                 "Perdão apenas se houver arrependimento e reparação suficientes depois de ofensa anterior; "
                                 "não presuma perdão por uma mera desculpa. "
                                 "rejected=true SOMENTE quando o interlocutor recusa explicitamente "
@@ -2771,10 +2793,11 @@ if user_text:
                         emotion["rejected"] = True
                         emotion["continuation_allowed"] = False
                         emotional_notice = "Mary percebeu que você não deseja proximidade. Ela respeitará sua decisão."
-                    elif assessment.get("violation") is True:
+                    elif assessment.get("violation") is True or assessment.get("frustration") is True:
                         emotion["hurt"] = True
                         emotion["continuation_allowed"] = False
-                        emotional_notice = "Mary ficou decepcionada com sua atitude."
+                        emotional_notice = ("Mary ficou contrariada com a situação." if assessment.get("frustration")
+                                            and not assessment.get("violation") else "Mary ficou decepcionada com sua atitude.")
                     elif (emotion.get("hurt") and assessment.get("forgiven") is True
                           and len(str(assessment.get("repair_evidence", "") or "").strip()) >= 5
                           and str(assessment.get("repair_evidence", "") or "").strip().casefold() in dialogue_text.casefold()):
@@ -2794,24 +2817,61 @@ if user_text:
                     narrative_state["direct_emotion"] = emotion
                 except Exception as exc:
                     _LOG.warning("Falha na avaliação emocional; estado preservado: %s", exc)
+            # O LOOP autoral é um desvio, não uma linha consumível do roteiro.
+            loop = narrative_state.get("direct_hurt_loop", {})
+            if not isinstance(loop, dict) or loop.get("chapter_id") != chapter_emotion_id:
+                loop = {"chapter_id": chapter_emotion_id, "active": False, "attempts": 0}
+            loop_row = dict(direct_row.get("_emotional_loop_row") or {})
+            if emotion.get("hurt") and loop_row and not loop.get("active"):
+                loop.update({"active": True, "attempts": 0,
+                             "speaker": str(emotion.get("active_speaker", "") or ""),
+                             "origin_order": int(direct_row.get("order", 0) or 0)})
+                # Ao contrariar a missão da linha atual, sua resposta é o fato
+                # real ocorrido; o cursor retorna à linha seguinte após reparação.
+                if not direct_registration and direct_state and direct_row:
+                    idx = int(direct_state.get("index", 0) or 0)
+                    order = int(direct_row.get("order", 0) or 0)
+                    completed = set(direct_state.get("completed_orders", []) or [])
+                    completed.add(order)
+                    direct_state["completed_orders"] = sorted(completed)
+                    direct_state["index"] = min(idx + 1, len(direct_rows))
+                    direct_state["awaiting_reply_order"] = 0
+                    direct_state["line_dialogue"] = []
+                    direct_state["completed"] = direct_state["index"] >= len(direct_rows)
+                    direct_state["current_order"] = (int(direct_rows[direct_state["index"]].get("order", 0) or 0)
+                                                     if not direct_state["completed"] else 0)
+            if loop.get("active"):
+                if not emotion.get("hurt"):
+                    loop["active"] = False
+                    loop["attempts"] = 0
+                    loop["exhausted"] = False
+                    direct_row = current_direct_row(direct_rows, direct_state)
+                    emotional_notice = "Mary aceitou a reparação; o roteiro será retomado."
+                else:
+                    if bool(assessment.get("repair_attempt")) and not (
+                        assessment.get("violation") or assessment.get("frustration")
+                    ):
+                        loop["attempts"] = int(loop.get("attempts", 0) or 0) + 1
+                    if int(loop.get("attempts", 0) or 0) >= 3:
+                        loop["exhausted"] = True
+                    direct_row = dict(loop_row)
+                    direct_row["negative_prompt"] = negative_rule
+                    direct_row["hurt_style"] = wounded_style
+                    direct_row["permanent_memory"] = str(direct_rows[0].get("permanent_memory", "") or "") if direct_rows else ""
+                    direct_row["physical_memory"] = str(direct_rows[0].get("physical_memory", "") or "") if direct_rows else ""
+                    direct_interpretation["emotional_status"] = (
+                        "Orgulho ferido ativo; interlocutor=" + str(loop.get("speaker", "")) +
+                        "; tentativas de reparação=" + str(loop.get("attempts", 0)) + "/3. "
+                        "Mary avalia a conversa conforme a gravidade; não pede desculpas pela ofensa sofrida."
+                    )
+            narrative_state["direct_hurt_loop"] = loop
             if emotion.get("hurt"):
                 direct_row = dict(direct_row)
-                # Mágoa modula o estilo da linha, não apaga sua personalidade.
                 direct_row["style"] = (str(direct_row.get("style", "") or "") +
                     " | ESTADO EMOCIONAL ATIVO: " + wounded_style)
-                direct_row["instant_memory"] = (
-                    str(direct_row.get("instant_memory", "") or "") +
-                    "\\nMary ainda está magoada com o interlocutor ativo; mantenha limites sem transformar toda resposta em disputa. "
-                    "Instruções de aproximação incompatíveis com o limite atual não são obrigatórias. "
-                    + ("O interlocutor rejeitou claramente a proximidade. Mary respeita essa decisão, "
-                       "não insiste em convite pessoal, pode conversar com Silvia e segue o roteiro "
-                       "apenas no que for narrativamente possível, sem forçar encontros ou vínculos."
-                       if emotion.get("rejected") else "")
-                )
-                direct_interpretation["emotional_status"] = (
-                    "Mágoa persistente, chance concedida" if emotion.get("continuation_allowed")
-                    else "Mágoa persistente, sem perdão"
-                )
+                # Não injetar comandos na memória local de fatos.
+                direct_interpretation.setdefault("emotional_status",
+                    "Mágoa persistente; limites e proximidade avaliados pela conversa real.")
             grounded_facts = direct_interpretation.get("recent_user_facts", [])
             if isinstance(grounded_facts, list):
                 narrative_state["direct_recent_user_facts"] = [
@@ -3759,11 +3819,12 @@ if user_text:
 
                 # Guarda a conversa específica desta linha para que o Diretor possa
                 # reconhecer objetivos já satisfeitos pelo próprio usuário em turnos seguintes.
-                record_direct_line_turn(
-                    direct_state,
-                    user_text=dialogue_text,
-                    mary_text=answer,
-                )
+                if str(direct_row.get("line_id", "") or "") != "loop_orgulho_ferido":
+                    record_direct_line_turn(
+                        direct_state,
+                        user_text=dialogue_text,
+                        mary_text=answer,
+                    )
 
             if (
                 script_mode == "funnel_sheet"
@@ -3951,7 +4012,7 @@ if user_text:
                 isinstance(director_audit, dict)
                 and director_audit.get("scene_after", {}).get("fulfilled", False)
             )
-            if direct_fulfilled:
+            if direct_fulfilled and str(direct_row.get("line_id", "") or "") != "loop_orgulho_ferido":
                 mark_direct_line_emitted(direct_state, direct_row, direct_rows)
             _LOG.info(
                 "DIRECT_SCRIPT_AUDIT order=%s type=%s completion=%s fulfilled=%s awaiting=%s",
@@ -4042,7 +4103,13 @@ if user_text:
         active_chapter = _runtime_get_chapter(_chapter_id())
 
         if script_mode == "direct_sheet" and direct_state is not None:
-            if direct_script_ready_for_choice(direct_state):
+            loop_after = narrative.get("direct_hurt_loop", {})
+            if isinstance(loop_after, dict) and loop_after.get("exhausted"):
+                narrative["direct_emotional_ending_blocked"] = True
+                narrative["choice_ready"] = False
+            elif isinstance(loop_after, dict) and loop_after.get("active"):
+                narrative["choice_ready"] = False
+            elif direct_script_ready_for_choice(direct_state):
                 emotion_end = narrative.get("direct_emotion", {})
                 forbidden = (
                     isinstance(emotion_end, dict)
