@@ -556,7 +556,7 @@ def mark_direct_line_emitted(
                 state["completed"] = False
         return
 
-    if last_order and order == last_order and not (row.get("script_name") == "Apartamento1" and row.get("interlocutor_direction")):
+    if last_order and order == last_order:
         completed = {
             int(value)
             for value in (state.get("completed_orders", []) or [])
@@ -742,8 +742,12 @@ def build_direct_writer_prompt(
         + (
             "CONTINUAÇÃO AUTOMÁTICA\n"
             "O usuário NÃO falou neste turno. O botão Prosseguir apenas autorizou a sequência. "
-            "Mary está conduzindo a cena consigo mesma: pode pensar, murmurar, falar sozinha ou verbalizar "
-            "algo compatível com a FALA-GUIA. Não responda à palavra 'Prosseguir' e não invente interlocutor.\n\n"
+            "Esta linha é conduzida pelo roteiro sem nova fala do usuário. Mary realiza as "
+            "ações da DESCRIÇÃO-GUIA e a direção da FALA-GUIA, com PENSAMENTO-GUIA "
+            "e ESTILO/ATITUDE definidos pela planilha. Pode conversar e atuar com outros "
+            "personagens presentes, conforme a missão da linha, sem esperar resposta "
+            "do usuário nem inventar falas dele. 'Prosseguir' é somente um controle. "
+            "Não execute acontecimentos de linhas futuras.\n\n"
             if automatic_line
             else (
                 "INICIATIVA DE MARY\n"
@@ -804,11 +808,11 @@ def build_direct_writer_prompt(
 
         "FORMATO PADRÃO: [FALA] com as palavras de Mary, guiadas pela conversa real e pela Fala-guia.\n"
         "CANAIS OPCIONAIS: [AÇÃO] só para movimento concreto autorizado na Descrição-guia; "
-        "[PENSAMENTO] só para intenção espontânea significativa que Mary concretiza na FALA ou AÇÃO deste turno. "
+        "[PENSAMENTO] expressa a experiência interior orientada pelo Pensamento-guia, sem exigir ação ou fala correspondente. "
         "Se aparecer, escreva como pensamento vivo da própria Mary em primeira pessoa (eu/meu/vou), "
         "com voz íntima, imediata e coloquial; nunca como narrador em terceira pessoa descrevendo o que Mary nota, sente ou pretende. "
         "Pensamento-guia, se preenchido, orienta o conteúdo; não obriga emissão. "
-        "Sem iniciativa significativa, omita [PENSAMENTO]; não o use para comentar ambiente, interpretar a personalidade alheia ou repetir a fala.\n"
+        "Omitir [PENSAMENTO] só quando não acrescentar experiência interior relevante; evite repetir a fala.\n"
         "Se necessário, posicione [PENSAMENTO] antes da iniciativa; o parser aceita os blocos em qualquer ordem. "
         "Não produza blocos opcionais para completar formato, nem invente ação ou antecipação de roteiro. "
         "Não coloque ações dentro de [FALA]."
