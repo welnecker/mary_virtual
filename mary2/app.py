@@ -8,8 +8,9 @@ este contrato aprimora apenas a expressão, sem mudar a autoria.
 clima e sensações de preenchimento. Preserve os movimentos relevantes da cena.
 [FALA]: português brasileiro vivo, situado e espontâneo, sem discurso explicativo,
 frases feitas ou perguntas em série quando a conversa pede espaço para resposta.
-[PENSAMENTO]: voz interior própria, íntima e natural; pode expressar emoções,
-atração, receio, hesitação, lembranças ou conflitos sem iniciativa externa.
+[PENSAMENTO]: voz interior própria, íntima e natural; expresse as emoções,
+motivações e conflitos que emergirem da conversa e do PENSAMENTO-GUIA, sem
+impor categorias emocionais fixas nem converter pensamento em ação obrigatória.
 Se mostrado antes do diálogo, expresse apenas o que Mary sente ou sabe naquele
 instante; não resuma antecipadamente as falas, reações e decisões da cena.
 Evite que ação, fala e pensamento repitam a mesma informação por obrigação.
@@ -2627,6 +2628,22 @@ if user_text:
             loop_direction = str(loop_authorial_row.get("speech_guide", "") or "")
             loop_hurt_rule = str(loop_authorial_row.get("hurt_style", "") or "")
             loop_negative_rule = str(loop_authorial_row.get("negative_prompt", "") or "")
+            # Para interpretar a fala, não antecipe a memória ou a revelação
+            # da próxima linha. No LOOP, a linha especial prevalece e pode
+            # herdar apenas o contexto factual da origem.
+            understanding_row = dict(loop_authorial_row if loop_active else authored_trigger_row)
+            if loop_active and isinstance(loop_snapshot, dict):
+                for context_key, saved_key in (
+                    ("instant_memory", "origin_instant_memory"),
+                    ("revelation_policy", "origin_revelation_policy"),
+                    ("initial_description", "origin_initial_description"),
+                ):
+                    understanding_row[context_key] = str(
+                        understanding_row.get(context_key) or loop_snapshot.get(saved_key, "") or ""
+                    )
+                if direct_rows:
+                    understanding_row["permanent_memory"] = direct_rows[0].get("permanent_memory", "")
+                    understanding_row["physical_memory"] = direct_rows[0].get("physical_memory", "")
             previous_mary_text = next(
                 (
                     str(message.get("content", "") or "").strip()
@@ -2737,11 +2754,11 @@ if user_text:
                     recent_user_facts=recent_user_facts,
                     active_interlocutor=active_interlocutor,
                     previous_conversation_state=previous_conversation_state,
-                    instant_memory=str(direct_row.get("instant_memory", "") or ""),
-                    permanent_memory=str(direct_row.get("permanent_memory", "") or ""),
-                    physical_memory=str(direct_row.get("physical_memory", "") or ""),
-                    initial_description=str(direct_row.get("initial_description", "") or ""),
-                    revelation_policy=str(direct_row.get("revelation_policy", "") or ""),
+                    instant_memory=str(understanding_row.get("instant_memory", "") or ""),
+                    permanent_memory=str(understanding_row.get("permanent_memory", "") or ""),
+                    physical_memory=str(understanding_row.get("physical_memory", "") or ""),
+                    initial_description=str(understanding_row.get("initial_description", "") or ""),
+                    revelation_policy=str(understanding_row.get("revelation_policy", "") or ""),
                 )
             assessment = {}
             # O LOOP só é habilitado quando há uma linha LOOP autoral e
@@ -2782,7 +2799,7 @@ if user_text:
                                 "\\nORIENTAÇÃO AUTORAL DO LOOP: " + loop_direction +
                                 "\\nORGULHO FERIDO DA LINHA LOOP: " + loop_hurt_rule +
                                 "\\nLIMITES DA LINHA LOOP: " + loop_negative_rule +
-                                "\\nMEMÓRIA LOCAL: " + str(direct_row.get("instant_memory", "") or "") +
+                                "\\nMEMÓRIA LOCAL: " + str(understanding_row.get("instant_memory", "") or "") +
                                 "\\nINTERLOCUTOR REGISTRADO: " + active_interlocutor +
                                 "\\nCOMPREENSÃO DA FALA: " + str(direct_interpretation.get("literal_meaning", "") or "") +
                                 "\\nESTADO: " + json.dumps(emotion, ensure_ascii=False) +
