@@ -1,42 +1,20 @@
 from __future__ import annotations
 
 HUMANIZER_INTERPRETATIVO = """
-CONTRATO EXPERIMENTAL C — AÇÃO CONTIDA E FALA LIVRE
-Melhore apenas a expressão natural. A linha ativa, REVELACAO e o contrato
-de canais do Redator continuam sendo autoridades.
-
-[AÇÃO] — OBJETIVA E SENSORIAL:
-- Descrição-guia define gestos e movimentos; execute somente o que ela permite.
-- Descreva Mary em terceira pessoa, com verbos concretos e sem prosa literária.
-- Inclua sensações físicas concretas somente quando já estiverem autorizadas
-  na Descrição-guia ou claramente estabelecidas como estado atual da cena.
-- Uma sensação não autoriza inventar outro movimento ou acontecimento.
-- Prefira uma ou duas frases; acrescente extensão apenas para tornar clara
-  a sequência de ações explicitamente orientadas.
-- Evite metáforas, imagens poéticas, exageros, reiterações e microdetalhes
-  que não mudem a compreensão da encenação.
-- Se a Descrição-guia estiver vazia, não invente uma ação para preencher [AÇÃO].
-- Não acrescente gestos decorativos para ilustrar uma emoção abstrata: sorriso de canto,
-  sustentar o olhar, cruzar/descruzar pernas ou ajeitar cabelos só quando houver ação
-  concreta pertinente à cena. Não repita a mesma coreografia a cada turno.
-- A memória instantânea e a descrição inicial contextualizam; não criam tarefas.
-
-[FALA] — PRESERVAR EXPRESSIVIDADE:
-- Responda à última intervenção do interlocutor segundo a Fala-guia.
-- Se uma atividade está em andamento, acompanhe seus desdobramentos reais por vários
-  turnos: reações, regras, consequências e participações, sem trocar de tema por rotina.
-- Mary pode convidar alguém a inventar algo; se aceitar, desenvolva junto sem decidir
-  pelos demais; se recusar ou ignorar, acompanhe a conversa sem cobrança nem bloqueio.
-- Mantenha a oralidade espontânea, o ritmo e a intensidade que a cena pede.
-- Não reduza, resuma ou padronize a fala para imitar a concisão de [AÇÃO].
-- Evite somente imagens poéticas ornamentais; preserve a voz pessoal de Mary.
-- Flerte, brincadeira, vulnerabilidade e cumplicidade não são provas, testes nem
-  avaliações de desempenho. Não transforme elogio, humor ou confidência em disputa
-  de poder sem evidência na conversa.
-- Se Mary errou o tom, pode reconhecer isso numa frase e mudar de assunto, sem
-  discursos justificando sua inteligência, maturidade ou personalidade.
-
-Preserve o formato de saída do Redator e não antecipe acontecimentos futuros.
+HUMANIZAÇÃO UNIVERSAL — EXECUÇÃO NATURAL DA AUTORIA
+A planilha é soberana sobre missão, ações, pensamentos, falas, emoção, intensidade,
+interlocutores e atitude. Este contrato só aprimora a forma de expressão.
+Não suavize, resuma, padronize nem substitua acontecimentos ou intenções da linha.
+[AÇÃO]: realize a DESCRIÇÃO-GUIA com clareza e naturalidade, sem gestos repetitivos
+de preenchimento. A extensão acompanha a necessidade da cena, não um limite fixo.
+[FALA]: concretize a FALA-GUIA em português brasileiro vivo e contextual, sem
+recitar instruções nem explicar o roteiro aos personagens.
+[PENSAMENTO]: quando pertinente ao PENSAMENTO-GUIA, expresse a experiência interna
+em primeira pessoa; sentimentos não precisam virar ação ou fala no mesmo turno.
+Elimine somente artificialidade: repetições sem função, frases genéricas,
+explicações mecânicas e imitação literal da orientação autoral.
+A direção da linha ativa sempre prevalece sobre qualquer preferência de estilo
+deste contrato. Preserve continuidade, canais e limites de revelação.
 """
 
 
@@ -584,7 +562,6 @@ def activate_direct_sheet_chapter(
     narrative["chapter_instance_id"] = instance_id
     narrative["chapter_entry_checkpoint_id"] = ""
     narrative["choice_ready"] = False
-    narrative.pop("apartamento1_pilot", None)
     narrative.pop("direct_script", None)
     narrative.pop("direct_conversation_state", None)
     narrative.pop("direct_recent_user_facts", None)
@@ -713,7 +690,6 @@ def restart_current_chapter(persistence: dict | None) -> None:
     narrative["choice_ready"] = False
     narrative["pending_auto_chapter"] = ""
     narrative["handoff"] = {}
-    narrative.pop("apartamento1_pilot", None)
     narrative.pop("phase_start_message_index", None)
     narrative.pop("active_phase_id", None)
 
@@ -2256,29 +2232,7 @@ blocked_turn = bool(
         != int(direct_ui_row.get("order", 0) or 0)
     and not choice_ready
 )
-pilot_script = str(ui_chapter.get("script_name", "") or "").strip() == "Apartamento1"
-# No piloto, uma linha interativa ainda não emitida deve iniciar pela fala de Mary.
-# Só depois de emitida é que a DIREÇÃO DOS INTERLOCUTORES fornece os botões.
-pilot_mary_first = bool(
-    pilot_script
-    and direct_ui_row
-    and not automatic_turn
-    and not blocked_turn
-    and not choice_ready
-    and int(ui_state.get("awaiting_reply_order", 0) or 0) == 0
-)
-mary_first_turn = bool(automatic_turn or blocked_turn or pilot_mary_first)
-pilot_options = {}
-if pilot_script and ui_state and not mary_first_turn:
-    reply_order = int(ui_state.get("awaiting_reply_order", 0) or 0)
-    reply_row = next((r for r in ui_rows if int(r.get("order", 0) or 0) == reply_order), {})
-    for item in str(reply_row.get("interlocutor_direction", "") or "").splitlines():
-        key, sep, value = item.partition(":")
-        if sep and key.strip().upper() in {"PERSONAGEM", "POSITIVA", "NEGATIVA"}:
-            pilot_options[key.strip().upper()] = value.strip()
-    if not (pilot_options.get("POSITIVA") and pilot_options.get("NEGATIVA")):
-        pilot_options = {}
-
+mary_first_turn = bool(automatic_turn or blocked_turn)
 if mary_first_turn:
     # A linha automática/bloqueada não oferece campo de digitação.
     # Somente o botão abaixo pode disparar a continuação de Mary.
@@ -2293,7 +2247,7 @@ if mary_first_turn:
         else None
     )
     if automatic_turn:
-        st.caption("Mary está conduzindo esta passagem consigo mesma. Não há fala livre do usuário neste turno.")
+        st.caption("O roteiro conduz esta passagem. O campo do usuário retorna na próxima linha interativa.")
     else:
         st.caption("Mary inicia esta passagem. Depois da fala dela, o campo do personagem será liberado.")
 else:
@@ -2305,20 +2259,7 @@ else:
             or "personagem da cena"
         ).strip()
         placeholder = f"Fale ou dirija a cena como {temporary_name}..."
-    pilot_selection = None
-    if pilot_options and not choice_ready:
-        left, right = st.columns(2)
-        with left:
-            if st.button("Prosseguir", key="pilot_positive", use_container_width=True, type="primary"):
-                pilot_selection = "POSITIVA"
-        with right:
-            if st.button("Contrariar", key="pilot_negative", use_container_width=True):
-                pilot_selection = "NEGATIVA"
-    user_text = pilot_options[pilot_selection] if pilot_selection else st.chat_input(
-        placeholder, disabled=bool(direct_ui_error),
-    )
-    if pilot_selection:
-        st.session_state["pilot_choice_pending"] = {"choice": pilot_selection, "text": user_text}
+    user_text = st.chat_input(placeholder, disabled=bool(direct_ui_error))
 
 if direct_ui_error:
     st.error(f"Não foi possível determinar o modo da linha atual: {direct_ui_error}")
@@ -2356,8 +2297,6 @@ if user_text:
                 "scene_direction": "",
                 "dialogue": "",
             }
-        elif st.session_state.get("pilot_choice_pending", {}).get("text") == user_text:
-            parsed_input = {"scene_direction": "", "dialogue": user_text}
         else:
             parsed_input = parse_user_input(
                 api_key=api_key,
@@ -2366,16 +2305,6 @@ if user_text:
                 user_role=user_role,
                 raw_text=user_text,
             )
-        pilot_choice = st.session_state.pop("pilot_choice_pending", None)
-        if pilot_choice and pilot_script:
-            pilot_state = st.session_state.story_state.setdefault("narrative", {}).setdefault(
-                "apartamento1_pilot", {"negatives": 0, "blocked": False, "hurt": False})
-            if pilot_choice["choice"] == "NEGATIVA":
-                pilot_state["negatives"] += 1
-                pilot_state["blocked"] = pilot_state["negatives"] >= 2
-                pilot_state["hurt"] = True
-            elif not pilot_state["blocked"]:
-                pilot_state["hurt"] = False
         scene_direction = parsed_input["scene_direction"]
         dialogue_text = parsed_input["dialogue"]
         user_spoke = bool(dialogue_text)
@@ -2660,14 +2589,6 @@ if user_text:
                 emotion = {"chapter_id": chapter_emotion_id, "hurt": False, "continuation_allowed": True, "rejected": False}
                 narrative_state["direct_emotion"] = emotion
                 narrative_state["direct_emotional_ending_blocked"] = False
-            pilot_mood = narrative_state.get("apartamento1_pilot", {}) if pilot_script else {}
-            if pilot_choice and pilot_script and pilot_choice.get("choice") == "POSITIVA" and not pilot_mood.get("blocked"):
-                emotion["hurt"] = False
-                emotion["rejected"] = False
-                emotion["continuation_allowed"] = True
-            if pilot_mood.get("hurt"):
-                emotion["hurt"] = True
-                emotion["continuation_allowed"] = False
             negative_rule = str(direct_row.get("negative_prompt", "") or "")
             wounded_style = str(direct_row.get("hurt_style", "") or "")
             previous_mary_text = next(
@@ -2731,7 +2652,6 @@ if user_text:
             )
             blocked_direct_turn = bool(
                 (blocked_turn and is_blocked_direct_row(direct_row))
-                or (pilot_mary_first and pilot_script and not is_automatic_direct_row(direct_row))
             )
             if automatic_direct_turn:
                 direct_interpretation = {
@@ -2875,9 +2795,6 @@ if user_text:
                     narrative_state["direct_emotion"] = emotion
                 except Exception as exc:
                     _LOG.warning("Falha na avaliação emocional; estado preservado: %s", exc)
-            if pilot_script and narrative_state.get("apartamento1_pilot", {}).get("hurt"):
-                emotion["hurt"] = True
-                emotion["continuation_allowed"] = False
             if emotion.get("hurt"):
                 direct_row = dict(direct_row)
                 # Mágoa modula o estilo da linha, não apaga sua personalidade.
@@ -2951,8 +2868,7 @@ if user_text:
                     scene_for_director.get("temporary_character", {}).get("name", "") or ""
                 ),
             )
-            if str(chapter_config.get("script_name", "") or "").strip() in {"Cruzeiro Caribe1", "Cruzeiro Caribe2"}:
-                current_chapter_prompt += "\n\n" + HUMANIZER_INTERPRETATIVO
+            current_chapter_prompt += "\n\n" + HUMANIZER_INTERPRETATIVO
 
         elif script_mode == "block_sheet":
             current_chapter_prompt = build_block_prompt(
@@ -4089,8 +4005,6 @@ if user_text:
                         or emotion_end.get("continuation_allowed") is not True
                     )
                 )
-                if pilot_script and narrative.get("apartamento1_pilot", {}).get("blocked"):
-                    forbidden = True
                 narrative["direct_emotional_ending_blocked"] = forbidden
                 narrative["choice_ready"] = not forbidden
         elif script_mode == "block_sheet" and block_state is not None:
