@@ -411,9 +411,9 @@ def validate_direct_semantic_turn(
     # Requisito de legibilidade: em turnos com multiplas falas, o nome do
     # personagem acompanha cada intervencao. Isso nao altera a autoria.
     dialogue_turns = [line.strip() for line in _clean(mary_text).splitlines()
-                      if re.match(r"^\\s*[—–-]\\s+", line)]
+                      if re.match(r"^\s*[—–-]\s+", line)]
     unlabeled_turns = [line for line in dialogue_turns
-                       if not re.match(r"^[—–-]\\s*[A-ZÀ-Ý][a-zà-ÿ]+(?:\\s+[A-ZÀ-Ý][a-zà-ÿ]+){0,2}:", line)]
+                       if not re.match(r"^[—–-]\s*[A-ZÀ-Ý][a-zà-ÿ]+(?:\s+[A-ZÀ-Ý][a-zà-ÿ]+){0,2}:", line)]
     speaker_format_invalid = len(dialogue_turns) >= 2 and bool(unlabeled_turns)
     if speaker_format_invalid:
         conversation_consistency["ok"] = False
