@@ -2604,6 +2604,20 @@ if user_text:
         direct_interpretation = {}
         emotional_notice = ""
         if script_mode == "direct_sheet":
+            # O handoff já é persistido na mudança de capítulo. Entregue-o
+            # somente no primeiro turno do novo roteiro: evita importar o
+            # histórico inteiro ou reencenar a despedida em linhas futuras.
+            direct_handoff_text = (
+                _handoff_text(st.session_state.story_state)
+                if current_turn_number == 1 else ""
+            )
+            handoff_record = narrative_state.get("handoff", {})
+            if not isinstance(handoff_record, dict):
+                handoff_record = {}
+            handoff_previous_mary = (
+                str(handoff_record.get("mary_text", "") or "").strip()
+                if direct_handoff_text and direct_handoff_text != "(nenhum)" else ""
+            )
             chapter_emotion_id = str(narrative_state.get("chapter_id", "") or "")
             emotion = narrative_state.get("direct_emotion", {})
             if not isinstance(emotion, dict) or emotion.get("chapter_id") != chapter_emotion_id:
@@ -2653,7 +2667,7 @@ if user_text:
                     if str(message.get("role", "") or "").strip().lower() == "assistant"
                     and str(message.get("content", "") or "").strip()
                 ),
-                "",
+                handoff_previous_mary,
             )
             # Uma única chamada de compreensão: recebe somente passado/presente
             # já estabelecidos. Nunca recebe a fala-guia nem roteiro futuro.
@@ -3017,6 +3031,7 @@ if user_text:
                 character_name=str(
                     scene_for_director.get("temporary_character", {}).get("name", "") or ""
                 ),
+                handoff_text=direct_handoff_text,
             )
             current_chapter_prompt += "\n\n" + HUMANIZER_INTERPRETATIVO
 
