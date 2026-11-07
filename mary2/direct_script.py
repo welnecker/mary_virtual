@@ -527,11 +527,12 @@ def register_direct_user_reply(
     state: dict,
     rows: list[dict],
     user_text: str,
+    scene_direction: str = "",
 ) -> dict:
-    """A fala seguinte do usuário encerra a linha que Mary acabou de emitir."""
+    """Uma fala ou encenação nova do usuário encerra a linha emitida por Mary."""
     before = deepcopy(state)
     awaiting = int(state.get("awaiting_reply_order", 0) or 0)
-    if awaiting and _clean(user_text):
+    if awaiting and (_clean(user_text) or _clean(scene_direction)):
         completed = {
             int(value)
             for value in (state.get("completed_orders", []) or [])
