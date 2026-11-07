@@ -688,6 +688,7 @@ def build_direct_writer_prompt(
     previous_conversation_state: dict | None = None,
     active_interlocutor: str = "",
     character_name: str = "",
+    handoff_text: str = "",
 ) -> str:
     """Prompt direto: conversa real + roteiro completo + linha ativa + cânone."""
     if not row:
@@ -782,6 +783,16 @@ def build_direct_writer_prompt(
         "==================================================\n"
         + conversation_text
         + "\n\n"
+        + (
+            "TRANSIÇÃO DO CAPÍTULO ANTERIOR — CONTEXTO, NÃO NOVA MISSÃO\n"
+            + _clean(handoff_text)
+            + "\nUse apenas para continuar os fatos e responder à última fala quando pertinente. "
+            "A transição não é uma nova intervenção do usuário, não exige repetir falas "
+            "nem autoriza antecipar ações. A linha ativa e a conversa atual determinam "
+            "o que fazer; prevalecem fatos confirmados e limites de REVELACAO.\n\n"
+            if _clean(handoff_text) and _clean(handoff_text) != "(nenhum)"
+            else ""
+        )
         + (
             "CONTINUAÇÃO AUTOMÁTICA\n"
             "O usuário NÃO falou neste turno. O botão Prosseguir apenas autorizou a sequência. "
