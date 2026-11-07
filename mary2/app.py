@@ -2379,11 +2379,12 @@ if user_text:
             )
             active_hurt_loop = narrative_state.get("direct_hurt_loop", {})
             in_hurt_loop = bool(isinstance(active_hurt_loop, dict) and active_hurt_loop.get("active"))
-            if user_spoke and not in_hurt_loop:
+            if (user_spoke or bool(scene_direction)) and not in_hurt_loop:
                 direct_registration = register_direct_user_reply(
                     direct_state,
                     direct_rows,
                     dialogue_text,
+                    scene_direction=scene_direction,
                 )
             direct_row = current_direct_row(
                 direct_rows,
