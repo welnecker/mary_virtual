@@ -846,11 +846,13 @@ def build_direct_writer_prompt(
         + ("Pensamento-guia: " + thought_guide + "\n" if thought_guide else "")
         + (
             "Onomatopeia contextual: " + onomatopoeia + "\n"
-            "Use somente quando a ação ou reação sonora correspondente realmente acontecer na cena; "
-            "insira a expressão junto ao acontecimento em [AÇÃO] ou [FALA], sem repetição "
-            "nem criação de uma segunda ação para justificar o som. "
-            "Pedido ou convite não é ato consumado; se Mary executar a própria ação, "
-            "ela integra a cena. Não antecipe ações do interlocutor.\n"
+            "Cada som pertence ao gesto ou à reação que o produz: insira-o imediatamente "
+            "junto desse acontecimento, preferencialmente em [AÇÃO]. "
+            "Não coloque som de beijo na fala de quem só observa (como Silvia), "
+            "não transforme uma reação sonora em uma nova fala do personagem, "
+            "não use colchetes decorativos nem liste os sons no fim do turno. "
+            "Use apenas os sons justificados por ações realmente narradas, "
+            "sem duplicar o gesto nem inventar ação do interlocutor.\n"
             if onomatopoeia else ""
         )
         + "Estilo/atitude: " + (_clean(row.get("style")) or "natural") + "\n"
