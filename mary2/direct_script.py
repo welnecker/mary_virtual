@@ -19,6 +19,8 @@ DIRECT_HEADERS = {
     "descrição-guia": "action_guide",
     "descricao-guia": "action_guide",
     "pensamento-guia": "thought_guide",
+    "onomatopeia": "onomatopoeia",
+    "onomatopéia": "onomatopoeia",
     "modo": "interaction_mode",
     "modo de interação": "interaction_mode",
     "modo de interacao": "interaction_mode",
@@ -714,6 +716,7 @@ def build_direct_writer_prompt(
     interpret_direction = (interpret_match.group(1) or "").strip() if interpret_match else ""
     action_guide = _clean(row.get("action_guide"))
     thought_guide = _clean(row.get("thought_guide"))
+    onomatopoeia = _clean(row.get("onomatopoeia"))
 
     conversation_lines: list[str] = []
     for message in (recent_messages or []):
@@ -841,6 +844,15 @@ def build_direct_writer_prompt(
         + ("Direção autoral desta linha: " + interpret_direction + "\n" if interpret_direction else "")
         + ("Descrição-guia: " + action_guide + "\n" if action_guide else "")
         + ("Pensamento-guia: " + thought_guide + "\n" if thought_guide else "")
+        + (
+            "Onomatopeia contextual: " + onomatopoeia + "\n"
+            "Use somente quando a ação ou reação sonora correspondente realmente acontecer na cena; "
+            "insira a expressão junto ao acontecimento em [AÇÃO] ou [FALA], sem repetição "
+            "nem criação de uma segunda ação para justificar o som. "
+            "Pedido ou convite não é ato consumado; se Mary executar a própria ação, "
+            "ela integra a cena. Não antecipe ações do interlocutor.\n"
+            if onomatopoeia else ""
+        )
         + "Estilo/atitude: " + (_clean(row.get("style")) or "natural") + "\n"
         "Revelação permitida nesta linha: " + (_clean(row.get("revelation_policy")) or "(sem restrição autoral específica)") + "\n\n"
 
