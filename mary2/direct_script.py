@@ -883,10 +883,11 @@ def build_direct_writer_prompt(
            if thought_disabled else
            "[PENSAMENTO] é opcional, em primeira pessoa, orientado pelo PENSAMENTO-GUIA; "
            "pode conter emoções, dúvidas, memórias e conflitos sem produzir ação ou fala. ")
-        "Quando apresentado no início da resposta, retrata o instante ANTES das falas e ações novas "
-        "deste turno: não narre como já ocorrida a reação posterior de Silvia, uma decisão ainda "
-        "não tomada ou acontecimentos que só serão revelados ao longo desta mesma resposta. "
-        "Não misture os canais. Repita [FALA] ou [AÇÃO] sempre que alternar entre eles; "
+        + ("" if thought_disabled else
+           "Quando apresentado no início da resposta, retrata o instante ANTES das falas e ações novas "
+           "deste turno: não narre como já ocorrida a reação posterior de Silvia, uma decisão ainda "
+           "não tomada ou acontecimentos que só serão revelados ao longo desta mesma resposta. ")
+        + "Não misture os canais. Repita [FALA] ou [AÇÃO] sempre que alternar entre eles; "
         "não escreva fala de personagem dentro de [AÇÃO]."
     )
 
