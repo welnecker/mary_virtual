@@ -3521,7 +3521,7 @@ if user_text:
                         messages=style_retry_messages,
                         temperature=max(0.2, min(float(temperature), 0.7)),
                     )
-                    style_thought, style_speech = _parse_direct_flexible_response(style_raw, script_mode)
+                    style_thought, style_speech = _parse_direct_flexible_response(style_raw, script_mode, thought_disabled=thought_disabled)
                     style_answer = sanitize_mary_output(style_speech)
                     if (style_answer or parse_mary_components(style_raw)["action"]) and not looks_like_action_narration(style_speech):
                         style_validation = validate_direct_semantic_turn(
@@ -3711,7 +3711,7 @@ if user_text:
                         messages=scene_retry_messages,
                         temperature=max(0.2, min(float(temperature), 0.7)),
                     )
-                    scene_thought, scene_speech = _parse_direct_flexible_response(scene_raw, script_mode)
+                    scene_thought, scene_speech = _parse_direct_flexible_response(scene_raw, script_mode, thought_disabled=thought_disabled)
                     scene_answer = sanitize_mary_output(scene_speech)
                     if (scene_answer or parse_mary_components(scene_raw)["action"]) and not looks_like_action_narration(scene_speech):
                         scene_validation = validate_direct_semantic_turn(
@@ -3763,7 +3763,7 @@ if user_text:
                     auto_validation = validate_direct_semantic_turn(
                         api_key=api_key, model=director_model, fallback_model=fallback,
                         row=direct_row, interpretation=direct_interpretation,
-                        mary_text=auto_speech, mary_thought=auto_parts["thought"],
+                        mary_text=auto_speech, mary_thought=("" if thought_disabled else auto_parts["thought"]),
                         mary_action=auto_parts["action"], user_text=dialogue_text,
                         user_scene_direction=scene_direction,
                         line_dialogue=list(direct_state.get("line_dialogue", []) or []),
@@ -3801,7 +3801,7 @@ if user_text:
                             last_validation = validate_direct_semantic_turn(
                                 api_key=api_key, model=director_model, fallback_model=fallback,
                                 row=direct_row, interpretation=direct_interpretation,
-                                mary_text=last_speech, mary_thought=last_parts["thought"],
+                                mary_text=last_speech, mary_thought=("" if thought_disabled else last_parts["thought"]),
                                 mary_action=last_parts["action"], user_text=dialogue_text,
                                 user_scene_direction=scene_direction,
                                 line_dialogue=list(direct_state.get("line_dialogue", []) or []),
