@@ -550,7 +550,16 @@ def register_direct_user_reply(
         state["completed_orders"] = sorted(completed)
         state["awaiting_reply_order"] = 0
         state["line_dialogue"] = []
-        state["index"] = min(int(state.get("index", 0) or 0) + 1, len(rows))
+        # O índice persistido pode estar defasado após inserções de linhas
+        # na planilha. Avance pela ORDEM concluída, nunca por index + 1.
+        state["index"] = next(
+            (
+                idx for idx, item in enumerate(rows)
+                if int(item.get("order", 0) or 0) > awaiting
+                and int(item.get("order", 0) or 0) not in completed
+            ),
+            len(rows),
+        )
         if state["index"] >= len(rows):
             state["current_order"] = 0
             state["completed"] = True
