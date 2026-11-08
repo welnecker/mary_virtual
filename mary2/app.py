@@ -53,6 +53,7 @@ from direct_semantic_director import validate_direct_semantic_turn
 from conversation_state import analyze_mary_move, normalize_conversation_state
 from input_router import parse_user_input
 from direct_script import (
+    advance_emitted_automatic_line,
     build_direct_chapter,
     build_direct_writer_prompt,
     current_direct_row,
@@ -2247,9 +2248,17 @@ if (navigation_script_mode == "direct_sheet" and isinstance(loop_ui_status, dict
         f"{int(loop_ui_status.get('max_attempts', 3) or 3)}."
     )
 
+automatic_emitted = bool(
+    direct_ui_row
+    and is_automatic_direct_row(direct_ui_row)
+    and int(ui_state.get("automatic_emitted_order", 0) or 0)
+        == int(direct_ui_row.get("order", 0) or 0)
+    and not choice_ready
+)
 automatic_turn = bool(
     direct_ui_row
     and is_automatic_direct_row(direct_ui_row)
+    and not automatic_emitted
     and not choice_ready
 )
 blocked_turn = bool(
@@ -2260,22 +2269,55 @@ blocked_turn = bool(
     and not choice_ready
 )
 mary_first_turn = bool(automatic_turn or blocked_turn)
-if mary_first_turn:
-    # A linha automática/bloqueada não oferece campo de digitação.
-    # Somente o botão abaixo pode disparar a continuação de Mary.
-    user_text = (
-        "Prosseguir"
-        if st.button(
-            "Prosseguir",
-            key=f"mary_first_continue_{_chapter_id()}_{direct_ui_row.get('order', 0)}",
-            use_container_width=True,
-            type="primary",
-        )
-        else None
-    )
+if automatic_emitted:
+    # A resposta desta linha já está publicada. O botão apenas move a ORDEM;
+    # não chama modelos, não gera novo turno e não duplica os logs.
+    user_text = None
+    if st.button(
+        "Prosseguir",
+        key=f"auto_advance_{_chapter_id()}_{direct_ui_row.get('order', 0)}",
+        use_container_width=True,
+        type="primary",
+    ):
+        state_before_advance = deepcopy(st.session_state.story_state)
+        try:
+            if advance_emitted_automatic_line(ui_state, ui_rows):
+                narrative_advance = st.session_state.story_state.setdefault("narrative", {})
+                if direct_script_ready_for_choice(ui_state):
+                    narrative_advance["choice_ready"] = True
+                if persistence and st.session_state.run_id:
+                    update_run_snapshot(
+                        service_account_info=persistence["service_account_info"],
+                        spreadsheet_id=persistence["spreadsheet_id"],
+                        spreadsheet_title=persistence["spreadsheet_title"],
+                        owner_email=persistence["owner_email"],
+                        run_id=st.session_state.run_id,
+                        active_user_role=st.session_state.active_user_role,
+                        story_ledger=story_ledger_text(st.session_state.story_state),
+                        scene_state=st.session_state.scene_state,
+                        story_state=st.session_state.story_state,
+                    )
+                st.rerun()
+        except Exception as exc:
+            st.session_state.story_state = state_before_advance
+            st.error(f"Não foi possível avançar a linha automática: {exc}")
+elif mary_first_turn:
     if automatic_turn:
-        st.caption("O roteiro conduz esta passagem. O campo do usuário retorna na próxima linha interativa.")
+        # Entrar na linha executa sua resposta sem turno vazio do usuário.
+        # Depois da resposta, o próximo Prosseguir somente navega.
+        user_text = "Prosseguir"
+        st.caption("Mary conduz esta linha automaticamente. Depois, Prosseguir avançará o roteiro.")
     else:
+        user_text = (
+            "Prosseguir"
+            if st.button(
+                "Prosseguir",
+                key=f"mary_first_continue_{_chapter_id()}_{direct_ui_row.get('order', 0)}",
+                use_container_width=True,
+                type="primary",
+            )
+            else None
+        )
         st.caption("Mary inicia esta passagem. Depois da fala dela, o campo do personagem será liberado.")
 else:
     if user_role == "JANIO":
