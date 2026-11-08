@@ -603,31 +603,14 @@ def mark_direct_line_emitted(
         last_order = max(int(item.get("order", 0) or 0) for item in rows)
 
     if is_automatic_direct_row(row):
-        completed = {
-            int(value)
-            for value in (state.get("completed_orders", []) or [])
-            if str(value).strip()
-        }
-        completed.add(order)
-        state["completed_orders"] = sorted(completed)
+        # A resposta pertence à própria linha automática. Ela só será
+        # consumida quando o jogador clicar Prosseguir depois de vê-la.
+        # Não emita outra resposta nem crie turno intermediário nesse clique.
+        state["automatic_emitted_order"] = order
         state["awaiting_reply_order"] = 0
+        state["current_order"] = order
+        state["completed"] = False
         state["line_dialogue"] = []
-        if rows:
-            current_index = next(
-                (
-                    idx
-                    for idx, item in enumerate(rows)
-                    if int(item.get("order", 0) or 0) == order
-                ),
-                int(state.get("index", 0) or 0),
-            )
-            state["index"] = min(current_index + 1, len(rows))
-            if state["index"] >= len(rows):
-                state["current_order"] = 0
-                state["completed"] = True
-            else:
-                state["current_order"] = int(rows[state["index"]].get("order", 0) or 0)
-                state["completed"] = False
         return
 
     if last_order and order == last_order:
@@ -647,6 +630,46 @@ def mark_direct_line_emitted(
 
     state["awaiting_reply_order"] = order
     state["current_order"] = order
+
+
+def advance_emitted_automatic_line(
+    state: dict, rows: list[dict]
+) -> bool:
+    """Prosseguir depois da resposta automática só move o cursor; não gera turno."""
+    order = int(state.get("automatic_emitted_order", 0) or 0)
+    if not order or not rows:
+        return False
+
+    index = next(
+        (idx for idx, item in enumerate(rows)
+         if int(item.get("order", 0) or 0) == order),
+        None,
+    )
+    if index is None:
+        raise RuntimeError(
+            f"Linha automática {order} não encontrada na versão atual do roteiro."
+        )
+    completed = {
+        int(value) for value in (state.get("completed_orders", []) or [])
+        if str(value).strip()
+    }
+    completed.add(order)
+    state["completed_orders"] = sorted(completed)
+    state["automatic_emitted_order"] = 0
+    state["awaiting_reply_order"] = 0
+    state["line_dialogue"] = []
+    state["index"] = next(
+        (idx for idx, item in enumerate(rows)
+         if int(item.get("order", 0) or 0) > order
+         and int(item.get("order", 0) or 0) not in completed),
+        len(rows),
+    )
+    state["completed"] = state["index"] >= len(rows)
+    state["current_order"] = (
+        int(rows[state["index"]].get("order", 0) or 0)
+        if not state["completed"] else 0
+    )
+    return True
 
 
 def record_direct_line_turn(
