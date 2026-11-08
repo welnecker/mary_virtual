@@ -950,8 +950,10 @@ def _cached_direct_script_rows(
     )
 
 
-def _direct_script_rows(*, persistence: dict, chapter: dict) -> list[dict]:
-    """Carrega a MINHA_SUGESTAO sem transformar o conteúdo autoral."""
+def _direct_script_rows(
+    *, persistence: dict, chapter: dict, force_refresh: bool = False
+) -> list[dict]:
+    """Carrega a MINHA_SUGESTAO; cada turno ativo lê a versão mais recente."""
     if not persistence:
         raise PersistenceError(
             "O roteiro direto requer a planilha de persistência configurada."
@@ -965,6 +967,12 @@ def _direct_script_rows(*, persistence: dict, chapter: dict) -> list[dict]:
         raise PersistenceError(
             "Capítulo direto sem script_name. O roteiro deve ser identificado pela MINHA_SUGESTAO."
         )
+
+    if force_refresh:
+        # A interface usa cache para evitar leituras em cada rerun. No
+        # processamento real de uma interação, descarte a fotografia antiga:
+        # novas linhas de roteiro precisam ser reconhecidas imediatamente.
+        _cached_direct_script_rows.clear()
 
     rows = deepcopy(_cached_direct_script_rows(
         persistence["spreadsheet_id"],
@@ -2375,6 +2383,7 @@ if user_text:
             direct_rows = _direct_script_rows(
                 persistence=persistence,
                 chapter=chapter_config,
+                force_refresh=True,
             )
             direct_state = ensure_direct_state(
                 narrative_state,
