@@ -245,6 +245,11 @@ def _render_scene_action(text: str) -> None:
 
 
 
+def _direct_auto_retry_key(chapter_id: str, instance_id: str, order: int) -> str:
+    """Isola tentativas falhas por instância e linha do roteiro."""
+    return f"auto_retry_required_{chapter_id}_{instance_id}_{order}"
+
+
 def _parse_direct_flexible_response(
     raw: str, script_mode: str, *, thought_disabled: bool = False
 ) -> tuple[str, str]:
@@ -2269,9 +2274,10 @@ blocked_turn = bool(
     and not choice_ready
 )
 mary_first_turn = bool(automatic_turn or blocked_turn)
-auto_retry_key = (
-    f"auto_retry_required_{_chapter_id()}_"
-    f"{direct_ui_row.get('order', 0) if direct_ui_row else 0}"
+auto_retry_key = _direct_auto_retry_key(
+    _chapter_id(),
+    str(st.session_state.story_state.get("narrative", {}).get("chapter_instance_id", "") or ""),
+    int(direct_ui_row.get("order", 0) or 0) if direct_ui_row else 0,
 )
 if automatic_emitted:
     # A resposta desta linha já está publicada. O botão apenas move a ORDEM;
@@ -4180,9 +4186,11 @@ if user_text:
                 and direct_row
                 and is_automatic_direct_row(direct_row)
             ):
-                st.session_state[
-                    f"auto_retry_required_{_chapter_id()}_{direct_row.get('order', 0)}"
-                ] = True
+                st.session_state[_direct_auto_retry_key(
+                    _chapter_id(),
+                    str(narrative_state.get("chapter_instance_id", "") or ""),
+                    int(direct_row.get("order", 0) or 0),
+                )] = True
             raise
 
         # A saída final pode ter sido substituída por uma correção interna.
@@ -4214,7 +4222,11 @@ if user_text:
                 mark_direct_line_emitted(direct_state, direct_row, direct_rows)
             if direct_fulfilled and is_automatic_direct_row(direct_row):
                 st.session_state.pop(
-                    f"auto_retry_required_{_chapter_id()}_{direct_row.get('order', 0)}",
+                    _direct_auto_retry_key(
+                        _chapter_id(),
+                        str(narrative_state.get("chapter_instance_id", "") or ""),
+                        int(direct_row.get("order", 0) or 0),
+                    ),
                     None,
                 )
             _LOG.info(
