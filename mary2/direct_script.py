@@ -486,6 +486,7 @@ def ensure_direct_state(narrative: dict, rows: list[dict]) -> dict:
             "index": 0,
             "current_order": int(rows[0].get("order", 0) or 0) if rows else 0,
             "awaiting_reply_order": 0,
+            "automatic_emitted_order": 0,
             "completed_orders": [],
             "line_dialogue": [],
             "completed": not bool(rows),
@@ -496,6 +497,9 @@ def ensure_direct_state(narrative: dict, rows: list[dict]) -> dict:
         state["completed_orders"] = []
     if not isinstance(state.get("line_dialogue"), list):
         state["line_dialogue"] = []
+    state["automatic_emitted_order"] = max(
+        0, int(state.get("automatic_emitted_order", 0) or 0)
+    )
 
     completed = sorted({
         int(value)
