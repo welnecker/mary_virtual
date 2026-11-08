@@ -2269,6 +2269,10 @@ blocked_turn = bool(
     and not choice_ready
 )
 mary_first_turn = bool(automatic_turn or blocked_turn)
+auto_retry_key = (
+    f"auto_retry_required_{_chapter_id()}_"
+    f"{direct_ui_row.get('order', 0) if direct_ui_row else 0}"
+)
 if automatic_emitted:
     # A resposta desta linha já está publicada. O botão apenas move a ORDEM;
     # não chama modelos, não gera novo turno e não duplica os logs.
@@ -2311,8 +2315,19 @@ if automatic_emitted:
 elif mary_first_turn:
     if automatic_turn:
         # Entrar na linha executa sua resposta sem turno vazio do usuário.
-        # Depois da resposta, o próximo Prosseguir somente navega.
-        user_text = "Prosseguir"
+        # Se o modelo falhou, evite nova cobrança involuntária em cada rerun.
+        if st.session_state.get(auto_retry_key, False):
+            user_text = (
+                "Prosseguir"
+                if st.button(
+                    "Tentar novamente",
+                    key=f"retry_{auto_retry_key}",
+                    use_container_width=True,
+                )
+                else None
+            )
+        else:
+            user_text = "Prosseguir"
         st.caption("Mary conduz esta linha automaticamente. Depois, Prosseguir avançará o roteiro.")
     else:
         user_text = (
@@ -4160,6 +4175,14 @@ if user_text:
                 "active_user_role"
             ]
             st.session_state.messages = messages_before_turn
+            if (
+                script_mode == "direct_sheet"
+                and direct_row
+                and is_automatic_direct_row(direct_row)
+            ):
+                st.session_state[
+                    f"auto_retry_required_{_chapter_id()}_{direct_row.get('order', 0)}"
+                ] = True
             raise
 
         # A saída final pode ter sido substituída por uma correção interna.
@@ -4189,6 +4212,11 @@ if user_text:
             )
             if direct_fulfilled and str(direct_row.get("line_id", "") or "") != "loop_orgulho_ferido":
                 mark_direct_line_emitted(direct_state, direct_row, direct_rows)
+            if direct_fulfilled and is_automatic_direct_row(direct_row):
+                st.session_state.pop(
+                    f"auto_retry_required_{_chapter_id()}_{direct_row.get('order', 0)}",
+                    None,
+                )
             _LOG.info(
                 "DIRECT_SCRIPT_AUDIT order=%s type=%s completion=%s fulfilled=%s awaiting=%s",
                 int(direct_row.get("order", 0) or 0),
