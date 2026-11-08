@@ -65,6 +65,7 @@ from direct_script import (
     hurt_loop_max_interactions,
     is_automatic_direct_row,
     is_blocked_direct_row,
+    is_direct_thought_disabled,
     load_direct_script_catalog,
     load_direct_info_board,
     load_direct_script_rows,
@@ -243,11 +244,13 @@ def _render_scene_action(text: str) -> None:
 
 
 
-def _parse_direct_flexible_response(raw: str, script_mode: str) -> tuple[str, str]:
+def _parse_direct_flexible_response(
+    raw: str, script_mode: str, *, thought_disabled: bool = False
+) -> tuple[str, str]:
     """No roteiro direto, a fala e o pensamento sao opcionais; a acao e independente."""
     if script_mode == "direct_sheet":
         parts = parse_mary_components(raw)
-        return parts["thought"], parts["speech"]
+        return ("" if thought_disabled else parts["thought"]), parts["speech"]
     return parse_mary_response(raw)
 
 
@@ -3291,6 +3294,7 @@ if user_text:
             "funnel_evaluation_final": {},
         }
 
+        thought_disabled = script_mode == "direct_sheet" and is_direct_thought_disabled(direct_row)
         try:
             raw_answer = chat(
                 api_key=api_key,
@@ -3300,7 +3304,7 @@ if user_text:
                 temperature=temperature,
             )
             model_audit["initial_raw_response"] = raw_answer
-            mary_intent, mary_speech_raw = _parse_direct_flexible_response(raw_answer, script_mode)
+            mary_intent, mary_speech_raw = _parse_direct_flexible_response(raw_answer, script_mode, thought_disabled=thought_disabled)
             narration_leak = looks_like_action_narration(mary_speech_raw)
             answer = sanitize_mary_output(mary_speech_raw)
 
@@ -3327,7 +3331,7 @@ if user_text:
                     temperature=max(0.2, min(float(temperature), 0.8)),
                 )
                 model_audit["retry_raw_response"] = raw_answer
-                mary_intent, mary_speech_raw = _parse_direct_flexible_response(raw_answer, script_mode)
+                mary_intent, mary_speech_raw = _parse_direct_flexible_response(raw_answer, script_mode, thought_disabled=thought_disabled)
                 narration_leak = looks_like_action_narration(mary_speech_raw)
                 answer = sanitize_mary_output(mary_speech_raw)
 
@@ -3464,7 +3468,7 @@ if user_text:
                     model_audit["retry_used"] = True
                     model_audit["retry_messages"] = deepcopy(conversation_retry_messages)
                     model_audit["retry_raw_response"] = raw_answer
-                    mary_intent, mary_speech_raw = _parse_direct_flexible_response(raw_answer, script_mode)
+                    mary_intent, mary_speech_raw = _parse_direct_flexible_response(raw_answer, script_mode, thought_disabled=thought_disabled)
                     narration_leak = looks_like_action_narration(mary_speech_raw)
                     answer = sanitize_mary_output(mary_speech_raw)
                     if (not answer and not (script_mode == "direct_sheet" and parse_mary_components(raw_answer)["action"])) or narration_leak:
@@ -3587,7 +3591,7 @@ if user_text:
                     model_audit["retry_used"] = True
                     model_audit["retry_messages"] = deepcopy(revelation_retry_messages)
                     model_audit["retry_raw_response"] = raw_answer
-                    mary_intent, mary_speech_raw = _parse_direct_flexible_response(raw_answer, script_mode)
+                    mary_intent, mary_speech_raw = _parse_direct_flexible_response(raw_answer, script_mode, thought_disabled=thought_disabled)
                     narration_leak = looks_like_action_narration(mary_speech_raw)
                     answer = sanitize_mary_output(mary_speech_raw)
                     if (not answer and not (script_mode == "direct_sheet" and parse_mary_components(raw_answer)["action"])) or narration_leak:
@@ -3654,7 +3658,7 @@ if user_text:
                     model_audit["retry_used"] = True
                     model_audit["retry_messages"] = deepcopy(factual_retry_messages)
                     model_audit["retry_raw_response"] = raw_answer
-                    mary_intent, mary_speech_raw = _parse_direct_flexible_response(raw_answer, script_mode)
+                    mary_intent, mary_speech_raw = _parse_direct_flexible_response(raw_answer, script_mode, thought_disabled=thought_disabled)
                     narration_leak = looks_like_action_narration(mary_speech_raw)
                     answer = sanitize_mary_output(mary_speech_raw)
                     if (not answer and not (script_mode == "direct_sheet" and parse_mary_components(raw_answer)["action"])) or narration_leak:
@@ -3852,7 +3856,7 @@ if user_text:
                     model_audit["retry_messages"] = deepcopy(auto_retry_messages)
                     model_audit["retry_raw_response"] = auto_raw
                     raw_answer = auto_raw
-                    mary_intent = auto_parts["thought"]
+                    mary_intent = "" if thought_disabled else auto_parts["thought"]
                     mary_speech_raw = auto_parts["speech"]
                     answer = auto_speech
                     direct_validation = auto_validation
@@ -4099,6 +4103,12 @@ if user_text:
             ]
             st.session_state.messages = messages_before_turn
             raise
+
+        # A saída final pode ter sido substituída por uma correção interna.
+        # Preserve a resposta bruta na auditoria, mas nunca publique ou
+        # persista pensamento de uma linha que o autor desativou.
+        if thought_disabled:
+            mary_intent = ""
 
         if emotional_notice:
             st.info(emotional_notice)
