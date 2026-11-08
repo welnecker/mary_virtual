@@ -91,6 +91,14 @@ def hurt_loop_max_interactions(loop_row: dict | None) -> int:
     return 3
 
 
+def is_direct_thought_disabled(row: dict | None) -> bool:
+    """A célula 'Sem pensamento' desativa o canal de pensamento nesta linha."""
+    return (
+        isinstance(row, dict)
+        and _clean(row.get("thought_guide")).casefold() == "sem pensamento"
+    )
+
+
 def is_automatic_direct_row(row: dict | None) -> bool:
     """Linha automática: Mary conduz sozinha e a linha termina sem resposta do usuário."""
     if not isinstance(row, dict):
@@ -716,7 +724,8 @@ def build_direct_writer_prompt(
     interpret_mode = bool(interpret_match)
     interpret_direction = (interpret_match.group(1) or "").strip() if interpret_match else ""
     action_guide = _clean(row.get("action_guide"))
-    thought_guide = _clean(row.get("thought_guide"))
+    thought_disabled = is_direct_thought_disabled(row)
+    thought_guide = "" if thought_disabled else _clean(row.get("thought_guide"))
     onomatopoeia = _clean(row.get("onomatopoeia"))
 
     conversation_lines: list[str] = []
@@ -844,7 +853,8 @@ def build_direct_writer_prompt(
 
         + ("Direção autoral desta linha: " + interpret_direction + "\n" if interpret_direction else "")
         + ("Descrição-guia: " + action_guide + "\n" if action_guide else "")
-        + ("Pensamento-guia: " + thought_guide + "\n" if thought_guide else "")
+        + ("Pensamento-guia: SEM PENSAMENTO — não gere [PENSAMENTO] nesta linha.\n"
+           if thought_disabled else ("Pensamento-guia: " + thought_guide + "\n" if thought_guide else ""))
         + (
             "Onomatopeia contextual: " + onomatopoeia + "\n"
             "Cada som pertence ao gesto ou à reação que o produz. Respeite primeiro "
@@ -869,8 +879,10 @@ def build_direct_writer_prompt(
         "e o mínimo necessário para concretizar ações assumidas na FALA-GUIA ou ONOMATOPEIA. "
         "Evite microgestos, adjetivos de clima, sensações, explicações e ações futuras. "
         "Não descreva antes o que será decidido ou dito em [FALA]. "
-        "[PENSAMENTO] é opcional, em primeira pessoa, orientado pelo PENSAMENTO-GUIA; "
-        "pode conter emoções, dúvidas, memórias e conflitos sem produzir ação ou fala. "
+        + ("Nesta linha [PENSAMENTO] está DESATIVADO; emita somente os canais aplicáveis. "
+           if thought_disabled else
+           "[PENSAMENTO] é opcional, em primeira pessoa, orientado pelo PENSAMENTO-GUIA; "
+           "pode conter emoções, dúvidas, memórias e conflitos sem produzir ação ou fala. ")
         "Quando apresentado no início da resposta, retrata o instante ANTES das falas e ações novas "
         "deste turno: não narre como já ocorrida a reação posterior de Silvia, uma decisão ainda "
         "não tomada ou acontecimentos que só serão revelados ao longo desta mesma resposta. "
