@@ -78,7 +78,7 @@ def test_automatic_navigation_detects_new_authored_row():
     before = [
         {"order": 29, "speech_guide": "Fechamento anterior"},
         {"order": 30, "speech_guide": "Transição", "interaction_mode": "automatico"},
-        {"order": 31, "speech_guide": "Manhã"},
+        {"order": 32, "speech_guide": "Manhã"},
     ]
     state = ensure_direct_state({}, before)
     mark_direct_line_emitted(state, before[0], before)
@@ -87,10 +87,10 @@ def test_automatic_navigation_detects_new_authored_row():
 
     # Inserção autoral enquanto a resposta automática já está publicada.
     after = before[:2] + [
-        {"order": 30.5, "speech_guide": "Nova ação"},
+        {"order": 31, "speech_guide": "Nova ação"},
     ] + before[2:]
     assert advance_emitted_automatic_line(state, after) is True
-    assert state["current_order"] == 30.5
+    assert state["current_order"] == 31
 
 
 def test_automatic_writer_prompt_treats_prosseguir_as_control_not_dialogue():
