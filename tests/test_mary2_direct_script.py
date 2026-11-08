@@ -1,4 +1,5 @@
 from mary2.direct_script import (
+    advance_emitted_automatic_line,
     build_direct_chapter,
     build_direct_writer_prompt,
     current_direct_row,
@@ -25,7 +26,7 @@ def test_automatic_row_is_recognized_from_prosseguir_column():
     assert is_automatic_direct_row({"interaction_mode": ""}) is False
 
 
-def test_automatic_row_completes_immediately_after_emission():
+def test_automatic_row_waits_for_navigation_after_its_own_response():
     rows = [
         {
             "order": 1,
@@ -46,11 +47,50 @@ def test_automatic_row_completes_immediately_after_emission():
 
     mark_direct_line_emitted(state, rows[0], rows)
 
-    assert state["completed_orders"] == [1]
+    # A geração da linha 1 não consome sua posição.
+    assert state["completed_orders"] == []
+    assert state["automatic_emitted_order"] == 1
     assert state["awaiting_reply_order"] == 0
+    assert state["index"] == 0
+    assert state["current_order"] == 1
+    assert state["completed"] is False
+
+    # O clique seguinte navega sem criar uma interação.
+    assert advance_emitted_automatic_line(state, rows) is True
+    assert state["completed_orders"] == [1]
+    assert state["automatic_emitted_order"] == 0
     assert state["index"] == 1
     assert state["current_order"] == 2
     assert state["completed"] is False
+
+    # Duas linhas automáticas consecutivas não se fundem.
+    mark_direct_line_emitted(state, rows[1], rows)
+    assert state["completed_orders"] == [1]
+    assert state["automatic_emitted_order"] == 2
+    assert state["completed"] is False
+    assert advance_emitted_automatic_line(state, rows) is True
+    assert state["completed_orders"] == [1, 2]
+    assert state["completed"] is True
+    assert advance_emitted_automatic_line(state, rows) is False
+
+
+def test_automatic_navigation_detects_new_authored_row():
+    before = [
+        {"order": 29, "speech_guide": "Fechamento anterior"},
+        {"order": 30, "speech_guide": "Transição", "interaction_mode": "automatico"},
+        {"order": 31, "speech_guide": "Manhã"},
+    ]
+    state = ensure_direct_state({}, before)
+    mark_direct_line_emitted(state, before[0], before)
+    register_direct_user_reply(state, before, "Continuar")
+    mark_direct_line_emitted(state, before[1], before)
+
+    # Inserção autoral enquanto a resposta automática já está publicada.
+    after = before[:2] + [
+        {"order": 30.5, "speech_guide": "Nova ação"},
+    ] + before[2:]
+    assert advance_emitted_automatic_line(state, after) is True
+    assert state["current_order"] == 30.5
 
 
 def test_automatic_writer_prompt_treats_prosseguir_as_control_not_dialogue():
@@ -568,6 +608,10 @@ def test_blocked_line_waits_for_user_after_mary_speaks():
     assert is_blocked_direct_row(rows[1]) is True
 
     mark_direct_line_emitted(state, rows[0], rows)
+    assert state["current_order"] == 10
+    assert state["automatic_emitted_order"] == 10
+    assert state["completed_orders"] == []
+    assert advance_emitted_automatic_line(state, rows) is True
     assert state["current_order"] == 11
     assert state["completed_orders"] == [10]
     assert state["awaiting_reply_order"] == 0
