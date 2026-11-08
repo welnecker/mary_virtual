@@ -2281,7 +2281,14 @@ if automatic_emitted:
     ):
         state_before_advance = deepcopy(st.session_state.story_state)
         try:
-            if advance_emitted_automatic_line(ui_state, ui_rows):
+            # Releia a planilha também na navegação: uma linha recém-inserida
+            # depois da automática não pode desaparecer por cache antigo.
+            navigation_rows = _direct_script_rows(
+                persistence=persistence,
+                chapter=ui_chapter,
+                force_refresh=True,
+            )
+            if advance_emitted_automatic_line(ui_state, navigation_rows):
                 narrative_advance = st.session_state.story_state.setdefault("narrative", {})
                 if direct_script_ready_for_choice(ui_state):
                     narrative_advance["choice_ready"] = True
