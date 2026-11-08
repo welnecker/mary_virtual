@@ -505,6 +505,19 @@ def ensure_direct_state(narrative: dict, rows: list[dict]) -> dict:
     state["completed_orders"] = completed
 
     index = max(0, int(state.get("index", 0) or 0))
+    awaiting_order = int(state.get("awaiting_reply_order", 0) or 0)
+    current_order = int(state.get("current_order", 0) or 0)
+    # A inserção de uma linha desloca índices antigos. Reancore pelo número
+    # de ORDEM da linha ativa antes de consultar a posição armazenada.
+    anchor_order = awaiting_order or current_order
+    if anchor_order and anchor_order not in completed:
+        index = next(
+            (
+                idx for idx, item in enumerate(rows)
+                if int(item.get("order", 0) or 0) == anchor_order
+            ),
+            index,
+        )
     while (
         index < len(rows)
         and int(rows[index].get("order", 0) or 0) in completed
