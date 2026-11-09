@@ -58,6 +58,9 @@ INTERACTION_HEADERS = [
     "chapter_instance_id",
     "chapter_id",
     "chapter_turn",
+    "image_script_name",
+    "image_order",
+    "image_hurt",
 ]
 
 
@@ -808,6 +811,9 @@ def save_turn(
             turn_record.get("chapter_instance_id", ""),
             turn_record.get("chapter_id", ""),
             int(turn_record.get("chapter_turn", 0) or 0),
+            str(turn_record.get("image_script_name", "") or ""),
+            int(turn_record.get("image_order", 0) or 0),
+            "TRUE" if turn_record.get("image_hurt", False) else "FALSE",
         ],
         value_input_option="RAW",
     )
@@ -1421,6 +1427,9 @@ def load_latest_run(
             "chapter_instance_id": str(item.get("chapter_instance_id", "") or ""),
             "chapter_id": str(item.get("chapter_id", "") or ""),
             "chapter_turn": int(item.get("chapter_turn", 0) or 0),
+            "image_script_name": str(item.get("image_script_name", "") or ""),
+            "image_order": int(item.get("image_order", 0) or 0),
+            "image_hurt": str(item.get("image_hurt", "") or "").strip().upper() in {"TRUE", "1"},
         }
         turn_records.append(record)
 
