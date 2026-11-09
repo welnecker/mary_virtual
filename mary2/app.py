@@ -162,7 +162,9 @@ def _require_access_password() -> None:
     expected = password_fingerprint(access_password)
     if st.session_state.get("_mary_access_fingerprint") == expected:
         if st.sidebar.button("Sair do app", key="mary_logout", use_container_width=True):
-            st.session_state.pop("_mary_access_fingerprint", None)
+            # Apaga também as mensagens e dados temporários daquela sessão.
+            for key in list(st.session_state.keys()):
+                del st.session_state[key]
             st.rerun()
         return
 
