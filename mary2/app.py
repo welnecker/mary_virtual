@@ -38,6 +38,7 @@ if _MARY2_DIR in sys.path:
 sys.path.insert(0, _MARY2_DIR)
 
 import streamlit as st
+from access_gate import password_fingerprint, password_matches
 
 from chapters import (
     apply_choice_to_story,
@@ -145,6 +146,48 @@ from story_bible import PHYSICAL_CANON
 
 
 st.set_page_config(page_title="Mary Core 2", page_icon="🖤", layout="centered")
+
+
+def _require_access_password() -> None:
+    """Bloqueia todo o runtime até autenticação válida, inclusive sem Secrets."""
+    try:
+        access_password = str(st.secrets.get("MARY_ACCESS_PASSWORD", "") or "")
+    except Exception:
+        access_password = ""
+
+    if not access_password:
+        st.error("Acesso indisponível: configure MARY_ACCESS_PASSWORD nos Secrets do Streamlit.")
+        st.stop()
+
+    expected = password_fingerprint(access_password)
+    if st.session_state.get("_mary_access_fingerprint") == expected:
+        if st.sidebar.button("Sair do app", key="mary_logout", use_container_width=True):
+            st.session_state.pop("_mary_access_fingerprint", None)
+            st.rerun()
+        return
+
+    # Tentativas são limitadas por sessão para reduzir testes acidentais/repetidos.
+    tries = int(st.session_state.get("_mary_failed_access_attempts", 0) or 0)
+    st.title("Mary Core 2")
+    st.caption("Acesso restrito. Informe a senha para abrir o aplicativo.")
+    if tries >= 5:
+        st.error("Limite de tentativas nesta sessão atingido. Abra uma nova sessão para tentar novamente.")
+        st.stop()
+
+    with st.form("mary_access_login", clear_on_submit=True):
+        candidate = st.text_input("Senha de acesso", type="password", autocomplete="current-password")
+        submitted = st.form_submit_button("Entrar", use_container_width=True, type="primary")
+    if submitted:
+        if password_matches(candidate, access_password):
+            st.session_state["_mary_access_fingerprint"] = expected
+            st.session_state["_mary_failed_access_attempts"] = 0
+            st.rerun()
+        st.session_state["_mary_failed_access_attempts"] = tries + 1
+        st.error("Senha incorreta.")
+    st.stop()
+
+
+_require_access_password()
 
 _LOG = logging.getLogger(__name__)
 
