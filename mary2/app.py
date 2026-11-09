@@ -147,7 +147,18 @@ from state import current_status_text, migrate_state, new_state, story_ledger_te
 from story_bible import PHYSICAL_CANON
 
 
-st.set_page_config(page_title="Mary Core 2", page_icon="🖤", layout="centered")
+st.set_page_config(page_title="Mary Core 2", page_icon="🖤", layout="wide")
+# Área maior para duas colunas reais no desktop, sem linhas de texto excessivamente longas.
+st.markdown(
+    """
+    <style>
+    @media (min-width: 769px) {
+        .stMain .block-container { max-width: 1180px; }
+    }
+    </style>
+    """,
+    unsafe_allow_html=True,
+)
 
 
 def _require_access_password() -> None:
@@ -2151,18 +2162,21 @@ for record in st.session_state.turn_records:
     if scene_image:
         # A imagem não depende da altura da fala. Crop central preserva
         # proporções, com dimensões de exibição constantes (160 x 220 px).
-        image_col, text_col = st.columns([160, 440], gap="medium")
+        # A largura adicional dá um painel próprio à imagem e libera a
+        # resposta para ocupar a maior parte da página no desktop.
+        image_col, text_col = st.columns([230, 800], gap="large", vertical_alignment="top")
         with image_col:
-            try:
-                with Image.open(scene_image) as source:
-                    frame = ImageOps.fit(
-                        source.convert("RGB"),
-                        (SCENE_IMAGE_SIZE[0] * 2, SCENE_IMAGE_SIZE[1] * 2),
-                        method=Image.Resampling.LANCZOS,
-                    )
-                st.image(frame, width=SCENE_IMAGE_SIZE[0])
-            except (OSError, ValueError) as exc:
-                _LOG.warning("Imagem de cena inválida %s: %s", scene_image.name, exc)
+            with st.container(border=True):
+                try:
+                    with Image.open(scene_image) as source:
+                        frame = ImageOps.fit(
+                            source.convert("RGB"),
+                            (SCENE_IMAGE_SIZE[0] * 2, SCENE_IMAGE_SIZE[1] * 2),
+                            method=Image.Resampling.LANCZOS,
+                        )
+                    st.image(frame, width=SCENE_IMAGE_SIZE[0])
+                except (OSError, ValueError) as exc:
+                    _LOG.warning("Imagem de cena inválida %s: %s", scene_image.name, exc)
         with text_col:
             if record.get("mary_action"):
                 _render_scene_action(record["mary_action"])
