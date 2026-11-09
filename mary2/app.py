@@ -24,6 +24,7 @@ import logging
 import re
 import sys
 from pathlib import Path
+from PIL import Image, ImageOps
 from copy import deepcopy
 
 # Módulos homônimos existem na raiz (app legado) e em mary2/.
@@ -39,6 +40,7 @@ sys.path.insert(0, _MARY2_DIR)
 
 import streamlit as st
 from access_gate import password_fingerprint, password_matches
+from scene_images import find_scene_image, SCENE_IMAGE_SIZE
 
 from chapters import (
     apply_choice_to_story,
@@ -2141,12 +2143,40 @@ for record in st.session_state.turn_records:
             else:
                 st.caption("Janio")
             st.markdown(record["user_text"])
-    if record.get("mary_action"):
-        _render_scene_action(record["mary_action"])
-    with st.chat_message("assistant"):
-        if record.get("mary_intent"):
-            _render_mary_thought(record["mary_intent"])
-        st.markdown(_mary_display_text(record["mary_text"]))
+    scene_image = find_scene_image(
+        str(record.get("image_script_name", "") or ""),
+        int(record.get("image_order", 0) or 0),
+        hurt=bool(record.get("image_hurt", False)),
+    )
+    if scene_image:
+        # A imagem não depende da altura da fala. Crop central preserva
+        # proporções, com dimensões de exibição constantes (160 x 220 px).
+        image_col, text_col = st.columns([160, 440], gap="medium")
+        with image_col:
+            try:
+                with Image.open(scene_image) as source:
+                    frame = ImageOps.fit(
+                        source.convert("RGB"),
+                        (SCENE_IMAGE_SIZE[0] * 2, SCENE_IMAGE_SIZE[1] * 2),
+                        method=Image.Resampling.LANCZOS,
+                    )
+                st.image(frame, width=SCENE_IMAGE_SIZE[0])
+            except (OSError, ValueError) as exc:
+                _LOG.warning("Imagem de cena inválida %s: %s", scene_image.name, exc)
+        with text_col:
+            if record.get("mary_action"):
+                _render_scene_action(record["mary_action"])
+            with st.chat_message("assistant"):
+                if record.get("mary_intent"):
+                    _render_mary_thought(record["mary_intent"])
+                st.markdown(_mary_display_text(record["mary_text"]))
+    else:
+        if record.get("mary_action"):
+            _render_scene_action(record["mary_action"])
+        with st.chat_message("assistant"):
+            if record.get("mary_intent"):
+                _render_mary_thought(record["mary_intent"])
+            st.markdown(_mary_display_text(record["mary_text"]))
 
 
 if not st.session_state.turn_records:
@@ -4434,6 +4464,25 @@ if user_text:
             "chapter_instance_id": str(narrative.get("chapter_instance_id", "") or ""),
             "chapter_id": _chapter_id(),
             "chapter_turn": int(narrative.get("chapter_turns", 0) or 0),
+            # Imagem ligada à ORDEM autoral, não à sequência de interações.
+            # LOOP orgulho ferido preserva a ORDEM que originou a reação.
+            "image_script_name": (
+                str(chapter_config.get("script_name", "") or "")
+                if script_mode == "direct_sheet" else ""
+            ),
+            "image_order": (
+                int(
+                    (narrative.get("direct_hurt_loop", {}) or {}).get("origin_order", 0) or 0
+                ) if (
+                    script_mode == "direct_sheet"
+                    and bool((narrative.get("direct_hurt_loop", {}) or {}).get("active"))
+                ) else int(direct_row.get("order", 0) or 0)
+                if script_mode == "direct_sheet" else 0
+            ),
+            "image_hurt": (
+                bool((narrative.get("direct_hurt_loop", {}) or {}).get("active"))
+                or bool((narrative.get("direct_emotion", {}) or {}).get("hurt"))
+            ) if script_mode == "direct_sheet" else False,
         }
         st.session_state.turn_records.append(turn_record)
 
