@@ -112,6 +112,7 @@ from funnel_script import (
     required_markers,
 )
 from openrouter_client import OpenRouterError, chat
+from token_usage import begin_turn, update_line_order
 from output_filter import looks_like_action_narration, parse_mary_response, parse_mary_components, sanitize_mary_output, format_dialogue_paragraphs
 from user_understanding_audit import (
     analyze_user_understanding,
@@ -138,6 +139,8 @@ from persistence import (
     save_funnel_audit,
     save_funnel_rejection,
     save_model_audit,
+    save_token_usage_events,
+    load_token_usage_events,
     save_episodic_memory_audit,
     save_turn,
     update_run_snapshot,
@@ -2453,6 +2456,14 @@ if direct_ui_error:
 
 
 if user_text:
+    # Captura passiva da API: não altera prompts nem acrescenta chamadas ao modelo.
+    begin_turn(
+        sink=lambda event: st.session_state.setdefault("_token_usage_pending", []).append(event),
+        run_id=str(st.session_state.run_id or ""),
+        seq=int(st.session_state.run_last_seq or 0) + 1,
+        chapter_id=_chapter_id(),
+        line_order=int(direct_ui_row.get("order", 0) or 0),
+    )
     try:
         if not model:
             raise OpenRouterError("Informe um ID de modelo do OpenRouter.")
@@ -2560,6 +2571,14 @@ if user_text:
             direct_row = current_direct_row(
                 direct_rows,
                 direct_state,
+            )
+            # Registra a ORDEM efetivamente processada; o LOOP pode recuperar
+            # a origem, mesmo que o cursor já tenha avançado.
+            update_line_order(
+                int(
+                    (active_hurt_loop.get("origin_order", 0) if in_hurt_loop else 0)
+                    or direct_row.get("order", 0) or 0
+                )
             )
             if in_hurt_loop and not direct_row and direct_rows:
                 direct_row = dict(direct_rows[0])  # Fonte do LOOP quando a última linha foi interrompida.
@@ -3138,6 +3157,8 @@ if user_text:
                         "não presuma perdão, culpa, intensidade nem atitude fora da planilha."
                     )
             narrative_state["direct_hurt_loop"] = loop
+            if loop.get("active"):
+                update_line_order(int(loop.get("origin_order", 0) or direct_row.get("order", 0) or 0))
             if emotion.get("hurt") or loop.get("active"):
                 direct_row = dict(direct_row)
                 # Quando a linha LOOP traz estilo/atitude, ele governa a cena.
@@ -4755,6 +4776,23 @@ if user_text:
                     except Exception as audit_exc:
                         # O turno já foi salvo. Falha de auditoria não torna a história indisponível.
                         st.session_state.audit_error = str(audit_exc)
+                # Uma escrita por interação, mesmo com várias chamadas internas.
+                # Eventos de falhas anteriores continuam pendentes até confirmação.
+                token_pending = st.session_state.get("_token_usage_pending", [])
+                if token_pending:
+                    try:
+                        save_token_usage_events(
+                            service_account_info=persistence["service_account_info"],
+                            spreadsheet_id=info["spreadsheet_id"],
+                            spreadsheet_title=persistence["spreadsheet_title"],
+                            owner_email=persistence["owner_email"],
+                            run_id=str(st.session_state.run_id or ""),
+                            events=list(token_pending),
+                        )
+                        token_pending.clear()
+                    except Exception as token_exc:
+                        _LOG.warning("TOKEN_USAGE_AUDIT pending=%s error=%s", len(token_pending), token_exc)
+                        st.session_state.audit_error = "TOKEN_USAGE_AUDIT: " + str(token_exc)
                 st.session_state.persistence_error = ""
             except Exception as exc:
                 # A história continua funcionando mesmo se o Google falhar.
