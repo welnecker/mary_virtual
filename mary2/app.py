@@ -1560,7 +1560,7 @@ with st.sidebar:
                         spreadsheet_title=persistence["spreadsheet_title"],
                         owner_email=persistence["owner_email"],
                         run_id=str(st.session_state.run_id or ""),
-                        limit=1000,
+                        limit=0,
                     )
                     st.session_state["_token_usage_dashboard"] = {
                         "run_id": st.session_state.run_id, "rows": usage_rows
@@ -1584,6 +1584,8 @@ with st.sidebar:
                     total_cost = 0.0
                     total_input = 0
                     total_output = 0
+                    total_reasoning = 0
+                    total_cached = 0
                     for usage_row in usage_rows:
                         category = str(usage_row.get("call_type", "OUTROS") or "OUTROS")
                         segment = totals.setdefault(category, {
@@ -1595,6 +1597,8 @@ with st.sidebar:
                         output_tokens = _number_or_none(usage_row.get("completion_tokens")) or 0
                         total_input += int(input_tokens)
                         total_output += int(output_tokens)
+                        total_reasoning += int(_number_or_none(usage_row.get("reasoning_tokens")) or 0)
+                        total_cached += int(_number_or_none(usage_row.get("cached_tokens")) or 0)
                         segment["Entrada"] += int(input_tokens)
                         segment["Saída"] += int(output_tokens)
                         cost = _number_or_none(usage_row.get("cost_usd"))
@@ -1604,6 +1608,7 @@ with st.sidebar:
                             segment["Custo (US$)"] += cost
                     st.metric("Chamadas ao OpenRouter", len(usage_rows))
                     st.metric("Tokens entrada / saída", f"{total_input:,} / {total_output:,}")
+                    st.caption(f"Raciocínio informado: {total_reasoning:,} | Cache informado: {total_cached:,}")
                     if priced_calls:
                         st.metric("Custo informado", f"US$ {total_cost:.5f}")
                     if priced_calls < len(usage_rows):
