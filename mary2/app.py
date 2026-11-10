@@ -1539,6 +1539,91 @@ with st.sidebar:
             st.caption("A história está salva; apenas a auditoria técnica encontrou um erro.")
             with st.expander("Detalhe da auditoria"):
                 st.code(st.session_state.audit_error)
+        with st.expander("Tráfego de tokens"):
+            st.caption("Custos e tokens informados pelo OpenRouter, sem estimativas.")
+            if st.button("Atualizar monitoramento", key="refresh_token_usage", use_container_width=True):
+                try:
+                    pending = st.session_state.get("_token_usage_pending", [])
+                    if pending:
+                        save_token_usage_events(
+                            service_account_info=persistence["service_account_info"],
+                            spreadsheet_id=persistence["spreadsheet_id"],
+                            spreadsheet_title=persistence["spreadsheet_title"],
+                            owner_email=persistence["owner_email"],
+                            run_id=str(st.session_state.run_id or ""),
+                            events=list(pending),
+                        )
+                        pending.clear()
+                    usage_rows = load_token_usage_events(
+                        service_account_info=persistence["service_account_info"],
+                        spreadsheet_id=persistence["spreadsheet_id"],
+                        spreadsheet_title=persistence["spreadsheet_title"],
+                        owner_email=persistence["owner_email"],
+                        run_id=str(st.session_state.run_id or ""),
+                        limit=1000,
+                    )
+                    st.session_state["_token_usage_dashboard"] = {
+                        "run_id": st.session_state.run_id, "rows": usage_rows
+                    }
+                except Exception as token_exc:
+                    st.warning(f"Monitoramento indisponível: {token_exc}")
+            dashboard = st.session_state.get("_token_usage_dashboard", {})
+            if isinstance(dashboard, dict) and dashboard.get("run_id") == st.session_state.run_id:
+                usage_rows = dashboard.get("rows", []) or []
+                if usage_rows:
+                    def _number_or_none(value):
+                        if value is None or str(value).strip() == "":
+                            return None
+                        try:
+                            return float(str(value).replace(",", "."))
+                        except (ValueError, TypeError):
+                            return None
+
+                    totals = {}
+                    priced_calls = 0
+                    total_cost = 0.0
+                    total_input = 0
+                    total_output = 0
+                    for usage_row in usage_rows:
+                        category = str(usage_row.get("call_type", "OUTROS") or "OUTROS")
+                        segment = totals.setdefault(category, {
+                            "Agente": category, "Chamadas": 0, "Entrada": 0,
+                            "Saída": 0, "Custo (US$)": 0.0,
+                        })
+                        segment["Chamadas"] += 1
+                        input_tokens = _number_or_none(usage_row.get("prompt_tokens")) or 0
+                        output_tokens = _number_or_none(usage_row.get("completion_tokens")) or 0
+                        total_input += int(input_tokens)
+                        total_output += int(output_tokens)
+                        segment["Entrada"] += int(input_tokens)
+                        segment["Saída"] += int(output_tokens)
+                        cost = _number_or_none(usage_row.get("cost_usd"))
+                        if cost is not None:
+                            priced_calls += 1
+                            total_cost += cost
+                            segment["Custo (US$)"] += cost
+                    st.metric("Chamadas ao OpenRouter", len(usage_rows))
+                    st.metric("Tokens entrada / saída", f"{total_input:,} / {total_output:,}")
+                    if priced_calls:
+                        st.metric("Custo informado", f"US$ {total_cost:.5f}")
+                    if priced_calls < len(usage_rows):
+                        st.caption(f"Sem custo informado: {len(usage_rows) - priced_calls} chamada(s); total parcial.")
+                    st.dataframe(list(totals.values()), hide_index=True, use_container_width=True)
+                    with st.popover("Últimas chamadas"):
+                        st.dataframe([
+                            {
+                                key: event.get(key, "")
+                                for key in ("seq", "line_order", "call_type", "model", "status",
+                                            "prompt_tokens", "completion_tokens", "reasoning_tokens",
+                                            "cached_tokens", "cost_usd", "duration_ms")
+                            }
+                            for event in usage_rows[-40:]
+                        ], hide_index=True, use_container_width=True)
+                    st.caption("Inclui tentativas anteriores mesmo após correção de interações; contagem disponível desde a implantação.")
+                else:
+                    st.caption("Nenhuma chamada registrada nesta execução.")
+            else:
+                st.caption("Clique para consultar os dados do capítulo atual.")
     elif st.session_state.persistence_error:
         st.warning("Persistência indisponível nesta sessão.")
         with st.expander("Detalhe técnico"):
