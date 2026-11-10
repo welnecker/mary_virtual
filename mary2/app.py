@@ -3066,7 +3066,7 @@ if user_text:
                 try:
                     assessment_raw = chat(
                         api_key=api_key, model=director_model, fallback_model=fallback,
-                        temperature=0.0, max_tokens=350,
+                        temperature=0.0, max_tokens=350, call_type="EMOTION_CLASSIFIER",
                         messages=[
                             {"role": "system", "content": (
                                 "Você é um classificador de fatos emocionais de uma cena ficcional. "
@@ -3576,6 +3576,7 @@ if user_text:
                 fallback_model=fallback,
                 messages=llm_messages,
                 temperature=temperature,
+                call_type="REDACTOR",
             )
             model_audit["initial_raw_response"] = raw_answer
             mary_intent, mary_speech_raw = _parse_direct_flexible_response(raw_answer, script_mode, thought_disabled=thought_disabled)
@@ -3602,6 +3603,7 @@ if user_text:
                     model=model,
                     fallback_model=fallback,
                     messages=retry_messages,
+                    call_type="REDACTOR_RETRY",
                     temperature=max(0.2, min(float(temperature), 0.8)),
                 )
                 model_audit["retry_raw_response"] = raw_answer
