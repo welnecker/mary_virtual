@@ -17,6 +17,7 @@ RUNS_SHEET = "STORY_RUNS"
 INTERACTIONS_SHEET = "INTERACTIONS"
 DIRECTOR_AUDIT_SHEET = "DIRECTOR_AUDIT"
 MODEL_AUDIT_SHEET = "MODEL_AUDIT"
+TOKEN_USAGE_AUDIT_SHEET = "TOKEN_USAGE_AUDIT"
 FUNNEL_AUDIT_SHEET = "FUNNEL_AUDIT"
 BLOCK_AUDIT_SHEET = "BLOCK_AUDIT"
 DIRECT_SCRIPT_AUDIT_SHEET = "DIRECT_SCRIPT_AUDIT"
@@ -36,6 +37,14 @@ RUN_HEADERS = [
     "story_ledger",
     "scene_json",
     "story_state_json",
+]
+
+TOKEN_USAGE_HEADERS = [
+    "event_id", "created_at", "run_id", "seq", "chapter_id", "line_order",
+    "call_type", "model", "attempt", "status", "http_status",
+    "prompt_tokens", "completion_tokens", "total_tokens",
+    "reasoning_tokens", "cached_tokens", "cost_usd", "duration_ms",
+    "request_chars", "error_code",
 ]
 
 INTERACTION_HEADERS = [
@@ -470,6 +479,7 @@ def ensure_schema(
     _ensure_worksheet(book, INTERACTIONS_SHEET, INTERACTION_HEADERS)
     _ensure_worksheet(book, DIRECTOR_AUDIT_SHEET, DIRECTOR_AUDIT_HEADERS)
     _ensure_worksheet(book, MODEL_AUDIT_SHEET, MODEL_AUDIT_HEADERS)
+    _ensure_worksheet(book, TOKEN_USAGE_AUDIT_SHEET, TOKEN_USAGE_HEADERS)
     _ensure_worksheet(book, FUNNEL_AUDIT_SHEET, FUNNEL_AUDIT_HEADERS)
     _ensure_worksheet(book, BLOCK_AUDIT_SHEET, BLOCK_AUDIT_HEADERS)
     _ensure_worksheet(book, DIRECT_SCRIPT_AUDIT_SHEET, DIRECT_SCRIPT_AUDIT_HEADERS)
@@ -751,6 +761,46 @@ def _find_run_row(ws, run_id: str) -> int | None:
     ws._mary_run_rows = rows
     return int(cell.row)
 
+
+
+def save_token_usage_events(
+    *, service_account_info: dict, run_id: str, events: list[dict],
+    spreadsheet_id: str = "", spreadsheet_title: str = "MARY_CORE_PERSISTENCE",
+    owner_email: str = "",
+) -> int:
+    """One Sheets append per batch; never invokes a model, never stores prompts."""
+    if not events:
+        return 0
+    book = open_or_create_book(
+        service_account_info=service_account_info, spreadsheet_id=spreadsheet_id,
+        spreadsheet_title=spreadsheet_title, owner_email=owner_email,
+    )
+    ws = _ensure_worksheet(book, TOKEN_USAGE_AUDIT_SHEET, TOKEN_USAGE_HEADERS)
+    rows = []
+    for event in events:
+        if not isinstance(event, dict):
+            continue
+        row = {**event, "run_id": str(event.get("run_id") or run_id)}
+        rows.append([row.get(key, "") if row.get(key, "") is not None else ""
+                     for key in TOKEN_USAGE_HEADERS])
+    if rows:
+        ws.append_rows(rows, value_input_option="RAW")
+    return len(rows)
+
+
+def load_token_usage_events(
+    *, service_account_info: dict, run_id: str, limit: int = 150,
+    spreadsheet_id: str = "", spreadsheet_title: str = "MARY_CORE_PERSISTENCE",
+    owner_email: str = "",
+) -> list[dict]:
+    book = open_or_create_book(
+        service_account_info=service_account_info, spreadsheet_id=spreadsheet_id,
+        spreadsheet_title=spreadsheet_title, owner_email=owner_email,
+    )
+    ws = _ensure_worksheet(book, TOKEN_USAGE_AUDIT_SHEET, TOKEN_USAGE_HEADERS)
+    matching = [dict(row) for row in ws.get_all_records()
+                if str(row.get("run_id", "")) == str(run_id)]
+    return matching[-max(1, min(int(limit), 1000)):]
 
 def save_turn(
     *,
