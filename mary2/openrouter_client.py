@@ -2,7 +2,10 @@ from __future__ import annotations
 
 from typing import Iterable
 import logging
+import inspect
+from time import perf_counter
 import requests
+from token_usage import classify_call, make_usage_event, record
 
 
 OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions"
@@ -21,6 +24,7 @@ def chat(
     temperature: float = 0.9,
     max_tokens: int = 700,
     fallback_model: str | None = None,
+    call_type: str = "",
 ) -> str:
     if not api_key:
         raise OpenRouterError("OPENROUTER_API_KEY não configurada.")
@@ -29,10 +33,18 @@ def chat(
 
     candidates: Iterable[str] = [model] + ([fallback_model] if fallback_model else [])
     last_error: Exception | None = None
+    caller = inspect.currentframe().f_back
+    stage = classify_call(caller.f_code.co_filename if caller else "", call_type=call_type)
+    del caller
 
     for candidate in candidates:
-        # Somente conteúdo vazio recebe uma segunda tentativa neste modelo.
+        # Cada tentativa gera seu próprio evento, inclusive HTTP/JSON/choices vazios.
         for attempt in range(2):
+            started = perf_counter()
+            response = None
+            data = {}
+            request_status = "ERROR"
+            error_code = ""
             try:
                 response = requests.post(
                     OPENROUTER_URL,
@@ -89,14 +101,18 @@ def chat(
                         (usage.get("completion_tokens_details") or {}).get("reasoning_tokens")
                         if isinstance(usage.get("completion_tokens_details"), dict) else None,
                     )
+                    request_status = "EMPTY_RESPONSE"
                     last_error = OpenRouterError(
                         f"OpenRouter retornou resposta vazia (HTTP {response.status_code}, modelo {candidate})."
                     )
                     if attempt == 0:
                         continue
                     break
+                request_status = "SUCCESS"
                 return content.strip()
             except requests.HTTPError as exc:
+                request_status = "HTTP_ERROR"
+                error_code = "HTTP_ERROR"
                 status = exc.response.status_code if exc.response is not None else "desconhecido"
                 try:
                     error_data = exc.response.json() if exc.response is not None else {}
@@ -109,7 +125,16 @@ def chat(
                 )
                 break
             except Exception as exc:
+                error_code = type(exc).__name__
                 last_error = exc
                 break
+            finally:
+                record(make_usage_event(
+                    model=candidate, call_type=stage, attempt=attempt + 1,
+                    duration_ms=(perf_counter() - started) * 1000,
+                    status=request_status,
+                    http_status=getattr(response, "status_code", None),
+                    request_messages=messages, response=data, error_code=error_code,
+                ))
 
     raise OpenRouterError(f"Falha ao consultar OpenRouter: {last_error}")
