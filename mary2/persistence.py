@@ -800,7 +800,7 @@ def load_token_usage_events(
     ws = _ensure_worksheet(book, TOKEN_USAGE_AUDIT_SHEET, TOKEN_USAGE_HEADERS)
     matching = [dict(row) for row in ws.get_all_records()
                 if str(row.get("run_id", "")) == str(run_id)]
-    return matching[-max(1, min(int(limit), 1000)):]
+    return matching if int(limit) <= 0 else matching[-int(limit):]
 
 def save_turn(
     *,
