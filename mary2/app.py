@@ -2279,6 +2279,20 @@ for record in st.session_state.turn_records:
                 if record.get("mary_intent"):
                     _render_mary_thought(record["mary_intent"])
                 if record.get("audio_filename"):
+                    st.text(str(record["mary_text"]))
+                else:
+                    st.markdown(_mary_display_text(record["mary_text"]))
+                if record.get("audio_filename"):
+                    voice_path = SCENE_AUDIO_DIR / str(record["audio_filename"])
+                    if voice_path.is_file():
+                        st.audio(str(voice_path), format="audio/mpeg", autoplay=False)
+    else:
+        if record.get("mary_action"):
+            _render_scene_action(record["mary_action"])
+        with st.chat_message("assistant"):
+            if record.get("mary_intent"):
+                _render_mary_thought(record["mary_intent"])
+            if record.get("audio_filename"):
                 st.text(str(record["mary_text"]))
             else:
                 st.markdown(_mary_display_text(record["mary_text"]))
@@ -2286,7 +2300,6 @@ for record in st.session_state.turn_records:
                 voice_path = SCENE_AUDIO_DIR / str(record["audio_filename"])
                 if voice_path.is_file():
                     st.audio(str(voice_path), format="audio/mpeg", autoplay=False)
-
 
 if not st.session_state.turn_records:
     opening_caption = str(current_chapter.get("opening_caption", "") or "").strip()
