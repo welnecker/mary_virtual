@@ -19,8 +19,7 @@ DIRECT_HEADERS = {
     "descrição-guia": "action_guide",
     "descricao-guia": "action_guide",
     "pensamento-guia": "thought_guide",
-    "onomatopeia": "onomatopoeia",
-    "onomatopéia": "onomatopoeia",
+    "fala gravada": "recorded_speech",
     "modo": "interaction_mode",
     "modo de interação": "interaction_mode",
     "modo de interacao": "interaction_mode",
@@ -791,9 +790,8 @@ def build_direct_writer_prompt(
     thought_disabled = is_direct_thought_disabled(row)
     thought_guide = "" if thought_disabled else _clean(row.get("thought_guide"))
     inline_sounds = inline_sounds_from_guide(speech_guide)
-    # A nova marcação na FALA-GUIA prevalece; a coluna legada é usada
-    # apenas quando esta linha não define sons inline.
-    onomatopoeia = "" if inline_sounds else _clean(row.get("onomatopoeia"))
+    # FALA GRAVADA é transcrição reservada para o futuro módulo de voz.
+    # Não deve ser interpretada como onomatopeia ou instrução do Redator.
 
     conversation_lines: list[str] = []
     for message in (recent_messages or []):
@@ -934,18 +932,6 @@ def build_direct_writer_prompt(
         + ("Descrição-guia: " + action_guide + "\n" if action_guide else "")
         + ("Pensamento-guia: SEM PENSAMENTO — não gere [PENSAMENTO] nesta linha.\n"
            if thought_disabled else ("Pensamento-guia: " + thought_guide + "\n" if thought_guide else ""))
-        + (
-            "Onomatopeia contextual: " + onomatopoeia + "\n"
-            "Cada som pertence ao gesto ou à reação que o produz. Respeite primeiro "
-            "o POSICIONAMENTO e o CANAL indicados na própria coluna ONOMATOPEIA; "
-            "se indicar [FALA], coloque o som na fala do personagem pertinente, "
-            "imediatamente depois da fala ou do evento indicado, e NÃO o migre para [AÇÃO]. "
-            "Se não indicar canal, use o que melhor preserve a sequência da cena. "
-            "Não atribua um som a quem só observa, não use colchetes decorativos "
-            "nem liste sons no fim do turno. Não repita a ação apenas para inserir "
-            "o som nem invente uma reação do interlocutor.\n"
-            if onomatopoeia else ""
-        )
         + "Estilo/atitude: " + (_clean(row.get("style")) or "natural") + "\n"
         "Revelação permitida nesta linha: " + (_clean(row.get("revelation_policy")) or "(sem restrição autoral específica)") + "\n\n"
 
@@ -955,7 +941,7 @@ def build_direct_writer_prompt(
         "Em linha automática, avance sem inventar fala do usuário; em linha bloqueada, Mary toma a iniciativa.\n\n"
         "CANAIS: [FALA] contém diálogo; identifique cada personagem que fale (Mary:, Silvia: etc.). "
         "[AÇÃO] é registro breve, não narração integral da cena: execute somente gestos da DESCRIÇÃO-GUIA "
-        "e o mínimo necessário para concretizar ações assumidas na FALA-GUIA ou ONOMATOPEIA. "
+        "e o mínimo necessário para concretizar ações assumidas na FALA-GUIA. "
         "Evite microgestos, adjetivos de clima, sensações, explicações e ações futuras. "
         "Não descreva antes o que será decidido ou dito em [FALA]. "
         + ("Nesta linha [PENSAMENTO] está DESATIVADO; emita somente os canais aplicáveis. "
