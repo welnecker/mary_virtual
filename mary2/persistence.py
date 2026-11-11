@@ -70,6 +70,7 @@ INTERACTION_HEADERS = [
     "image_script_name",
     "image_order",
     "image_hurt",
+    "audio_filename",
 ]
 
 
@@ -864,6 +865,7 @@ def save_turn(
             str(turn_record.get("image_script_name", "") or ""),
             int(turn_record.get("image_order", 0) or 0),
             "TRUE" if turn_record.get("image_hurt", False) else "FALSE",
+            str(turn_record.get("audio_filename", "") or ""),
         ],
         value_input_option="RAW",
     )
@@ -1480,6 +1482,7 @@ def load_latest_run(
             "image_script_name": str(item.get("image_script_name", "") or ""),
             "image_order": int(item.get("image_order", 0) or 0),
             "image_hurt": str(item.get("image_hurt", "") or "").strip().upper() in {"TRUE", "1"},
+            "audio_filename": str(item.get("audio_filename", "") or ""),
         }
         turn_records.append(record)
 
