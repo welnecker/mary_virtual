@@ -704,7 +704,7 @@ def direct_script_ready_for_choice(state: dict) -> bool:
 
 # Marcações sonoras inline usam §SOM§ no próprio texto da FALA-GUIA.
 # O detector não interpreta parênteses nem altera o texto autoral.
-_INLINE_SOUND_RE = re.compile(r"§([^§\\r\\n]{1,80})§")
+_INLINE_SOUND_RE = re.compile(r"§([^§\r\n]{1,80})§")
 
 
 def inline_sounds_from_guide(speech_guide: str) -> list[str]:
@@ -921,14 +921,14 @@ def build_direct_writer_prompt(
         + ("Direção autoral desta linha: " + interpret_direction + "\n" if interpret_direction else "")
         + (
             "SONS AUTORAIS INLINE — prioridade da FALA-GUIA: "
-            + ", ".join(inline_sounds) + "\\n"
+            + ", ".join(inline_sounds) + "\n"
             "Trechos delimitados por § são sons, não falas para copiar como instruções. "
             "Ao executar o acontecimento correspondente, reproduza exatamente o som escrito "
             "dentro de §, sem os símbolos §, na mesma sequência e junto ao evento que o produz. "
             "Não os mova para o fim, não os repita, não invente sons adicionais nem os "
             "atribua a outro personagem. Não transforme o som isolado em [AÇÃO]; "
             "quando for vocalização, apresente-o no canal [FALA] pertinente. "
-            "Se a ação for condicional e não acontecer, não force sua execução só para produzir o som.\\n"
+            "Se a ação for condicional e não acontecer, não force sua execução só para produzir o som.\n"
             if inline_sounds else ""
         )
         + ("Descrição-guia: " + action_guide + "\n" if action_guide else "")
