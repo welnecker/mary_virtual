@@ -41,6 +41,7 @@ sys.path.insert(0, _MARY2_DIR)
 import streamlit as st
 from access_gate import password_fingerprint, password_matches
 from scene_images import find_scene_image, SCENE_IMAGE_SIZE
+from scene_audios import resolve_scene_audio, SCENE_AUDIO_DIR
 
 from chapters import (
     apply_choice_to_story,
@@ -2278,6 +2279,10 @@ for record in st.session_state.turn_records:
                 if record.get("mary_intent"):
                     _render_mary_thought(record["mary_intent"])
                 st.markdown(_mary_display_text(record["mary_text"]))
+                if record.get("audio_filename"):
+                    voice_path = SCENE_AUDIO_DIR / str(record["audio_filename"])
+                    if voice_path.is_file():
+                        st.audio(str(voice_path), format="audio/mpeg", autoplay=False)
     else:
         if record.get("mary_action"):
             _render_scene_action(record["mary_action"])
@@ -2285,6 +2290,10 @@ for record in st.session_state.turn_records:
             if record.get("mary_intent"):
                 _render_mary_thought(record["mary_intent"])
             st.markdown(_mary_display_text(record["mary_text"]))
+            if record.get("audio_filename"):
+                voice_path = SCENE_AUDIO_DIR / str(record["audio_filename"])
+                if voice_path.is_file():
+                    st.audio(str(voice_path), format="audio/mpeg", autoplay=False)
 
 
 if not st.session_state.turn_records:
@@ -3508,6 +3517,23 @@ if user_text:
             scene["show_caption"] = False
             scene["scene_caption"] = ""
 
+        # A linha gravada só existe quando transcrição e MP3 coexistem.
+        # Configuração incompleta impede execução e avanço do roteiro.
+        recorded_audio_path = None
+        recorded_speech = ""
+        if (
+            script_mode == "direct_sheet"
+            and direct_row
+            and str(direct_row.get("line_id", "") or "") != "loop_orgulho_ferido"
+            and not bool((narrative_state.get("direct_hurt_loop", {}) or {}).get("active"))
+        ):
+            recorded_speech = str(direct_row.get("recorded_speech", "") or "").strip()
+            recorded_audio_path = resolve_scene_audio(
+                str(chapter_config.get("script_name", "") or ""),
+                int(direct_row.get("order", 0) or 0),
+                recorded_speech,
+            )
+
         scene_text = json.dumps(scene, ensure_ascii=False)
         if script_mode == "direct_sheet":
             # O Redator recebe diretamente a linha autoral da planilha.
@@ -3556,6 +3582,18 @@ if user_text:
             ),
             *context_messages,
         ]
+        if recorded_audio_path:
+            llm_messages.append({
+                "role": "system",
+                "content": (
+                    "MODO FALA GRAVADA: a fala verbal já foi gravada e será inserida pelo aplicativo. "
+                    "Não escreva, repita, traduza, complete nem reformule diálogo. "
+                    "Produza apenas [AÇÃO] breve para movimentos executados "
+                    "e [PENSAMENTO] somente se solicitado pela linha. "
+                    "O Diretor avaliará a transcrição real em conjunto com essa atuação. "
+                    "Fala literal fixa: " + recorded_speech
+                ),
+            })
         model_audit = {
             "model": model,
             "fallback_model": fallback or "",
@@ -3586,10 +3624,12 @@ if user_text:
             )
             model_audit["initial_raw_response"] = raw_answer
             mary_intent, mary_speech_raw = _parse_direct_flexible_response(raw_answer, script_mode, thought_disabled=thought_disabled)
-            narration_leak = looks_like_action_narration(mary_speech_raw)
-            answer = sanitize_mary_output(mary_speech_raw)
+            narration_leak = False if recorded_audio_path else looks_like_action_narration(mary_speech_raw)
+            answer = recorded_speech if recorded_audio_path else sanitize_mary_output(mary_speech_raw)
+            if recorded_audio_path:
+                mary_speech_raw = recorded_speech
 
-            if (not answer and not (script_mode == "direct_sheet" and parse_mary_components(raw_answer)["action"])) or narration_leak:
+            if not recorded_audio_path and ((not answer and not (script_mode == "direct_sheet" and parse_mary_components(raw_answer)["action"])) or narration_leak):
                 retry_messages = [
                     *llm_messages,
                     {
@@ -3710,438 +3750,459 @@ if user_text:
                         "O Diretor semântico não devolveu validação estruturada após duas tentativas."
                     )
 
-                conversation_consistency = direct_validation.get(
-                    "conversation_consistency", {}
-                )
-                if (
-                    isinstance(conversation_consistency, dict)
-                    and not bool(conversation_consistency.get("ok", True))
-                ):
-                    model_audit["direct_validation_before_conversation_correction"] = deepcopy(
-                        direct_validation
-                    )
-                    conversation_retry_messages = [
-                        *llm_messages,
-                        {
-                            "role": "system",
-                            "content": (
-                                "CORREÇÃO DE CONTINUIDADE OBRIGATÓRIA. A resposta anterior não respeitou "
-                                "o movimento conversacional compreendido do usuário. Reescreva a resposta "
-                                "preservando sujeito, destinatário, autoria da iniciativa, vocativos, posse "
-                                "e a relação causal com o turno anterior. Não explique o erro e não invente "
-                                "uma justificativa narrativa para ele. NÃO force a fala-guia se ela ainda "
-                                "não couber naturalmente. Problema: "
-                                + str(conversation_consistency.get("issue", "") or "")
-                                + ". Trecho problemático: "
-                                + str(conversation_consistency.get("mary_excerpt", "") or "")
-                                + ". Correção semântica esperada: "
-                                + str(conversation_consistency.get("correction", "") or "")
-                                + ". Preserve os blocos [AÇÃO], [FALA] e [PENSAMENTO] quando necessários."
-                            ),
-                        },
+                if recorded_audio_path:
+                    # A fala literal não pode ser reescrita por correções internas.
+                    # Reprovação impede publicação e deixa a mesma ORDEM ativa.
+                    failures = [
+                        str(direct_validation.get("parse_error", "") or ""),
+                        str(direct_validation.get("missing", "") or "") if not direct_validation.get("fulfilled", False) else "",
                     ]
-                    raw_answer = chat(
-                        api_key=api_key,
-                        model=model,
-                        fallback_model=fallback,
-                        messages=conversation_retry_messages,
-                        temperature=max(0.2, min(float(temperature), 0.7)),
-                    )
-                    model_audit["retry_used"] = True
-                    model_audit["retry_messages"] = deepcopy(conversation_retry_messages)
-                    model_audit["retry_raw_response"] = raw_answer
-                    mary_intent, mary_speech_raw = _parse_direct_flexible_response(raw_answer, script_mode, thought_disabled=thought_disabled)
-                    narration_leak = looks_like_action_narration(mary_speech_raw)
-                    answer = sanitize_mary_output(mary_speech_raw)
-                    if (not answer and not (script_mode == "direct_sheet" and parse_mary_components(raw_answer)["action"])) or narration_leak:
+                    for key in ("conversation_consistency", "naturalness"):
+                        check = direct_validation.get(key, {}) or {}
+                        if isinstance(check, dict) and check.get("ok", True) is False:
+                            failures.append(str(check.get("issue", "") or key))
+                    for key in ("revelation_violation", "hard_contradiction"):
+                        check = direct_validation.get(key, {}) or {}
+                        if isinstance(check, dict) and check.get("exists", False):
+                            failures.append(str(check.get("issue", "") or key))
+                    if any(failures):
                         raise OpenRouterError(
-                            "A correção de continuidade não produziu fala verbal limpa de Mary."
+                            "FALA GRAVADA não aprovada; nenhuma fala ou avanço publicado. "
+                            + "; ".join(str(v) for v in failures if v)[:500]
                         )
-                    direct_validation = validate_direct_semantic_turn(
-                        api_key=api_key,
-                        model=director_model,
-                        fallback_model=fallback,
-                        row=direct_row,
-                        interpretation=direct_interpretation,
-                        mary_text=answer,
-                        mary_thought=mary_intent, mary_action=parse_mary_components(raw_answer)["action"],
-                        user_text=dialogue_text,
-                        user_scene_direction=scene_direction,
-                        line_dialogue=list(direct_state.get("line_dialogue", []) or []),
+                else:
+                    conversation_consistency = direct_validation.get(
+                        "conversation_consistency", {}
                     )
-                    if not bool(
-                        (direct_validation.get("conversation_consistency", {}) or {}).get(
-                            "ok", True
-                        )
+                    if (
+                        isinstance(conversation_consistency, dict)
+                        and not bool(conversation_consistency.get("ok", True))
                     ):
-                        raise OpenRouterError(
-                            "A resposta de Mary manteve incoerência conversacional após correção."
+                        model_audit["direct_validation_before_conversation_correction"] = deepcopy(
+                            direct_validation
                         )
-
-                naturalness = direct_validation.get("naturalness", {})
-                if isinstance(naturalness, dict) and naturalness.get("ok") is False:
-                    model_audit["direct_validation_before_style_correction"] = deepcopy(direct_validation)
-                    style_retry_messages = [
-                        *llm_messages,
-                        {"role": "assistant", "content": raw_answer},
-                        {"role": "system", "content": (
-                            "REESCRITA DE EXPRESSÃO NATURAL: mantenha os mesmos acontecimentos, "
-                            "fatos, interlocutores, limites, personalidade e objetivo desta linha. "
-                            "Corrija SOMENTE os canais afetados pelo problema indicado. "
-                            "Se for excesso em [AÇÃO], remova apenas gestos, sensações e "
-                            "enfeites sem função, preservando integralmente as ações obrigatórias. "
-                            "Se for [FALA], use português brasileiro cotidiano e reação específica; "
-                            "não altere [PENSAMENTO] quando não houver problema nele. "
-                            "Problema: " + str(naturalness.get("issue", "") or "") +
-                            ". Trecho: " + str(naturalness.get("mary_excerpt", "") or "") +
-                            ". Ajuste: " + str(naturalness.get("correction", "") or "") +
-                            ". Retorne apenas os blocos necessários [AÇÃO], [FALA], [PENSAMENTO]."
-                        )},
-                    ]
-                    style_raw = chat(
-                        api_key=api_key, model=model, fallback_model=fallback,
-                        messages=style_retry_messages,
-                        temperature=max(0.2, min(float(temperature), 0.7)),
-                    )
-                    style_thought, style_speech = _parse_direct_flexible_response(style_raw, script_mode, thought_disabled=thought_disabled)
-                    style_answer = sanitize_mary_output(style_speech)
-                    if (style_answer or parse_mary_components(style_raw)["action"]) and not looks_like_action_narration(style_speech):
-                        style_validation = validate_direct_semantic_turn(
-                            api_key=api_key, model=director_model,
-                            fallback_model=fallback, row=direct_row,
+                        conversation_retry_messages = [
+                            *llm_messages,
+                            {
+                                "role": "system",
+                                "content": (
+                                    "CORREÇÃO DE CONTINUIDADE OBRIGATÓRIA. A resposta anterior não respeitou "
+                                    "o movimento conversacional compreendido do usuário. Reescreva a resposta "
+                                    "preservando sujeito, destinatário, autoria da iniciativa, vocativos, posse "
+                                    "e a relação causal com o turno anterior. Não explique o erro e não invente "
+                                    "uma justificativa narrativa para ele. NÃO force a fala-guia se ela ainda "
+                                    "não couber naturalmente. Problema: "
+                                    + str(conversation_consistency.get("issue", "") or "")
+                                    + ". Trecho problemático: "
+                                    + str(conversation_consistency.get("mary_excerpt", "") or "")
+                                    + ". Correção semântica esperada: "
+                                    + str(conversation_consistency.get("correction", "") or "")
+                                    + ". Preserve os blocos [AÇÃO], [FALA] e [PENSAMENTO] quando necessários."
+                                ),
+                            },
+                        ]
+                        raw_answer = chat(
+                            api_key=api_key,
+                            model=model,
+                            fallback_model=fallback,
+                            messages=conversation_retry_messages,
+                            temperature=max(0.2, min(float(temperature), 0.7)),
+                        )
+                        model_audit["retry_used"] = True
+                        model_audit["retry_messages"] = deepcopy(conversation_retry_messages)
+                        model_audit["retry_raw_response"] = raw_answer
+                        mary_intent, mary_speech_raw = _parse_direct_flexible_response(raw_answer, script_mode, thought_disabled=thought_disabled)
+                        narration_leak = looks_like_action_narration(mary_speech_raw)
+                        answer = sanitize_mary_output(mary_speech_raw)
+                        if (not answer and not (script_mode == "direct_sheet" and parse_mary_components(raw_answer)["action"])) or narration_leak:
+                            raise OpenRouterError(
+                                "A correção de continuidade não produziu fala verbal limpa de Mary."
+                            )
+                        direct_validation = validate_direct_semantic_turn(
+                            api_key=api_key,
+                            model=director_model,
+                            fallback_model=fallback,
+                            row=direct_row,
                             interpretation=direct_interpretation,
-                            mary_text=style_answer, mary_thought=style_thought, mary_action=parse_mary_components(style_raw)["action"],
-                            user_text=dialogue_text, user_scene_direction=scene_direction,
+                            mary_text=answer,
+                            mary_thought=mary_intent, mary_action=parse_mary_components(raw_answer)["action"],
+                            user_text=dialogue_text,
+                            user_scene_direction=scene_direction,
+                            line_dialogue=list(direct_state.get("line_dialogue", []) or []),
+                        )
+                        if not bool(
+                            (direct_validation.get("conversation_consistency", {}) or {}).get(
+                                "ok", True
+                            )
+                        ):
+                            raise OpenRouterError(
+                                "A resposta de Mary manteve incoerência conversacional após correção."
+                            )
+
+                    naturalness = direct_validation.get("naturalness", {})
+                    if isinstance(naturalness, dict) and naturalness.get("ok") is False:
+                        model_audit["direct_validation_before_style_correction"] = deepcopy(direct_validation)
+                        style_retry_messages = [
+                            *llm_messages,
+                            {"role": "assistant", "content": raw_answer},
+                            {"role": "system", "content": (
+                                "REESCRITA DE EXPRESSÃO NATURAL: mantenha os mesmos acontecimentos, "
+                                "fatos, interlocutores, limites, personalidade e objetivo desta linha. "
+                                "Corrija SOMENTE os canais afetados pelo problema indicado. "
+                                "Se for excesso em [AÇÃO], remova apenas gestos, sensações e "
+                                "enfeites sem função, preservando integralmente as ações obrigatórias. "
+                                "Se for [FALA], use português brasileiro cotidiano e reação específica; "
+                                "não altere [PENSAMENTO] quando não houver problema nele. "
+                                "Problema: " + str(naturalness.get("issue", "") or "") +
+                                ". Trecho: " + str(naturalness.get("mary_excerpt", "") or "") +
+                                ". Ajuste: " + str(naturalness.get("correction", "") or "") +
+                                ". Retorne apenas os blocos necessários [AÇÃO], [FALA], [PENSAMENTO]."
+                            )},
+                        ]
+                        style_raw = chat(
+                            api_key=api_key, model=model, fallback_model=fallback,
+                            messages=style_retry_messages,
+                            temperature=max(0.2, min(float(temperature), 0.7)),
+                        )
+                        style_thought, style_speech = _parse_direct_flexible_response(style_raw, script_mode, thought_disabled=thought_disabled)
+                        style_answer = sanitize_mary_output(style_speech)
+                        if (style_answer or parse_mary_components(style_raw)["action"]) and not looks_like_action_narration(style_speech):
+                            style_validation = validate_direct_semantic_turn(
+                                api_key=api_key, model=director_model,
+                                fallback_model=fallback, row=direct_row,
+                                interpretation=direct_interpretation,
+                                mary_text=style_answer, mary_thought=style_thought, mary_action=parse_mary_components(style_raw)["action"],
+                                user_text=dialogue_text, user_scene_direction=scene_direction,
+                                line_dialogue=list(direct_state.get("line_dialogue", []) or []),
+                            )
+                            if (
+                                bool(style_validation.get("fulfilled", False))
+                                and not str(style_validation.get("parse_error", "") or "").strip()
+                            ):
+                                raw_answer = style_raw
+                                mary_intent, mary_speech_raw = style_thought, style_speech
+                                answer = style_answer
+                                direct_validation = style_validation
+                                model_audit["retry_used"] = True
+                                model_audit["retry_messages"] = deepcopy(style_retry_messages)
+                                model_audit["retry_raw_response"] = style_raw
+                            else:
+                                model_audit["style_retry_rejected"] = style_validation.get("reason", "")
+                        else:
+                            model_audit["style_retry_rejected"] = "Resposta revisada sem fala limpa."
+                    revelation_violation = direct_validation.get(
+                        "revelation_violation", {}
+                    )
+                    if (
+                        isinstance(revelation_violation, dict)
+                        and bool(revelation_violation.get("exists", False))
+                    ):
+                        model_audit["direct_validation_before_revelation_correction"] = deepcopy(
+                            direct_validation
+                        )
+                        revelation_retry_messages = [
+                            *llm_messages,
+                            {
+                                "role": "system",
+                                "content": (
+                                    "CORREÇÃO DE REVELAÇÃO OBRIGATÓRIA. A resposta anterior verbalizou "
+                                    "conteúdo que Mary conhece, mas que ainda está reservado para uma linha futura. "
+                                    "Reescreva a resposta reagindo naturalmente à fala atual do usuário, sem mentir, "
+                                    "sem inventar fatos e sem revelar o conteúdo reservado. Se o usuário perguntou "
+                                    "diretamente pelo dado proibido, Mary pode hesitar, pedir um instante, dizer que vai "
+                                    "contar ou preparar a revelação, mas não pode entregá-la ainda. Preserve a FALA-GUIA "
+                                    "da linha atual somente até onde ela couber naturalmente. "
+                                    "Regra da linha: "
+                                    + str(direct_row.get("revelation_policy", "") or "")
+                                    + ". Conteúdo reservado detectado: "
+                                    + str(revelation_violation.get("reserved_content", "") or "")
+                                    + ". Trecho problemático: "
+                                    + str(revelation_violation.get("mary_excerpt", "") or "")
+                                    + ". Correção esperada: "
+                                    + str(revelation_violation.get("correction", "") or "")
+                                    + ". Preserve os blocos [AÇÃO], [FALA] e [PENSAMENTO] quando necessários."
+                                ),
+                            },
+                        ]
+                        raw_answer = chat(
+                            api_key=api_key,
+                            model=model,
+                            fallback_model=fallback,
+                            messages=revelation_retry_messages,
+                            temperature=max(0.2, min(float(temperature), 0.7)),
+                        )
+                        model_audit["retry_used"] = True
+                        model_audit["retry_messages"] = deepcopy(revelation_retry_messages)
+                        model_audit["retry_raw_response"] = raw_answer
+                        mary_intent, mary_speech_raw = _parse_direct_flexible_response(raw_answer, script_mode, thought_disabled=thought_disabled)
+                        narration_leak = looks_like_action_narration(mary_speech_raw)
+                        answer = sanitize_mary_output(mary_speech_raw)
+                        if (not answer and not (script_mode == "direct_sheet" and parse_mary_components(raw_answer)["action"])) or narration_leak:
+                            raise OpenRouterError(
+                                "A correção de revelação não produziu fala verbal limpa de Mary."
+                            )
+                        direct_validation = validate_direct_semantic_turn(
+                            api_key=api_key,
+                            model=director_model,
+                            fallback_model=fallback,
+                            row=direct_row,
+                            interpretation=direct_interpretation,
+                            mary_text=answer,
+                            mary_thought=mary_intent, mary_action=parse_mary_components(raw_answer)["action"],
+                            user_text=dialogue_text,
+                            user_scene_direction=scene_direction,
+                            line_dialogue=list(direct_state.get("line_dialogue", []) or []),
+                        )
+                        if bool(
+                            (direct_validation.get("revelation_violation", {}) or {}).get(
+                                "exists", False
+                            )
+                        ):
+                            raise OpenRouterError(
+                                "A resposta de Mary manteve antecipação de revelação após correção."
+                            )
+
+                    hard_contradiction = direct_validation.get("hard_contradiction", {})
+                    if (
+                        isinstance(hard_contradiction, dict)
+                        and bool(hard_contradiction.get("exists", False))
+                    ):
+                        model_audit["direct_validation_before_factual_correction"] = deepcopy(
+                            direct_validation
+                        )
+                        factual_retry_messages = [
+                            *llm_messages,
+                            {
+                                "role": "system",
+                                "content": (
+                                    "CORREÇÃO FACTUAL OBRIGATÓRIA. A resposta anterior contradisse "
+                                    "uma fonte autoritativa. Reescreva somente o necessário para restaurar "
+                                    "a verdade factual e preservar a reação natural ao usuário. "
+                                    "NÃO force a fala-guia se ela ainda não couber naturalmente. "
+                                    "Se o usuário percebeu ou questionou o erro, Mary pode reconhecer "
+                                    "o lapso de forma breve e humana. "
+                                    "Fato autoritativo: "
+                                    + str(hard_contradiction.get("authoritative_fact", "") or "")
+                                    + ". Trecho contraditório: "
+                                    + str(hard_contradiction.get("mary_excerpt", "") or "")
+                                    + ". Correção: "
+                                    + str(hard_contradiction.get("correction", "") or "")
+                                    + ". Preserve os blocos [AÇÃO], [FALA] e [PENSAMENTO] quando necessários."
+                                ),
+                            },
+                        ]
+                        raw_answer = chat(
+                            api_key=api_key,
+                            model=model,
+                            fallback_model=fallback,
+                            messages=factual_retry_messages,
+                            temperature=max(0.2, min(float(temperature), 0.7)),
+                        )
+                        model_audit["retry_used"] = True
+                        model_audit["retry_messages"] = deepcopy(factual_retry_messages)
+                        model_audit["retry_raw_response"] = raw_answer
+                        mary_intent, mary_speech_raw = _parse_direct_flexible_response(raw_answer, script_mode, thought_disabled=thought_disabled)
+                        narration_leak = looks_like_action_narration(mary_speech_raw)
+                        answer = sanitize_mary_output(mary_speech_raw)
+                        if (not answer and not (script_mode == "direct_sheet" and parse_mary_components(raw_answer)["action"])) or narration_leak:
+                            raise OpenRouterError(
+                                "A correção factual não produziu fala verbal limpa de Mary."
+                            )
+                        direct_validation = validate_direct_semantic_turn(
+                            api_key=api_key,
+                            model=director_model,
+                            fallback_model=fallback,
+                            row=direct_row,
+                            interpretation=direct_interpretation,
+                            mary_text=answer,
+                            mary_thought=mary_intent, mary_action=parse_mary_components(raw_answer)["action"],
+                            user_text=dialogue_text,
+                            user_scene_direction=scene_direction,
+                            line_dialogue=list(direct_state.get("line_dialogue", []) or []),
+                        )
+                        if bool(
+                            (direct_validation.get("hard_contradiction", {}) or {}).get(
+                                "exists", False
+                            )
+                        ):
+                            raise OpenRouterError(
+                                "A resposta de Mary manteve contradição factual após correção."
+                            )
+                    # Uma unica reescrita da cena incompleta, sem repetir orientacoes
+                    # de comportamento nem permitir que o roteiro prove a si proprio.
+                    scene_check = direct_validation.get("scene_completion", {})
+                    if isinstance(scene_check, dict) and scene_check.get("fulfilled") is False:
+                        model_audit["direct_validation_before_scene_correction"] = deepcopy(direct_validation)
+                        scene_retry_messages = [
+                            *llm_messages,
+                            {"role": "assistant", "content": raw_answer},
+                            {"role": "system", "content": (
+                                "A LINHA AINDA NAO TERMINOU. O acontecimento obrigatorio nao "
+                                "foi demonstrado pela resposta anterior. Nao repita despedidas, "
+                                "promessas de ir ou pedidos ja aceitos. Mostre a acao efetiva "
+                                "agora no bloco [AÇÃO], se for um movimento silencioso, "
+                                "e mantenha [FALA] apenas "
+                                "se houver algo relevante a dizer. Diferencie a acao ja feita "
+                                "da intencao de faze-la. Fato faltante: "
+                                + str(scene_check.get("missing", "") or scene_check.get("event", "") or "")
+                                + ". Preserve o local, a sequencia e os personagens atuais. "
+                                "Use [AÇÃO], [FALA] ou [PENSAMENTO] conforme necessário, sem antecipar outras linhas."
+                            )},
+                        ]
+                        scene_raw = chat(
+                            api_key=api_key, model=model, fallback_model=fallback,
+                            messages=scene_retry_messages,
+                            temperature=max(0.2, min(float(temperature), 0.7)),
+                        )
+                        scene_thought, scene_speech = _parse_direct_flexible_response(scene_raw, script_mode, thought_disabled=thought_disabled)
+                        scene_answer = sanitize_mary_output(scene_speech)
+                        if (scene_answer or parse_mary_components(scene_raw)["action"]) and not looks_like_action_narration(scene_speech):
+                            scene_validation = validate_direct_semantic_turn(
+                                api_key=api_key, model=director_model,
+                                fallback_model=fallback, row=direct_row,
+                                interpretation=direct_interpretation,
+                                mary_text=scene_answer, mary_thought=scene_thought, mary_action=parse_mary_components(scene_raw)["action"],
+                                user_text=dialogue_text, user_scene_direction=scene_direction,
+                                line_dialogue=list(direct_state.get("line_dialogue", []) or []),
+                            )
+                            if bool(scene_validation.get("fulfilled", False)):
+                                raw_answer = scene_raw
+                                mary_intent, mary_speech_raw = scene_thought, scene_speech
+                                answer = scene_answer
+                                direct_validation = scene_validation
+                                model_audit["retry_used"] = True
+                                model_audit["retry_messages"] = deepcopy(scene_retry_messages)
+                                model_audit["retry_raw_response"] = scene_raw
+                            else:
+                                model_audit["scene_retry_rejected"] = deepcopy(scene_validation.get("scene_completion", {}))
+                        else:
+                            model_audit["scene_retry_rejected"] = "Saida sem fala valida."
+
+                    # Linhas automáticas são atômicas: nenhuma resposta pendente
+                    # pode chegar à tela, à persistência ou consumir outro clique.
+                    if automatic_turn and not bool(direct_validation.get("fulfilled", False)):
+                        auto_retry_messages = [
+                            *llm_messages,
+                            {"role": "assistant", "content": raw_answer},
+                            {"role": "system", "content": (
+                                "CORREÇÃO INTERNA DA LINHA AUTOMÁTICA. A tentativa anterior "
+                                "não concluiu o objetivo autoral: "
+                                + str(direct_validation.get("missing", "") or "objetivo incompleto")
+                                + ". Gere uma resposta efetivamente corrigida, sem repetir a anterior. "
+                                "Execute apenas a linha atual, respeitando contexto e limites. "
+                                "Use os blocos [AÇÃO], [FALA], [PENSAMENTO] quando pertinentes."
+                            )},
+                        ]
+                        auto_raw = chat(
+                            api_key=api_key, model=model, fallback_model=fallback,
+                            messages=auto_retry_messages, temperature=temperature,
+                        )
+                        auto_parts = parse_mary_components(auto_raw)
+                        auto_speech = sanitize_mary_output(auto_parts["speech"])
+                        if (not auto_speech and not auto_parts["action"]) or looks_like_action_narration(auto_speech):
+                            raise OpenRouterError(
+                                "Linha automática sem resposta válida após correção interna; nada foi publicado."
+                            )
+                        auto_validation = validate_direct_semantic_turn(
+                            api_key=api_key, model=director_model, fallback_model=fallback,
+                            row=direct_row, interpretation=direct_interpretation,
+                            mary_text=auto_speech, mary_thought=("" if thought_disabled else auto_parts["thought"]),
+                            mary_action=auto_parts["action"], user_text=dialogue_text,
+                            user_scene_direction=scene_direction,
                             line_dialogue=list(direct_state.get("line_dialogue", []) or []),
                         )
                         if (
-                            bool(style_validation.get("fulfilled", False))
-                            and not str(style_validation.get("parse_error", "") or "").strip()
+                            not bool(auto_validation.get("fulfilled", False))
+                            or str(auto_validation.get("parse_error", "") or "").strip()
                         ):
-                            raw_answer = style_raw
-                            mary_intent, mary_speech_raw = style_thought, style_speech
-                            answer = style_answer
-                            direct_validation = style_validation
-                            model_audit["retry_used"] = True
-                            model_audit["retry_messages"] = deepcopy(style_retry_messages)
-                            model_audit["retry_raw_response"] = style_raw
-                        else:
-                            model_audit["style_retry_rejected"] = style_validation.get("reason", "")
-                    else:
-                        model_audit["style_retry_rejected"] = "Resposta revisada sem fala limpa."
-                revelation_violation = direct_validation.get(
-                    "revelation_violation", {}
-                )
-                if (
-                    isinstance(revelation_violation, dict)
-                    and bool(revelation_violation.get("exists", False))
-                ):
-                    model_audit["direct_validation_before_revelation_correction"] = deepcopy(
-                        direct_validation
-                    )
-                    revelation_retry_messages = [
-                        *llm_messages,
-                        {
-                            "role": "system",
-                            "content": (
-                                "CORREÇÃO DE REVELAÇÃO OBRIGATÓRIA. A resposta anterior verbalizou "
-                                "conteúdo que Mary conhece, mas que ainda está reservado para uma linha futura. "
-                                "Reescreva a resposta reagindo naturalmente à fala atual do usuário, sem mentir, "
-                                "sem inventar fatos e sem revelar o conteúdo reservado. Se o usuário perguntou "
-                                "diretamente pelo dado proibido, Mary pode hesitar, pedir um instante, dizer que vai "
-                                "contar ou preparar a revelação, mas não pode entregá-la ainda. Preserve a FALA-GUIA "
-                                "da linha atual somente até onde ela couber naturalmente. "
-                                "Regra da linha: "
-                                + str(direct_row.get("revelation_policy", "") or "")
-                                + ". Conteúdo reservado detectado: "
-                                + str(revelation_violation.get("reserved_content", "") or "")
-                                + ". Trecho problemático: "
-                                + str(revelation_violation.get("mary_excerpt", "") or "")
-                                + ". Correção esperada: "
-                                + str(revelation_violation.get("correction", "") or "")
-                                + ". Preserve os blocos [AÇÃO], [FALA] e [PENSAMENTO] quando necessários."
-                            ),
-                        },
-                    ]
-                    raw_answer = chat(
-                        api_key=api_key,
-                        model=model,
-                        fallback_model=fallback,
-                        messages=revelation_retry_messages,
-                        temperature=max(0.2, min(float(temperature), 0.7)),
-                    )
-                    model_audit["retry_used"] = True
-                    model_audit["retry_messages"] = deepcopy(revelation_retry_messages)
-                    model_audit["retry_raw_response"] = raw_answer
-                    mary_intent, mary_speech_raw = _parse_direct_flexible_response(raw_answer, script_mode, thought_disabled=thought_disabled)
-                    narration_leak = looks_like_action_narration(mary_speech_raw)
-                    answer = sanitize_mary_output(mary_speech_raw)
-                    if (not answer and not (script_mode == "direct_sheet" and parse_mary_components(raw_answer)["action"])) or narration_leak:
-                        raise OpenRouterError(
-                            "A correção de revelação não produziu fala verbal limpa de Mary."
-                        )
-                    direct_validation = validate_direct_semantic_turn(
-                        api_key=api_key,
-                        model=director_model,
-                        fallback_model=fallback,
-                        row=direct_row,
-                        interpretation=direct_interpretation,
-                        mary_text=answer,
-                        mary_thought=mary_intent, mary_action=parse_mary_components(raw_answer)["action"],
-                        user_text=dialogue_text,
-                        user_scene_direction=scene_direction,
-                        line_dialogue=list(direct_state.get("line_dialogue", []) or []),
-                    )
-                    if bool(
-                        (direct_validation.get("revelation_violation", {}) or {}).get(
-                            "exists", False
-                        )
-                    ):
-                        raise OpenRouterError(
-                            "A resposta de Mary manteve antecipação de revelação após correção."
-                        )
-
-                hard_contradiction = direct_validation.get("hard_contradiction", {})
-                if (
-                    isinstance(hard_contradiction, dict)
-                    and bool(hard_contradiction.get("exists", False))
-                ):
-                    model_audit["direct_validation_before_factual_correction"] = deepcopy(
-                        direct_validation
-                    )
-                    factual_retry_messages = [
-                        *llm_messages,
-                        {
-                            "role": "system",
-                            "content": (
-                                "CORREÇÃO FACTUAL OBRIGATÓRIA. A resposta anterior contradisse "
-                                "uma fonte autoritativa. Reescreva somente o necessário para restaurar "
-                                "a verdade factual e preservar a reação natural ao usuário. "
-                                "NÃO force a fala-guia se ela ainda não couber naturalmente. "
-                                "Se o usuário percebeu ou questionou o erro, Mary pode reconhecer "
-                                "o lapso de forma breve e humana. "
-                                "Fato autoritativo: "
-                                + str(hard_contradiction.get("authoritative_fact", "") or "")
-                                + ". Trecho contraditório: "
-                                + str(hard_contradiction.get("mary_excerpt", "") or "")
-                                + ". Correção: "
-                                + str(hard_contradiction.get("correction", "") or "")
-                                + ". Preserve os blocos [AÇÃO], [FALA] e [PENSAMENTO] quando necessários."
-                            ),
-                        },
-                    ]
-                    raw_answer = chat(
-                        api_key=api_key,
-                        model=model,
-                        fallback_model=fallback,
-                        messages=factual_retry_messages,
-                        temperature=max(0.2, min(float(temperature), 0.7)),
-                    )
-                    model_audit["retry_used"] = True
-                    model_audit["retry_messages"] = deepcopy(factual_retry_messages)
-                    model_audit["retry_raw_response"] = raw_answer
-                    mary_intent, mary_speech_raw = _parse_direct_flexible_response(raw_answer, script_mode, thought_disabled=thought_disabled)
-                    narration_leak = looks_like_action_narration(mary_speech_raw)
-                    answer = sanitize_mary_output(mary_speech_raw)
-                    if (not answer and not (script_mode == "direct_sheet" and parse_mary_components(raw_answer)["action"])) or narration_leak:
-                        raise OpenRouterError(
-                            "A correção factual não produziu fala verbal limpa de Mary."
-                        )
-                    direct_validation = validate_direct_semantic_turn(
-                        api_key=api_key,
-                        model=director_model,
-                        fallback_model=fallback,
-                        row=direct_row,
-                        interpretation=direct_interpretation,
-                        mary_text=answer,
-                        mary_thought=mary_intent, mary_action=parse_mary_components(raw_answer)["action"],
-                        user_text=dialogue_text,
-                        user_scene_direction=scene_direction,
-                        line_dialogue=list(direct_state.get("line_dialogue", []) or []),
-                    )
-                    if bool(
-                        (direct_validation.get("hard_contradiction", {}) or {}).get(
-                            "exists", False
-                        )
-                    ):
-                        raise OpenRouterError(
-                            "A resposta de Mary manteve contradição factual após correção."
-                        )
-                # Uma unica reescrita da cena incompleta, sem repetir orientacoes
-                # de comportamento nem permitir que o roteiro prove a si proprio.
-                scene_check = direct_validation.get("scene_completion", {})
-                if isinstance(scene_check, dict) and scene_check.get("fulfilled") is False:
-                    model_audit["direct_validation_before_scene_correction"] = deepcopy(direct_validation)
-                    scene_retry_messages = [
-                        *llm_messages,
-                        {"role": "assistant", "content": raw_answer},
-                        {"role": "system", "content": (
-                            "A LINHA AINDA NAO TERMINOU. O acontecimento obrigatorio nao "
-                            "foi demonstrado pela resposta anterior. Nao repita despedidas, "
-                            "promessas de ir ou pedidos ja aceitos. Mostre a acao efetiva "
-                            "agora no bloco [AÇÃO], se for um movimento silencioso, "
-                            "e mantenha [FALA] apenas "
-                            "se houver algo relevante a dizer. Diferencie a acao ja feita "
-                            "da intencao de faze-la. Fato faltante: "
-                            + str(scene_check.get("missing", "") or scene_check.get("event", "") or "")
-                            + ". Preserve o local, a sequencia e os personagens atuais. "
-                            "Use [AÇÃO], [FALA] ou [PENSAMENTO] conforme necessário, sem antecipar outras linhas."
-                        )},
-                    ]
-                    scene_raw = chat(
-                        api_key=api_key, model=model, fallback_model=fallback,
-                        messages=scene_retry_messages,
-                        temperature=max(0.2, min(float(temperature), 0.7)),
-                    )
-                    scene_thought, scene_speech = _parse_direct_flexible_response(scene_raw, script_mode, thought_disabled=thought_disabled)
-                    scene_answer = sanitize_mary_output(scene_speech)
-                    if (scene_answer or parse_mary_components(scene_raw)["action"]) and not looks_like_action_narration(scene_speech):
-                        scene_validation = validate_direct_semantic_turn(
-                            api_key=api_key, model=director_model,
-                            fallback_model=fallback, row=direct_row,
-                            interpretation=direct_interpretation,
-                            mary_text=scene_answer, mary_thought=scene_thought, mary_action=parse_mary_components(scene_raw)["action"],
-                            user_text=dialogue_text, user_scene_direction=scene_direction,
-                            line_dialogue=list(direct_state.get("line_dialogue", []) or []),
-                        )
-                        if bool(scene_validation.get("fulfilled", False)):
-                            raw_answer = scene_raw
-                            mary_intent, mary_speech_raw = scene_thought, scene_speech
-                            answer = scene_answer
-                            direct_validation = scene_validation
-                            model_audit["retry_used"] = True
-                            model_audit["retry_messages"] = deepcopy(scene_retry_messages)
-                            model_audit["retry_raw_response"] = scene_raw
-                        else:
-                            model_audit["scene_retry_rejected"] = deepcopy(scene_validation.get("scene_completion", {}))
-                    else:
-                        model_audit["scene_retry_rejected"] = "Saida sem fala valida."
-
-                # Linhas automáticas são atômicas: nenhuma resposta pendente
-                # pode chegar à tela, à persistência ou consumir outro clique.
-                if automatic_turn and not bool(direct_validation.get("fulfilled", False)):
-                    auto_retry_messages = [
-                        *llm_messages,
-                        {"role": "assistant", "content": raw_answer},
-                        {"role": "system", "content": (
-                            "CORREÇÃO INTERNA DA LINHA AUTOMÁTICA. A tentativa anterior "
-                            "não concluiu o objetivo autoral: "
-                            + str(direct_validation.get("missing", "") or "objetivo incompleto")
-                            + ". Gere uma resposta efetivamente corrigida, sem repetir a anterior. "
-                            "Execute apenas a linha atual, respeitando contexto e limites. "
-                            "Use os blocos [AÇÃO], [FALA], [PENSAMENTO] quando pertinentes."
-                        )},
-                    ]
-                    auto_raw = chat(
-                        api_key=api_key, model=model, fallback_model=fallback,
-                        messages=auto_retry_messages, temperature=temperature,
-                    )
-                    auto_parts = parse_mary_components(auto_raw)
-                    auto_speech = sanitize_mary_output(auto_parts["speech"])
-                    if (not auto_speech and not auto_parts["action"]) or looks_like_action_narration(auto_speech):
-                        raise OpenRouterError(
-                            "Linha automática sem resposta válida após correção interna; nada foi publicado."
-                        )
-                    auto_validation = validate_direct_semantic_turn(
-                        api_key=api_key, model=director_model, fallback_model=fallback,
-                        row=direct_row, interpretation=direct_interpretation,
-                        mary_text=auto_speech, mary_thought=("" if thought_disabled else auto_parts["thought"]),
-                        mary_action=auto_parts["action"], user_text=dialogue_text,
-                        user_scene_direction=scene_direction,
-                        line_dialogue=list(direct_state.get("line_dialogue", []) or []),
-                    )
-                    if (
-                        not bool(auto_validation.get("fulfilled", False))
-                        or str(auto_validation.get("parse_error", "") or "").strip()
-                    ):
-                        # Segunda tentativa com os motivos da reprovação atual.
-                        # Não publica respostas sem aprovação do Diretor.
-                        missing_detail = str(auto_validation.get("missing", "") or "").strip()
-                        scene_detail = auto_validation.get("scene_completion", {}) or {}
-                        correction_messages = [
-                            *llm_messages,
-                            {"role": "assistant", "content": auto_raw},
-                            {"role": "system", "content": (
-                                "ÚLTIMA CORREÇÃO DA LINHA AUTOMÁTICA. O Diretor reprovou "
-                                "a tentativa anterior. Falha: "
-                                + (missing_detail or str(scene_detail.get("missing", "") or "objetivo não comprovado"))
-                                + ". Execute estritamente a Descrição-guia, a Fala-guia e "
-                                "o Pensamento-guia da LINHA ATIVA, sem repetir frases da tentativa "
-                                "anterior, sem antecipar linhas futuras. A ação física deve estar "
-                                "explicitamente descrita em [AÇÃO] e a fala verbal em [FALA]. "
-                                "Use evidências concretas, não apenas intenções."
-                            )},
-                        ]
-                        last_raw = chat(
-                            api_key=api_key, model=model, fallback_model=fallback,
-                            messages=correction_messages,
-                            temperature=max(0.2, min(float(temperature), 0.5)),
-                        )
-                        last_parts = parse_mary_components(last_raw)
-                        last_speech = sanitize_mary_output(last_parts["speech"])
-                        if (last_speech or last_parts["action"]) and not looks_like_action_narration(last_speech):
-                            last_validation = validate_direct_semantic_turn(
-                                api_key=api_key, model=director_model, fallback_model=fallback,
-                                row=direct_row, interpretation=direct_interpretation,
-                                mary_text=last_speech, mary_thought=("" if thought_disabled else last_parts["thought"]),
-                                mary_action=last_parts["action"], user_text=dialogue_text,
-                                user_scene_direction=scene_direction,
-                                line_dialogue=list(direct_state.get("line_dialogue", []) or []),
-                            )
-                            # Registrar a avaliação MAIS RECENTE mesmo quando a
-                            # última correção não resolver o problema; o erro anterior
-                            # não pode mascarar a verdadeira causa de rejeição.
-                            auto_validation = last_validation
-                            if bool(last_validation.get("fulfilled", False)) and not last_validation.get("parse_error"):
-                                auto_raw, auto_parts, auto_speech = (
-                                    last_raw, last_parts, last_speech
-                                )
-                        if not bool(auto_validation.get("fulfilled", False)) or auto_validation.get("parse_error"):
-                            # Uma falha de execução não vira interação, mas DEVE
-                            # ser auditável para diagnosticar a linha sem adivinhar.
-                            if persistence:
-                                try:
-                                    save_director_validation_audit(
-                                        service_account_info=persistence["service_account_info"],
-                                        spreadsheet_id=persistence["spreadsheet_id"],
-                                        spreadsheet_title=persistence["spreadsheet_title"],
-                                        owner_email=persistence["owner_email"],
-                                        run_id=str(st.session_state.run_id or ""),
-                                        seq_candidate=int(st.session_state.run_last_seq or 0) + 1,
-                                        chapter_id=_chapter_id(),
-                                        chapter_instance_id=str(narrative_state.get("chapter_instance_id", "") or ""),
-                                        chapter_turn=current_turn_number,
-                                        row=direct_row,
-                                        user_text=dialogue_text,
-                                        attempt=3,
-                                        mary_text=last_speech,
-                                        evaluation=auto_validation,
-                                        status="AUTO_REJECTED_NOT_PUBLISHED",
-                                    )
-                                except Exception as rejected_audit_exc:
-                                    _LOG.warning("Falha ao auditar linha automática rejeitada: %s", rejected_audit_exc)
+                            # Segunda tentativa com os motivos da reprovação atual.
+                            # Não publica respostas sem aprovação do Diretor.
+                            missing_detail = str(auto_validation.get("missing", "") or "").strip()
                             scene_detail = auto_validation.get("scene_completion", {}) or {}
-                            _LOG.warning(
-                                "AUTO_LINE_VALIDATION_REJECTED chapter=%s line=%s missing=%s scene=%s parse=%s",
-                                str(narrative_state.get("chapter_id", "")),
-                                str(direct_row.get("order", "")),
-                                str(auto_validation.get("missing", ""))[:400],
-                                str(scene_detail.get("missing", ""))[:300],
-                                str(auto_validation.get("parse_error", ""))[:160],
+                            correction_messages = [
+                                *llm_messages,
+                                {"role": "assistant", "content": auto_raw},
+                                {"role": "system", "content": (
+                                    "ÚLTIMA CORREÇÃO DA LINHA AUTOMÁTICA. O Diretor reprovou "
+                                    "a tentativa anterior. Falha: "
+                                    + (missing_detail or str(scene_detail.get("missing", "") or "objetivo não comprovado"))
+                                    + ". Execute estritamente a Descrição-guia, a Fala-guia e "
+                                    "o Pensamento-guia da LINHA ATIVA, sem repetir frases da tentativa "
+                                    "anterior, sem antecipar linhas futuras. A ação física deve estar "
+                                    "explicitamente descrita em [AÇÃO] e a fala verbal em [FALA]. "
+                                    "Use evidências concretas, não apenas intenções."
+                                )},
+                            ]
+                            last_raw = chat(
+                                api_key=api_key, model=model, fallback_model=fallback,
+                                messages=correction_messages,
+                                temperature=max(0.2, min(float(temperature), 0.5)),
                             )
-                            raise OpenRouterError(
-                                "Linha automática não aprovada após correções internas. "
-                                "Nenhuma resposta foi exibida ou salva. Consulte o log "
-                                "AUTO_LINE_VALIDATION_REJECTED e tente Prosseguir novamente."
-                            )
-                    model_audit["retry_used"] = True
-                    model_audit["retry_messages"] = deepcopy(auto_retry_messages)
-                    model_audit["retry_raw_response"] = auto_raw
-                    raw_answer = auto_raw
-                    mary_intent = "" if thought_disabled else auto_parts["thought"]
-                    mary_speech_raw = auto_parts["speech"]
-                    answer = auto_speech
-                    direct_validation = auto_validation
+                            last_parts = parse_mary_components(last_raw)
+                            last_speech = sanitize_mary_output(last_parts["speech"])
+                            if (last_speech or last_parts["action"]) and not looks_like_action_narration(last_speech):
+                                last_validation = validate_direct_semantic_turn(
+                                    api_key=api_key, model=director_model, fallback_model=fallback,
+                                    row=direct_row, interpretation=direct_interpretation,
+                                    mary_text=last_speech, mary_thought=("" if thought_disabled else last_parts["thought"]),
+                                    mary_action=last_parts["action"], user_text=dialogue_text,
+                                    user_scene_direction=scene_direction,
+                                    line_dialogue=list(direct_state.get("line_dialogue", []) or []),
+                                )
+                                # Registrar a avaliação MAIS RECENTE mesmo quando a
+                                # última correção não resolver o problema; o erro anterior
+                                # não pode mascarar a verdadeira causa de rejeição.
+                                auto_validation = last_validation
+                                if bool(last_validation.get("fulfilled", False)) and not last_validation.get("parse_error"):
+                                    auto_raw, auto_parts, auto_speech = (
+                                        last_raw, last_parts, last_speech
+                                    )
+                            if not bool(auto_validation.get("fulfilled", False)) or auto_validation.get("parse_error"):
+                                # Uma falha de execução não vira interação, mas DEVE
+                                # ser auditável para diagnosticar a linha sem adivinhar.
+                                if persistence:
+                                    try:
+                                        save_director_validation_audit(
+                                            service_account_info=persistence["service_account_info"],
+                                            spreadsheet_id=persistence["spreadsheet_id"],
+                                            spreadsheet_title=persistence["spreadsheet_title"],
+                                            owner_email=persistence["owner_email"],
+                                            run_id=str(st.session_state.run_id or ""),
+                                            seq_candidate=int(st.session_state.run_last_seq or 0) + 1,
+                                            chapter_id=_chapter_id(),
+                                            chapter_instance_id=str(narrative_state.get("chapter_instance_id", "") or ""),
+                                            chapter_turn=current_turn_number,
+                                            row=direct_row,
+                                            user_text=dialogue_text,
+                                            attempt=3,
+                                            mary_text=last_speech,
+                                            evaluation=auto_validation,
+                                            status="AUTO_REJECTED_NOT_PUBLISHED",
+                                        )
+                                    except Exception as rejected_audit_exc:
+                                        _LOG.warning("Falha ao auditar linha automática rejeitada: %s", rejected_audit_exc)
+                                scene_detail = auto_validation.get("scene_completion", {}) or {}
+                                _LOG.warning(
+                                    "AUTO_LINE_VALIDATION_REJECTED chapter=%s line=%s missing=%s scene=%s parse=%s",
+                                    str(narrative_state.get("chapter_id", "")),
+                                    str(direct_row.get("order", "")),
+                                    str(auto_validation.get("missing", ""))[:400],
+                                    str(scene_detail.get("missing", ""))[:300],
+                                    str(auto_validation.get("parse_error", ""))[:160],
+                                )
+                                raise OpenRouterError(
+                                    "Linha automática não aprovada após correções internas. "
+                                    "Nenhuma resposta foi exibida ou salva. Consulte o log "
+                                    "AUTO_LINE_VALIDATION_REJECTED e tente Prosseguir novamente."
+                                )
+                        model_audit["retry_used"] = True
+                        model_audit["retry_messages"] = deepcopy(auto_retry_messages)
+                        model_audit["retry_raw_response"] = auto_raw
+                        raw_answer = auto_raw
+                        mary_intent = "" if thought_disabled else auto_parts["thought"]
+                        mary_speech_raw = auto_parts["speech"]
+                        answer = auto_speech
+                        direct_validation = auto_validation
 
                 if persistence:
                     try:
@@ -4431,6 +4492,9 @@ if user_text:
         model_audit["mary_speech_raw"] = mary_speech_raw
         model_audit["mary_thought"] = mary_intent
         model_audit["final_mary_text"] = answer
+        if recorded_audio_path:
+            model_audit["recorded_speech"] = True
+            model_audit["recorded_audio_filename"] = recorded_audio_path.name
 
         if (
             script_mode == "direct_sheet"
@@ -4608,6 +4672,7 @@ if user_text:
             "user_role": user_role,
             "user_text": dialogue_text,
             "mary_text": answer,
+            "audio_filename": recorded_audio_path.name if recorded_audio_path else "",
             "branch_id": str(narrative.get("branch_id", "main") or "main"),
             "chapter_instance_id": str(narrative.get("chapter_instance_id", "") or ""),
             "chapter_id": _chapter_id(),
