@@ -702,6 +702,21 @@ def direct_script_ready_for_choice(state: dict) -> bool:
 
 
 
+# Marcações sonoras inline usam §SOM§ no próprio texto da FALA-GUIA.
+# O detector não interpreta parênteses nem altera o texto autoral.
+_INLINE_SOUND_RE = re.compile(r"§([^§\\r\\n]{1,80})§")
+
+
+def inline_sounds_from_guide(speech_guide: str) -> list[str]:
+    """Retorna sons na ordem autoral, sem o delimitador e sem duplicatas."""
+    found: list[str] = []
+    for match in _INLINE_SOUND_RE.finditer(str(speech_guide or "")):
+        sound = match.group(1).strip()
+        if sound and sound.casefold() not in {item.casefold() for item in found}:
+            found.append(sound)
+    return found
+
+
 def direct_line_correction_prompt(row: dict, evaluation: dict) -> str:
     """Corrige só a lacuna apontada, preservando personalidade, continuidade e espontaneidade."""
     guide = _clean(row.get("speech_guide"))
@@ -775,7 +790,10 @@ def build_direct_writer_prompt(
     action_guide = _clean(row.get("action_guide"))
     thought_disabled = is_direct_thought_disabled(row)
     thought_guide = "" if thought_disabled else _clean(row.get("thought_guide"))
-    onomatopoeia = _clean(row.get("onomatopoeia"))
+    inline_sounds = inline_sounds_from_guide(speech_guide)
+    # A nova marcação na FALA-GUIA prevalece; a coluna legada é usada
+    # apenas quando esta linha não define sons inline.
+    onomatopoeia = "" if inline_sounds else _clean(row.get("onomatopoeia"))
 
     conversation_lines: list[str] = []
     for message in (recent_messages or []):
@@ -901,6 +919,18 @@ def build_direct_writer_prompt(
         "Personagens secundários podem participar quando a cena pedir, sem falar pelo usuário nem competir com a resposta dele.\n"
 
         + ("Direção autoral desta linha: " + interpret_direction + "\n" if interpret_direction else "")
+        + (
+            "SONS AUTORAIS INLINE — prioridade da FALA-GUIA: "
+            + ", ".join(inline_sounds) + "\\n"
+            "Trechos delimitados por § são sons, não falas para copiar como instruções. "
+            "Ao executar o acontecimento correspondente, reproduza exatamente o som escrito "
+            "dentro de §, sem os símbolos §, na mesma sequência e junto ao evento que o produz. "
+            "Não os mova para o fim, não os repita, não invente sons adicionais nem os "
+            "atribua a outro personagem. Não transforme o som isolado em [AÇÃO]; "
+            "quando for vocalização, apresente-o no canal [FALA] pertinente. "
+            "Se a ação for condicional e não acontecer, não force sua execução só para produzir o som.\\n"
+            if inline_sounds else ""
+        )
         + ("Descrição-guia: " + action_guide + "\n" if action_guide else "")
         + ("Pensamento-guia: SEM PENSAMENTO — não gere [PENSAMENTO] nesta linha.\n"
            if thought_disabled else ("Pensamento-guia: " + thought_guide + "\n" if thought_guide else ""))
