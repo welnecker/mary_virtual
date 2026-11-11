@@ -28,7 +28,9 @@ def parse_mary_components(text: str) -> dict[str, str]:
 
     Mantem compatibilidade com respostas antigas sem marcadores.
     """
-    value = str(text or "").strip()
+    # O modelo pode ecoar §SOM§; estes símbolos são marcadores editoriais,
+    # não fazem parte do texto exibido nem do conteúdo enviado ao Diretor.
+    value = re.sub(r"§([^§\\r\\n]{1,80})§", r"\\1", str(text or "")).strip()
     parts = {"speech": "", "thought": "", "action": ""}
     markers = list(_COMPONENT_RE.finditer(value))
     if not markers:
