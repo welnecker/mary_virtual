@@ -70,6 +70,7 @@ from direct_script import (
     is_automatic_direct_row,
     is_blocked_direct_row,
     is_direct_thought_disabled,
+    inline_sounds_from_guide,
     load_direct_script_catalog,
     load_direct_info_board,
     load_direct_script_rows,
@@ -4208,6 +4209,26 @@ if user_text:
                     active_interlocutor=active_interlocutor,
                 )
                 narrative_state["direct_conversation_state"] = mary_conversation_state
+
+                # Diagnóstico gratuito: identifica sons omitidos após todas as
+                # correções do Redator, sem disparar outra geração nem forçar
+                # um acontecimento condicional que não ocorreu.
+                authored_sounds = inline_sounds_from_guide(
+                    str(direct_row.get("speech_guide", "") or "")
+                )
+                spoken_and_done = (
+                    str(answer or "") + " " +
+                    str(parse_mary_components(raw_answer).get("action", "") or "")
+                ).casefold()
+                missing_sounds = [
+                    sound for sound in authored_sounds
+                    if sound.casefold() not in spoken_and_done
+                ]
+                if missing_sounds:
+                    _LOG.info(
+                        "INLINE_SOUNDS_NOT_RENDERED chapter=%s order=%s sounds=%s",
+                        _chapter_id(), direct_row.get("order", 0), missing_sounds,
+                    )
 
                 # Guarda a conversa específica desta linha para que o Diretor possa
                 # reconhecer objetivos já satisfeitos pelo próprio usuário em turnos seguintes.
