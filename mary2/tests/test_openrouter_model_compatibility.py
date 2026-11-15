@@ -52,10 +52,36 @@ class OpenRouterModelCompatibilityTests(unittest.TestCase):
         self.assertEqual(value, "JSON pronto")
         first, second = (x.kwargs["json"] for x in post.call_args_list)
         self.assertEqual(first["max_tokens"], 4500)
-        self.assertEqual(first["reasoning"], {"effort": "low"})
-        self.assertGreater(second["max_tokens"], first["max_tokens"])
-        self.assertEqual(second["reasoning"], {"effort": "minimal"})
+        self.assertEqual(first["reasoning"], {"enabled": False})
+        self.assertEqual(second["max_tokens"], first["max_tokens"])
+        self.assertEqual(second["reasoning"], {"max_tokens": 768})
         self.assertEqual(post.call_count, 2)
+
+    @patch.object(client, "record")
+    @patch.object(client.requests, "post")
+    def test_deepseek_disabled_thinking_succeeds_without_retry(self, post, record):
+        post.return_value = response("Mary: Oi!", output=140, reasoning=0)
+        self.assertEqual(
+            client.chat(api_key="test", model="deepseek/deepseek-v4.1-flash-1017",
+                        messages=self.messages, call_type="REDACTOR"), "Mary: Oi!"
+        )
+        self.assertEqual(post.call_count, 1)
+        self.assertEqual(post.call_args.kwargs["json"]["reasoning"], {"enabled": False})
+
+    @patch.object(client, "record")
+    @patch.object(client.requests, "post")
+    def test_deepseek_disabled_rejected_uses_capped_reasoning(self, post, record):
+        bad = Mock()
+        bad.status_code = 400
+        bad.json.return_value = {"error": {"message": "unsupported reasoning setting"}}
+        bad.raise_for_status.side_effect = client.requests.HTTPError(response=bad)
+        post.side_effect = [bad, response("Resposta útil", output=330, reasoning=180)]
+        self.assertEqual(
+            client.chat(api_key="test", model="deepseek/deepseek-v4.1-flash-1017",
+                        messages=self.messages, call_type="REDACTOR"), "Resposta útil"
+        )
+        self.assertEqual(post.call_args_list[0].kwargs["json"]["reasoning"], {"enabled": False})
+        self.assertEqual(post.call_args_list[1].kwargs["json"]["reasoning"], {"max_tokens": 768})
 
     @patch.object(client, "record")
     @patch.object(client.requests, "post")
