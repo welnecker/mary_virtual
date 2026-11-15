@@ -38,6 +38,11 @@ class OpenRouterError(RuntimeError):
     pass
 
 
+def _deepseek_v41_flash(model: str) -> bool:
+    """The V4.1 Flash family exposes thinking controls, but not 'minimal'."""
+    return model.lower().startswith("deepseek/deepseek-v4.1-flash")
+
+
 def _preserve_gemini(model: str) -> bool:
     # Only Gemini uses the unchanged baseline. Gemma is a separate family.
     return model.lower().startswith("google/gemini-")
@@ -49,10 +54,17 @@ def _request_config(model: str, stage: str, requested_tokens: int, *, recovery: 
         return {"max_tokens": tokens}
 
     tokens = max(tokens, _COMPAT_MIN_TOKENS.get(stage, 1400))
-    if recovery:
+    if recovery and not _deepseek_v41_flash(model):
         tokens = min(_MAX_RECOVERY_TOKENS, max(tokens + 1200, int(tokens * 1.65)))
     config = {"max_tokens": tokens}
-    if model.lower().startswith(_REASONING_FAMILIES):
+    if _deepseek_v41_flash(model):
+        # This workload needs *visible* speech/JSON, not a long private trace.
+        # Disable thinking first; if the provider ignores that, retry with an
+        # explicit, small reasoning budget rather than 7,425+ output tokens.
+        config["reasoning"] = {"max_tokens": 768} if recovery else {"enabled": False}
+        if recovery:
+            config["max_tokens"] = max(tokens, 2600)
+    elif model.lower().startswith(_REASONING_FAMILIES):
         # Effort is a gateway hint; some upstream providers ignore it.
         config["reasoning"] = {"effort": "minimal" if recovery else "low"}
     return config
@@ -184,10 +196,10 @@ def chat(
                 _LOG.warning(
                     "OPENROUTER_EMPTY_RESPONSE model=%s stage=%s attempt=%s "
                     "finish_reason=%s max_tokens=%s completion_tokens=%s "
-                    "reasoning_tokens=%s reasoning_exhausted=%s",
+                    "reasoning_tokens=%s reasoning_exhausted=%s reasoning_config=%s",
                     candidate, stage, attempt + 1, choice.get("finish_reason"),
                     config["max_tokens"], usage.get("completion_tokens"),
-                    details.get("reasoning_tokens"), exhaustion,
+                    details.get("reasoning_tokens"), exhaustion, config.get("reasoning"),
                 )
                 request_status = "EMPTY_RESPONSE"
                 error_code = "REASONING_EXHAUSTED" if exhaustion else "EMPTY_RESPONSE"
@@ -197,6 +209,9 @@ def chat(
                     f"max_tokens={config['max_tokens']})."
                 )
                 if attempt == 0:
+                    # For DeepSeek V4.1, cap thinking instead of increasing the
+                    # total output budget. This also covers providers which ignore
+                    # enabled=False while still reporting reasoning exhaustion.
                     # Bigger budget and lower effort if thinking ate the answer;
                     # a single ordinary retry for unexplained transient empties.
                     recovery = exhaustion
@@ -220,8 +235,13 @@ def chat(
                 # A normal HTTP 400 (wrong model ID, unavailable params, etc.)
                 # must not trigger an expensive blind token-budget increase.
                 if status == 400 and "reasoning" in config and attempt == 0:
-                    remove_reasoning = True
-                    recovery = False
+                    # DeepSeek may reject disabling thinking; cap reasoning
+                    # instead. Other providers retry without the unsupported hint.
+                    if _deepseek_v41_flash(candidate):
+                        recovery = True
+                    else:
+                        remove_reasoning = True
+                        recovery = False
                     continue
                 break
             except Exception as exc:
