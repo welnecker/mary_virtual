@@ -37,9 +37,10 @@ def parse_mary_components(text: str) -> dict[str, str]:
         parts["speech"] = value
         return parts
     chunks = {"speech": [], "thought": [], "action": []}
-    # Texto anterior ao primeiro marcador e preservado como fala legada.
-    if value[:markers[0].start()].strip():
-        chunks["speech"].append(value[:markers[0].start()].strip())
+    # Se o modelo usou canais explícitos, qualquer prefácio fora deles
+    # é metatexto não confiável (instruções ecoadas, comentários técnicos).
+    # Nunca o converta automaticamente em FALA. A compatibilidade legada
+    # continua restrita a respostas inteiramente SEM marcadores (acima).
     for index, marker in enumerate(markers):
         end = markers[index + 1].start() if index + 1 < len(markers) else len(value)
         text_part = value[marker.end():end].strip()
