@@ -1,19 +1,96 @@
 from __future__ import annotations
 
+"""OpenRouter chat adapter with bounded recovery for reasoning-heavy models.
+
+Keep the proven Gemini 3 Flash behavior intact. Other models receive a
+stage-aware output budget; an empty reasoning-only completion is retried with
+a *different* budget/effort, never with the same exhausted configuration.
+"""
+
 from typing import Iterable
-import logging
 import inspect
+import logging
 from time import perf_counter
+
 import requests
+
 from token_usage import classify_call, make_usage_event, record
 
 
 OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions"
 _LOG = logging.getLogger(__name__)
 
+# These are conservative pilot budgets, not guarantees or required spending.
+# Never reduce a caller's explicitly larger max_tokens.
+_COMPAT_MIN_TOKENS = {
+    "SEMANTIC_DIRECTOR": 4500,
+    "CONVERSATION_STATE": 1100,
+    "REDACTOR": 2000,
+    "INPUT_ROUTER": 900,
+    "USER_UNDERSTANDING": 1300,
+    "EMOTION_CLASSIFIER": 900,
+}
+_REASONING_FAMILIES = ("deepseek/", "xiaomi/", "z-ai/", "qwen/", "moonshotai/", "openai/", "anthropic/")
+_MAX_RECOVERY_TOKENS = 9000
+
 
 class OpenRouterError(RuntimeError):
     pass
+
+
+def _preserve_gemini(model: str) -> bool:
+    # Only Gemini uses the unchanged baseline. Gemma is a separate family.
+    return model.lower().startswith("google/gemini-")
+
+
+def _request_config(model: str, stage: str, requested_tokens: int, *, recovery: bool) -> dict:
+    tokens = max(1, int(requested_tokens))
+    if _preserve_gemini(model):
+        return {"max_tokens": tokens}
+
+    tokens = max(tokens, _COMPAT_MIN_TOKENS.get(stage, 1400))
+    if recovery:
+        tokens = min(_MAX_RECOVERY_TOKENS, max(tokens + 1200, int(tokens * 1.65)))
+    config = {"max_tokens": tokens}
+    if model.lower().startswith(_REASONING_FAMILIES):
+        # Effort is a gateway hint; some upstream providers ignore it.
+        config["reasoning"] = {"effort": "minimal" if recovery else "low"}
+    return config
+
+
+def _visible_text(message: dict) -> str:
+    content = message.get("content")
+    if isinstance(content, str):
+        return content.strip()
+    if isinstance(content, list):
+        parts = []
+        for item in content:
+            if not isinstance(item, dict):
+                continue
+            text = item.get("text")
+            if isinstance(text, str):
+                parts.append(text)
+        return "".join(parts).strip()
+    return ""
+
+
+def _reasoning_exhausted(choice: dict, data: dict, budget: int) -> bool:
+    usage = data.get("usage") if isinstance(data.get("usage"), dict) else {}
+    details = usage.get("completion_tokens_details")
+    details = details if isinstance(details, dict) else {}
+    try:
+        output = int(usage.get("completion_tokens") or 0)
+        reasoning = int(details.get("reasoning_tokens") or 0)
+    except (TypeError, ValueError):
+        return False
+    # A provider can report a few extra tokens. Require a positive signal of
+    # thinking plus a near-zero visible answer; do not classify generic errors.
+    return (
+        choice.get("finish_reason") == "length"
+        and reasoning > 0
+        and output >= max(1, budget - 16)
+        and output - reasoning <= 32
+    )
 
 
 def chat(
@@ -31,20 +108,33 @@ def chat(
     if not model:
         raise OpenRouterError("Modelo não informado.")
 
-    candidates: Iterable[str] = [model] + ([fallback_model] if fallback_model else [])
+    candidates: Iterable[str] = [model] + (
+        [fallback_model] if fallback_model and fallback_model != model else []
+    )
     last_error: Exception | None = None
     caller = inspect.currentframe().f_back
     stage = classify_call(caller.f_code.co_filename if caller else "", call_type=call_type)
     del caller
 
     for candidate in candidates:
-        # Cada tentativa gera seu próprio evento, inclusive HTTP/JSON/choices vazios.
+        # Keep at most two billed attempts per candidate.
+        recovery = False
+        remove_reasoning = False
         for attempt in range(2):
             started = perf_counter()
             response = None
-            data = {}
+            data: dict = {}
             request_status = "ERROR"
             error_code = ""
+            config = _request_config(candidate, stage, max_tokens, recovery=recovery)
+            if remove_reasoning:
+                config.pop("reasoning", None)
+            payload = {
+                "model": candidate,
+                "messages": messages,
+                "temperature": temperature,
+                **config,
+            }
             try:
                 response = requests.post(
                     OPENROUTER_URL,
@@ -54,12 +144,7 @@ def chat(
                         "HTTP-Referer": "https://github.com/welnecker/mary_virtual",
                         "X-Title": "Mary Core 2",
                     },
-                    json={
-                        "model": candidate,
-                        "messages": messages,
-                        "temperature": temperature,
-                        "max_tokens": max_tokens,
-                    },
+                    json=payload,
                     timeout=90,
                 )
                 response.raise_for_status()
@@ -73,43 +158,50 @@ def chat(
                     raise OpenRouterError(
                         f"OpenRouter retornou formato inesperado (HTTP {response.status_code})."
                     )
+
                 choices = data.get("choices")
                 if not isinstance(choices, list) or not choices:
                     error = data.get("error")
-                    if isinstance(error, dict):
-                        detail = str(error.get("message") or error.get("code") or "erro sem mensagem")
-                    else:
-                        detail = str(error or data.get("message") or "campo choices ausente")
+                    detail = (
+                        str(error.get("message") or error.get("code") or "erro sem mensagem")
+                        if isinstance(error, dict)
+                        else str(error or data.get("message") or "campo choices ausente")
+                    )
                     raise OpenRouterError(
                         f"OpenRouter respondeu HTTP {response.status_code}, modelo {candidate}: {detail[:500]}"
                     )
-                message = choices[0].get("message", {}) if isinstance(choices[0], dict) else {}
-                content = message.get("content") if isinstance(message, dict) else None
-                if isinstance(content, list):
-                    content = "".join(
-                        item.get("text", "") for item in content
-                        if isinstance(item, dict) and isinstance(item.get("text"), str)
-                    )
-                if not isinstance(content, str) or not content.strip():
-                    usage = data.get("usage") if isinstance(data.get("usage"), dict) else {}
-                    finish_reason = choices[0].get("finish_reason") if isinstance(choices[0], dict) else None
-                    _LOG.warning(
-                        "OPENROUTER_EMPTY_RESPONSE model=%s attempt=%s finish_reason=%s "
-                        "completion_tokens=%s reasoning_tokens=%s",
-                        candidate, attempt + 1, finish_reason,
-                        usage.get("completion_tokens"),
-                        (usage.get("completion_tokens_details") or {}).get("reasoning_tokens")
-                        if isinstance(usage.get("completion_tokens_details"), dict) else None,
-                    )
-                    request_status = "EMPTY_RESPONSE"
-                    last_error = OpenRouterError(
-                        f"OpenRouter retornou resposta vazia (HTTP {response.status_code}, modelo {candidate})."
-                    )
-                    if attempt == 0:
-                        continue
-                    break
-                request_status = "SUCCESS"
-                return content.strip()
+                choice = choices[0] if isinstance(choices[0], dict) else {}
+                message = choice.get("message") if isinstance(choice.get("message"), dict) else {}
+                content = _visible_text(message)
+                if content:
+                    request_status = "SUCCESS"
+                    return content
+
+                usage = data.get("usage") if isinstance(data.get("usage"), dict) else {}
+                details = usage.get("completion_tokens_details")
+                details = details if isinstance(details, dict) else {}
+                exhaustion = _reasoning_exhausted(choice, data, config["max_tokens"])
+                _LOG.warning(
+                    "OPENROUTER_EMPTY_RESPONSE model=%s stage=%s attempt=%s "
+                    "finish_reason=%s max_tokens=%s completion_tokens=%s "
+                    "reasoning_tokens=%s reasoning_exhausted=%s",
+                    candidate, stage, attempt + 1, choice.get("finish_reason"),
+                    config["max_tokens"], usage.get("completion_tokens"),
+                    details.get("reasoning_tokens"), exhaustion,
+                )
+                request_status = "EMPTY_RESPONSE"
+                error_code = "REASONING_EXHAUSTED" if exhaustion else "EMPTY_RESPONSE"
+                last_error = OpenRouterError(
+                    f"OpenRouter retornou resposta vazia (HTTP {response.status_code}, "
+                    f"modelo {candidate}, finish_reason={choice.get('finish_reason')}, "
+                    f"max_tokens={config['max_tokens']})."
+                )
+                if attempt == 0:
+                    # Bigger budget and lower effort if thinking ate the answer;
+                    # a single ordinary retry for unexplained transient empties.
+                    recovery = exhaustion
+                    continue
+                break
             except requests.HTTPError as exc:
                 request_status = "HTTP_ERROR"
                 error_code = "HTTP_ERROR"
@@ -121,8 +213,16 @@ def chat(
                 except ValueError:
                     detail = ""
                 last_error = OpenRouterError(
-                    f"OpenRouter HTTP {status}, modelo {candidate}: {str(detail)[:500] or 'requisição rejeitada'}"
+                    f"OpenRouter HTTP {status}, modelo {candidate}: "
+                    f"{str(detail)[:500] or 'requisição rejeitada'}"
                 )
+                # Unsupported reasoning options: retry once without that hint.
+                # A normal HTTP 400 (wrong model ID, unavailable params, etc.)
+                # must not trigger an expensive blind token-budget increase.
+                if status == 400 and "reasoning" in config and attempt == 0:
+                    remove_reasoning = True
+                    recovery = False
+                    continue
                 break
             except Exception as exc:
                 error_code = type(exc).__name__
