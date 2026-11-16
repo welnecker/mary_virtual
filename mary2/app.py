@@ -4237,6 +4237,7 @@ if user_text:
                         direct_state,
                         user_text=dialogue_text,
                         mary_text=answer,
+                        mary_action=parse_mary_components(raw_answer)["action"],
                     )
 
             if (
