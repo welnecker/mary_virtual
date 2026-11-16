@@ -179,6 +179,7 @@ def analyze_user_understanding(
         ],
         temperature=0.0,
         max_tokens=520,
+        json_object=True,
     )
 
     def _parse_understanding(value: str) -> tuple[dict, str]:
@@ -216,6 +217,7 @@ def analyze_user_understanding(
             ],
             temperature=0.0,
             max_tokens=520,
+            json_object=True,
         )
         repaired, repair_error = _parse_understanding(repair_raw)
         if not repair_error:
