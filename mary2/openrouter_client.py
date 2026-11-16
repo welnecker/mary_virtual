@@ -114,6 +114,7 @@ def chat(
     max_tokens: int = 700,
     fallback_model: str | None = None,
     call_type: str = "",
+    json_object: bool = False,
 ) -> str:
     if not api_key:
         raise OpenRouterError("OPENROUTER_API_KEY não configurada.")
@@ -132,6 +133,7 @@ def chat(
         # Keep at most two billed attempts per candidate.
         recovery = False
         remove_reasoning = False
+        remove_json_format = False
         for attempt in range(2):
             started = perf_counter()
             response = None
@@ -141,6 +143,8 @@ def chat(
             config = _request_config(candidate, stage, max_tokens, recovery=recovery)
             if remove_reasoning:
                 config.pop("reasoning", None)
+            if json_object and not remove_json_format:
+                config["response_format"] = {"type": "json_object"}
             payload = {
                 "model": candidate,
                 "messages": messages,
@@ -234,6 +238,11 @@ def chat(
                 # Unsupported reasoning options: retry once without that hint.
                 # A normal HTTP 400 (wrong model ID, unavailable params, etc.)
                 # must not trigger an expensive blind token-budget increase.
+                if status == 400 and "response_format" in config and attempt == 0:
+                    # Provider rejected JSON mode: preserve the existing prompt parser.
+                    remove_json_format = True
+                    recovery = False
+                    continue
                 if status == 400 and "reasoning" in config and attempt == 0:
                     # DeepSeek may reject disabling thinking; cap reasoning
                     # instead. Other providers retry without the unsupported hint.
