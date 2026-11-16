@@ -70,6 +70,7 @@ def parse_user_input(
         ],
         temperature=0.0,
         max_tokens=260,
+        json_object=True,
     )
 
     try:
