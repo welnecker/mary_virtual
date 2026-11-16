@@ -680,8 +680,9 @@ def record_direct_line_turn(
     *,
     user_text: str,
     mary_text: str,
+    mary_action: str = "",
 ) -> None:
-    """Guarda somente a conversa ocorrida enquanto a linha atual permanece ativa."""
+    """Guarda falas e ações confirmadas enquanto a linha permanece ativa."""
     dialogue = state.get("line_dialogue")
     if not isinstance(dialogue, list):
         dialogue = []
@@ -690,6 +691,8 @@ def record_direct_line_turn(
         dialogue.append({"role": "user", "content": _clean(user_text)})
     if _clean(mary_text):
         dialogue.append({"role": "assistant", "content": _clean(mary_text)})
+    if _clean(mary_action):
+        dialogue.append({"role": "assistant_action", "content": _clean(mary_action)})
     # Evita crescimento ilimitado em linhas excepcionalmente longas.
     if len(dialogue) > 12:
         state["line_dialogue"] = dialogue[-12:]
