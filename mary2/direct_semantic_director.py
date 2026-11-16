@@ -400,6 +400,7 @@ def validate_direct_semantic_turn(
         ],
         temperature=0.0,
         max_tokens=2600,
+        json_object=True,
     )
     duration_ms = round((time.perf_counter() - started) * 1000.0, 1)
 
