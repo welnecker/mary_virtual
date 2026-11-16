@@ -191,6 +191,13 @@ def chat(
                 content = _visible_text(message)
                 if content:
                     request_status = "SUCCESS"
+                    if json_object:
+                        _LOG.info(
+                            "OPENROUTER_JSON_MODE model=%s stage=%s mode=%s attempt=%s",
+                            candidate, stage,
+                            "native" if "response_format" in config else "fallback",
+                            attempt + 1,
+                        )
                     return content
 
                 usage = data.get("usage") if isinstance(data.get("usage"), dict) else {}
@@ -239,6 +246,10 @@ def chat(
                 # A normal HTTP 400 (wrong model ID, unavailable params, etc.)
                 # must not trigger an expensive blind token-budget increase.
                 if status == 400 and "response_format" in config and attempt == 0:
+                    _LOG.warning(
+                        "OPENROUTER_JSON_FALLBACK model=%s stage=%s http_status=400",
+                        candidate, stage,
+                    )
                     # Provider rejected JSON mode: preserve the existing prompt parser.
                     remove_json_format = True
                     recovery = False
