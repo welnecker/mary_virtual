@@ -73,6 +73,8 @@ from direct_script import (
     inline_sounds_from_guide,
     load_direct_script_catalog,
     load_direct_info_board,
+    load_direct_info_boards,
+    resolve_contextual_memories,
     load_direct_script_rows,
     mark_direct_line_emitted,
     next_direct_script,
@@ -1383,11 +1385,10 @@ st.caption(f"Capítulo atual: **{current_chapter.get('title', _chapter_id())}**"
 # Orientação exclusiva ao jogador. O texto não entra no contexto da Mary,
 # nem é encaminhado à Compreensão, ao Redator ou ao Diretor.
 @st.cache_data(ttl=120, show_spinner=False)
-def _cached_direct_info_board(spreadsheet_id: str, script_name: str, _service_account_info: dict) -> str:
-    return load_direct_info_board(
+def _cached_direct_info_boards(spreadsheet_id: str, _service_account_info: dict) -> dict:
+    return load_direct_info_boards(
         service_account_info=_service_account_info,
         spreadsheet_id=spreadsheet_id,
-        script_name=script_name,
     )
 
 
@@ -1395,11 +1396,11 @@ if str(current_chapter.get("script_mode", "") or "").lower() == "direct_sheet" a
     _board_script = str(current_chapter.get("script_name", "") or "").strip()
     if _board_script:
         try:
-            _player_board = _cached_direct_info_board(
+            _player_boards = _cached_direct_info_boards(
                 persistence["spreadsheet_id"],
-                _board_script,
                 persistence["service_account_info"],
             )
+            _player_board = _player_boards.get(_board_script.casefold(), {}).get("quadro_inicial", "")
             if _player_board:
                 st.info(_player_board)
         except Exception as _board_error:
@@ -2541,6 +2542,13 @@ else:
         placeholder = f"Fale ou dirija a cena como {temporary_name}..."
     emotional_ending_blocked = bool(st.session_state.story_state.get("narrative", {}).get("direct_emotional_ending_blocked", False))
     user_text = st.chat_input(placeholder, disabled=bool(direct_ui_error) or emotional_ending_blocked)
+    # Orientação apenas visual: não entra na entrada enviada ao modelo,
+    # no prompt do Redator ou no histórico da conversa.
+    if (navigation_script_mode == "direct_sheet" and direct_ui_row
+            and not direct_ui_error and not emotional_ending_blocked):
+        user_suggestion = str(direct_ui_row.get("user_suggestion", "") or "").strip()
+        if user_suggestion:
+            st.caption("💡 Sugestão de entrada: " + user_suggestion)
 
 if direct_ui_error:
     st.error(f"Não foi possível determinar o modo da linha atual: {direct_ui_error}")
@@ -3302,6 +3310,23 @@ if user_text:
                 except Exception as understanding_audit_exc:
                     st.session_state.audit_error = str(understanding_audit_exc)
 
+            contextual_memories = ""
+            if 'consulte' in str(direct_row.get('style', '')).casefold() and 'memorias-' in str(direct_row.get('style', '')).casefold():
+                try:
+                    memory_boards = _cached_direct_info_boards(
+                        persistence["spreadsheet_id"], persistence["service_account_info"]
+                    ) if persistence else {}
+                    clean_style, contextual_memories = resolve_contextual_memories(
+                        str(direct_row.get("style", "")), memory_boards
+                    )
+                    direct_row = dict(direct_row)
+                    direct_row["style"] = clean_style
+                    _LOG.info("Memórias contextuais na linha %s: %s caracteres", direct_row.get("order"), len(contextual_memories))
+                except Exception as memory_error:
+                    _LOG.warning("Consulta de memória contextual indisponível: %s", memory_error)
+                    direct_row = dict(direct_row)
+                    direct_row["style"], _ = resolve_contextual_memories(str(direct_row.get("style", "")), {})
+
             current_chapter_prompt = build_direct_writer_prompt(
                 row=direct_row,
                 all_rows=direct_rows,
@@ -3316,6 +3341,7 @@ if user_text:
                     scene_for_director.get("temporary_character", {}).get("name", "") or ""
                 ),
                 handoff_text=direct_handoff_text,
+                contextual_memories=contextual_memories,
             )
             current_chapter_prompt += "\n\n" + HUMANIZER_INTERPRETATIVO
 
