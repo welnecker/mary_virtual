@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import logging
 import re
 import time
 from copy import deepcopy
@@ -29,8 +30,12 @@ DIRECT_HEADERS = {
     "revelacao": "revelation_policy",
     "revelação": "revelation_policy",
     "estilo / atitude": "style",
+    "tom/atitude": "style",
+    "tom / atitude": "style",
     "orgulho ferido": "hurt_style",
     "prompt negativo": "negative_prompt",
+    "sugestao": "user_suggestion",
+    "sugestão": "user_suggestion",
     "direção dos interlocutores": "interlocutor_direction",
     "direcao dos interlocutores": "interlocutor_direction",
     "pré-condição": "precondition",
@@ -331,28 +336,66 @@ def load_direct_script_catalog(
 
 
 
-def load_direct_info_board(
+def load_direct_info_boards(
     *,
     service_account_info: dict,
     spreadsheet_id: str,
-    script_name: str,
-) -> str:
-    """Quadro exclusivamente visual para o jogador; nunca integra prompts."""
-    if not service_account_info or not _clean(spreadsheet_id) or not _clean(script_name):
-        return ""
+) -> dict[str, dict[str, str]]:
+    """Lê quadros e memórias em uma única consulta à planilha."""
+    if not service_account_info or not _clean(spreadsheet_id):
+        return {}
     client = gspread.service_account_from_dict(service_account_info)
     worksheet = client.open_by_key(_clean(spreadsheet_id)).worksheet("QUADROS_INFORMATIVOS")
     values = worksheet.get_all_values()
     if not values:
-        return ""
+        return {}
     headers = [_clean(x).casefold() for x in values[0]]
     if "roteiro" not in headers or "quadro inicial" not in headers:
         raise ValueError("QUADROS_INFORMATIVOS precisa das colunas ROTEIRO e QUADRO INICIAL")
     script_col, board_col = headers.index("roteiro"), headers.index("quadro inicial")
+    memory_col = headers.index("memorias") if "memorias" in headers else -1
+    boards: dict[str, dict[str, str]] = {}
     for cells in values[1:]:
-        if script_col < len(cells) and _clean(cells[script_col]).casefold() == _clean(script_name).casefold():
-            return _clean(cells[board_col]) if board_col < len(cells) else ""
-    return ""
+        name = _clean(cells[script_col]) if script_col < len(cells) else ""
+        if name:
+            boards[name.casefold()] = {
+                "quadro_inicial": _clean(cells[board_col]) if board_col < len(cells) else "",
+                "memorias": _clean(cells[memory_col]) if 0 <= memory_col < len(cells) else "",
+            }
+    return boards
+
+
+def load_direct_info_board(*, service_account_info: dict, spreadsheet_id: str, script_name: str) -> str:
+    """Compatibilidade com a exibição visual existente."""
+    boards = load_direct_info_boards(service_account_info=service_account_info, spreadsheet_id=spreadsheet_id)
+    return boards.get(_clean(script_name).casefold(), {}).get("quadro_inicial", "")
+
+
+_MEMORY_MARKER = re.compile(r'\bconsulte\s+["“]MEMORIAS-([^"”]+)["”]', re.I)
+
+
+def resolve_contextual_memories(style: str, boards: dict[str, dict[str, str]] | None) -> tuple[str, str]:
+    """Retira consultas autorais do estilo e resolve apenas as memórias pedidas."""
+    requested: list[str] = []
+
+    def remove_marker(match: re.Match[str]) -> str:
+        for name in match.group(1).split(","):
+            name = name.strip()
+            if name and name.casefold() not in {item.casefold() for item in requested}:
+                requested.append(name)
+        return ""
+
+    cleaned = _MEMORY_MARKER.sub(remove_marker, _clean(style))
+    cleaned = re.sub(r"\s*[-—–|;]\s*(?=$)", "", cleaned).strip(" ,;—–-|")
+    memories: list[str] = []
+    for name in requested:
+        entry = (boards or {}).get(name.casefold(), {})
+        content = _clean(entry.get("memorias"))
+        if content:
+            memories.append(f"MEMÓRIA CANÔNICA DE {name}\n{content}")
+        else:
+            logging.getLogger(__name__).warning("Memória contextual ausente ou vazia: %s", name)
+    return cleaned, "\n\n".join(memories)
 
 
 def next_direct_script(
@@ -457,20 +500,13 @@ def load_direct_script_rows(
         (_clean(item.get("physical_memory")) for item in rows if _clean(item.get("physical_memory"))),
         "",
     )
-    # Apenas a PRIMEIRA linha pode oferecer um padrão geral do capítulo.
-    # A primeira orientação encontrada em uma linha posterior é local e não
-    # pode contaminar linhas anteriores nem outros momentos do roteiro.
-    hurt_style_global = _clean(rows[0].get("hurt_style")) if rows else ""
-    negative_prompt_global = _clean(rows[0].get("negative_prompt")) if rows else ""
     for item in rows:
         item["permanent_memory"] = permanent_memory_global
         item["physical_memory"] = physical_memory_global
-        # A orientação específica da linha prevalece; a primeira instrução
-        # disponível no capítulo é apenas fallback para linhas não preenchidas.
-        # Isso permite que a mesma personagem seja contrariada por causas
-        # diferentes conforme a missão atual.
-        item["hurt_style"] = _clean(item.get("hurt_style")) or hurt_style_global
-        item["negative_prompt"] = _clean(item.get("negative_prompt")) or negative_prompt_global
+        # Limites emocionais são estritamente locais: célula vazia NÃO herda
+        # o contrato da primeira linha. O LOOP ativo salva sua própria origem.
+        item["hurt_style"] = _clean(item.get("hurt_style"))
+        item["negative_prompt"] = _clean(item.get("negative_prompt"))
         if emotional_loop_row:
             item["_emotional_loop_row"] = dict(emotional_loop_row)
 
@@ -766,6 +802,7 @@ def build_direct_writer_prompt(
     active_interlocutor: str = "",
     character_name: str = "",
     handoff_text: str = "",
+    contextual_memories: str = "",
 ) -> str:
     """Prompt direto: conversa real + roteiro completo + linha ativa + cânone."""
     if not row:
@@ -858,8 +895,17 @@ def build_direct_writer_prompt(
         + "\n\nESTADO FÍSICO/LOCAL ATUAL\n"
         + (_clean(row.get("instant_memory")) or "(não informado)")
         + "\n\n"
+        + (
+            "MEMÓRIAS CONTEXTUAIS DE ROTEIROS ANTERIORES — PASSADO CANÔNICO\n"
+            "Os acontecimentos fornecidos são fatos autorais do passado, não uma missão para esta linha. "
+            "Não antecipe acontecimentos, não substitua o lugar ou estado presente, "
+            "não recite o histórico e só o mencione quando for natural e pertinente. "
+            "A linha ativa e a memória instantânea governam o presente.\n"
+            + _clean(contextual_memories) + "\n\n"
+            if _clean(contextual_memories) else ""
+        )
 
-        "==================================================\n"
+        + "==================================================\n"
         "CONVERSA REAL — FONTE PRINCIPAL DE CONTINUIDADE\n"
         "==================================================\n"
         + conversation_text
