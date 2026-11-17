@@ -95,6 +95,31 @@ def hurt_loop_max_interactions(loop_row: dict | None) -> int:
     return 3
 
 
+def should_activate_hurt_loop(assessment: dict, negative_rule: str, loop_row: dict | None) -> bool:
+    """Apenas violação comprovada do PROMPT NEGATIVO da linha manual inicia o LOOP."""
+    return bool(loop_row and _clean(negative_rule) and assessment.get("violation") is True)
+
+
+def hurt_loop_turn_direction(attempt: int, maximum: int) -> str:
+    """Vincula a missão autoral do LOOP à tentativa presente, sem inventar ações."""
+    maximum = max(1, maximum)
+    attempt = max(1, min(attempt, maximum))
+    if attempt == maximum:
+        phase = (
+            "ÚLTIMA interação sem reparação: execute a conclusão autoral prevista "
+            "para a última tentativa, incluindo o afastamento e encerramento do roteiro. "
+            "Não ofereça nova oportunidade nem retorne à missão principal."
+        )
+    elif attempt == 1:
+        phase = "PRIMEIRA interação: execute somente a primeira etapa autoral, permitindo reparação."
+    else:
+        phase = (
+            "Interação intermediária: demonstre a progressão prevista na FALA-GUIA, "
+            "sem executar antecipadamente a última etapa."
+        )
+    return f"ETAPA ATUAL DO LOOP: {attempt}/{maximum}. {phase}"
+
+
 def is_direct_thought_disabled(row: dict | None) -> bool:
     """A célula 'Sem pensamento' desativa o canal de pensamento nesta linha."""
     return (
