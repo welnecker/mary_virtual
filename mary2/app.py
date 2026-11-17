@@ -67,9 +67,11 @@ from direct_script import (
     ensure_direct_state,
     extract_direct_character_name,
     hurt_loop_max_interactions,
+    hurt_loop_turn_direction,
     is_automatic_direct_row,
     is_blocked_direct_row,
     is_direct_thought_disabled,
+    should_activate_hurt_loop,
     inline_sounds_from_guide,
     load_direct_script_catalog,
     load_direct_info_board,
@@ -2436,6 +2438,9 @@ if (navigation_script_mode == "direct_sheet" and isinstance(loop_ui_status, dict
         f"Interações sem reconciliação: {int(loop_ui_status.get('attempts', 0) or 0)}/"
         f"{int(loop_ui_status.get('max_attempts', 3) or 3)}."
     )
+elif (navigation_script_mode == "direct_sheet" and isinstance(loop_ui_status, dict)
+      and loop_ui_status.get("exhausted")):
+    st.error("Roteiro encerrado: o conflito não foi reparado dentro do limite autoral de interações.")
 
 automatic_emitted = bool(
     direct_ui_row
@@ -3070,12 +3075,8 @@ if user_text:
             # O LOOP só é habilitado quando há uma linha LOOP autoral e
             # um critério de contrariedade definido na planilha. Não existe
             # motivo emocional presumido pelo código.
-            # Roteiros antigos sem linha LOOP conservam a avaliação emocional
-            # legada; capítulos com LOOP podem declarar os critérios por linha.
-            has_emotional_policy = bool(
-                (negative_rule and wounded_style)
-                or (loop_direction and (negative_rule or wounded_style))
-            )
+            # Apenas o critério da linha manual dispara o LOOP novo.
+            has_emotional_policy = bool(loop_active or (loop_authorial_row and negative_rule))
             if has_emotional_policy and dialogue_text.strip() and not (automatic_direct_turn or blocked_direct_turn):
                 try:
                     assessment_raw = chat(
@@ -3085,15 +3086,20 @@ if user_text:
                             {"role": "system", "content": (
                                 "Você é um classificador de fatos emocionais de uma cena ficcional. "
                                 "Não decida como Mary deve falar, agir, perdoar ou encerrar a cena. "
-                                "Compare a fala atual com as expectativas, os limites e as condições "
-                                "autorais da LINHA ATIVA e da LINHA LOOP informadas abaixo. "
+                                "Fora do LOOP, SOMENTE o PROMPT NEGATIVO da linha manual de origem "
+                                "define gatilhos de ativação. ORGULHO FERIDO define a reação emocional, "
+                                "não novos gatilhos. A linha LOOP não pode ampliar esses critérios. "
+                                "violation=true SOMENTE com evidência concreta de condição expressa no "
+                                "PROMPT NEGATIVO; identifique a condição e o trecho da fala. "
+                                "Sem correspondência, violation=false, mesmo com reclamação exaltada, "
+                                "palavrão ou discordância. frustration e rejected NÃO ativam um novo LOOP. "
+                                "Com o LOOP já ativo, avalie reparação e persistência do conflito, "
+                                "sem criar novos gatilhos. "
                                 "Retorne APENAS JSON com violation, frustration, repair_attempt, "
                                 "forgiven, rejected (booleanos), reason (texto), speaker (nome de "
                                 "quem realmente falou; vazio se incerto) e repair_evidence "
                                 "(trecho LITERAL da fala atual, ou vazio). "
-                                "violation=true somente se a fala afronta limites explícitos da planilha. "
-                                "frustration=true somente se contraria expectativa concreta prevista "
-                                "pela situação ou por ORGULHO FERIDO; nunca invente uma expectativa. "
+                                "Não invente expectativas nem confunda contrariedade com violação. "
                                 "Não confunda recusa pontual com rejeição pessoal definitiva: "
                                 "rejected=true apenas quando há rejeição clara da aproximação pessoal. "
                                 "Uma recusa cordial pode ou não contrariar Mary, conforme a planilha. "
@@ -3108,9 +3114,7 @@ if user_text:
                             {"role": "user", "content": (
                                 "ORGULHO FERIDO DA LINHA DE ORIGEM: " + wounded_style +
                                 "\\nPROMPT NEGATIVO DA LINHA DE ORIGEM: " + negative_rule +
-                                "\\nORIENTAÇÃO AUTORAL DO LOOP: " + loop_direction +
-                                "\\nORGULHO FERIDO DA LINHA LOOP: " + loop_hurt_rule +
-                                "\\nLIMITES DA LINHA LOOP: " + loop_negative_rule +
+                                ("\\nORIENTAÇÃO DE REPARAÇÃO DO LOOP ATIVO: " + loop_direction if loop_active else "") +
                                 "\\nMEMÓRIA LOCAL: " + str(understanding_row.get("instant_memory", "") or "") +
                                 "\\nINTERLOCUTOR REGISTRADO: " + active_interlocutor +
                                 "\\nCOMPREENSÃO DA FALA: " + str(direct_interpretation.get("literal_meaning", "") or "") +
@@ -3144,12 +3148,12 @@ if user_text:
                             emotion["continuation_allowed"] = bool(restored.get("continuation_allowed", True))
                         emotion["active_speaker"] = speaker_key
                         emotion["speaker_states"] = by_speaker
-                    if assessment.get("rejected") is True:
+                    if assessment.get("rejected") is True and (loop_active or assessment.get("violation") is True):
                         emotion["hurt"] = True
                         emotion["rejected"] = True
                         emotion["continuation_allowed"] = False
                         emotional_notice = "Mary percebeu que você não deseja proximidade. Ela respeitará sua decisão."
-                    elif assessment.get("violation") is True or assessment.get("frustration") is True:
+                    elif assessment.get("violation") is True or (loop_active and assessment.get("frustration") is True):
                         emotion["hurt"] = True
                         emotion["continuation_allowed"] = False
                         emotional_notice = ("Mary ficou contrariada com a situação." if assessment.get("frustration")
@@ -3178,10 +3182,7 @@ if user_text:
             if not isinstance(loop, dict) or loop.get("chapter_id") != chapter_emotion_id:
                 loop = {"chapter_id": chapter_emotion_id, "active": False, "attempts": 0}
             loop_row = dict(direct_row.get("_emotional_loop_row") or {})
-            if (not loop.get("active") and loop_row
-                    and (assessment.get("violation") is True
-                         or assessment.get("frustration") is True
-                         or assessment.get("rejected") is True)):
+            if (not loop.get("active") and should_activate_hurt_loop(assessment, negative_rule, loop_row)):
                 loop.update({"active": True, "attempts": 0,
                              "max_attempts": hurt_loop_max_interactions(loop_row),
                              "speaker": str(emotion.get("active_speaker", "") or ""),
@@ -3239,6 +3240,10 @@ if user_text:
                     if int(loop.get("attempts", 0) or 0) >= max_attempts:
                         loop["exhausted"] = True
                     direct_row = dict(loop_row)
+                    direct_row["speech_guide"] = (
+                        str(direct_row.get("speech_guide", "") or "") + "\n" +
+                        hurt_loop_turn_direction(int(loop.get("attempts", 0) or 0), max_attempts)
+                    )
                     direct_row["instant_memory"] = str(direct_row.get("instant_memory") or loop.get("origin_instant_memory", "") or "")
                     direct_row["revelation_policy"] = str(direct_row.get("revelation_policy") or loop.get("origin_revelation_policy", "") or "")
                     direct_row["initial_description"] = str(direct_row.get("initial_description") or loop.get("origin_initial_description", "") or "")
