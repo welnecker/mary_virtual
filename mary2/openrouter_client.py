@@ -58,12 +58,13 @@ def _request_config(model: str, stage: str, requested_tokens: int, *, recovery: 
         return {"max_tokens": tokens}
 
     if _mimo_v26_pro(model):
-        # Keep an explicitly higher caller budget and the semantic director's
-        # minimum; this pilot changes reasoning only for MiMo-V2.6-Pro.
+        # Test bounded thinking instead of unlimited thinking or disabling it.
+        # Keep the director's minimum and any explicit caller budget. If the
+        # upstream still consumes the whole allowance, retry without thinking.
         tokens = max(tokens, _COMPAT_MIN_TOKENS.get(stage, 1400), 3500 if recovery else 3000)
         return {
             "max_tokens": tokens,
-            "reasoning": {"max_tokens": 768} if recovery else {"enabled": False},
+            "reasoning": {"enabled": False} if recovery else {"max_tokens": 512},
         }
 
     tokens = max(tokens, _COMPAT_MIN_TOKENS.get(stage, 1400))
@@ -268,7 +269,7 @@ def chat(
                 )
                 if _mimo_v26_pro(candidate) and status in (502, 503, 504) and attempt == 0:
                     avoid_primalabs = True
-                    recovery = False  # Keep the working no-reasoning configuration.
+                    recovery = False  # Keep the first-attempt reasoning configuration.
                     _LOG.warning(
                         "OPENROUTER_PROVIDER_RETRY model=%s stage=%s http_status=%s "
                         "next_provider_excludes=primalabs",

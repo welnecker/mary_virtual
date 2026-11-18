@@ -30,12 +30,12 @@ class OpenRouterModelCompatibilityTests(unittest.TestCase):
 
     @patch.object(client, "record")
     @patch.object(client.requests, "post")
-    def test_mimo_first_attempt_disables_reasoning(self, post, record):
+    def test_mimo_first_attempt_caps_reasoning(self, post, record):
         post.return_value = response("Mary: Oi!")
         self.assertEqual(client.chat(api_key="test", model="xiaomi/mimo-v2.6-pro",
                                      messages=self.messages, call_type="REDACTOR"), "Mary: Oi!")
         config = post.call_args.kwargs["json"]
-        self.assertEqual(config["reasoning"], {"enabled": False})
+        self.assertEqual(config["reasoning"], {"max_tokens": 512})
         self.assertEqual(config["max_tokens"], 3000)
         self.assertEqual(config["provider"], {
             "order": ["primalabs"], "allow_fallbacks": True,
@@ -51,8 +51,8 @@ class OpenRouterModelCompatibilityTests(unittest.TestCase):
                          "Resposta recuperada")
         self.assertEqual(post.call_count, 2)
         first, second = [call.kwargs["json"] for call in post.call_args_list]
-        self.assertEqual(first["reasoning"], {"enabled": False})
-        self.assertEqual(second["reasoning"], {"max_tokens": 768})
+        self.assertEqual(first["reasoning"], {"max_tokens": 512})
+        self.assertEqual(second["reasoning"], {"enabled": False})
         self.assertEqual(second["max_tokens"], 3500)
 
     @patch.object(client, "record")
@@ -80,7 +80,7 @@ class OpenRouterModelCompatibilityTests(unittest.TestCase):
         self.assertEqual(second["provider"], {
             "ignore": ["primalabs"], "sort": "throughput",
         })
-        self.assertEqual(second["reasoning"], {"enabled": False})
+        self.assertEqual(second["reasoning"], {"max_tokens": 512})
         self.assertEqual(post.call_count, 2)
 
     @patch.object(client, "record")
