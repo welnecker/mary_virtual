@@ -38,7 +38,7 @@ class OpenRouterModelCompatibilityTests(unittest.TestCase):
         self.assertEqual(config["reasoning"], {"max_tokens": 512})
         self.assertEqual(config["max_tokens"], 3000)
         self.assertEqual(config["provider"], {
-            "order": ["primalabs"], "allow_fallbacks": True,
+            "ignore": ["primalabs"], "sort": "throughput",
         })
 
     @patch.object(client, "record")
@@ -54,6 +54,45 @@ class OpenRouterModelCompatibilityTests(unittest.TestCase):
         self.assertEqual(first["reasoning"], {"max_tokens": 512})
         self.assertEqual(second["reasoning"], {"enabled": False})
         self.assertEqual(second["max_tokens"], 3500)
+        self.assertEqual(second["provider"]["sort"], "latency")
+
+    @patch.object(client, "record")
+    @patch.object(client.requests, "post")
+    def test_mimo_rejects_partial_text_with_error_finish_and_recovers(self, post, record):
+        post.side_effect = [
+            response("Mary: Silvia, para tudo", output=573, reasoning=487, finish="error"),
+            response("Mary: Estou aqui com você.", output=160),
+        ]
+        result = client.chat(api_key="test", model="xiaomi/mimo-v2.6-pro",
+                             messages=self.messages, call_type="REDACTOR")
+        self.assertEqual(result, "Mary: Estou aqui com você.")
+        self.assertEqual(post.call_count, 2)
+        self.assertEqual(post.call_args_list[1].kwargs["json"]["reasoning"], {"enabled": False})
+        self.assertEqual(post.call_args_list[1].kwargs["json"]["provider"], {
+            "ignore": ["primalabs"], "sort": "latency",
+        })
+        self.assertEqual(record.call_args_list[0].args[0]["status"], "INCOMPLETE_RESPONSE")
+
+    @patch.object(client, "record")
+    @patch.object(client.requests, "post")
+    def test_mimo_never_publishes_partial_text_when_both_attempts_fail(self, post, record):
+        post.side_effect = [
+            response("Mary: começo", finish="error"),
+            response("Mary: outro começo", finish="length"),
+        ]
+        with self.assertRaisesRegex(client.OpenRouterError, "geração incompleta"):
+            client.chat(api_key="test", model="xiaomi/mimo-v2.6-pro",
+                        messages=self.messages, call_type="REDACTOR")
+        self.assertEqual(post.call_count, 2)
+
+    @patch.object(client, "record")
+    @patch.object(client.requests, "post")
+    def test_gemini_partial_finish_is_not_accepted(self, post, record):
+        post.side_effect = [response("texto cortado", finish="length"),
+                            response("resposta inteira", finish="stop")]
+        self.assertEqual(client.chat(api_key="test", model="google/gemini-3-flash-preview",
+                                     messages=self.messages), "resposta inteira")
+        self.assertEqual(post.call_count, 2)
 
     @patch.object(client, "record")
     @patch.object(client.requests, "post")
@@ -76,9 +115,11 @@ class OpenRouterModelCompatibilityTests(unittest.TestCase):
                         messages=self.messages, call_type="REDACTOR"), "Mary respondeu",
         )
         first, second = [call.kwargs["json"] for call in post.call_args_list]
-        self.assertEqual(first["provider"]["order"], ["primalabs"])
-        self.assertEqual(second["provider"], {
+        self.assertEqual(first["provider"], {
             "ignore": ["primalabs"], "sort": "throughput",
+        })
+        self.assertEqual(second["provider"], {
+            "ignore": ["primalabs"], "sort": "latency",
         })
         self.assertEqual(second["reasoning"], {"max_tokens": 512})
         self.assertEqual(post.call_count, 2)

@@ -32,6 +32,7 @@ _COMPAT_MIN_TOKENS = {
 }
 _REASONING_FAMILIES = ("deepseek/", "xiaomi/", "z-ai/", "qwen/", "moonshotai/", "openai/", "anthropic/")
 _MAX_RECOVERY_TOKENS = 9000
+_INCOMPLETE_FINISH_REASONS = frozenset({"length", "error", "content_filter"})
 
 
 class OpenRouterError(RuntimeError):
@@ -146,7 +147,7 @@ def chat(
         # Keep at most two billed attempts per candidate.
         recovery = False
         remove_reasoning = False
-        avoid_primalabs = False
+        provider_retry = False
         for attempt in range(2):
             started = perf_counter()
             response = None
@@ -163,19 +164,13 @@ def chat(
                 **config,
             }
             if _mimo_v26_pro(candidate):
-                # Prefer the faster MiMo endpoint while retaining OpenRouter's
-                # provider failover if PrimaLabs is temporarily unavailable.
+                # Avoid the upstream implicated in reset/partial-completion
+                # incidents. Let OpenRouter select among the remaining hosts;
+                # use latency instead of throughput on the bounded retry.
                 payload["provider"] = {
-                    "order": ["primalabs"],
-                    "allow_fallbacks": True,
+                    "ignore": ["primalabs"],
+                    "sort": "latency" if provider_retry else "throughput",
                 }
-                if avoid_primalabs:
-                    # A 502/503/504 from the preferred upstream must not
-                    # route the next attempt straight back to that upstream.
-                    payload["provider"] = {
-                        "ignore": ["primalabs"],
-                        "sort": "throughput",
-                    }
             try:
                 response = requests.post(
                     OPENROUTER_URL,
@@ -214,6 +209,37 @@ def chat(
                 choice = choices[0] if isinstance(choices[0], dict) else {}
                 message = choice.get("message") if isinstance(choice.get("message"), dict) else {}
                 content = _visible_text(message)
+                finish_reason = choice.get("finish_reason")
+                if finish_reason in _INCOMPLETE_FINISH_REASONS:
+                    # HTTP 200 and nonempty text do NOT mean successful
+                    # generation. A truncated partial line cannot be handed
+                    # to the director, saved or displayed as Mary's speech.
+                    request_status = "INCOMPLETE_RESPONSE"
+                    error_code = "INCOMPLETE_FINISH_REASON"
+                    usage = data.get("usage") if isinstance(data.get("usage"), dict) else {}
+                    details = usage.get("completion_tokens_details")
+                    details = details if isinstance(details, dict) else {}
+                    _LOG.warning(
+                        "OPENROUTER_INCOMPLETE_RESPONSE model=%s stage=%s attempt=%s "
+                        "finish_reason=%s text_chars=%s completion_tokens=%s "
+                        "reasoning_tokens=%s provider=%s generation_id=%s",
+                        candidate, stage, attempt + 1, finish_reason, len(content),
+                        usage.get("completion_tokens"), details.get("reasoning_tokens"),
+                        data.get("provider"), data.get("id"),
+                    )
+                    last_error = OpenRouterError(
+                        f"OpenRouter retornou geração incompleta (HTTP {response.status_code}, "
+                        f"modelo {candidate}, finish_reason={finish_reason}, "
+                        f"texto_parcial={len(content)} caracteres)."
+                    )
+                    if attempt == 0:
+                        if _mimo_v26_pro(candidate):
+                            recovery = True
+                            provider_retry = True
+                        else:
+                            recovery = _reasoning_exhausted(choice, data, config["max_tokens"])
+                        continue
+                    break
                 if content:
                     request_status = "SUCCESS"
                     return content
@@ -251,6 +277,8 @@ def chat(
                     recovery = exhaustion or (
                         _mimo_v26_pro(candidate) and choice.get("finish_reason") == "length"
                     )
+                    if _mimo_v26_pro(candidate):
+                        provider_retry = True
                     continue
                 break
             except requests.HTTPError as exc:
@@ -268,11 +296,11 @@ def chat(
                     f"{str(detail)[:500] or 'requisição rejeitada'}"
                 )
                 if _mimo_v26_pro(candidate) and status in (502, 503, 504) and attempt == 0:
-                    avoid_primalabs = True
+                    provider_retry = True
                     recovery = False  # Keep the first-attempt reasoning configuration.
                     _LOG.warning(
                         "OPENROUTER_PROVIDER_RETRY model=%s stage=%s http_status=%s "
-                        "next_provider_excludes=primalabs",
+                        "next_provider_excludes=primalabs next_sort=latency",
                         candidate, stage, status,
                     )
                     continue
