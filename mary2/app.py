@@ -2546,6 +2546,12 @@ else:
         placeholder = f"Fale ou dirija a cena como {temporary_name}..."
     emotional_ending_blocked = bool(st.session_state.story_state.get("narrative", {}).get("direct_emotional_ending_blocked", False))
     user_text = st.chat_input(placeholder, disabled=bool(direct_ui_error) or emotional_ending_blocked)
+    # Dica exclusiva do jogador: nao integra prompts, nem memorias, nem historico.
+    if (navigation_script_mode == "direct_sheet" and direct_ui_row
+            and not direct_ui_error and not emotional_ending_blocked):
+        user_suggestion = str(direct_ui_row.get("user_suggestion", "") or "").strip()
+        if user_suggestion:
+            st.caption("💡 Sugestão de entrada: " + user_suggestion)
 
 if direct_ui_error:
     st.error(f"Não foi possível determinar o modo da linha atual: {direct_ui_error}")
