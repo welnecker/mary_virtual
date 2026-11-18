@@ -141,6 +141,7 @@ from persistence import (
     save_funnel_rejection,
     save_model_audit,
     save_token_usage_events,
+    save_openrouter_diagnostic_events,
     load_token_usage_events,
     save_episodic_memory_audit,
     save_turn,
@@ -2549,8 +2550,28 @@ if direct_ui_error:
 
 if user_text:
     # Captura passiva da API: não altera prompts nem acrescenta chamadas ao modelo.
+    def _collect_openrouter_event(event):
+        st.session_state.setdefault("_token_usage_pending", []).append(event)
+        st.session_state.setdefault("_openrouter_diagnostic_pending", []).append(event)
+
+    def _flush_openrouter_diagnostic():
+        pending = st.session_state.get("_openrouter_diagnostic_pending", [])
+        if not pending or not persistence:
+            return
+        try:
+            save_openrouter_diagnostic_events(
+                service_account_info=persistence["service_account_info"],
+                spreadsheet_id=persistence["spreadsheet_id"],
+                spreadsheet_title=persistence["spreadsheet_title"],
+                owner_email=persistence["owner_email"],
+                run_id=str(st.session_state.run_id or ""), events=list(pending),
+            )
+            pending.clear()
+        except Exception as exc:
+            _LOG.warning("OPENROUTER_DIAGNOSTIC_PERSIST_ERROR count=%s error=%s", len(pending), exc)
+
     begin_turn(
-        sink=lambda event: st.session_state.setdefault("_token_usage_pending", []).append(event),
+        sink=_collect_openrouter_event,
         run_id=str(st.session_state.run_id or ""),
         seq=int(st.session_state.run_last_seq or 0) + 1,
         chapter_id=_chapter_id(),
@@ -4893,6 +4914,7 @@ if user_text:
                 # Uma escrita por interação, mesmo com várias chamadas internas.
                 # Eventos de falhas anteriores continuam pendentes até confirmação.
                 token_pending = st.session_state.get("_token_usage_pending", [])
+                _flush_openrouter_diagnostic()
                 if token_pending:
                     try:
                         save_token_usage_events(
@@ -4917,8 +4939,10 @@ if user_text:
     except KeyError:
         st.error("OPENROUTER_API_KEY não encontrada em st.secrets.")
     except OpenRouterError as exc:
+        _flush_openrouter_diagnostic()
         st.error(f"Erro OpenRouter: {exc}")
     except PersistenceError as exc:
         st.error(f"Erro de persistência: {exc}")
     except Exception as exc:
+        _flush_openrouter_diagnostic()
         st.error(f"Erro inesperado: {exc}")

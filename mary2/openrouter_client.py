@@ -282,6 +282,7 @@ def chat(
                     status=request_status,
                     http_status=getattr(response, "status_code", None),
                     request_messages=messages, response=data, error_code=error_code,
+                    request_config=payload,
                 ))
 
     raise OpenRouterError(f"Falha ao consultar OpenRouter: {last_error}")
