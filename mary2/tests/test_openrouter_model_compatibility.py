@@ -30,6 +30,38 @@ class OpenRouterModelCompatibilityTests(unittest.TestCase):
 
     @patch.object(client, "record")
     @patch.object(client.requests, "post")
+    def test_mimo_first_attempt_disables_reasoning(self, post, record):
+        post.return_value = response("Mary: Oi!")
+        self.assertEqual(client.chat(api_key="test", model="xiaomi/mimo-v2.6-pro",
+                                     messages=self.messages, call_type="REDACTOR"), "Mary: Oi!")
+        config = post.call_args.kwargs["json"]
+        self.assertEqual(config["reasoning"], {"enabled": False})
+        self.assertEqual(config["max_tokens"], 3000)
+
+    @patch.object(client, "record")
+    @patch.object(client.requests, "post")
+    def test_mimo_length_empty_recovers_without_reasoning_usage(self, post, record):
+        post.side_effect = [response("", output=3000, reasoning=0, finish="length"),
+                            response("Resposta recuperada")]
+        self.assertEqual(client.chat(api_key="test", model="xiaomi/mimo-v2.6-pro",
+                                     messages=self.messages, call_type="REDACTOR"),
+                         "Resposta recuperada")
+        self.assertEqual(post.call_count, 2)
+        first, second = [call.kwargs["json"] for call in post.call_args_list]
+        self.assertEqual(first["reasoning"], {"enabled": False})
+        self.assertEqual(second["reasoning"], {"max_tokens": 768})
+        self.assertEqual(second["max_tokens"], 3500)
+
+    @patch.object(client, "record")
+    @patch.object(client.requests, "post")
+    def test_mimo_keeps_director_and_explicit_budgets(self, post, record):
+        post.return_value = response("JSON pronto")
+        client.chat(api_key="test", model="xiaomi/mimo-v2.6-pro",
+                    messages=self.messages, call_type="SEMANTIC_DIRECTOR", max_tokens=7425)
+        self.assertEqual(post.call_args.kwargs["json"]["max_tokens"], 7425)
+
+    @patch.object(client, "record")
+    @patch.object(client.requests, "post")
     def test_gemini_baseline_unchanged(self, post, record):
         post.return_value = response("Olá")
         value = client.chat(api_key="test", model="google/gemini-3-flash-preview",

@@ -43,6 +43,10 @@ def _deepseek_v41_flash(model: str) -> bool:
     return model.lower().startswith("deepseek/deepseek-v4.1-flash")
 
 
+def _mimo_v26_pro(model: str) -> bool:
+    return model.lower() == "xiaomi/mimo-v2.6-pro"
+
+
 def _preserve_gemini(model: str) -> bool:
     # Only Gemini uses the unchanged baseline. Gemma is a separate family.
     return model.lower().startswith("google/gemini-")
@@ -52,6 +56,15 @@ def _request_config(model: str, stage: str, requested_tokens: int, *, recovery: 
     tokens = max(1, int(requested_tokens))
     if _preserve_gemini(model):
         return {"max_tokens": tokens}
+
+    if _mimo_v26_pro(model):
+        # Keep an explicitly higher caller budget and the semantic director's
+        # minimum; this pilot changes reasoning only for MiMo-V2.6-Pro.
+        tokens = max(tokens, _COMPAT_MIN_TOKENS.get(stage, 1400), 3500 if recovery else 3000)
+        return {
+            "max_tokens": tokens,
+            "reasoning": {"max_tokens": 768} if recovery else {"enabled": False},
+        }
 
     tokens = max(tokens, _COMPAT_MIN_TOKENS.get(stage, 1400))
     if recovery and not _deepseek_v41_flash(model):
@@ -196,10 +209,12 @@ def chat(
                 _LOG.warning(
                     "OPENROUTER_EMPTY_RESPONSE model=%s stage=%s attempt=%s "
                     "finish_reason=%s max_tokens=%s completion_tokens=%s "
-                    "reasoning_tokens=%s reasoning_exhausted=%s reasoning_config=%s",
+                    "reasoning_tokens=%s reasoning_exhausted=%s reasoning_config=%s "
+                    "provider=%s generation_id=%s duration_ms=%.1f",
                     candidate, stage, attempt + 1, choice.get("finish_reason"),
                     config["max_tokens"], usage.get("completion_tokens"),
                     details.get("reasoning_tokens"), exhaustion, config.get("reasoning"),
+                    data.get("provider"), data.get("id"), (perf_counter() - started) * 1000,
                 )
                 request_status = "EMPTY_RESPONSE"
                 error_code = "REASONING_EXHAUSTED" if exhaustion else "EMPTY_RESPONSE"
@@ -214,7 +229,12 @@ def chat(
                     # enabled=False while still reporting reasoning exhaustion.
                     # Bigger budget and lower effort if thinking ate the answer;
                     # a single ordinary retry for unexplained transient empties.
-                    recovery = exhaustion
+                    # Some MiMo providers omit reasoning token breakdowns. A
+                    # length-truncated empty answer is enough to try the capped
+                    # thinking configuration once, without repeating the same call.
+                    recovery = exhaustion or (
+                        _mimo_v26_pro(candidate) and choice.get("finish_reason") == "length"
+                    )
                     continue
                 break
             except requests.HTTPError as exc:

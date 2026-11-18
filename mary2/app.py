@@ -230,6 +230,7 @@ def _runtime_get_chapter(chapter_id: str) -> dict:
 
 DEFAULT_MODELS = [
     "google/gemini-3-flash-preview",
+    "xiaomi/mimo-v2.6-pro",
     "google/gemini-2.5-flash-lite",
     "google/gemma-4-31b-it",
     "Outro...",
