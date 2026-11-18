@@ -21,6 +21,8 @@ Não fixe comprimento nem intensidade: acompanhe o roteiro e a conversa real.
 import html
 import json
 import logging
+from datetime import datetime, timezone
+from uuid import uuid4
 import re
 import sys
 from pathlib import Path
@@ -117,7 +119,7 @@ from funnel_script import (
     required_markers,
 )
 from openrouter_client import OpenRouterError, chat
-from token_usage import begin_turn, update_line_order
+from token_usage import begin_turn, update_line_order, _app_commit
 from output_filter import looks_like_action_narration, parse_mary_response, parse_mary_components, sanitize_mary_output, format_dialogue_paragraphs
 from user_understanding_audit import (
     analyze_user_understanding,
@@ -145,6 +147,8 @@ from persistence import (
     save_funnel_rejection,
     save_model_audit,
     save_token_usage_events,
+    save_openrouter_diagnostic_events,
+    save_narrative_correction_events,
     load_token_usage_events,
     save_episodic_memory_audit,
     save_turn,
@@ -234,6 +238,7 @@ def _runtime_get_chapter(chapter_id: str) -> dict:
 
 DEFAULT_MODELS = [
     "google/gemini-3-flash-preview",
+    "xiaomi/mimo-v2.6-pro",
     "google/gemini-2.5-flash-lite",
     "google/gemma-4-31b-it",
     "Outro...",
@@ -2561,8 +2566,58 @@ if direct_ui_error:
 
 if user_text:
     # Captura passiva da API: não altera prompts nem acrescenta chamadas ao modelo.
+    def _collect_openrouter_event(event):
+        st.session_state.setdefault("_token_usage_pending", []).append(event)
+        st.session_state.setdefault("_openrouter_diagnostic_pending", []).append(event)
+
+    def _flush_openrouter_diagnostic():
+        pending = st.session_state.get("_openrouter_diagnostic_pending", [])
+        if not pending or not persistence:
+            return
+        try:
+            save_openrouter_diagnostic_events(
+                service_account_info=persistence["service_account_info"],
+                spreadsheet_id=persistence["spreadsheet_id"],
+                spreadsheet_title=persistence["spreadsheet_title"],
+                owner_email=persistence["owner_email"],
+                run_id=str(st.session_state.run_id or ""), events=list(pending),
+            )
+            pending.clear()
+        except Exception as exc:
+            _LOG.warning("OPENROUTER_DIAGNOSTIC_PERSIST_ERROR count=%s error=%s", len(pending), exc)
+
+    def _record_narrative_correction(**fields):
+        record = {
+            "event_id": uuid4().hex,
+            "created_at_utc": datetime.now(timezone.utc).isoformat(),
+            "run_id": str(st.session_state.run_id or ""),
+            "seq": int(st.session_state.run_last_seq or 0) + 1,
+            "chapter_id": _chapter_id(),
+            "line_order": int(direct_ui_row.get("order", 0) or 0),
+            "model": model,
+            "app_commit": _app_commit(),
+            **fields,
+        }
+        st.session_state.setdefault("_narrative_correction_pending", []).append(record)
+
+    def _flush_narrative_correction():
+        pending = st.session_state.get("_narrative_correction_pending", [])
+        if not pending or not persistence:
+            return
+        try:
+            save_narrative_correction_events(
+                service_account_info=persistence["service_account_info"],
+                spreadsheet_id=persistence["spreadsheet_id"],
+                spreadsheet_title=persistence["spreadsheet_title"],
+                owner_email=persistence["owner_email"],
+                run_id=str(st.session_state.run_id or ""), events=list(pending),
+            )
+            pending.clear()
+        except Exception as exc:
+            _LOG.warning("NARRATIVE_CORRECTION_AUDIT_PERSIST_ERROR count=%s error=%s", len(pending), exc)
+
     begin_turn(
-        sink=lambda event: st.session_state.setdefault("_token_usage_pending", []).append(event),
+        sink=_collect_openrouter_event,
         run_id=str(st.session_state.run_id or ""),
         seq=int(st.session_state.run_last_seq or 0) + 1,
         chapter_id=_chapter_id(),
@@ -3619,6 +3674,13 @@ if user_text:
             mary_intent, mary_speech_raw = _parse_direct_flexible_response(raw_answer, script_mode, thought_disabled=thought_disabled)
             narration_leak = looks_like_action_narration(mary_speech_raw)
             answer = sanitize_mary_output(mary_speech_raw)
+            _record_narrative_correction(
+                correction_type="GENERATION", phase="INITIAL",
+                original_raw=raw_answer, original_sanitized=answer,
+                correction_action=parse_mary_components(raw_answer)["action"],
+                correction_thought=mary_intent, narration_leak=narration_leak,
+                status="GENERATED", published=False,
+            )
 
             if (not answer and not (script_mode == "direct_sheet" and parse_mary_components(raw_answer)["action"])) or narration_leak:
                 retry_messages = [
@@ -3647,6 +3709,16 @@ if user_text:
                 mary_intent, mary_speech_raw = _parse_direct_flexible_response(raw_answer, script_mode, thought_disabled=thought_disabled)
                 narration_leak = looks_like_action_narration(mary_speech_raw)
                 answer = sanitize_mary_output(mary_speech_raw)
+                _record_narrative_correction(
+                    correction_type="FORMAT", phase="RESULT",
+                    original_raw=model_audit["initial_raw_response"],
+                    correction_raw=raw_answer, correction_speech=answer,
+                    correction_action=parse_mary_components(raw_answer)["action"],
+                    correction_thought=mary_intent, narration_leak=narration_leak,
+                    status="REJECTED" if (not answer or narration_leak) else "CANDIDATE",
+                    rejection_reason="narração na fala" if narration_leak else ("sem fala" if not answer else ""),
+                    published=False,
+                )
 
             if (not answer and not (script_mode == "direct_sheet" and parse_mary_components(raw_answer)["action"])) or narration_leak:
                 raise OpenRouterError(
@@ -3784,7 +3856,24 @@ if user_text:
                     mary_intent, mary_speech_raw = _parse_direct_flexible_response(raw_answer, script_mode, thought_disabled=thought_disabled)
                     narration_leak = looks_like_action_narration(mary_speech_raw)
                     answer = sanitize_mary_output(mary_speech_raw)
-                    if (not answer and not (script_mode == "direct_sheet" and parse_mary_components(raw_answer)["action"])) or narration_leak:
+                    continuity_invalid = (
+                        (not answer and not (script_mode == "direct_sheet" and parse_mary_components(raw_answer)["action"]))
+                        or narration_leak
+                    )
+                    _record_narrative_correction(
+                        correction_type="CONTINUITY", phase="RESULT",
+                        original_raw=model_audit["initial_raw_response"],
+                        original_sanitized=model_audit.get("final_mary_text", ""),
+                        director_issue=str(conversation_consistency.get("issue", "") or ""),
+                        director_excerpt=str(conversation_consistency.get("mary_excerpt", "") or ""),
+                        director_expected=str(conversation_consistency.get("correction", "") or ""),
+                        correction_raw=raw_answer, correction_speech=answer,
+                        correction_action=parse_mary_components(raw_answer)["action"],
+                        correction_thought=mary_intent, narration_leak=narration_leak,
+                        rejection_reason="narração na fala" if narration_leak else ("sem fala e sem ação válida" if continuity_invalid else ""),
+                        status="REJECTED" if continuity_invalid else "CANDIDATE", published=False,
+                    )
+                    if continuity_invalid:
                         raise OpenRouterError(
                             "A correção de continuidade não produziu fala verbal limpa de Mary."
                         )
@@ -3907,7 +3996,23 @@ if user_text:
                     mary_intent, mary_speech_raw = _parse_direct_flexible_response(raw_answer, script_mode, thought_disabled=thought_disabled)
                     narration_leak = looks_like_action_narration(mary_speech_raw)
                     answer = sanitize_mary_output(mary_speech_raw)
-                    if (not answer and not (script_mode == "direct_sheet" and parse_mary_components(raw_answer)["action"])) or narration_leak:
+                    revelation_invalid = (
+                        (not answer and not (script_mode == "direct_sheet" and parse_mary_components(raw_answer)["action"]))
+                        or narration_leak
+                    )
+                    _record_narrative_correction(
+                        correction_type="REVELATION", phase="RESULT",
+                        original_raw=model_audit["initial_raw_response"],
+                        director_issue=str(revelation_violation.get("content", "") or ""),
+                        director_excerpt=str(revelation_violation.get("mary_excerpt", "") or ""),
+                        director_expected=str(revelation_violation.get("correction", "") or ""),
+                        correction_raw=raw_answer, correction_speech=answer,
+                        correction_action=parse_mary_components(raw_answer)["action"],
+                        correction_thought=mary_intent, narration_leak=narration_leak,
+                        rejection_reason="narração na fala" if narration_leak else ("sem fala e sem ação válida" if revelation_invalid else ""),
+                        status="REJECTED" if revelation_invalid else "CANDIDATE", published=False,
+                    )
+                    if revelation_invalid:
                         raise OpenRouterError(
                             "A correção de revelação não produziu fala verbal limpa de Mary."
                         )
@@ -3974,7 +4079,23 @@ if user_text:
                     mary_intent, mary_speech_raw = _parse_direct_flexible_response(raw_answer, script_mode, thought_disabled=thought_disabled)
                     narration_leak = looks_like_action_narration(mary_speech_raw)
                     answer = sanitize_mary_output(mary_speech_raw)
-                    if (not answer and not (script_mode == "direct_sheet" and parse_mary_components(raw_answer)["action"])) or narration_leak:
+                    factual_invalid = (
+                        (not answer and not (script_mode == "direct_sheet" and parse_mary_components(raw_answer)["action"]))
+                        or narration_leak
+                    )
+                    _record_narrative_correction(
+                        correction_type="FACTUAL", phase="RESULT",
+                        original_raw=model_audit["initial_raw_response"],
+                        director_issue=str(hard_contradiction.get("authoritative_fact", "") or ""),
+                        director_excerpt=str(hard_contradiction.get("mary_excerpt", "") or ""),
+                        director_expected=str(hard_contradiction.get("correction", "") or ""),
+                        correction_raw=raw_answer, correction_speech=answer,
+                        correction_action=parse_mary_components(raw_answer)["action"],
+                        correction_thought=mary_intent, narration_leak=narration_leak,
+                        rejection_reason="narração na fala" if narration_leak else ("sem fala e sem ação válida" if factual_invalid else ""),
+                        status="REJECTED" if factual_invalid else "CANDIDATE", published=False,
+                    )
+                    if factual_invalid:
                         raise OpenRouterError(
                             "A correção factual não produziu fala verbal limpa de Mary."
                         )
@@ -4709,6 +4830,10 @@ if user_text:
                 )
                 turn_record["seq"] = saved_seq
                 st.session_state.run_last_seq = saved_seq
+                _record_narrative_correction(
+                    seq=saved_seq, correction_type="GENERATION", phase="PUBLISHED",
+                    original_sanitized=answer, status="PUBLISHED", published=True,
+                )
 
                 # Piloto observacional: audita cada turno persistido do roteiro
                 # direto. Não injeta lembranças nos prompts e não altera estado.
@@ -4924,6 +5049,8 @@ if user_text:
                 # Uma escrita por interação, mesmo com várias chamadas internas.
                 # Eventos de falhas anteriores continuam pendentes até confirmação.
                 token_pending = st.session_state.get("_token_usage_pending", [])
+                _flush_openrouter_diagnostic()
+                _flush_narrative_correction()
                 if token_pending:
                     try:
                         save_token_usage_events(
@@ -4948,8 +5075,14 @@ if user_text:
     except KeyError:
         st.error("OPENROUTER_API_KEY não encontrada em st.secrets.")
     except OpenRouterError as exc:
+        _flush_openrouter_diagnostic()
+        _record_narrative_correction(correction_type="ERROR", phase="EXCEPTION", rejection_reason=str(exc), status="ERROR", published=False)
+        _flush_narrative_correction()
         st.error(f"Erro OpenRouter: {exc}")
     except PersistenceError as exc:
         st.error(f"Erro de persistência: {exc}")
     except Exception as exc:
+        _flush_openrouter_diagnostic()
+        _record_narrative_correction(correction_type="ERROR", phase="EXCEPTION", rejection_reason=str(exc), status="ERROR", published=False)
+        _flush_narrative_correction()
         st.error(f"Erro inesperado: {exc}")
