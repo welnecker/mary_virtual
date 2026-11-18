@@ -18,6 +18,8 @@ INTERACTIONS_SHEET = "INTERACTIONS"
 DIRECTOR_AUDIT_SHEET = "DIRECTOR_AUDIT"
 MODEL_AUDIT_SHEET = "MODEL_AUDIT"
 TOKEN_USAGE_AUDIT_SHEET = "TOKEN_USAGE_AUDIT"
+OPENROUTER_DIAGNOSTIC_SHEET = "OPENROUTER_DIAGNOSTIC"
+NARRATIVE_CORRECTION_AUDIT_SHEET = "NARRATIVE_CORRECTION_AUDIT"
 FUNNEL_AUDIT_SHEET = "FUNNEL_AUDIT"
 BLOCK_AUDIT_SHEET = "BLOCK_AUDIT"
 DIRECT_SCRIPT_AUDIT_SHEET = "DIRECT_SCRIPT_AUDIT"
@@ -45,6 +47,20 @@ TOKEN_USAGE_HEADERS = [
     "prompt_tokens", "completion_tokens", "total_tokens",
     "reasoning_tokens", "cached_tokens", "cost_usd", "duration_ms",
     "request_chars", "error_code",
+]
+OPENROUTER_DIAGNOSTIC_HEADERS = [
+    "event_id", "created_at_utc", "run_id", "seq", "chapter_id", "line_order",
+    "stage", "model", "attempt", "status", "http_status", "finish_reason",
+    "max_tokens", "reasoning_config", "prompt_tokens", "completion_tokens",
+    "reasoning_tokens", "cached_tokens", "duration_ms", "provider_preference",
+    "provider_actual", "generation_id", "error_code", "request_chars", "app_commit",
+]
+NARRATIVE_CORRECTION_HEADERS = [
+    "event_id", "created_at_utc", "run_id", "seq", "chapter_id", "line_order",
+    "model", "app_commit", "correction_type", "phase", "original_raw",
+    "original_sanitized", "director_issue", "director_excerpt", "director_expected",
+    "correction_raw", "correction_speech", "correction_action", "correction_thought",
+    "narration_leak", "rejection_reason", "status", "published",
 ]
 
 INTERACTION_HEADERS = [
@@ -783,6 +799,56 @@ def save_token_usage_events(
         row = {**event, "run_id": str(event.get("run_id") or run_id)}
         rows.append([row.get(key, "") if row.get(key, "") is not None else ""
                      for key in TOKEN_USAGE_HEADERS])
+    if rows:
+        ws.append_rows(rows, value_input_option="RAW")
+    return len(rows)
+
+
+def save_openrouter_diagnostic_events(
+    *, service_account_info: dict, run_id: str, events: list[dict],
+    spreadsheet_id: str = "", spreadsheet_title: str = "MARY_CORE_PERSISTENCE",
+    owner_email: str = "",
+) -> int:
+    """Persist metadata-only attempts, including failures, in one batch."""
+    if not events:
+        return 0
+    book = open_or_create_book(
+        service_account_info=service_account_info, spreadsheet_id=spreadsheet_id,
+        spreadsheet_title=spreadsheet_title, owner_email=owner_email,
+    )
+    ws = _ensure_worksheet(book, OPENROUTER_DIAGNOSTIC_SHEET, OPENROUTER_DIAGNOSTIC_HEADERS)
+    mapping = {"created_at_utc": "created_at", "stage": "call_type"}
+    rows = []
+    for event in events:
+        if not isinstance(event, dict):
+            continue
+        row = {**event, "run_id": str(event.get("run_id") or run_id)}
+        rows.append([row.get(mapping.get(key, key), "") or ""
+                     for key in OPENROUTER_DIAGNOSTIC_HEADERS])
+    if rows:
+        ws.append_rows(rows, value_input_option="RAW")
+    return len(rows)
+
+
+def save_narrative_correction_events(
+    *, service_account_info: dict, run_id: str, events: list[dict],
+    spreadsheet_id: str = "", spreadsheet_title: str = "MARY_CORE_PERSISTENCE",
+    owner_email: str = "",
+) -> int:
+    """Append generation/correction audit without exposing prompts or API keys."""
+    if not events:
+        return 0
+    book = open_or_create_book(
+        service_account_info=service_account_info, spreadsheet_id=spreadsheet_id,
+        spreadsheet_title=spreadsheet_title, owner_email=owner_email,
+    )
+    ws = _ensure_worksheet(book, NARRATIVE_CORRECTION_AUDIT_SHEET, NARRATIVE_CORRECTION_HEADERS)
+    rows = []
+    for event in events:
+        if isinstance(event, dict):
+            row = {**event, "run_id": str(event.get("run_id") or run_id)}
+            rows.append([row.get(key, "") if row.get(key, "") is not None else ""
+                         for key in NARRATIVE_CORRECTION_HEADERS])
     if rows:
         ws.append_rows(rows, value_input_option="RAW")
     return len(rows)
