@@ -37,6 +37,9 @@ class OpenRouterModelCompatibilityTests(unittest.TestCase):
         config = post.call_args.kwargs["json"]
         self.assertEqual(config["reasoning"], {"enabled": False})
         self.assertEqual(config["max_tokens"], 3000)
+        self.assertEqual(config["provider"], {
+            "order": ["primalabs"], "allow_fallbacks": True,
+        })
 
     @patch.object(client, "record")
     @patch.object(client.requests, "post")
@@ -59,6 +62,14 @@ class OpenRouterModelCompatibilityTests(unittest.TestCase):
         client.chat(api_key="test", model="xiaomi/mimo-v2.6-pro",
                     messages=self.messages, call_type="SEMANTIC_DIRECTOR", max_tokens=7425)
         self.assertEqual(post.call_args.kwargs["json"]["max_tokens"], 7425)
+
+    @patch.object(client, "record")
+    @patch.object(client.requests, "post")
+    def test_other_models_do_not_receive_mimo_provider_routing(self, post, record):
+        post.return_value = response("OK")
+        client.chat(api_key="test", model="google/gemini-3-flash-preview",
+                    messages=self.messages)
+        self.assertNotIn("provider", post.call_args.kwargs["json"])
 
     @patch.object(client, "record")
     @patch.object(client.requests, "post")

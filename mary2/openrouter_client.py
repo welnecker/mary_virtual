@@ -160,6 +160,13 @@ def chat(
                 "temperature": temperature,
                 **config,
             }
+            if _mimo_v26_pro(candidate):
+                # Prefer the faster MiMo endpoint while retaining OpenRouter's
+                # provider failover if PrimaLabs is temporarily unavailable.
+                payload["provider"] = {
+                    "order": ["primalabs"],
+                    "allow_fallbacks": True,
+                }
             try:
                 response = requests.post(
                     OPENROUTER_URL,
