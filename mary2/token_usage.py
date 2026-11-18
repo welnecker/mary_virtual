@@ -96,7 +96,10 @@ def make_usage_event(*, model: str, call_type: str, attempt: int,
             and isinstance(data["choices"][0], dict) else "",
         "max_tokens": config.get("max_tokens", ""),
         "reasoning_config": str(reasoning)[:100] if reasoning is not None else "",
-        "provider_preference": ",".join(provider.get("order", [])),
+        "provider_preference": (
+            ",".join(provider.get("order", []))
+            or ("exclude:" + ",".join(provider["ignore"]) if provider.get("ignore") else "")
+        ),
         "provider_actual": str(data.get("provider") or ""),
         "generation_id": str(data.get("id") or ""),
         "app_commit": _app_commit(),

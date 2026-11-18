@@ -65,6 +65,39 @@ class OpenRouterModelCompatibilityTests(unittest.TestCase):
 
     @patch.object(client, "record")
     @patch.object(client.requests, "post")
+    def test_mimo_retries_502_using_different_provider(self, post, record):
+        bad = Mock()
+        bad.status_code = 502
+        bad.json.return_value = {"error": {"message": "Upstream error from PrimaLabs"}}
+        bad.raise_for_status.side_effect = client.requests.HTTPError(response=bad)
+        post.side_effect = [bad, response("Mary respondeu")]
+        self.assertEqual(
+            client.chat(api_key="test", model="xiaomi/mimo-v2.6-pro",
+                        messages=self.messages, call_type="REDACTOR"), "Mary respondeu",
+        )
+        first, second = [call.kwargs["json"] for call in post.call_args_list]
+        self.assertEqual(first["provider"]["order"], ["primalabs"])
+        self.assertEqual(second["provider"], {
+            "ignore": ["primalabs"], "sort": "throughput",
+        })
+        self.assertEqual(second["reasoning"], {"enabled": False})
+        self.assertEqual(post.call_count, 2)
+
+    @patch.object(client, "record")
+    @patch.object(client.requests, "post")
+    def test_mimo_does_not_retry_nontransient_http_error(self, post, record):
+        bad = Mock()
+        bad.status_code = 401
+        bad.json.return_value = {"error": {"message": "unauthorized"}}
+        bad.raise_for_status.side_effect = client.requests.HTTPError(response=bad)
+        post.return_value = bad
+        with self.assertRaises(client.OpenRouterError):
+            client.chat(api_key="test", model="xiaomi/mimo-v2.6-pro",
+                        messages=self.messages)
+        self.assertEqual(post.call_count, 1)
+
+    @patch.object(client, "record")
+    @patch.object(client.requests, "post")
     def test_other_models_do_not_receive_mimo_provider_routing(self, post, record):
         post.return_value = response("OK")
         client.chat(api_key="test", model="google/gemini-3-flash-preview",

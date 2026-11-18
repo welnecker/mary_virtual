@@ -145,6 +145,7 @@ def chat(
         # Keep at most two billed attempts per candidate.
         recovery = False
         remove_reasoning = False
+        avoid_primalabs = False
         for attempt in range(2):
             started = perf_counter()
             response = None
@@ -167,6 +168,13 @@ def chat(
                     "order": ["primalabs"],
                     "allow_fallbacks": True,
                 }
+                if avoid_primalabs:
+                    # A 502/503/504 from the preferred upstream must not
+                    # route the next attempt straight back to that upstream.
+                    payload["provider"] = {
+                        "ignore": ["primalabs"],
+                        "sort": "throughput",
+                    }
             try:
                 response = requests.post(
                     OPENROUTER_URL,
@@ -258,6 +266,15 @@ def chat(
                     f"OpenRouter HTTP {status}, modelo {candidate}: "
                     f"{str(detail)[:500] or 'requisição rejeitada'}"
                 )
+                if _mimo_v26_pro(candidate) and status in (502, 503, 504) and attempt == 0:
+                    avoid_primalabs = True
+                    recovery = False  # Keep the working no-reasoning configuration.
+                    _LOG.warning(
+                        "OPENROUTER_PROVIDER_RETRY model=%s stage=%s http_status=%s "
+                        "next_provider_excludes=primalabs",
+                        candidate, stage, status,
+                    )
+                    continue
                 # Unsupported reasoning options: retry once without that hint.
                 # A normal HTTP 400 (wrong model ID, unavailable params, etc.)
                 # must not trigger an expensive blind token-budget increase.
