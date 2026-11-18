@@ -76,7 +76,6 @@ from direct_script import (
     should_activate_hurt_loop,
     inline_sounds_from_guide,
     load_direct_script_catalog,
-    load_direct_info_board,
     load_direct_info_boards,
     resolve_contextual_memories,
     load_direct_script_rows,
