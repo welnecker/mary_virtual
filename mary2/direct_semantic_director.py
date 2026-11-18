@@ -212,6 +212,46 @@ def _guide_objective_is_optional(objective: str, speech_guide: str) -> bool:
     return False
 
 
+def _required_secondary_speakers(speech_guide: str) -> list[str]:
+    """Find explicit, affirmative dialogue directions for supporting characters.
+
+    A mere mention of Silvia, or an optional/conditional direction, must not
+    force her into every turn. This applies to the authorial 'DIREÇÃO DE ...'
+    subfield, not the narrative context or memories.
+    """
+    required = []
+    for match in re.finditer(
+        r"DIREÇÃO DE\s+([A-ZÀ-Ý][\wÀ-ÿ-]*)\s*"
+        r"(?:\([^\n)]*\))?\s*:\s*([^\n]+)",
+        _clean(speech_guide), flags=re.I,
+    ):
+        name, direction = match.group(1), match.group(2).strip()
+        if name.casefold() == "mary":
+            continue
+        if re.match(r"^(?:se|caso|quando|talvez|opcionalmente|pode|poderá)\b", direction, re.I):
+            continue
+        if re.search(rf"\b{re.escape(name)}\s+(?:pode|poderá|poderia|talvez)\b", direction, re.I):
+            continue
+        # Speech, interaction or an explicit discussion must actually occur.
+        if re.search(
+            r"\b(?:fala|diz|pergunta|responde|comenta|reafirma|provoca|"
+            r"brinca|conversa|dialoga|menciona|sugere|propõe|"
+            r"começa\s+a\s+combinar|combina)\b",
+            direction, flags=re.I,
+        ):
+            required.append(name)
+    return list(dict.fromkeys(required))
+
+
+def _spoken_by_character(text: str, character: str) -> bool:
+    """Require an identifiable spoken turn, not a name inside Mary's speech."""
+    normalized = re.sub(r"\*\*", "", _clean(text))
+    return bool(re.search(
+        rf"(?:^|\n)\s*(?:[—–-]\s*)?{re.escape(character)}\s*:\s*\S",
+        normalized, flags=re.I,
+    ))
+
+
 def validate_direct_semantic_turn(
     *,
     api_key: str,
@@ -237,6 +277,9 @@ def validate_direct_semantic_turn(
     interpret_match = re.fullmatch(r"interpretar(?:\s*:\s*(.*))?", speech_guide, flags=re.I | re.S)
     interpret_mode = bool(interpret_match)
     interpret_direction = (interpret_match.group(1) or "").strip() if interpret_match else ""
+    required_secondary_speakers = _required_secondary_speakers(
+        interpret_direction if interpret_mode else speech_guide
+    )
     authored_actions = _authored_physical_actions(_clean(row.get("action_guide")))
     explicit_physical_required = _explicit_physical_requirement(
         speech_guide=interpret_direction if interpret_mode else speech_guide,
@@ -319,6 +362,9 @@ def validate_direct_semantic_turn(
         + (_clean(row.get("action_guide")) or "(sem ação especificada)")
         + "\n\nAÇÕES AFIRMATIVAS DE MARY A COMPROVAR (somente quando aplicáveis)\n"
         + ("\n".join(f"- acao_{index + 1}: {item}" for index, item in enumerate(authored_actions)) or "(nenhuma extraída; julgue a missão semântica da linha)")
+        + "\n\nPARTICIPAÇÃO VERBAL EXPLÍCITA DE COADJUVANTES\n"
+        + (", ".join(required_secondary_speakers) or "(nenhuma obrigação verbal explícita)")
+        + "\nQuando exigida, confira fala identificável da personagem na RESPOSTA ATUAL, nunca apenas uma menção por Mary.\n"
         + "\n\nREGRA DE REVELAÇÃO DA LINHA ATUAL\n"
         + (revelation_policy or "(sem restrição autoral específica)")
         + "\n\nENTRADA ORIGINAL DO USUÁRIO — CONFERÊNCIA INDEPENDENTE\n"
@@ -646,6 +692,13 @@ def validate_direct_semantic_turn(
         "missing": scene_missing,
     }
 
+    missing_secondary_speakers = [
+        name for name in required_secondary_speakers
+        if not _spoken_by_character(mary_text, name)
+    ]
+    scene_completion["required_secondary_speakers"] = required_secondary_speakers
+    scene_completion["missing_secondary_speakers"] = missing_secondary_speakers
+
     required_objectives = [item for item in normalized_objectives if not item["optional"]]
     all_objectives = (
         True
@@ -671,9 +724,12 @@ def validate_direct_semantic_turn(
         and normalized_obligation["satisfied"]
         and all_objectives
         and scene_completion["fulfilled"]
+        and not missing_secondary_speakers
     )
 
     missing_parts = []
+    for name in missing_secondary_speakers:
+        missing_parts.append(f"Falta fala identificável de {name}, exigida pela direção autoral da linha")
     if not scene_completion["fulfilled"]:
         missing_parts.append(scene_completion["missing"] or "acontecimento central da linha ainda nao ocorreu")
     if obligation_exists and not normalized_obligation["satisfied"]:

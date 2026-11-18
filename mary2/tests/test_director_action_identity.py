@@ -51,6 +51,55 @@ def run_director(items, *, guide=GUIDE, action=ACTION):
 
 
 class AuthoredActionIdentityTests(unittest.TestCase):
+    def test_explicit_silvia_dialogue_cannot_be_approved_when_missing(self):
+        guide = (
+            "Interpretar: Mary ajeita o biquíni.\n"
+            "DIREÇÃO DE SILVIA (participação contextual) : Silvia também se ajeita "
+            "e começa a combinar com Mary o almoço, com um trocadilho."
+        )
+        with patch.object(director, "chat", return_value=evaluation([])):
+            result = director.validate_direct_semantic_turn(
+                api_key="test", model="google/gemini-3-flash-preview",
+                fallback_model=None,
+                row={"action_guide": "", "speech_guide": guide,
+                     "interaction_mode": "automatico"},
+                interpretation={}, mary_text="Mary: Ai, Silvia, que calor...",
+            )
+        self.assertFalse(result["fulfilled"])
+        self.assertEqual(result["scene_completion"]["missing_secondary_speakers"], ["SILVIA"])
+        self.assertIn("Falta fala identificável", result["missing"])
+
+    def test_explicit_silvia_dialogue_passes_when_she_speaks(self):
+        guide = (
+            "Interpretar: Mary conversa.\n"
+            "DIREÇÃO DE SILVIA (participação contextual) : Silvia responde e brinca com Mary."
+        )
+        with patch.object(director, "chat", return_value=evaluation([])):
+            result = director.validate_direct_semantic_turn(
+                api_key="test", model="google/gemini-3-flash-preview",
+                fallback_model=None,
+                row={"action_guide": "", "speech_guide": guide,
+                     "interaction_mode": "automatico"},
+                interpretation={}, mary_text="Mary: Oi, Silvia!\nSilvia: Vamos almoçar?",
+            )
+        self.assertTrue(result["fulfilled"])
+
+    def test_optional_silvia_direction_does_not_force_dialogue(self):
+        guide = (
+            "Interpretar: Mary responde ao usuário.\n"
+            "DIREÇÃO DE SILVIA (participação contextual): Se houver gancho, "
+            "Silvia pode comentar."
+        )
+        with patch.object(director, "chat", return_value=evaluation([])):
+            result = director.validate_direct_semantic_turn(
+                api_key="test", model="google/gemini-3-flash-preview",
+                fallback_model=None,
+                row={"action_guide": "", "speech_guide": guide,
+                     "interaction_mode": "automatico"},
+                interpretation={}, mary_text="Mary: Oi, Silvia!",
+            )
+        self.assertTrue(result["fulfilled"])
+
     def test_paraphrase_identity_with_valid_id_and_literal_proof(self):
         result = run_director([{
             "id": "acao_1", "acao": ACTION,
