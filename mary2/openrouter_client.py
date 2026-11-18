@@ -32,6 +32,7 @@ _COMPAT_MIN_TOKENS = {
 }
 _REASONING_FAMILIES = ("deepseek/", "xiaomi/", "z-ai/", "qwen/", "moonshotai/", "openai/", "anthropic/")
 _MAX_RECOVERY_TOKENS = 9000
+_INCOMPLETE_FINISH_REASONS = frozenset({"length", "error", "content_filter"})
 
 
 class OpenRouterError(RuntimeError):
@@ -43,6 +44,10 @@ def _deepseek_v41_flash(model: str) -> bool:
     return model.lower().startswith("deepseek/deepseek-v4.1-flash")
 
 
+def _mimo_v26_pro(model: str) -> bool:
+    return model.lower() == "xiaomi/mimo-v2.6-pro"
+
+
 def _preserve_gemini(model: str) -> bool:
     # Only Gemini uses the unchanged baseline. Gemma is a separate family.
     return model.lower().startswith("google/gemini-")
@@ -52,6 +57,16 @@ def _request_config(model: str, stage: str, requested_tokens: int, *, recovery: 
     tokens = max(1, int(requested_tokens))
     if _preserve_gemini(model):
         return {"max_tokens": tokens}
+
+    if _mimo_v26_pro(model):
+        # Test bounded thinking instead of unlimited thinking or disabling it.
+        # Keep the director's minimum and any explicit caller budget. If the
+        # upstream still consumes the whole allowance, retry without thinking.
+        tokens = max(tokens, _COMPAT_MIN_TOKENS.get(stage, 1400), 3500 if recovery else 3000)
+        return {
+            "max_tokens": tokens,
+            "reasoning": {"enabled": False} if recovery else {"max_tokens": 512},
+        }
 
     tokens = max(tokens, _COMPAT_MIN_TOKENS.get(stage, 1400))
     if recovery and not _deepseek_v41_flash(model):
@@ -134,6 +149,7 @@ def chat(
         recovery = False
         remove_reasoning = False
         remove_json_format = False
+        provider_retry = False
         for attempt in range(2):
             started = perf_counter()
             response = None
@@ -151,6 +167,14 @@ def chat(
                 "temperature": temperature,
                 **config,
             }
+            if _mimo_v26_pro(candidate):
+                # Avoid the upstream implicated in reset/partial-completion
+                # incidents. Let OpenRouter select among the remaining hosts;
+                # use latency instead of throughput on the bounded retry.
+                payload["provider"] = {
+                    "ignore": ["primalabs"],
+                    "sort": "latency" if provider_retry else "throughput",
+                }
             try:
                 response = requests.post(
                     OPENROUTER_URL,
@@ -189,6 +213,37 @@ def chat(
                 choice = choices[0] if isinstance(choices[0], dict) else {}
                 message = choice.get("message") if isinstance(choice.get("message"), dict) else {}
                 content = _visible_text(message)
+                finish_reason = choice.get("finish_reason")
+                if finish_reason in _INCOMPLETE_FINISH_REASONS:
+                    # HTTP 200 and nonempty text do NOT mean successful
+                    # generation. A truncated partial line cannot be handed
+                    # to the director, saved or displayed as Mary's speech.
+                    request_status = "INCOMPLETE_RESPONSE"
+                    error_code = "INCOMPLETE_FINISH_REASON"
+                    usage = data.get("usage") if isinstance(data.get("usage"), dict) else {}
+                    details = usage.get("completion_tokens_details")
+                    details = details if isinstance(details, dict) else {}
+                    _LOG.warning(
+                        "OPENROUTER_INCOMPLETE_RESPONSE model=%s stage=%s attempt=%s "
+                        "finish_reason=%s text_chars=%s completion_tokens=%s "
+                        "reasoning_tokens=%s provider=%s generation_id=%s",
+                        candidate, stage, attempt + 1, finish_reason, len(content),
+                        usage.get("completion_tokens"), details.get("reasoning_tokens"),
+                        data.get("provider"), data.get("id"),
+                    )
+                    last_error = OpenRouterError(
+                        f"OpenRouter retornou geração incompleta (HTTP {response.status_code}, "
+                        f"modelo {candidate}, finish_reason={finish_reason}, "
+                        f"texto_parcial={len(content)} caracteres)."
+                    )
+                    if attempt == 0:
+                        if _mimo_v26_pro(candidate):
+                            recovery = True
+                            provider_retry = True
+                        else:
+                            recovery = _reasoning_exhausted(choice, data, config["max_tokens"])
+                        continue
+                    break
                 if content:
                     request_status = "SUCCESS"
                     if json_object:
@@ -207,10 +262,12 @@ def chat(
                 _LOG.warning(
                     "OPENROUTER_EMPTY_RESPONSE model=%s stage=%s attempt=%s "
                     "finish_reason=%s max_tokens=%s completion_tokens=%s "
-                    "reasoning_tokens=%s reasoning_exhausted=%s reasoning_config=%s",
+                    "reasoning_tokens=%s reasoning_exhausted=%s reasoning_config=%s "
+                    "provider=%s generation_id=%s duration_ms=%.1f",
                     candidate, stage, attempt + 1, choice.get("finish_reason"),
                     config["max_tokens"], usage.get("completion_tokens"),
                     details.get("reasoning_tokens"), exhaustion, config.get("reasoning"),
+                    data.get("provider"), data.get("id"), (perf_counter() - started) * 1000,
                 )
                 request_status = "EMPTY_RESPONSE"
                 error_code = "REASONING_EXHAUSTED" if exhaustion else "EMPTY_RESPONSE"
@@ -225,7 +282,14 @@ def chat(
                     # enabled=False while still reporting reasoning exhaustion.
                     # Bigger budget and lower effort if thinking ate the answer;
                     # a single ordinary retry for unexplained transient empties.
-                    recovery = exhaustion
+                    # Some MiMo providers omit reasoning token breakdowns. A
+                    # length-truncated empty answer is enough to try the capped
+                    # thinking configuration once, without repeating the same call.
+                    recovery = exhaustion or (
+                        _mimo_v26_pro(candidate) and choice.get("finish_reason") == "length"
+                    )
+                    if _mimo_v26_pro(candidate):
+                        provider_retry = True
                     continue
                 break
             except requests.HTTPError as exc:
@@ -242,6 +306,15 @@ def chat(
                     f"OpenRouter HTTP {status}, modelo {candidate}: "
                     f"{str(detail)[:500] or 'requisição rejeitada'}"
                 )
+                if _mimo_v26_pro(candidate) and status in (502, 503, 504) and attempt == 0:
+                    provider_retry = True
+                    recovery = False  # Keep the first-attempt reasoning configuration.
+                    _LOG.warning(
+                        "OPENROUTER_PROVIDER_RETRY model=%s stage=%s http_status=%s "
+                        "next_provider_excludes=primalabs next_sort=latency",
+                        candidate, stage, status,
+                    )
+                    continue
                 # Unsupported reasoning options: retry once without that hint.
                 # A normal HTTP 400 (wrong model ID, unavailable params, etc.)
                 # must not trigger an expensive blind token-budget increase.
@@ -275,6 +348,7 @@ def chat(
                     status=request_status,
                     http_status=getattr(response, "status_code", None),
                     request_messages=messages, response=data, error_code=error_code,
+                    request_config=payload,
                 ))
 
     raise OpenRouterError(f"Falha ao consultar OpenRouter: {last_error}")
