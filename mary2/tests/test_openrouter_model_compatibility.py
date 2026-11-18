@@ -30,6 +30,123 @@ class OpenRouterModelCompatibilityTests(unittest.TestCase):
 
     @patch.object(client, "record")
     @patch.object(client.requests, "post")
+    def test_mimo_first_attempt_caps_reasoning(self, post, record):
+        post.return_value = response("Mary: Oi!")
+        self.assertEqual(client.chat(api_key="test", model="xiaomi/mimo-v2.6-pro",
+                                     messages=self.messages, call_type="REDACTOR"), "Mary: Oi!")
+        config = post.call_args.kwargs["json"]
+        self.assertEqual(config["reasoning"], {"max_tokens": 512})
+        self.assertEqual(config["max_tokens"], 3000)
+        self.assertEqual(config["provider"], {
+            "ignore": ["primalabs"], "sort": "throughput",
+        })
+
+    @patch.object(client, "record")
+    @patch.object(client.requests, "post")
+    def test_mimo_length_empty_recovers_without_reasoning_usage(self, post, record):
+        post.side_effect = [response("", output=3000, reasoning=0, finish="length"),
+                            response("Resposta recuperada")]
+        self.assertEqual(client.chat(api_key="test", model="xiaomi/mimo-v2.6-pro",
+                                     messages=self.messages, call_type="REDACTOR"),
+                         "Resposta recuperada")
+        self.assertEqual(post.call_count, 2)
+        first, second = [call.kwargs["json"] for call in post.call_args_list]
+        self.assertEqual(first["reasoning"], {"max_tokens": 512})
+        self.assertEqual(second["reasoning"], {"enabled": False})
+        self.assertEqual(second["max_tokens"], 3500)
+        self.assertEqual(second["provider"]["sort"], "latency")
+
+    @patch.object(client, "record")
+    @patch.object(client.requests, "post")
+    def test_mimo_rejects_partial_text_with_error_finish_and_recovers(self, post, record):
+        post.side_effect = [
+            response("Mary: Silvia, para tudo", output=573, reasoning=487, finish="error"),
+            response("Mary: Estou aqui com você.", output=160),
+        ]
+        result = client.chat(api_key="test", model="xiaomi/mimo-v2.6-pro",
+                             messages=self.messages, call_type="REDACTOR")
+        self.assertEqual(result, "Mary: Estou aqui com você.")
+        self.assertEqual(post.call_count, 2)
+        self.assertEqual(post.call_args_list[1].kwargs["json"]["reasoning"], {"enabled": False})
+        self.assertEqual(post.call_args_list[1].kwargs["json"]["provider"], {
+            "ignore": ["primalabs"], "sort": "latency",
+        })
+        self.assertEqual(record.call_args_list[0].args[0]["status"], "INCOMPLETE_RESPONSE")
+
+    @patch.object(client, "record")
+    @patch.object(client.requests, "post")
+    def test_mimo_never_publishes_partial_text_when_both_attempts_fail(self, post, record):
+        post.side_effect = [
+            response("Mary: começo", finish="error"),
+            response("Mary: outro começo", finish="length"),
+        ]
+        with self.assertRaisesRegex(client.OpenRouterError, "geração incompleta"):
+            client.chat(api_key="test", model="xiaomi/mimo-v2.6-pro",
+                        messages=self.messages, call_type="REDACTOR")
+        self.assertEqual(post.call_count, 2)
+
+    @patch.object(client, "record")
+    @patch.object(client.requests, "post")
+    def test_gemini_partial_finish_is_not_accepted(self, post, record):
+        post.side_effect = [response("texto cortado", finish="length"),
+                            response("resposta inteira", finish="stop")]
+        self.assertEqual(client.chat(api_key="test", model="google/gemini-3-flash-preview",
+                                     messages=self.messages), "resposta inteira")
+        self.assertEqual(post.call_count, 2)
+
+    @patch.object(client, "record")
+    @patch.object(client.requests, "post")
+    def test_mimo_keeps_director_and_explicit_budgets(self, post, record):
+        post.return_value = response("JSON pronto")
+        client.chat(api_key="test", model="xiaomi/mimo-v2.6-pro",
+                    messages=self.messages, call_type="SEMANTIC_DIRECTOR", max_tokens=7425)
+        self.assertEqual(post.call_args.kwargs["json"]["max_tokens"], 7425)
+
+    @patch.object(client, "record")
+    @patch.object(client.requests, "post")
+    def test_mimo_retries_502_using_different_provider(self, post, record):
+        bad = Mock()
+        bad.status_code = 502
+        bad.json.return_value = {"error": {"message": "Upstream error from PrimaLabs"}}
+        bad.raise_for_status.side_effect = client.requests.HTTPError(response=bad)
+        post.side_effect = [bad, response("Mary respondeu")]
+        self.assertEqual(
+            client.chat(api_key="test", model="xiaomi/mimo-v2.6-pro",
+                        messages=self.messages, call_type="REDACTOR"), "Mary respondeu",
+        )
+        first, second = [call.kwargs["json"] for call in post.call_args_list]
+        self.assertEqual(first["provider"], {
+            "ignore": ["primalabs"], "sort": "throughput",
+        })
+        self.assertEqual(second["provider"], {
+            "ignore": ["primalabs"], "sort": "latency",
+        })
+        self.assertEqual(second["reasoning"], {"max_tokens": 512})
+        self.assertEqual(post.call_count, 2)
+
+    @patch.object(client, "record")
+    @patch.object(client.requests, "post")
+    def test_mimo_does_not_retry_nontransient_http_error(self, post, record):
+        bad = Mock()
+        bad.status_code = 401
+        bad.json.return_value = {"error": {"message": "unauthorized"}}
+        bad.raise_for_status.side_effect = client.requests.HTTPError(response=bad)
+        post.return_value = bad
+        with self.assertRaises(client.OpenRouterError):
+            client.chat(api_key="test", model="xiaomi/mimo-v2.6-pro",
+                        messages=self.messages)
+        self.assertEqual(post.call_count, 1)
+
+    @patch.object(client, "record")
+    @patch.object(client.requests, "post")
+    def test_other_models_do_not_receive_mimo_provider_routing(self, post, record):
+        post.return_value = response("OK")
+        client.chat(api_key="test", model="google/gemini-3-flash-preview",
+                    messages=self.messages)
+        self.assertNotIn("provider", post.call_args.kwargs["json"])
+
+    @patch.object(client, "record")
+    @patch.object(client.requests, "post")
     def test_gemini_baseline_unchanged(self, post, record):
         post.return_value = response("Olá")
         value = client.chat(api_key="test", model="google/gemini-3-flash-preview",
