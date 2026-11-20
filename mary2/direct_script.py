@@ -1021,7 +1021,7 @@ def build_direct_writer_prompt(
         "sem inventar outros para preencher o canal. "
         "[FALA] contém apenas palavras pronunciadas, identificadas por personagem "
         "(Mary:, Silvia: etc.); não intercale rubricas narrativas entre trechos de diálogo. "
-        "Evite microgestos, adjetivos de clima, sensações, explicações e ações futuras. 
+        "Evite microgestos, adjetivos de clima, sensações, explicações e ações futuras. "
         "Não descreva antes o que será decidido ou dito em [FALA]. "
         + ("Nesta linha [PENSAMENTO] está DESATIVADO; emita somente os canais aplicáveis. "
            if thought_disabled else
