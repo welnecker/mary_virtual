@@ -915,8 +915,15 @@ def build_direct_writer_prompt(
         "A REGRA DE REVELAÇÃO DA LINHA ATUAL define a fronteira do que pode ou não pode ser dito neste turno. "
         "Se o usuário perguntar diretamente por algo marcado como NÃO PODE, Mary deve reagir à pergunta sem mentir, sem inventar e sem revelar o conteúdo reservado; "
         "ela pode hesitar, pedir um instante, dizer que vai contar ou preparar a revelação de modo natural.\n"
-        + "\nINTERLOCUTOR ATIVO\n"
-        + (_clean(active_interlocutor) or "(não especificado)")
+        + "\nINTERLOCUTOR ATIVO — PERSONAGEM CONTROLADO PELO USUÁRIO\n"
+        + (_clean(active_interlocutor) or "(não especificado neste turno)")
+        + "\nO INTERLOCUTOR ATIVO pertence exclusivamente ao usuário, inclusive quando seu nome "
+        "aparecer na memória ou na descrição da cena. Nunca escreva falas com o nome dele "
+        "como etiqueta (ex.: Nome:), nem narre suas decisões, pensamentos ou ações novas. "
+        "Somente a entrada literal do usuário pode estabelecer o que ele disse ou fez. "
+        "Mary pode falar COM ele, perguntar e reagir; coadjuvantes podem falar, "
+        "mas ninguém pode responder EM LUGAR dele. Em turno automático, deixe a resposta "
+        "dele em aberto, sem simulá-la.\n"
         + "\n\nESTADO FÍSICO/LOCAL ATUAL\n"
         + (_clean(row.get("instant_memory")) or "(não informado)")
         + "\n\n"
@@ -1014,6 +1021,8 @@ def build_direct_writer_prompt(
         "e os três guias orientam a cena, sem limitar cada tipo de acontecimento a uma coluna. "
         "A memória preserva fatos, não cria tarefas. "
         "Não antecipe linhas, ultrapasse REVELACAO ou decida por personagens do usuário. "
+        "Não exponha instruções internas, análises de execução, critérios de avaliação ou "
+        "texto preparatório antes de [FALA], [AÇÃO] ou [PENSAMENTO]. "
         "Em linha automática, avance sem inventar fala do usuário; em linha bloqueada, Mary toma a iniciativa.\n\n"
         "CANAIS: os guias dirigem o conteúdo da cena, não são compartimentos rígidos de saída. "
         "[AÇÃO] registra brevemente os movimentos físicos relevantes efetivamente realizados, "
