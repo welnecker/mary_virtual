@@ -3049,10 +3049,10 @@ if user_text:
             temporary_character = scene_for_director.get("temporary_character", {})
             if not isinstance(temporary_character, dict):
                 temporary_character = {}
+            # A identidade do personagem do usuário continua conhecida no automático:
+            # somente a fala nova dele fica ausente, não sua autoria.
             active_interlocutor = (
-                ""
-                if automatic_turn
-                else " | ".join(
+                " | ".join(
                     part
                     for part in [
                         "papel=" + str(scene_for_director.get("user_role", "") or "").strip(),
