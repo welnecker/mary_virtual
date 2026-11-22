@@ -119,7 +119,7 @@ from funnel_script import (
 )
 from openrouter_client import OpenRouterError, chat
 from token_usage import begin_turn, update_line_order, _app_commit
-from output_filter import looks_like_action_narration, parse_mary_response, parse_mary_components, sanitize_mary_output, format_dialogue_paragraphs
+from output_filter import looks_like_action_narration, parse_mary_response, parse_mary_components, sanitize_mary_output, format_dialogue_paragraphs, has_internal_preface
 from user_understanding_audit import (
     analyze_user_understanding,
     save_user_understanding_audit,
@@ -3740,6 +3740,7 @@ if user_text:
                     user_text=dialogue_text,
                     user_scene_direction=scene_direction,
                     line_dialogue=list(direct_state.get("line_dialogue", []) or []),
+                    active_interlocutor=active_interlocutor,
                 )
 
                 parsed_objectives = (
@@ -3792,6 +3793,7 @@ if user_text:
                         user_text=dialogue_text,
                         user_scene_direction=scene_direction,
                         line_dialogue=list(direct_state.get("line_dialogue", []) or []),
+                    active_interlocutor=active_interlocutor,
                     )
 
                 if (
@@ -3887,6 +3889,7 @@ if user_text:
                         user_text=dialogue_text,
                         user_scene_direction=scene_direction,
                         line_dialogue=list(direct_state.get("line_dialogue", []) or []),
+                    active_interlocutor=active_interlocutor,
                     )
                     if not bool(
                         (direct_validation.get("conversation_consistency", {}) or {}).get(
@@ -3932,6 +3935,7 @@ if user_text:
                             mary_text=style_answer, mary_thought=style_thought, mary_action=parse_mary_components(style_raw)["action"],
                             user_text=dialogue_text, user_scene_direction=scene_direction,
                             line_dialogue=list(direct_state.get("line_dialogue", []) or []),
+                    active_interlocutor=active_interlocutor,
                         )
                         if (
                             bool(style_validation.get("fulfilled", False))
@@ -4026,6 +4030,7 @@ if user_text:
                         user_text=dialogue_text,
                         user_scene_direction=scene_direction,
                         line_dialogue=list(direct_state.get("line_dialogue", []) or []),
+                    active_interlocutor=active_interlocutor,
                     )
                     if bool(
                         (direct_validation.get("revelation_violation", {}) or {}).get(
@@ -4109,6 +4114,7 @@ if user_text:
                         user_text=dialogue_text,
                         user_scene_direction=scene_direction,
                         line_dialogue=list(direct_state.get("line_dialogue", []) or []),
+                    active_interlocutor=active_interlocutor,
                     )
                     if bool(
                         (direct_validation.get("hard_contradiction", {}) or {}).get(
@@ -4154,6 +4160,7 @@ if user_text:
                             mary_text=scene_answer, mary_thought=scene_thought, mary_action=parse_mary_components(scene_raw)["action"],
                             user_text=dialogue_text, user_scene_direction=scene_direction,
                             line_dialogue=list(direct_state.get("line_dialogue", []) or []),
+                    active_interlocutor=active_interlocutor,
                         )
                         if bool(scene_validation.get("fulfilled", False)):
                             raw_answer = scene_raw
@@ -4200,6 +4207,7 @@ if user_text:
                         mary_action=auto_parts["action"], user_text=dialogue_text,
                         user_scene_direction=scene_direction,
                         line_dialogue=list(direct_state.get("line_dialogue", []) or []),
+                    active_interlocutor=active_interlocutor,
                     )
                     if (
                         not bool(auto_validation.get("fulfilled", False))
@@ -4238,6 +4246,7 @@ if user_text:
                                 mary_action=last_parts["action"], user_text=dialogue_text,
                                 user_scene_direction=scene_direction,
                                 line_dialogue=list(direct_state.get("line_dialogue", []) or []),
+                    active_interlocutor=active_interlocutor,
                             )
                             # Registrar a avaliação MAIS RECENTE mesmo quando a
                             # última correção não resolver o problema; o erro anterior
@@ -4544,6 +4553,13 @@ if user_text:
                     raise OpenRouterError(
                         "A resposta de Mary ultrapassou as paredes do funil após correção."
                     )
+            # Fail closed: não publique prefácios que revelem instruções internas,
+            # mesmo quando o parser consegue descartá-los dos canais visíveis.
+            if script_mode == "direct_sheet" and has_internal_preface(raw_answer):
+                raise OpenRouterError(
+                    "A resposta continha texto interno antes dos canais; nada foi publicado."
+                )
+
         except Exception:
             # Turno atômico: nada da tentativa incompleta fica na sessão.
             st.session_state.scene_state = deepcopy(
