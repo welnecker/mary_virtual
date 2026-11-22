@@ -23,6 +23,22 @@ _DIALOGUE_LINE_RE = re.compile(
 
 
 
+_INTERNAL_PREFACE_RE = re.compile(
+    r"(?im)^\s*(?:é preciso atender|preciso (?:atender|responder)|"
+    r"(?:instruções|regras|critérios) (?:internas|do sistema|de execução)|"
+    r"(?:análise|raciocínio|planejamento) (?:interno|da resposta)|"
+    r"(?:vou|devo) (?:agora )?(?:responder|gerar|escrever)\b)"
+)
+
+
+def has_internal_preface(text: str) -> bool:
+    """Detecta raciocínio/instruções fora dos canais antes da publicação."""
+    value = str(text or "").strip()
+    first_marker = _COMPONENT_RE.search(value)
+    preface = value[:first_marker.start()] if first_marker else value
+    return bool(_INTERNAL_PREFACE_RE.search(preface))
+
+
 def parse_mary_components(text: str) -> dict[str, str]:
     """Extrai blocos opcionais sem perder acoes nem exigir pensamento.
 
