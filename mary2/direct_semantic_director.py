@@ -419,11 +419,19 @@ def validate_direct_semantic_turn(
         + "B) CENA: a DESCRIÇÃO-GUIA determina ações e acontecimentos da linha ativa; a MEMÓRIA INSTANTÂNEA-LOCAL contextualiza e não cria tarefas. Ações afirmativas de Mary são missões mesmo sem 'deve'. Confirme CADA ação autoral aplicável na resposta; ações facultativas ou condicionadas não devem bloquear. Não exija movimentos de outros personagens como ações de Mary. Se a ação já foi efetivamente realizada nesta linha, não a reencene. Para comprovação física, cite um trecho LITERAL CONTÍNUO de [AÇÃO] atual ou histórico; uma rubrica física literal de Mary dentro de [FALA] anterior também pode comprovar cumprimento anterior, mas fala dialogada não. Use palavras exatas, sem reticências. Se houver apenas pensamento ou intenção de fazer, a ação ainda não ocorreu. Não obrigue personagens secundários a falar por rotina. Nunca use a memória ou a FALA-GUIA como prova de execução. "
         + "B1) PENSAMENTO: compare [PENSAMENTO], quando existir, com o PENSAMENTO-GUIA ORIGINAL. Avalie a fidelidade à motivação, emoção, atitude e perspectiva autorais, sem exigir palavras literais ou repetição de frases. Não exija [PENSAMENTO] quando ele estiver ausente, mesmo que exista PENSAMENTO-GUIA. Não transforme orientação emocional em gesto ou fala obrigatória. Se o pensamento abre a resposta, julgue-o no INSTANTE INICIAL da linha, antes das novas falas e ações dessa própria resposta. Não aceite como lembrança de fato consumado o que Silvia só dirá depois, nem conclusão de decisão ainda não tomada. Mary pode imaginar, desejar ou planejar possibilidades sem tratá-las como fatos já ocorridos. Só marque pensamento_autoral.ok=false quando houver CONTRADIÇÃO SEMÂNTICA MATERIAL, inclusive antecipação factual intraturno; mera nuance, espontaneidade ou intensidade compatível não é contradição. Em caso de conflito, descreva o trecho real e sugira reparar apenas o pensamento, preservando os acontecimentos. Se não houver pensamento ou guia, devolva pensamento_autoral.ok=true e avaliado=false. "
         + "C) CONTINUIDADE: Mary deve responder ao sentido da entrada atual, preservando interlocutor, autoria de ações, sujeito, destinatário e posição física. Memória local define a cena atual; descrição inicial pode mencionar futuro sem torná-lo presente. Corrija interpretações semânticas incompatíveis com fatos explícitos. "
-        + "C1) PARTICIPANTES E EVIDÊNCIA: identifique separadamente quem fala, para quem, quem é citado e quem pratica/recebe cada ação. O usuário pode trocar de personagem entre turnos. Se a resposta de Mary declarar uma ação física de terceiros, exija suporte na fala literal, na encenação ou nos fatos confirmados; uma hipótese do módulo de compreensão ou uma fala equivocada anterior de Mary NÃO comprovam a ação. Se Mary for questionada sobre uma interpretação anterior sem base, aceite esclarecimento ou correção, nunca novos detalhes inventados para defendê-la. Marque coerencia_conversacional.ok=false quando houver transferência de agente/alvo ou acontecimento concreto não sustentado. Não reprove brincadeiras claramente figuradas nem exija certeza impossível em falas genuinamente ambíguas. "
-        + "C2) AUTORIA DO USUÁRIO: o INTERLOCUTOR ATIVO é interpretado exclusivamente pelo usuário. "
-        "Uma fala etiquetada com seu nome na resposta de Mary, ou ações/decisões novas atribuídas "
-        "a ele sem entrada literal do usuário, violam a autoria. Reprove em coerencia_conversacional "
-        "mesmo que a fala inventada pareça natural ou cumpra a cena. "
+        + "C1) PARTICIPANTES E EVIDÊNCIA: identifique separadamente quem fala, para quem, quem é citado e quem pratica/recebe cada ação. O usuário pode trocar de personagem entre turnos. Para ações de personagens secundários, a direção explícita da FALA-GUIA é suporte autoral suficiente, mesmo sem fala literal do usuário. Fora desse suporte, não invente atos concretos de terceiros. Ações em [AÇÃO] com sujeito secundário identificado são ações desse secundário, não atos indevidamente atribuídos a Mary; nunca trate a mera presença deles no canal como transferência de agente. Uma hipótese do módulo de compreensão ou uma fala equivocada anterior de Mary NÃO comprovam uma ação. Se Mary for questionada sobre uma interpretação anterior sem base, aceite esclarecimento ou correção. Marque coerencia_conversacional.ok=false quando houver transferência REAL de agente/alvo ou acontecimento concreto não sustentado. Não reprove brincadeiras figuradas nem exija certeza impossível em falas ambíguas. "
+        + "C2) CONTRATO DE AUTORIA (OBRIGATÓRIO): a exclusividade pertence SOMENTE ao "
+        "personagem identificado como INTERLOCUTOR ATIVO do usuário. Não invente falas "
+        "identificadas com o nome dele nem ações/decisões novas dele sem entrada literal. "
+        "Em contraste, a FALA-GUIA autoriza o modelo a interpretar TODOS os coadjuvantes "
+        "que ela dirige com DIREÇÃO DE <NOME>, por exemplo Silvia e Rodrigo. Falas, "
+        "reações e ações desses coadjuvantes são atuação válida do modelo, inclusive quando "
+        "o usuário apenas clica Prosseguir; NÃO são violação de autoria e NÃO precisam "
+        "de fala literal anterior do usuário. A direção autoral é a evidência suficiente "
+        "para a participação do coadjuvante. Não exija que ele fale em todos os turnos "
+        "se a direção é contextual/opcional. Se o Diretor alegar que Silvia, Rodrigo "
+        "ou outro coadjuvante dirigido são personagens reservados ao usuário, "
+        "essa alegação é ERRO DO DIRETOR e deve ser corrigida antes do JSON. "
         + "D) FATOS E REVELAÇÃO: fontes autoritativas prevalecem sobre falas anteriores. Marque apenas contradições objetivas; não trate estilo como erro factual. NÃO PODE impede verbalização mesmo sob pergunta, mas Mary deve reagir sem revelar nem inventar. "
         + "E) NATURALIDADE: respeite ESTILO/ATITUDE e a direção autoral da linha, sem impor vocabulário literal, intensidade fixa ou metáforas genéricas. ACAO e FALA bastam; PENSAMENTO é opcional e nunca é requisito para aprovação. Observe gestos repetidos sem função (sorriso de canto, sustentar o olhar, ajeitar cabelos ou pernas), acúmulo de microgestos que não mudam a cena, descrição de clima/sensações que só repete o PENSAMENTO e explicações de intenções alheias sem evidência, além de perguntas que transformam toda interação amistosa em teste ou avaliação. Se a [AÇÃO] estiver sobrecarregada de ornamentação sem função, marque naturalidade.ok=false e indique a remoção SOMENTE dos excessos, preservando cada ação física obrigatória da DESCRIÇÃO-GUIA. Não reprove detalhes concretos relevantes nem cenas cujo roteiro exige descrição extensa. Quando a FALA-GUIA oferecer alternativas para abrir assunto, uma única pergunta situada basta; não aprove como natural uma bateria de perguntas de Mary e de personagens secundárias, a menos que essa sequência seja exigida pelo autor. Reprove quando o artificialismo for evidente, mas NÃO exija sempre silêncio, respostas curtas ou eliminação de sensualidade, humor e iniciativa. Compare com a conversa disponível, não apenas com uma frase isolada. "
         + "AÇÕES AUTORAIS: devolva acoes_autorais com UM ITEM PARA CADA ação listada, na mesma ordem. Para cada uma, repita o id acao_N da lista (sem inventar IDs), e indique cumprida e evidencia. O campo acao é descritivo e não identifica a obrigação. Para comprovar cada ação cumprida, cite trecho literal contínuo de [AÇÃO] atual ou anterior da mesma linha; rubrica física anterior dentro de [FALA] também serve se descrever explicitamente o gesto de Mary. Fala dialogada e intenção não servem; se ausente, cumprida=false e evidencia vazia. Não use a DESCRIÇÃO-GUIA como prova, nem troque evidências entre ações. Quando não houver ações listadas, devolva []. "
@@ -577,6 +585,51 @@ def validate_direct_semantic_turn(
             "Remova apenas o turno inventado de " + user_character_name
             + "; Mary e os coadjuvantes podem reagir sem decidir por ele."
         )
+
+    # O parecer semântico pode confundir coadjuvantes dirigidos na FALA-GUIA
+    # com o personagem exclusivo do usuário. Corrija apenas esse falso
+    # positivo específico; outras incoerências permanecem bloqueantes.
+    coherence_issue = conversation_consistency["issue"].casefold()
+    guided_cast = {
+        name.casefold()
+        for name in re.findall(
+            r"DIREÇÃO DE\s+([A-ZÀ-Ý][\wÀ-ÿ-]*)",
+            speech_guide,
+            flags=re.I,
+        )
+    }
+    authorship_only = (
+        "autoria do usuário" in coherence_issue
+        and (
+            "não foram fornecidas pelo usuário" in coherence_issue
+            or "sem que houvesse entrada literal" in coherence_issue
+            or "personagens reservados ao usuário" in coherence_issue
+        )
+        and not any(term in coherence_issue for term in (
+            "transferência", "contradição", "posição física", "fato não",
+        ))
+    )
+    secondary_named = [
+        name for name in guided_cast if re.search(
+            rf"\b{re.escape(name)}\b", coherence_issue, flags=re.I
+        )
+    ]
+    if (
+        not conversation_consistency["ok"]
+        and authorship_only
+        and secondary_named
+        and not (
+            user_character_name
+            and re.search(
+                rf"\b{re.escape(user_character_name)}\s*:",
+                _clean(mary_text), flags=re.I,
+            )
+        )
+    ):
+        conversation_consistency["ok"] = True
+        conversation_consistency["issue"] = ""
+        conversation_consistency["correction"] = ""
+        conversation_consistency["secondary_authorship_false_positive"] = True
 
     natural_raw = parsed.get("naturalidade", {})
     if not isinstance(natural_raw, dict):
