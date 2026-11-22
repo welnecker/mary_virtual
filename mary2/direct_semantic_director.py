@@ -602,6 +602,7 @@ def validate_direct_semantic_turn(
         "autoria do usuário" in coherence_issue
         and (
             "não foram fornecidas pelo usuário" in coherence_issue
+            or "não constam na entrada do usuário" in coherence_issue
             or "sem que houvesse entrada literal" in coherence_issue
             or "personagens reservados ao usuário" in coherence_issue
         )
