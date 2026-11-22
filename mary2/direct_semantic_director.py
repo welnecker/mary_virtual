@@ -265,6 +265,7 @@ def validate_direct_semantic_turn(
     user_text: str = "",
     user_scene_direction: str = "",
     line_dialogue: list[dict] | None = None,
+    active_interlocutor: str = "",
 ) -> dict:
     """Valida em uma só chamada: finalidade da linha + consistência factual dura."""
     obligation = interpretation.get("user_obligation", {}) if isinstance(interpretation, dict) else {}
@@ -392,6 +393,8 @@ def validate_direct_semantic_turn(
         + ("\n".join(value for _, value in previous_action_entries + previous_spoken_actions) or "(nenhuma comprovada)")
         + "\n\nCONVERSA DA LINHA ATIVA\n"
         + conversation
+        + "\n\nPERSONAGEM RESERVADO AO USUÁRIO (não interpretar por Mary)\n"
+        + (_clean(active_interlocutor) or "(não identificado; preserve o turno do usuário)")
         + "\n\nRESPOSTA ATUAL DE MARY\n"
         + (_clean(mary_text) or "(sem fala neste turno)")
         + "\n\nACAO ATUAL REALIZADA POR MARY\n"
@@ -417,6 +420,10 @@ def validate_direct_semantic_turn(
         + "B1) PENSAMENTO: compare [PENSAMENTO], quando existir, com o PENSAMENTO-GUIA ORIGINAL. Avalie a fidelidade à motivação, emoção, atitude e perspectiva autorais, sem exigir palavras literais ou repetição de frases. Não exija [PENSAMENTO] quando ele estiver ausente, mesmo que exista PENSAMENTO-GUIA. Não transforme orientação emocional em gesto ou fala obrigatória. Se o pensamento abre a resposta, julgue-o no INSTANTE INICIAL da linha, antes das novas falas e ações dessa própria resposta. Não aceite como lembrança de fato consumado o que Silvia só dirá depois, nem conclusão de decisão ainda não tomada. Mary pode imaginar, desejar ou planejar possibilidades sem tratá-las como fatos já ocorridos. Só marque pensamento_autoral.ok=false quando houver CONTRADIÇÃO SEMÂNTICA MATERIAL, inclusive antecipação factual intraturno; mera nuance, espontaneidade ou intensidade compatível não é contradição. Em caso de conflito, descreva o trecho real e sugira reparar apenas o pensamento, preservando os acontecimentos. Se não houver pensamento ou guia, devolva pensamento_autoral.ok=true e avaliado=false. "
         + "C) CONTINUIDADE: Mary deve responder ao sentido da entrada atual, preservando interlocutor, autoria de ações, sujeito, destinatário e posição física. Memória local define a cena atual; descrição inicial pode mencionar futuro sem torná-lo presente. Corrija interpretações semânticas incompatíveis com fatos explícitos. "
         + "C1) PARTICIPANTES E EVIDÊNCIA: identifique separadamente quem fala, para quem, quem é citado e quem pratica/recebe cada ação. O usuário pode trocar de personagem entre turnos. Se a resposta de Mary declarar uma ação física de terceiros, exija suporte na fala literal, na encenação ou nos fatos confirmados; uma hipótese do módulo de compreensão ou uma fala equivocada anterior de Mary NÃO comprovam a ação. Se Mary for questionada sobre uma interpretação anterior sem base, aceite esclarecimento ou correção, nunca novos detalhes inventados para defendê-la. Marque coerencia_conversacional.ok=false quando houver transferência de agente/alvo ou acontecimento concreto não sustentado. Não reprove brincadeiras claramente figuradas nem exija certeza impossível em falas genuinamente ambíguas. "
+        + "C2) AUTORIA DO USUÁRIO: o INTERLOCUTOR ATIVO é interpretado exclusivamente pelo usuário. "
+        "Uma fala etiquetada com seu nome na resposta de Mary, ou ações/decisões novas atribuídas "
+        "a ele sem entrada literal do usuário, violam a autoria. Reprove em coerencia_conversacional "
+        "mesmo que a fala inventada pareça natural ou cumpra a cena. "
         + "D) FATOS E REVELAÇÃO: fontes autoritativas prevalecem sobre falas anteriores. Marque apenas contradições objetivas; não trate estilo como erro factual. NÃO PODE impede verbalização mesmo sob pergunta, mas Mary deve reagir sem revelar nem inventar. "
         + "E) NATURALIDADE: respeite ESTILO/ATITUDE e a direção autoral da linha, sem impor vocabulário literal, intensidade fixa ou metáforas genéricas. ACAO e FALA bastam; PENSAMENTO é opcional e nunca é requisito para aprovação. Observe gestos repetidos sem função (sorriso de canto, sustentar o olhar, ajeitar cabelos ou pernas), acúmulo de microgestos que não mudam a cena, descrição de clima/sensações que só repete o PENSAMENTO e explicações de intenções alheias sem evidência, além de perguntas que transformam toda interação amistosa em teste ou avaliação. Se a [AÇÃO] estiver sobrecarregada de ornamentação sem função, marque naturalidade.ok=false e indique a remoção SOMENTE dos excessos, preservando cada ação física obrigatória da DESCRIÇÃO-GUIA. Não reprove detalhes concretos relevantes nem cenas cujo roteiro exige descrição extensa. Quando a FALA-GUIA oferecer alternativas para abrir assunto, uma única pergunta situada basta; não aprove como natural uma bateria de perguntas de Mary e de personagens secundárias, a menos que essa sequência seja exigida pelo autor. Reprove quando o artificialismo for evidente, mas NÃO exija sempre silêncio, respostas curtas ou eliminação de sensualidade, humor e iniciativa. Compare com a conversa disponível, não apenas com uma frase isolada. "
         + "AÇÕES AUTORAIS: devolva acoes_autorais com UM ITEM PARA CADA ação listada, na mesma ordem. Para cada uma, repita o id acao_N da lista (sem inventar IDs), e indique cumprida e evidencia. O campo acao é descritivo e não identifica a obrigação. Para comprovar cada ação cumprida, cite trecho literal contínuo de [AÇÃO] atual ou anterior da mesma linha; rubrica física anterior dentro de [FALA] também serve se descrever explicitamente o gesto de Mary. Fala dialogada e intenção não servem; se ausente, cumprida=false e evidencia vazia. Não use a DESCRIÇÃO-GUIA como prova, nem troque evidências entre ações. Quando não houver ações listadas, devolva []. "
@@ -554,6 +561,21 @@ def validate_direct_semantic_turn(
         conversation_consistency["correction"] = (
             "Identifique cada turno com Mary:, Silvia: ou o nome da personagem, "
             "conservando integralmente as falas e a ordem. Não crie nem exclua acontecimentos."
+        )
+
+    # Bloqueio determinístico: o Diretor semântico não pode aprovar uma fala
+    # atribuída ao personagem que o usuário está interpretando.
+    user_name_match = re.search(r"(?:^|\s*\|\s*)nome=([^|]+)", _clean(active_interlocutor), re.I)
+    user_character_name = user_name_match.group(1).strip() if user_name_match else ""
+    if user_character_name and _spoken_by_character(mary_text, user_character_name):
+        conversation_consistency["ok"] = False
+        conversation_consistency["issue"] = (
+            "A resposta atribuiu fala ao personagem controlado pelo usuário: "
+            + user_character_name + "."
+        )
+        conversation_consistency["correction"] = (
+            "Remova apenas o turno inventado de " + user_character_name
+            + "; Mary e os coadjuvantes podem reagir sem decidir por ele."
         )
 
     natural_raw = parsed.get("naturalidade", {})
@@ -747,6 +769,8 @@ def validate_direct_semantic_turn(
     )
 
     missing_parts = []
+    if not conversation_consistency["ok"]:
+        missing_parts.append(conversation_consistency["issue"] or "Inconsistência de autoria do interlocutor")
     for name in missing_secondary_speakers:
         missing_parts.append(f"Falta fala identificável de {name}, exigida pela direção autoral da linha")
     if not scene_completion["fulfilled"]:
