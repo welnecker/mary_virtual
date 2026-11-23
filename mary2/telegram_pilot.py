@@ -120,7 +120,7 @@ def _generate(row: dict, rows: list[dict], history: list[dict], user_text: str, 
         user_text=user_text, user_scene_direction="",
         line_dialogue=[],
     )
-    if not validation.get("approved", False) and not validation.get("valid", False):
+    if not validation.get("fulfilled", False):
         raise RuntimeError("Diretor semântico não aprovou a mensagem; nada foi enviado.")
     return speech
 
