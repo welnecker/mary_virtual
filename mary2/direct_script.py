@@ -1002,7 +1002,10 @@ def build_direct_writer_prompt(
         f"Ordem: {active_order}\n"
         "Fala-guia: " + ("Interpretar (modo técnico)" if interpret_mode else (speech_guide or "(nenhuma)")) + "\n"
         + "EXECUÇÃO DA LINHA: cumpra obrigações explícitas; 'pode' e 'se fizer sentido' não impõem ações. "
-        "Personagens secundários podem participar quando a cena pedir, sem falar pelo usuário nem competir com a resposta dele.\n"
+        "Quando a FALA-GUIA determinar expressamente que um coadjuvante diz, pergunta, responde ou comenta algo nesta linha, PRODUZA o turno identificável desse personagem no mesmo resultado (Nome: fala), antes de Mary reagir a ele. "
+        "Não transforme uma direção de fala ainda não emitida em diálogo passado ou memória: Mary não pode responder a algo que o coadjuvante ainda não disse. "
+        "Menções, observações silenciosas e participações facultativas não exigem fala; não force personagens ausentes. "
+        "Nunca assuma fala ou decisão do personagem controlado pelo usuário.\n"
 
         + ("Direção autoral desta linha: " + interpret_direction + "\n" if interpret_direction else "")
         + (
