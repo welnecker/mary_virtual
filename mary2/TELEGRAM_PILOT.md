@@ -36,8 +36,8 @@ worker, webhook, banco adicional ou alteração da branch principal.
    \`TELEGRAM_BOT_TOKEN\` e \`TELEGRAM_CHAT_ID\`; não publicar o token.
 4. Abrir \`Cruzeiro Caribe4\`; executar suas linhas automáticas 1 e 2.
    Depois da linha 2, o primeiro envio deve surgir no Telegram.
-5. Responder no Telegram e clicar **Verificar respostas** no menu lateral
-   a cada nova interação até a linha 5.
+5. Responder no Telegram mantendo o Streamlit aberto: o monitor consulta
+   automaticamente as mensagens e Mary interpreta as linhas seguintes.
 6. Testar separadamente ACEITE e RECUO em execuções reiniciadas.
 
 ## Limitações deste piloto
