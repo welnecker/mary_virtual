@@ -252,6 +252,49 @@ def _spoken_by_character(text: str, character: str) -> bool:
     ))
 
 
+def _speaker_turns_for_repetition(text: str) -> list[tuple[str, str]]:
+    """Extract explicit character turns, without treating narration as dialogue."""
+    source = _clean(text)
+    pattern = re.compile(
+        r"(?m)^\\s*(?:[—–-]\\s*)?(?:\\*\\*)?"
+        r"([A-ZÀ-Ý][\\wÀ-ÿ-]{1,39})(?:\\*\\*)?:\\s+"
+    )
+    markers = list(pattern.finditer(source))
+    turns = []
+    for index, match in enumerate(markers):
+        end = markers[index + 1].start() if index + 1 < len(markers) else len(source)
+        body = source[match.end():end]
+        # Use the actual first spoken sentence, not gestural narration after an em dash.
+        body = re.split(r"\\s+[—–]\\s+", body, maxsplit=1)[0]
+        spoken = re.sub(r"[^\\wÀ-ÿ]+", " ", body.casefold()).strip()
+        if len(spoken) >= 38:
+            turns.append((match.group(1).casefold(), spoken))
+    return turns
+
+
+def _repeated_published_turn(
+    current_text: str, previous_messages: list[dict] | None
+) -> dict:
+    """Only block substantial repeated spoken turns by the SAME character.
+
+    Earlier messages are published assistant outputs, never the guide text.
+    Ignore thoughts and ordinary references to past dialogue.
+    """
+    earlier = []
+    for message in (previous_messages or [])[-24:]:
+        if isinstance(message, dict) and _clean(message.get("role")).lower() == "assistant":
+            earlier.extend(_speaker_turns_for_repetition(_clean(message.get("content"))))
+    for speaker, spoken in _speaker_turns_for_repetition(current_text):
+        for past_speaker, past_spoken in earlier:
+            if speaker == past_speaker and (
+                spoken == past_spoken
+                or (len(spoken) >= 48 and past_spoken.startswith(spoken))
+                or (len(past_spoken) >= 48 and spoken.startswith(past_spoken))
+            ):
+                return {"speaker": speaker, "excerpt": spoken[:180]}
+    return {}
+
+
 def validate_direct_semantic_turn(
     *,
     api_key: str,
@@ -266,6 +309,7 @@ def validate_direct_semantic_turn(
     user_scene_direction: str = "",
     line_dialogue: list[dict] | None = None,
     active_interlocutor: str = "",
+    previous_assistant_messages: list[dict] | None = None,
 ) -> dict:
     """Valida em uma só chamada: finalidade da linha + consistência factual dura."""
     obligation = interpretation.get("user_obligation", {}) if isinstance(interpretation, dict) else {}
@@ -631,6 +675,23 @@ def validate_direct_semantic_turn(
         conversation_consistency["issue"] = ""
         conversation_consistency["correction"] = ""
         conversation_consistency["secondary_authorship_false_positive"] = True
+
+    # Proteção entre linhas: fala já publicada não pode ser encenada de novo.
+    # Esta verificação NÃO analisa [PENSAMENTO].
+    repeated_turn = _repeated_published_turn(mary_text, previous_assistant_messages)
+    if repeated_turn:
+        conversation_consistency["ok"] = False
+        conversation_consistency["issue"] = (
+            "Repetição de fala já publicada de " + repeated_turn["speaker"]
+            + " na conversa anterior."
+        )
+        conversation_consistency["mary_excerpt"] = repeated_turn["excerpt"]
+        conversation_consistency["correction"] = (
+            "Remova apenas a fala já encenada; mantenha as falas inéditas exigidas "
+            "pela FALA-GUIA atual e a reação de Mary. Não reencene apresentações "
+            "nem comprometa [PENSAMENTO]."
+        )
+        conversation_consistency["duplicate_published_speaker"] = repeated_turn["speaker"]
 
     natural_raw = parsed.get("naturalidade", {})
     if not isinstance(natural_raw, dict):
