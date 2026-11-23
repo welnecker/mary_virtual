@@ -114,6 +114,7 @@ def _generate(row: dict, rows: list[dict], history: list[dict], user_text: str, 
     validation = validate_direct_semantic_turn(
         api_key=_secret("OPENROUTER_API_KEY"),
         model=_secret("MARY_DIRECTOR_MODEL") or model,
+        fallback_model=_secret("MARY_FALLBACK_MODEL") or None,
         row=row, interpretation={}, mary_text=speech,
         mary_thought=parts.get("thought", ""),
         mary_action=parts.get("action", ""),
@@ -178,11 +179,8 @@ def render_telegram_sidebar(model: str) -> None:
             data = _telegram("getUpdates", {
                 "offset": state["offset"], "timeout": 0, "limit": 50,
             }).get("result", [])
-            # Avançar o offset mesmo para chats estranhos, sem processá-los.
-            if data:
-                state["offset"] = max(int(x["update_id"]) for x in data) + 1
             pending = [
-                x["message"] for x in data
+                x for x in data
                 if x.get("message", {}).get("chat", {}).get("id") == chat_id
                 and x.get("message", {}).get("text")
                 and not str(x["message"]["text"]).startswith("/")
@@ -191,10 +189,14 @@ def render_telegram_sidebar(model: str) -> None:
             if not state["history"]:
                 st.info("Primeiro clique em Telegram — Chamar.")
             elif pending:
-                # Primeiro piloto: uma resposta de cada vez, evita disparos em cascata.
-                _send_line(_rows(), state, chat_id, model, str(pending[0]["text"]))
+                # Confirme apenas os updates efetivamente processados.
+                event = pending[0]
+                _send_line(_rows(), state, chat_id, model, str(event["message"]["text"]))
+                state["offset"] = int(event["update_id"]) + 1
                 st.success("Resposta recebida e interpretada pela Mary.")
             else:
+                if data:
+                    state["offset"] = max(int(x["update_id"]) for x in data) + 1
                 st.info("Nenhuma nova resposta do chat autorizado.")
         except Exception as exc:
             st.error(str(exc))
