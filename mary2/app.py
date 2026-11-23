@@ -42,6 +42,7 @@ sys.path.insert(0, _MARY2_DIR)
 
 import streamlit as st
 from access_gate import password_fingerprint, password_matches
+from telegram_pilot import render_telegram_sidebar
 from scene_images import find_scene_image, SCENE_IMAGE_SIZE
 
 from chapters import (
@@ -1504,6 +1505,10 @@ with st.sidebar:
         model = selected
 
     temperature = st.slider("Temperatura", 0.2, 1.3, 0.6, 0.1)
+
+    # Piloto independente: não modifica story_state ou linha ativa do Streamlit.
+    render_telegram_sidebar(model=model)
+
 
     if st.button("Nova história", use_container_width=True):
         reset_local_story()
