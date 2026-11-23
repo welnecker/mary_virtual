@@ -253,20 +253,20 @@ def _spoken_by_character(text: str, character: str) -> bool:
 
 
 def _speaker_turns_for_repetition(text: str) -> list[tuple[str, str]]:
-    """Extract explicit character turns, without treating narration as dialogue."""
+    """Extract explicit speaker turns from output, not thoughts or guidance."""
     source = _clean(text)
     pattern = re.compile(
-        r"(?m)^\\s*(?:[—–-]\\s*)?(?:\\*\\*)?"
-        r"([A-ZÀ-Ý][\\wÀ-ÿ-]{1,39})(?:\\*\\*)?:\\s+"
+        r"(?m)^\s*(?:[—–-]\s*)?(?:\*\*)?"
+        r"([A-ZÀ-Ý][\wÀ-ÿ-]{1,39})(?::\*\*|\*\*:|:)\s+"
     )
     markers = list(pattern.finditer(source))
     turns = []
     for index, match in enumerate(markers):
         end = markers[index + 1].start() if index + 1 < len(markers) else len(source)
         body = source[match.end():end]
-        # Use the actual first spoken sentence, not gestural narration after an em dash.
-        body = re.split(r"\\s+[—–]\\s+", body, maxsplit=1)[0]
-        spoken = re.sub(r"[^\\wÀ-ÿ]+", " ", body.casefold()).strip()
+        # Speaker's first phrase is enough; disregard subsequent gesture notation.
+        body = re.split(r"\s+[—–]\s+", body, maxsplit=1)[0]
+        spoken = re.sub(r"[^\wÀ-ÿ]+", " ", body.casefold()).strip()
         if len(spoken) >= 38:
             turns.append((match.group(1).casefold(), spoken))
     return turns
@@ -275,11 +275,7 @@ def _speaker_turns_for_repetition(text: str) -> list[tuple[str, str]]:
 def _repeated_published_turn(
     current_text: str, previous_messages: list[dict] | None
 ) -> dict:
-    """Only block substantial repeated spoken turns by the SAME character.
-
-    Earlier messages are published assistant outputs, never the guide text.
-    Ignore thoughts and ordinary references to past dialogue.
-    """
+    """Only flag substantial verbatim dialogue from an already published turn."""
     earlier = []
     for message in (previous_messages or [])[-24:]:
         if isinstance(message, dict) and _clean(message.get("role")).lower() == "assistant":
