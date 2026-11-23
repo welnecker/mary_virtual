@@ -10,8 +10,9 @@ worker, webhook, banco adicional ou alteração da branch principal.
 - Depois da publicação e aprovação semântica da ORDEM 2 (automática),
   o Streamlit inicia uma única vez o roteiro \`Celular1\` da aba \`MARY_CELULAR\`.
 - O cursor do roteiro principal não avança e sua entrada fica suspensa.
-  O painel lateral mantém **Verificar respostas**, para receber mensagens sob
-  demanda (sem leitor em segundo plano).
+  O painel lateral mantém um fragmento Streamlit ativo, que consulta as mensagens
+  automaticamente a cada 3 segundos enquanto a página estiver conectada.
+  Há também um botão **Verificar agora**.
 - Mary envia somente a fala aprovada pelo diretor. As próximas linhas do celular
   só avançam após a chegada de mensagens do \`TELEGRAM_CHAT_ID\` autorizado.
 - A linha final classifica a última resposta do destinatário:
@@ -41,8 +42,9 @@ worker, webhook, banco adicional ou alteração da branch principal.
 
 ## Limitações deste piloto
 
-- O retorno depende de consultar manualmente **Verificar respostas**;
-  não há serviço contínuo nem resposta automática sem clique.
+- O recebimento automático depende de a sessão Streamlit permanecer aberta
+  e conectada ao servidor; não há serviço independente ou entrega garantida
+  quando o navegador é fechado.
 - \`getUpdates\` não deve ser consumido por outro processo do mesmo bot;
   não pode coexistir com webhook configurado.
 - O cursor do Telegram, o histórico e o bloqueio da chamada ficam no
