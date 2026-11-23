@@ -3741,6 +3741,7 @@ if user_text:
                     user_scene_direction=scene_direction,
                     line_dialogue=list(direct_state.get("line_dialogue", []) or []),
                     active_interlocutor=active_interlocutor,
+                    previous_assistant_messages=messages_before_turn,
                 )
 
                 # Reparação pontual de uma fala autoral de coadjuvante omitida.
@@ -3787,6 +3788,7 @@ if user_text:
                             user_scene_direction=scene_direction,
                             line_dialogue=list(direct_state.get("line_dialogue", []) or []),
                             active_interlocutor=active_interlocutor,
+                            previous_assistant_messages=messages_before_turn,
                         )
                         cast_remaining = (
                             (cast_validation.get("scene_completion", {}) or {})
@@ -3867,6 +3869,7 @@ if user_text:
                         user_scene_direction=scene_direction,
                         line_dialogue=list(direct_state.get("line_dialogue", []) or []),
                     active_interlocutor=active_interlocutor,
+                    previous_assistant_messages=messages_before_turn,
                     )
 
                 if (
@@ -3906,7 +3909,9 @@ if user_text:
                                 "o movimento conversacional compreendido do usuário. Reescreva a resposta "
                                 "preservando sujeito, destinatário, autoria da iniciativa, vocativos, posse "
                                 "e a relação causal com o turno anterior. Não explique o erro e não invente "
-                                "uma justificativa narrativa para ele. NÃO force a fala-guia se ela ainda "
+                                "uma justificativa narrativa para ele. Se houver diálogo repetido, remova "
+                                "somente a fala já publicada e mantenha as falas novas desta linha. "
+                                "Não modifique [PENSAMENTO] para corrigir repetição de [FALA]. NÃO force a fala-guia se ela ainda "
                                 "não couber naturalmente. Problema: "
                                 + str(conversation_consistency.get("issue", "") or "")
                                 + ". Trecho problemático: "
@@ -3963,6 +3968,7 @@ if user_text:
                         user_scene_direction=scene_direction,
                         line_dialogue=list(direct_state.get("line_dialogue", []) or []),
                     active_interlocutor=active_interlocutor,
+                    previous_assistant_messages=messages_before_turn,
                     )
                     if not bool(
                         (direct_validation.get("conversation_consistency", {}) or {}).get(
@@ -4009,6 +4015,7 @@ if user_text:
                             user_text=dialogue_text, user_scene_direction=scene_direction,
                             line_dialogue=list(direct_state.get("line_dialogue", []) or []),
                     active_interlocutor=active_interlocutor,
+                    previous_assistant_messages=messages_before_turn,
                         )
                         if (
                             bool(style_validation.get("fulfilled", False))
@@ -4104,6 +4111,7 @@ if user_text:
                         user_scene_direction=scene_direction,
                         line_dialogue=list(direct_state.get("line_dialogue", []) or []),
                     active_interlocutor=active_interlocutor,
+                    previous_assistant_messages=messages_before_turn,
                     )
                     if bool(
                         (direct_validation.get("revelation_violation", {}) or {}).get(
@@ -4188,6 +4196,7 @@ if user_text:
                         user_scene_direction=scene_direction,
                         line_dialogue=list(direct_state.get("line_dialogue", []) or []),
                     active_interlocutor=active_interlocutor,
+                    previous_assistant_messages=messages_before_turn,
                     )
                     if bool(
                         (direct_validation.get("hard_contradiction", {}) or {}).get(
@@ -4234,6 +4243,7 @@ if user_text:
                             user_text=dialogue_text, user_scene_direction=scene_direction,
                             line_dialogue=list(direct_state.get("line_dialogue", []) or []),
                     active_interlocutor=active_interlocutor,
+                    previous_assistant_messages=messages_before_turn,
                         )
                         if bool(scene_validation.get("fulfilled", False)):
                             raw_answer = scene_raw
@@ -4281,6 +4291,7 @@ if user_text:
                         user_scene_direction=scene_direction,
                         line_dialogue=list(direct_state.get("line_dialogue", []) or []),
                     active_interlocutor=active_interlocutor,
+                    previous_assistant_messages=messages_before_turn,
                     )
                     if (
                         not bool(auto_validation.get("fulfilled", False))
@@ -4320,6 +4331,7 @@ if user_text:
                                 user_scene_direction=scene_direction,
                                 line_dialogue=list(direct_state.get("line_dialogue", []) or []),
                     active_interlocutor=active_interlocutor,
+                    previous_assistant_messages=messages_before_turn,
                             )
                             # Registrar a avaliação MAIS RECENTE mesmo quando a
                             # última correção não resolver o problema; o erro anterior
