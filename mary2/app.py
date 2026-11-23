@@ -3743,6 +3743,79 @@ if user_text:
                     active_interlocutor=active_interlocutor,
                 )
 
+                # Reparação pontual de uma fala autoral de coadjuvante omitida.
+                # Não force diálogos opcionais nem avance sem nova validação.
+                missing_cast = list(
+                    (direct_validation.get("scene_completion", {}) or {})
+                    .get("missing_secondary_speakers", []) or []
+                )
+                if missing_cast and not str(direct_validation.get("parse_error", "") or "").strip():
+                    cast_retry_messages = [
+                        *llm_messages,
+                        {"role": "assistant", "content": raw_answer},
+                        {"role": "system", "content": (
+                            "CORREÇÃO DE FALA AUTORAL OMITIDA. Reescreva a resposta "
+                            "com a menor alteração necessária, sem repetir diálogos. "
+                            "A FALA-GUIA exige fala identificável de: "
+                            + ", ".join(missing_cast)
+                            + ". Faça esses personagens dizerem o conteúdo orientado "
+                            "na linha, em turnos identificados por Nome:, ANTES de "
+                            "Mary responder ou reagir às palavras deles. "
+                            "Preserve as falas, pensamentos e acontecimentos válidos, "
+                            "a autoria exclusiva do interlocutor do usuário, "
+                            "a memória local e os limites de revelação. "
+                            "Não antecipe outras linhas. Retorne os canais necessários."
+                        )},
+                    ]
+                    cast_raw = chat(
+                        api_key=api_key, model=model, fallback_model=fallback,
+                        messages=cast_retry_messages,
+                        temperature=max(0.2, min(float(temperature), 0.7)),
+                        call_type="REDACTOR_RETRY",
+                    )
+                    cast_parts = parse_mary_components(cast_raw)
+                    cast_speech = sanitize_mary_output(cast_parts["speech"])
+                    if (cast_speech or cast_parts["action"]) and not looks_like_action_narration(cast_speech):
+                        cast_validation = validate_direct_semantic_turn(
+                            api_key=api_key, model=director_model,
+                            fallback_model=fallback, row=direct_row,
+                            interpretation=direct_interpretation,
+                            mary_text=cast_speech,
+                            mary_thought=("" if thought_disabled else cast_parts["thought"]),
+                            mary_action=cast_parts["action"],
+                            user_text=dialogue_text,
+                            user_scene_direction=scene_direction,
+                            line_dialogue=list(direct_state.get("line_dialogue", []) or []),
+                            active_interlocutor=active_interlocutor,
+                        )
+                        cast_remaining = (
+                            (cast_validation.get("scene_completion", {}) or {})
+                            .get("missing_secondary_speakers", []) or []
+                        )
+                        if (
+                            not cast_remaining
+                            and not cast_validation.get("parse_error")
+                            and not (cast_validation.get("hard_contradiction", {}) or {}).get("exists")
+                            and not (cast_validation.get("revelation_violation", {}) or {}).get("exists")
+                            and (cast_validation.get("conversation_consistency", {}) or {}).get("ok", True)
+                        ):
+                            model_audit["direct_validation_before_cast_correction"] = deepcopy(direct_validation)
+                            model_audit["retry_used"] = True
+                            model_audit["retry_messages"] = deepcopy(cast_retry_messages)
+                            model_audit["retry_raw_response"] = cast_raw
+                            raw_answer = cast_raw
+                            mary_intent = "" if thought_disabled else cast_parts["thought"]
+                            mary_speech_raw = cast_parts["speech"]
+                            answer = cast_speech
+                            direct_validation = cast_validation
+                        else:
+                            model_audit["cast_retry_rejected"] = (
+                                "Fala ausente ou validação inconsistente: "
+                                + ", ".join(cast_remaining)
+                            )
+                    else:
+                        model_audit["cast_retry_rejected"] = "Correção sem saída válida."
+
                 parsed_objectives = (
                     direct_validation.get("parsed_response", {}).get("objetivos_guia", [])
                     if isinstance(direct_validation.get("parsed_response", {}), dict)
