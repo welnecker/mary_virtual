@@ -1,6 +1,6 @@
 """Piloto Telegram isolado do estado narrativo principal.
 
-Sem worker contínuo: botão Chamar envia; botão Verificar respostas lê getUpdates.
+Sem worker contínuo: fragmento Streamlit consulta getUpdates enquanto a sessão está aberta.
 Nunca registra token ou mensagens em logs. Não usar em produção multiusuário sem
 persistência transacional de offset/estado e um serviço receptor durável.
 """
@@ -322,15 +322,8 @@ def render_telegram_sidebar(model: str) -> None:
             except Exception as exc:
                 st.error(str(exc))
     elif status == "active":
-        st.info("Conversa em andamento. O roteiro principal está suspenso.")
-        if st.button("Verificar respostas", key="telegram_check", use_container_width=True):
-            try:
-                notice = _check_reply(model)
-                st.success(notice)
-                if _state().get("status") == "approved":
-                    st.rerun()
-            except Exception as exc:
-                st.error(str(exc))
+        st.info("Conversa em andamento. Respostas automáticas enquanto o Streamlit estiver aberto.")
+        _telegram_reply_monitor(model)
     elif status == "approved":
         st.success("Encontro confirmado. Chamada aprovada.")
     elif status == "rejected":
@@ -349,3 +342,26 @@ def render_telegram_sidebar(model: str) -> None:
                 st.rerun()
             except Exception as exc:
                 st.error(str(exc))
+
+
+@st.fragment(run_every="3s")
+def _telegram_reply_monitor(model: str) -> None:
+    """Polling limitado à sessão aberta; não é um worker de Telegram."""
+    state = _state()
+    if state.get("status") != "active":
+        return
+    st.caption("Aguardando resposta pelo Telegram · verificação automática a cada 3 s")
+    if st.button("Verificar agora", key="telegram_check", use_container_width=True):
+        pass  # A chamada abaixo ocorre também no clique, sem duplicar a consulta.
+    try:
+        notice = _check_reply(model)
+        if _state().get("status") == "approved":
+            st.rerun()  # Libera a progressão principal após conclusão aprovada.
+        if _state().get("status") == "rejected":
+            st.rerun()  # Exibe reinício do roteiro sem liberar a cena principal.
+        if notice.startswith("Resposta recebida"):
+            st.success(notice)
+    except Exception as exc:
+        # O erro não altera o offset nem o cursor; a mensagem pode ser reprocessada.
+        # A interface permite verificar a causa sem expor o token.
+        st.error(f"Falha ao processar resposta do Telegram: {exc}")
