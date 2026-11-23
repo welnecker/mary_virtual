@@ -42,7 +42,11 @@ sys.path.insert(0, _MARY2_DIR)
 
 import streamlit as st
 from access_gate import password_fingerprint, password_matches
-from telegram_pilot import render_telegram_sidebar
+from telegram_pilot import (
+    render_telegram_sidebar,
+    ensure_telegram_call,
+    telegram_call_status,
+)
 from scene_images import find_scene_image, SCENE_IMAGE_SIZE
 
 from chapters import (
@@ -1506,7 +1510,7 @@ with st.sidebar:
 
     temperature = st.slider("Temperatura", 0.2, 1.3, 0.6, 0.1)
 
-    # Piloto independente: não modifica story_state ou linha ativa do Streamlit.
+    # Telegram: recebe respostas e informa o estado da sub-rotina narrativa.
     render_telegram_sidebar(model=model)
 
 
@@ -2472,11 +2476,49 @@ auto_retry_key = _direct_auto_retry_key(
     str(st.session_state.story_state.get("narrative", {}).get("chapter_instance_id", "") or ""),
     int(direct_ui_row.get("order", 0) or 0) if direct_ui_row else 0,
 )
-if automatic_emitted:
+telegram_target = str(direct_ui_row.get("telegram_script", "") or "").strip() if direct_ui_row else ""
+telegram_trigger_id = (
+    f"{str(st.session_state.get('run_id', '') or '')}:"
+    f"{str(st.session_state.story_state.get('narrative', {}).get('chapter_instance_id', '') or '')}:"
+    f"{_chapter_id()}:{str(direct_ui_row.get('order', '') or '')}"
+    if telegram_target else ""
+)
+telegram_state = telegram_call_status(telegram_trigger_id) if telegram_target else "idle"
+
+if automatic_emitted and telegram_target and telegram_state != "approved":
+    # A linha-gatilho foi publicada e validada. Não executar a linha seguinte
+    # até que o roteiro MARY_CELULAR confirme o encontro.
+    user_text = None
+    if telegram_state == "idle":
+        try:
+            ensure_telegram_call(telegram_trigger_id, telegram_target, model)
+            st.rerun()
+        except Exception as exc:
+            st.error(f"Não foi possível iniciar a sub-rotina Telegram: {exc}")
+    elif telegram_state == "active":
+        st.info(
+            f"Chamada {telegram_target} em andamento no Telegram. "
+            "Responda pelo celular e use 'Verificar respostas' no menu lateral. "
+            "A próxima linha do Streamlit está bloqueada."
+        )
+    elif telegram_state == "rejected":
+        st.warning(
+            "Chamada encerrada sem encontro confirmado. A progressão está bloqueada. "
+            "Reinicie a conversa no painel Telegram."
+        )
+    else:
+        st.error(
+            "Chamada ainda não concluída. Verifique o estado do Telegram antes "
+            "de prosseguir; a linha seguinte permanece bloqueada."
+        )
+elif automatic_emitted:
     # A resposta desta linha já está publicada. O botão apenas move a ORDEM;
     # não chama modelos, não gera novo turno e não duplica os logs.
     user_text = None
-    if st.button(
+    telegram_approved = bool(
+        telegram_target and telegram_state == "approved"
+    )
+    if telegram_approved or st.button(
         "Prosseguir",
         key=f"auto_advance_{_chapter_id()}_{direct_ui_row.get('order', 0)}",
         use_container_width=True,
