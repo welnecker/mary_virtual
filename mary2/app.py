@@ -48,6 +48,7 @@ from telegram_pilot import (
     telegram_call_status,
     release_telegram_call,
     extract_call_interlocutor,
+    telegram_parent_line_emitted,
 )
 from scene_images import find_scene_image, SCENE_IMAGE_SIZE
 
@@ -2495,9 +2496,10 @@ telegram_awaiting_emitted = bool(
         == int(direct_ui_row.get("order", 0) or 0)
     and not choice_ready
 )
-# Qualquer linha-mãe publicada deve disparar o Telegram: automática,
-# bloqueada OU interativa normal. Nunca iniciar antes de Mary responder.
-telegram_ready = bool(telegram_target and (automatic_emitted or telegram_awaiting_emitted))
+# Também reconhece a linha NORMAL depois de Mary publicar sua resposta.
+telegram_ready = telegram_parent_line_emitted(
+    direct_ui_row, ui_state if direct_ui_row else {}, choice_ready
+)
 telegram_state = telegram_call_status(telegram_trigger_id) if telegram_target else "idle"
 
 if telegram_ready and telegram_state != "approved":
