@@ -52,6 +52,7 @@ _CALL_PATTERNS = [
     re.compile(r"\b(?:ligar|telefonar|chamar|mandar\s+(?:mensagem|um\s+recado))\s+(?:para|pro|pra|ao|à)\s+" + _NAME, re.I),
     re.compile(r"\b(?:conversar|falar|dialogar)\s+(?:com|co|c[oa])\s+" + _NAME, re.I),
     re.compile(r"\b" + _NAME + r"\s+(?:tá|está|anda)\s+(?:me\s+)?(?:ligando|chamando|mandando\s+mensagem)", re.I),
+    re.compile(r"\b" + _NAME + r"\s+me\s+(?:liga|ligou|chama|chamou|ligando|chamando)", re.I),
     re.compile(r"\b(?:chamada|ligação|mensagem)\s+(?:do|da|de)\s+" + _NAME, re.I),
     re.compile(r"\b(?:é|eh)\s+(?:o|a)?\s*" + _NAME + r"\s+(?:me\s+)?(?:ligando|chamando|mandando)", re.I),
 ]
@@ -60,8 +61,10 @@ _CALL_PATTERNS = [
 def extract_call_interlocutor(row: dict, mary_speech: str = "") -> str:
     """Extrai a identidade declarada quando Mary pega/atende o celular."""
     fields = [
-        str(mary_speech or ""),
+        # A autoria da linha mãe é a referência primária. A fala gerada
+        # pode empregar apelidos como "Doni" para o nome canônico "Donisete".
         str((row or {}).get("speech_guide") or ""),
+        str(mary_speech or ""),
         str((row or {}).get("action_guide") or ""),
         str((row or {}).get("thought_guide") or ""),
         str((row or {}).get("interlocutor_direction") or ""),
