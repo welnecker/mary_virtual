@@ -297,6 +297,47 @@ class TelegramNarrativeContractTest(unittest.TestCase):
         self.assertEqual(loop["attempts"], 1)
         self.assertIn("primeira tentativa", active["speech_guide"])
 
+    def test_received_first_message_cannot_exhaust_three_turn_loop(self):
+        row = _rows("Recebido1")[0]
+        row.update({
+            "negative_prompt": "Não ofender Mary.",
+            "hurt_style": "Mary estabelece limites.",
+            "_emotional_loop_row": {
+                "order": 0, "speech_guide": (
+                    "Mary educada no primeiro pedido de desculpas. "
+                    "Mary firme na segunda tentativa. "
+                    "Mary encerra na terceira tentativa."
+                ),
+            },
+        })
+        state = _state(incoming=True)
+        with patch.object(tg, "_emotional_assessment",
+                          return_value={"violation": True, "frustration": False}):
+            _, first, exhausted = tg._prepare_emotional_row(
+                row, state, "Mensagem ofensiva", "fake-model"
+            )
+        self.assertTrue(first["active"])
+        self.assertEqual(first["attempts"], 1)
+        self.assertFalse(exhausted)
+        self.assertEqual(state["last_emotional_assessment"]["violation"], True)
+
+    def test_no_offense_does_not_activate_loop(self):
+        row = _rows("Recebido1")[0]
+        row.update({
+            "negative_prompt": "Não xingar Mary.",
+            "hurt_style": "Mary protege seus limites.",
+            "_emotional_loop_row": {"order": 0, "speech_guide": "Mary encerra após três tentativas."},
+        })
+        state = _state(incoming=True)
+        with patch.object(tg, "_emotional_assessment",
+                          return_value={"violation": False, "frustration": False,
+                                        "rejected": False}):
+            _, loop, exhausted = tg._prepare_emotional_row(
+                row, state, "Oi, você pode falar?", "fake-model"
+            )
+        self.assertFalse(loop["active"])
+        self.assertFalse(exhausted)
+
     def test_second_call_can_follow_first_after_parent_release(self):
         state = _state()
         state["status"] = "approved"
