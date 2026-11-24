@@ -562,7 +562,7 @@ def ensure_telegram_call(
     state = _state()
     if state.get("trigger_id") == trigger_id and state.get("status") != "idle":
         return str(state["status"])
-    if state.get("status") in {"active", "waiting", "rejected", "starting", "start_error"}:
+    if state.get("status") in {"active", "waiting", "rejected", "starting", "start_error", "reply_error"}:
         raise RuntimeError("Existe outra chamada pendente; conclua a anterior primeiro.")
     interlocutor = str(interlocutor or "").strip()
     if not interlocutor:
@@ -657,16 +657,23 @@ def _check_reply(model: str) -> str:
             state["offset"] = max(int(x["update_id"]) for x in data) + 1
         return "Nenhuma mensagem nova do chat autorizado."
     event = pending[0]
-    if status == "waiting":
-        _start_received(event, model)
-        return "Chamada recebida; Mary iniciou o sub-roteiro autorizado."
-    rows = _rows(str(state["script_name"]), str(state["worksheet_name"]))
-    row = rows[int(state["index"])]
-    user_text = str(event["message"]["text"])
-    if not _send_emotional_reply(row, rows, state, chat_id, model, user_text):
-        _send_line(rows, state, chat_id, model, user_text)
-    state["offset"] = int(event["update_id"]) + 1
-    return "Mensagem recebida e interpretada pela Mary."
+    try:
+        if status == "waiting":
+            _start_received(event, model)
+            return "Chamada recebida; Mary iniciou o sub-roteiro autorizado."
+        rows = _rows(str(state["script_name"]), str(state["worksheet_name"]))
+        row = rows[int(state["index"])]
+        user_text = str(event["message"]["text"])
+        if not _send_emotional_reply(row, rows, state, chat_id, model, user_text):
+            _send_line(rows, state, chat_id, model, user_text)
+        state["offset"] = int(event["update_id"]) + 1
+        return "Mensagem recebida e interpretada pela Mary."
+    except Exception:
+        # Pausa a repetição automática em caso de falha de LLM ou de rede.
+        # sendMessage pode ter sido entregue mesmo sem confirmação.
+        state["status"] = "start_error" if status == "waiting" else "reply_error"
+        state["failed_update_id"] = int(event["update_id"])
+        raise
 
 
 def render_telegram_sidebar(model: str) -> None:
@@ -743,6 +750,15 @@ def render_telegram_sidebar(model: str) -> None:
                 st.rerun()
             except Exception as exc:
                 st.error(str(exc))
+    elif status == "reply_error":
+        st.error(
+            "Processamento interrompido. Confira se Mary já respondeu no "
+            "Telegram antes de tentar novamente; um reenvio pode duplicar a fala."
+        )
+        if st.button("Retomar monitor após conferir Telegram",
+                     key="telegram_resume_error", use_container_width=True):
+            state["status"] = "active"
+            st.rerun()
     if status in {"waiting", "active"}:
         _telegram_reply_monitor(model)
 
