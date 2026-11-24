@@ -41,10 +41,16 @@ def _telegram(method: str, payload: dict | None = None) -> dict:
     token = _secret("TELEGRAM_BOT_TOKEN")
     if not token:
         raise RuntimeError("Configure TELEGRAM_BOT_TOKEN nos Secrets.")
-    response = requests.post(
-        f"https://api.telegram.org/bot{token}/{method}",
-        json=payload or {}, timeout=_TIMEOUT,
-    )
+    try:
+        response = requests.post(
+            f"https://api.telegram.org/bot{token}/{method}",
+            json=payload or {}, timeout=_TIMEOUT,
+        )
+    except requests.RequestException as exc:
+        # Exceções de requests podem incluir a URL com o TOKEN do bot.
+        raise RuntimeError(
+            f"Falha de rede do Telegram em {method} ({type(exc).__name__})."
+        ) from None
     # Não expor URL com token no texto de erros.
     if not response.ok:
         raise RuntimeError(f"Telegram não aceitou {method} (HTTP {response.status_code}).")
