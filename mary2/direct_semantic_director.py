@@ -400,13 +400,13 @@ def validate_direct_semantic_turn(
            "Não exija resposta, aceitação ou ação futura do destinatário. "
            "Não confunda fim da linha com solução da pergunta: o próximo turno pode trazer a resposta. "
            "Pensamento pode cumprir finalidade introspectiva. " if automatic_row else "")
-        + "B) CENA: a DESCRIÇÃO-GUIA determina ações e acontecimentos da linha ativa; a MEMÓRIA INSTANTÂNEA-LOCAL contextualiza e não cria tarefas. Ações afirmativas de Mary são missões mesmo sem 'deve'. Confirme CADA ação autoral aplicável na resposta; ações facultativas ou condicionadas não devem bloquear. Não exija movimentos de outros personagens como ações de Mary. Se a ação já foi efetivamente realizada, não a reencene. Para comprovação física, cite um trecho LITERAL CONTÍNUO de [AÇÃO], com palavras exatas, sem reticências. Se houver apenas pensamento ou intenção de fazer, a ação ainda não ocorreu. Não obrigue personagens secundários a falar por rotina. Nunca use a memória ou a FALA-GUIA como prova de execução. "
+        + "B) CENA: a DESCRIÇÃO-GUIA determina ações e acontecimentos da linha ativa; a MEMÓRIA INSTANTÂNEA-LOCAL contextualiza e não cria tarefas. Ações afirmativas de Mary são missões mesmo sem 'deve'. Confirme CADA ação autoral aplicável na resposta; ações facultativas ou condicionadas não devem bloquear. Não exija movimentos de outros personagens como ações de Mary. Se a ação já foi efetivamente realizada, não a reencene. Para comprovação física, prefira um trecho LITERAL CONTÍNUO de [AÇÃO]. Se a ação concreta já foi efetivamente narrada na resposta atual [FALA], aceite essa evidência literal também, sem exigir a repetição do gesto em [AÇÃO]. Uma promessa, pedido, intenção, condicional ou ação do interlocutor nunca comprova que Mary executou a ação. Cite apenas a saída ATUAL de Mary, nunca memória, guia nem histórico. Se houver apenas pensamento ou intenção de fazer, a ação ainda não ocorreu. Não obrigue personagens secundários a falar por rotina. Nunca use a memória ou a FALA-GUIA como prova de execução. "
         + "B1) PENSAMENTO: compare [PENSAMENTO], quando existir, com o PENSAMENTO-GUIA ORIGINAL. Avalie a fidelidade à motivação, emoção, atitude e perspectiva autorais, sem exigir palavras literais ou repetição de frases. Não exija [PENSAMENTO] quando ele estiver ausente, mesmo que exista PENSAMENTO-GUIA. Não transforme orientação emocional em gesto ou fala obrigatória. Se o pensamento abre a resposta, julgue-o no INSTANTE INICIAL da linha, antes das novas falas e ações dessa própria resposta. Não aceite como lembrança de fato consumado o que Silvia só dirá depois, nem conclusão de decisão ainda não tomada. Mary pode imaginar, desejar ou planejar possibilidades sem tratá-las como fatos já ocorridos. Só marque pensamento_autoral.ok=false quando houver CONTRADIÇÃO SEMÂNTICA MATERIAL, inclusive antecipação factual intraturno; mera nuance, espontaneidade ou intensidade compatível não é contradição. Em caso de conflito, descreva o trecho real e sugira reparar apenas o pensamento, preservando os acontecimentos. Se não houver pensamento ou guia, devolva pensamento_autoral.ok=true e avaliado=false. "
         + "C) CONTINUIDADE: Mary deve responder ao sentido da entrada atual, preservando interlocutor, autoria de ações, sujeito, destinatário e posição física. Memória local define a cena atual; descrição inicial pode mencionar futuro sem torná-lo presente. Corrija interpretações semânticas incompatíveis com fatos explícitos. "
         + "C1) PARTICIPANTES E EVIDÊNCIA: identifique separadamente quem fala, para quem, quem é citado e quem pratica/recebe cada ação. O usuário pode trocar de personagem entre turnos. Se a resposta de Mary declarar uma ação física de terceiros, exija suporte na fala literal, na encenação ou nos fatos confirmados; uma hipótese do módulo de compreensão ou uma fala equivocada anterior de Mary NÃO comprovam a ação. Se Mary for questionada sobre uma interpretação anterior sem base, aceite esclarecimento ou correção, nunca novos detalhes inventados para defendê-la. Marque coerencia_conversacional.ok=false quando houver transferência de agente/alvo ou acontecimento concreto não sustentado. Não reprove brincadeiras claramente figuradas nem exija certeza impossível em falas genuinamente ambíguas. "
         + "D) FATOS E REVELAÇÃO: fontes autoritativas prevalecem sobre falas anteriores. Marque apenas contradições objetivas; não trate estilo como erro factual. NÃO PODE impede verbalização mesmo sob pergunta, mas Mary deve reagir sem revelar nem inventar. "
         + "E) NATURALIDADE: respeite ESTILO/ATITUDE e a direção autoral da linha, sem impor vocabulário literal, intensidade fixa ou metáforas genéricas. ACAO e FALA bastam; PENSAMENTO é opcional e nunca é requisito para aprovação. Observe gestos repetidos sem função (sorriso de canto, sustentar o olhar, ajeitar cabelos ou pernas), acúmulo de microgestos que não mudam a cena, descrição de clima/sensações que só repete o PENSAMENTO e explicações de intenções alheias sem evidência, além de perguntas que transformam toda interação amistosa em teste ou avaliação. Se a [AÇÃO] estiver sobrecarregada de ornamentação sem função, marque naturalidade.ok=false e indique a remoção SOMENTE dos excessos, preservando cada ação física obrigatória da DESCRIÇÃO-GUIA. Não reprove detalhes concretos relevantes nem cenas cujo roteiro exige descrição extensa. Quando a FALA-GUIA oferecer alternativas para abrir assunto, uma única pergunta situada basta; não aprove como natural uma bateria de perguntas de Mary e de personagens secundárias, a menos que essa sequência seja exigida pelo autor. Reprove quando o artificialismo for evidente, mas NÃO exija sempre silêncio, respostas curtas ou eliminação de sensualidade, humor e iniciativa. Compare com a conversa disponível, não apenas com uma frase isolada. "
-        + "AÇÕES AUTORAIS: devolva acoes_autorais com UM ITEM PARA CADA ação listada, na mesma ordem. Para cada uma, repita o id acao_N da lista (sem inventar IDs), e indique cumprida e evidencia. O campo acao é descritivo e não identifica a obrigação. Para comprovar cada ação cumprida, cite trecho literal contínuo de [AÇÃO] que demonstre especificamente aquela ação; se ausente, cumprida=false e evidencia vazia. Não use a DESCRIÇÃO-GUIA como prova, nem troque evidências entre ações. Quando não houver ações listadas, devolva []. "
+        + "AÇÕES AUTORAIS: devolva acoes_autorais com UM ITEM PARA CADA ação listada, na mesma ordem. Para cada uma, repita o id acao_N da lista (sem inventar IDs), e indique cumprida e evidencia. O campo acao é descritivo e não identifica a obrigação. Para comprovar cada ação cumprida, cite trecho literal contínuo da saída ATUAL de Mary, preferindo [AÇÃO] mas aceitando narração de gesto já realizado em [FALA]; se apenas prometer ou descrever intenção futura, marque cumprida=false e evidencia vazia. Não use a DESCRIÇÃO-GUIA como prova, nem troque evidências entre ações. Quando não houver ações listadas, devolva []. "
         + "EVIDÊNCIAS: em cena_atual.evidencia e objetivos_guia.evidencia use citações literais contínuas da saída ou conversa, nunca resumos/paráfrases. Se faltar citação literal mas a ação parecer realizada, descreva a dúvida em cena_atual.faltou sem fabricar prova. Não mude o fato ocorrido só para ajustar a evidência. Preserve os campos do JSON. "
         + "Retorne somente JSON com: "
         "{\"obrigacao_usuario\":{\"existe\":true,\"requisito\":\"\",\"atendida\":true,\"evidencia\":\"\"},"
@@ -625,10 +625,13 @@ def validate_direct_semantic_turn(
         if not isinstance(item, dict):
             item = {}
         quote = _clean(item.get("evidencia"))
-        quote_source = _evidence_source(quote, [("MARY_ACAO", _clean(mary_action))])
+        quote_source = _evidence_source(quote, [
+            ("MARY_ACAO", _clean(mary_action)),
+            ("MARY_FALA", _clean(mary_text)),
+        ])
         # Associa cada parecer a uma obrigação por ID, não por cópia textual.
         # Formato legado sem ID ainda exige o enunciado original (normalizado).
-        # A comprovação permanece obrigatoriamente literal em [AÇÃO].
+        # Citação literal da saída atual é obrigatória; o canal não apaga um gesto realizado.
         expected_id = f"acao_{index + 1}"
         returned_id = _clean(item.get("id")).casefold()
         action_from_director = re.sub(r"\s+", " ", _clean(item.get("acao"))).strip(" .!?;").casefold()
@@ -640,14 +643,14 @@ def validate_direct_semantic_turn(
         performed = (
             bool(item.get("cumprida", False))
             and identity_matches
-            and quote_source == "MARY_ACAO"
+            and quote_source in {"MARY_ACAO", "MARY_FALA"}
         )
         reason = ""
         if not performed:
             if not identity_matches:
                 reason = "Identificador da ação autoral incorreto ou ausente."
-            elif quote_source != "MARY_ACAO":
-                reason = "Ação não comprovada por citação literal de [AÇÃO]."
+            elif quote_source not in {"MARY_ACAO", "MARY_FALA"}:
+                reason = "Ação não comprovada por citação literal da atuação atual de Mary."
             else:
                 reason = "Diretor não confirmou o cumprimento da ação."
         normalized_actions.append({
@@ -655,6 +658,8 @@ def validate_direct_semantic_turn(
             "action": authored_action,
             "fulfilled": performed,
             "evidence": quote if performed else "",
+            "evidence_channel": quote_source if performed else "",
+            "format_warning": bool(performed and quote_source == "MARY_FALA"),
             "reason": reason,
         })
     # Comandos físicos explícitos vindos da FALA-GUIA ainda usam o contrato
@@ -662,16 +667,19 @@ def validate_direct_semantic_turn(
     physical_evidence = (
         all(item["fulfilled"] for item in normalized_actions)
         if authored_actions else
-        bool(_clean(mary_action)) and (
-            _evidence_source(evidence, [("MARY_ACAO", _clean(mary_action))]) == "MARY_ACAO"
+        bool(_clean(mary_action) or _clean(mary_text)) and (
+            _evidence_source(evidence, [
+                ("MARY_ACAO", _clean(mary_action)),
+                ("MARY_FALA", _clean(mary_text)),
+            ]) in {"MARY_ACAO", "MARY_FALA"}
         )
     )
     if physical_required and not physical_evidence:
         # Uma ação afirmativa deve estar demonstrada com evidência literal real.
         missing_actions = [item["action"] for item in normalized_actions if not item["fulfilled"]]
         scene_missing = (
-            "Ações obrigatórias sem comprovação em [AÇÃO]: " + "; ".join(missing_actions)
-            if missing_actions else "Ação autoral obrigatória sem citação literal verificável em [AÇÃO]."
+            "Ações obrigatórias sem comprovação na atuação atual: " + "; ".join(missing_actions)
+            if missing_actions else "Ação autoral obrigatória sem citação literal verificável na atuação atual."
         )
     elif not scene_claim:
         scene_missing = _clean(scene_raw.get("faltou")) or "A finalidade central da linha ainda não foi cumprida."
