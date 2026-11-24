@@ -158,6 +158,23 @@ class TelegramNarrativeContractTest(unittest.TestCase):
             tg._check_reply("fake-model")
         transport.assert_not_called()
 
+    def test_failed_processing_pauses_monitor_to_avoid_token_loop(self):
+        state = {**_state(), "offset": 80}
+        session = {"_mary_telegram_pilot": state}
+        with patch.object(tg.st, "session_state", session), \
+             patch.object(tg, "_allowed_chat", return_value=123), \
+             patch.object(tg, "_telegram",
+                          return_value={"ok": True, "result": [_event("Oi!")]}), \
+             patch.object(tg, "_rows", side_effect=RuntimeError("Director indisponível")):
+            with self.assertRaisesRegex(RuntimeError, "Director"):
+                tg._check_reply("fake-model")
+        self.assertEqual(state["status"], "reply_error")
+        self.assertEqual(state["offset"], 80)
+        with patch.object(tg.st, "session_state", session), \
+             patch.object(tg, "_telegram") as transport:
+            tg._check_reply("fake-model")
+        transport.assert_not_called()
+
     def test_received_completion_releases_parent_without_meeting_gate(self):
         state = _state(incoming=True)
         with patch.object(tg, "_generate", return_value="Até mais!"), \
