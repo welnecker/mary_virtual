@@ -1,0 +1,24 @@
+name: Telegram pilot regression tests
+
+on:
+  push:
+    branches:
+      - agent/telegram-mary-pilot
+  workflow_dispatch:
+
+jobs:
+  telegram-contract:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install runtime dependencies
+        run: python -m pip install -r requirements.txt
+      - name: Validate Python syntax
+        run: python -m compileall -q mary2
+      - name: Run mock-based Telegram contract tests
+        working-directory: mary2
+        run: python -m unittest test_telegram_pilot -v
