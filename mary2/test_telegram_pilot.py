@@ -142,6 +142,29 @@ class TelegramNarrativeContractTest(unittest.TestCase):
         self.assertEqual(writer.call_args.kwargs["row"]["interaction_mode"], "")
         self.assertEqual(writer.call_args.kwargs["user_text"], "Oi, Mary!")
 
+    def test_recheck_rejected_encounter_releases_existing_call(self):
+        state = _state()
+        state.update({
+            "status": "rejected", "outcome": "RECUO",
+            "direct_script": {"completed": True},
+            "history": [
+                {"role": "assistant", "content": "Você vem ao deck?"},
+                {"role": "user", "content": "Sim, eu vou às oito."},
+                {"role": "assistant", "content": "Combinado, às oito."},
+                {"role": "user", "content": "Tá bom, tchau."},
+                {"role": "assistant", "content": "Até logo!"},
+            ],
+        })
+        session = {"_mary_telegram_pilot": state}
+        with patch.object(tg.st, "session_state", session), \
+             patch.object(tg, "_classify_final_reply", return_value="ACEITE") as classify, \
+             patch.object(tg, "_telegram") as telegram:
+            outcome = tg.recheck_rejected_encounter("fake-model")
+        self.assertEqual(outcome, "ACEITE")
+        self.assertEqual(state["status"], "approved")
+        classify.assert_called_once()
+        telegram.assert_not_called()
+
     def test_final_classification_keeps_previous_yes_after_goodbye(self):
         history = [
             {"role": "assistant", "content": "Você aceita vir ao deck?"},
