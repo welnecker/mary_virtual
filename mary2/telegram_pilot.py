@@ -135,18 +135,20 @@ def _generate(
 ) -> str:
     active_row = dict(row)
     if outcome:
-        # A missão condicional da última linha é avaliada somente no ramo real.
+        # Respeita os dois ramos autorais da própria planilha; não inventa uma
+        # missão nova para o roteiro quando a decisão já está escrita na linha.
+        guide = str(row.get("speech_guide", "") or "")
+        label = "ACEITE:" if outcome == "ACEITE" else "RECUO:"
+        other = "RECUO:" if outcome == "ACEITE" else "ACEITE:"
+        pattern = re.compile(re.escape(label) + r"\s*(.*?)(?=" + re.escape(other) + r"|\Z)", re.I | re.S)
+        match = pattern.search(guide)
+        if not match:
+            raise RuntimeError("A linha final não descreve o ramo autoral selecionado.")
+        fragment = match.group(1).strip()
+        fragment = re.sub(r"\n+\s*Não antecipar.*$", "", fragment, flags=re.I | re.S)
         active_row["speech_guide"] = (
-            "Interpretar: Mary responde diretamente à última mensagem de Donisete. "
-            + (
-                "ACEITE: ele confirmou expressamente o encontro. "
-                "Mary demonstra alegria, confirma o encontro no deck onde tudo começou "
-                "e se despede carinhosamente."
-                if outcome == "ACEITE" else
-                "RECUO: ele recusou ou hesitou. Mary reage com decepção, "
-                "respeita a resposta, agradece e encerra a conversa sem confirmar encontro."
-            )
-            + " Não antecipar acontecimentos posteriores."
+            "Interpretar: Mary responde à mensagem real de Donisete. "
+            + fragment + " Não antecipar acontecimentos posteriores."
         )
     prompt = build_direct_writer_prompt(
         row=active_row, all_rows=rows, recent_messages=history[-10:],
@@ -183,6 +185,134 @@ def _generate(
     if not validation.get("fulfilled", False) or validation.get("parse_error"):
         raise RuntimeError("Diretor semântico não aprovou a mensagem; nada foi enviado.")
     return speech
+
+
+def _emotional_assessment(
+    row: dict, loop_state: dict, user_text: str, history: list[dict],
+    model: str,
+) -> dict:
+    """Mesma interpretação dos critérios autorais do motor direto; sem gatilhos fixos."""
+    author_loop = dict(row.get("_emotional_loop_row") or {})
+    if not user_text.strip() or not author_loop:
+        return {}
+    negative = str(loop_state.get("negative_rule") or row.get("negative_prompt") or "")
+    hurt = str(loop_state.get("hurt_style") or row.get("hurt_style") or "")
+    loop_guide = str(author_loop.get("speech_guide") or "")
+    if not (negative or hurt):
+        return {}
+    recent = "\n".join(
+        str(item.get("role", "")) + ": " + str(item.get("content", ""))
+        for item in history[-6:]
+    )
+    raw = chat(
+        api_key=_secret("OPENROUTER_API_KEY"),
+        model=_secret("MARY_DIRECTOR_MODEL") or model,
+        messages=[
+            {"role": "system", "content": (
+                "Você é o mesmo classificador de fatos emocionais do roteiro direto "
+                "Mary Core 2. Compare apenas a fala atual com as condições autorais "
+                "de PROMPT NEGATIVO, ORGULHO FERIDO e LOOP. "
+                "Responda APENAS JSON com booleanos violation, frustration, "
+                "repair_attempt, forgiven, rejected e texto repair_evidence. "
+                "violation=true somente se afrontar limites explícitos; "
+                "frustration=true somente se contrariar expectativa concreta autoral. "
+                "Não trate humor ou recusa cordial como ofensa automática. "
+                "rejected exige rejeição pessoal inequívoca. "
+                "forgiven=true somente após evidência concreta de reparação "
+                "relacionada ao conflito, citada literalmente em repair_evidence. "
+                "Não force perdão nem invente fatos ou condições."
+            )},
+            {"role": "user", "content": (
+                "PROMPT NEGATIVO DE ORIGEM: " + negative +
+                "\nORGULHO FERIDO DE ORIGEM: " + hurt +
+                "\nFALA-GUIA DO LOOP: " + loop_guide +
+                "\nCONTEXTO RECENTE:\n" + recent[-3000:] +
+                "\nLOOP ATIVO: " + str(bool(loop_state.get("active"))) +
+                "\nÚLTIMA MENSAGEM DE DONISETE: " + user_text
+            )},
+        ],
+        temperature=0, call_type="TELEGRAM_EMOTION",
+    )
+    match = re.search(r"\{[\s\S]*\}", str(raw or ""))
+    if not match:
+        raise RuntimeError("Diretor emocional sem JSON. Mensagem ainda pendente.")
+    try:
+        parsed = json.loads(match.group(0))
+    except ValueError as exc:
+        raise RuntimeError("Diretor emocional retornou JSON inválido.") from exc
+    return parsed if isinstance(parsed, dict) else {}
+
+
+def _prepare_emotional_row(
+    row: dict, state: dict, user_text: str, model: str
+) -> tuple[dict, dict, bool]:
+    """Decide sobre LOOP antes de enviar; a atualização só vale após sendMessage."""
+    loop = deepcopy(state.get("loop") or {"active": False, "attempts": 0})
+    guide = dict(row.get("_emotional_loop_row") or {})
+    if not guide:
+        return row, loop, False
+    assessment = _emotional_assessment(
+        row, loop, user_text, list(state.get("history", [])), model
+    )
+    repairing = (
+        bool(loop.get("active"))
+        and assessment.get("forgiven") is True
+        and isinstance(assessment.get("repair_evidence"), str)
+        and len(assessment["repair_evidence"].strip()) >= 5
+        and assessment["repair_evidence"].strip().casefold() in user_text.casefold()
+    )
+    if repairing:
+        loop = {"active": False, "attempts": 0}
+        return row, loop, False
+    if not loop.get("active") and any(
+        assessment.get(key) is True for key in ("violation", "frustration", "rejected")
+    ):
+        loop = {
+            "active": True, "attempts": 0,
+            "max_attempts": hurt_loop_max_interactions(guide),
+            "negative_rule": str(row.get("negative_prompt") or ""),
+            "hurt_style": str(row.get("hurt_style") or ""),
+            "origin_order": int(row.get("order") or 0),
+        }
+    if not loop.get("active"):
+        return row, loop, False
+    max_attempts = max(1, int(loop.get("max_attempts", 3) or 3))
+    loop["attempts"] = min(max_attempts, int(loop.get("attempts", 0)) + 1)
+    resolved = dict(guide)
+    resolved["permanent_memory"] = str(row.get("permanent_memory") or "")
+    resolved["physical_memory"] = str(row.get("physical_memory") or "")
+    resolved["instant_memory"] = (
+        str(guide.get("instant_memory") or "") or str(row.get("instant_memory") or "")
+    )
+    resolved["negative_prompt"] = str(guide.get("negative_prompt") or "") or str(loop["negative_rule"])
+    resolved["hurt_style"] = str(guide.get("hurt_style") or "") or str(loop["hurt_style"])
+    resolved["style"] = (
+        str(resolved.get("style") or "") + " ORGULHO FERIDO AUTORAL: "
+        + resolved["hurt_style"]
+    ).strip()
+    return resolved, loop, loop["attempts"] >= max_attempts
+
+
+def _send_emotional_reply(
+    row: dict, rows: list[dict], state: dict, chat_id: int,
+    model: str, user_text: str,
+) -> bool:
+    emotional_row, new_loop, exhausted = _prepare_emotional_row(
+        row, state, user_text, model
+    )
+    if not new_loop.get("active"):
+        state["loop"] = new_loop
+        return False
+    speech = _generate(emotional_row, rows, list(state["history"]), user_text, model)
+    reply = _telegram("sendMessage", {"chat_id": chat_id, "text": speech})
+    state["last_message_id"] = int(reply.get("result", {}).get("message_id", 0) or 0)
+    state["history"].append({"role": "user", "content": user_text})
+    state["history"].append({"role": "assistant", "content": speech})
+    state["loop"] = new_loop
+    if exhausted:
+        state["status"] = "rejected" if not state.get("incoming") else "finished"
+        state["outcome"] = "LOOP_EXHAUSTED"
+    return True
 
 
 def _send_line(
