@@ -154,7 +154,7 @@ def _allowed_chat() -> int:
     return int(value)
 
 
-def _classify_final_reply(user_text: str, history: list[dict], model: str) -> str:
+def _classify_final_reply(user_text: str, history: list[dict], model: str, interlocutor: str = "interlocutor") -> str:
     """Confere o acordo estabelecido durante a chamada, não só a despedida."""
     if not user_text.strip():
         raise RuntimeError("Mensagem final ausente; não é possível concluir a chamada.")
@@ -172,23 +172,23 @@ def _classify_final_reply(user_text: str, history: list[dict], model: str) -> st
         messages=[
             {"role": "system", "content": (
                 "Você avalia o RESULTADO ATUAL do convite para encontro no deck "
-                "da conversa inteira entre Mary e Donisete, na ordem cronológica. "
+                "da conversa inteira entre Mary e o interlocutor indicado, na ordem cronológica. "
                 "Retorne exclusivamente ACEITE ou RECUO, sem explicações. "
-                "ACEITE se Donisete aceitou claramente o encontro em QUALQUER "
+                "ACEITE se o interlocutor aceitou claramente o encontro em QUALQUER "
                 "mensagem anterior ou na última, e não retirou depois esse aceite. "
                 "A confirmação de Mary sobre local e horário reforça que houve acordo, "
-                "mas não substitui um aceite real de Donisete. "
+                "mas não substitui um aceite real do interlocutor. "
                 "Uma despedida posterior como 'tchau', 'até logo' ou 'tá bom' "
                 "NÃO cancela um encontro previamente confirmado. "
                 "RECUO se não houve aceite inequívoco, se há apenas hesitação, "
-                "ou se Donisete REVOGOU explicitamente a confirmação após aceitá-la. "
+                "ou se o interlocutor REVOGOU explicitamente a confirmação após aceitá-la. "
                 "Uma recusa ANTERIOR superada por aceite claro posterior não é recuo. "
                 "Não confunda concordar com outro assunto com aceitar o encontro. "
-                "Não invente consentimento: exija evidência literal na fala de Donisete."
+                "Não invente consentimento: exija evidência literal na fala do interlocutor."
             )},
             {"role": "user", "content": (
-                "DIÁLOGO EM ORDEM CRONOLÓGICA:\n" + context +
-                "\n\nÚLTIMA MENSAGEM DE DONISETE:\n" + user_text +
+                "INTERLOCUTOR DEFINIDO PELA CENA: " + interlocutor + "\nDIÁLOGO EM ORDEM CRONOLÓGICA:\n" + context +
+                "\n\nÚLTIMA MENSAGEM DO INTERLOCUTOR:\n" + user_text +
                 "\n\nQual é o estado FINAL do acordo sobre o encontro?"
             )},
         ],
@@ -203,9 +203,10 @@ def _classify_final_reply(user_text: str, history: list[dict], model: str) -> st
 def _generate(
     row: dict, rows: list[dict], history: list[dict],
     user_text: str, model: str, outcome: str = "",
-    incoming: bool = False,
+    incoming: bool = False, interlocutor: str = "",
 ) -> str:
     active_row = dict(row)
+    interlocutor = str(interlocutor or "interlocutor").strip()
     # Na primeira linha recebida, o usuário JÁ falou pelo Telegram.
     # PROSSEGUIR=bloqueado significa iniciativa de Mary só na chamada
     # originada pelo Streamlit. Não suprima a mensagem real do destinatário.
@@ -224,7 +225,7 @@ def _generate(
         fragment = match.group(1).strip()
         fragment = re.sub(r"\n+\s*Não antecipar.*$", "", fragment, flags=re.I | re.S)
         active_row["speech_guide"] = (
-            "Interpretar: Mary responde à mensagem real de Donisete. "
+            "Interpretar: Mary responde à mensagem real de " + interlocutor + ". "
             + fragment + " Não antecipar acontecimentos posteriores."
         )
     previous_mary = next(
@@ -240,7 +241,7 @@ def _generate(
             user_text=user_text, user_scene_direction="",
             previous_mary_text=previous_mary,
             recent_messages=history[-10:],
-            active_interlocutor="Donisete",
+            active_interlocutor=interlocutor,
             instant_memory=str(active_row.get("instant_memory") or ""),
             permanent_memory=str(active_row.get("permanent_memory") or ""),
             physical_memory=str(active_row.get("physical_memory") or ""),
@@ -249,8 +250,8 @@ def _generate(
         )
     prompt = build_direct_writer_prompt(
         row=active_row, all_rows=rows, recent_messages=history[-10:],
-        user_text=user_text, active_interlocutor="Donisete",
-        character_name="Donisete", interpretation=understanding,
+        user_text=user_text, active_interlocutor=interlocutor,
+        character_name=interlocutor, interpretation=understanding,
         previous_mary_text=previous_mary,
     )
     prompt += (
@@ -287,7 +288,7 @@ def _generate(
 
 def _emotional_assessment(
     row: dict, loop_state: dict, user_text: str, history: list[dict],
-    model: str,
+    model: str, interlocutor: str = "interlocutor",
 ) -> dict:
     """Mesma interpretação dos critérios autorais do motor direto; sem gatilhos fixos."""
     author_loop = dict(row.get("_emotional_loop_row") or {})
@@ -326,7 +327,7 @@ def _emotional_assessment(
                 "\nFALA-GUIA DO LOOP: " + loop_guide +
                 "\nCONTEXTO RECENTE:\n" + recent[-3000:] +
                 "\nLOOP ATIVO: " + str(bool(loop_state.get("active"))) +
-                "\nÚLTIMA MENSAGEM DE DONISETE: " + user_text
+                "\nINTERLOCUTOR DA CHAMADA: " + interlocutor + "\nÚLTIMA MENSAGEM: " + user_text
             )},
         ],
         temperature=0, call_type="TELEGRAM_EMOTION",
@@ -350,7 +351,8 @@ def _prepare_emotional_row(
     if not guide:
         return row, loop, False
     assessment = _emotional_assessment(
-        row, loop, user_text, list(state.get("history", [])), model
+        row, loop, user_text, list(state.get("history", [])), model,
+        str(state.get("interlocutor") or "interlocutor"),
     )
     repairing = (
         bool(loop.get("active"))
@@ -421,6 +423,7 @@ def _send_emotional_reply(
     speech = _generate(
         emotional_row, rows, list(state["history"]), user_text, model,
         incoming=bool(state.get("incoming")),
+        interlocutor=str(state.get("interlocutor") or ""),
     )
     reply = _telegram("sendMessage", {"chat_id": chat_id, "text": speech})
     state["last_message_id"] = int(reply.get("result", {}).get("message_id", 0) or 0)
@@ -451,13 +454,15 @@ def _send_line(
     index = int(direct_state["index"])
     is_final = index == len(rows) - 1
     outcome = (
-        _classify_final_reply(user_text, list(state["history"]), model)
+        _classify_final_reply(user_text, list(state["history"]), model,
+                              str(state.get("interlocutor") or "interlocutor"))
         if is_final and "ACEITE:" in str(row.get("speech_guide", "")).upper()
         else ""
     )
     speech = _generate(
         row, rows, list(state["history"]), user_text, model, outcome,
         incoming=bool(state.get("incoming")),
+        interlocutor=str(state.get("interlocutor") or ""),
     )
     result = _telegram("sendMessage", {"chat_id": chat_id, "text": speech})
     mark_direct_line_emitted(direct_state, row, rows)
