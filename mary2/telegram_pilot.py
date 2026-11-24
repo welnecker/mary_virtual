@@ -478,9 +478,14 @@ def _send_line(
     if is_final:
         state["outcome"] = outcome
         if state.get("incoming"):
-            state["status"] = "finished"
+            # Chamada recebida conclui sua missão; o roteiro mãe dá a
+            # continuidade já escrita, independentemente do ramo da despedida.
+            state["status"] = "approved"
         else:
-            state["status"] = "approved" if outcome == "ACEITE" else "rejected"
+            # Para CelularN, somente um desfecho condicional autoral pode
+            # bloquear; roteiros sem ACEITE/RECUO terminam normalmente.
+            state["status"] = ("approved" if not outcome or outcome == "ACEITE"
+                               else "rejected")
 
 
 def telegram_call_status(trigger_id: str) -> str:
@@ -535,29 +540,45 @@ def _latest_offset() -> int:
     return max((int(event["update_id"]) for event in updates), default=-1) + 1
 
 
-def ensure_telegram_call(trigger_id: str, script_name: str, model: str) -> str:
-    """Inicia uma vez após a publicação da linha-gatilho automática."""
-    if not trigger_id or not script_name:
-        raise ValueError("Identificador da chamada e roteiro são obrigatórios.")
+def ensure_telegram_call(
+    trigger_id: str, marker: str, model: str, interlocutor: str = "",
+) -> str:
+    """O roteiro mãe autoriza uma única chamada numerada, enviada ou recebida."""
+    if not trigger_id or not marker:
+        raise ValueError("Identificador e marcador TELEGRAM são obrigatórios.")
+    worksheet, script_name, incoming = resolve_telegram_script(marker)
     state = _state()
     if state.get("trigger_id") == trigger_id and state.get("status") != "idle":
         return str(state["status"])
-    if state.get("status") in {"active", "rejected"} and state.get("trigger_id") != trigger_id:
-        raise RuntimeError("Há outra chamada pendente. Conclua-a antes de iniciar outra.")
-    rows = _rows(script_name)
+    if state.get("status") in {"active", "waiting", "rejected", "starting", "start_error"}:
+        raise RuntimeError("Existe outra chamada pendente; conclua a anterior primeiro.")
+    interlocutor = str(interlocutor or "").strip()
+    if not interlocutor:
+        raise RuntimeError(
+            "O roteiro mãe deve identificar quem Mary chama ou atende. "
+            "Escreva o nome do personagem na DESCRIÇÃO-GUIA ou FALA-GUIA da linha."
+        )
+    # Verificar a existência do roteiro antes de travar a linha principal.
+    rows = _rows(script_name, worksheet)
     chat_id = _allowed_chat()
-    offset = _latest_offset()  # Descarta respostas anteriores à chamada.
+    offset = _latest_offset()  # Mensagens anteriores ao gatilho não contam.
     state.clear()
     state.update({
         "index": 0, "history": [], "offset": offset, "last_message_id": 0,
-        "status": "starting", "script_name": script_name, "trigger_id": trigger_id,
-        "outcome": "", "worksheet_name": _TAB, "incoming": False,
-        "loop": {"active": False, "attempts": 0}, "initialized": True,
+        "status": "waiting" if incoming else "starting",
+        "script_name": script_name, "worksheet_name": worksheet,
+        "trigger_id": trigger_id, "incoming": incoming,
+        "interlocutor": interlocutor, "marker": marker,
+        "loop": {"active": False, "attempts": 0},
+        "outcome": "", "initialized": True,
     })
+    if incoming:
+        # Espera Donisete/Janio/Silvia/etc. Sem enviar fala nem gastar tokens.
+        return "waiting"
     try:
         _send_line(rows, state, chat_id, model)
     except Exception:
-        # Uma falha de rede após envio pode ser ambígua: não duplicar automaticamente.
+        # A falha de rede após envio pode ser ambígua: evitar duplicação.
         state["status"] = "start_error"
         raise
     state["status"] = "active"
@@ -566,43 +587,36 @@ def ensure_telegram_call(trigger_id: str, script_name: str, model: str) -> str:
 
 def _restart_call(model: str) -> None:
     state = _state()
-    trigger_id = str(state.get("trigger_id", "") or "")
-    script_name = str(state.get("script_name", "") or "")
-    if not trigger_id or not script_name:
-        raise RuntimeError("Nenhum roteiro vinculado para reiniciar.")
-    # Recomeço narrativo, sem alterar o cursor de MINHA_SUGESTAO.
+    trigger_id = str(state.get("trigger_id") or "")
+    marker = str(state.get("marker") or "")
+    if not trigger_id or not marker:
+        raise RuntimeError("Nenhuma chamada vinculada ao roteiro mãe para reiniciar.")
+    interlocutor = str(state.get("interlocutor") or "")
+    # Não criar um segundo sub-roteiro; repetir só o gatilho autoral atual.
     state["status"] = "idle"
-    ensure_telegram_call(trigger_id, script_name, model)
+    ensure_telegram_call(trigger_id, marker, model, interlocutor)
 
 
 def _start_received(event: dict, model: str) -> None:
-    """Uma nova mensagem autorizada inicia o roteiro Recebido1 sem tocar no principal."""
+    """Atende somente o RecebidoN previamente autorizado por MINHA_SUGESTAO."""
     state = _state()
-    if state.get("status") not in {"idle", "finished"}:
+    if state.get("status") != "waiting" or not state.get("incoming"):
         return
-    text = str(event.get("message", {}).get("text") or "").strip()
-    if not text or (text.startswith("/") and text.lower() != "/mary"):
+    user_text = str(event.get("message", {}).get("text") or "").strip()
+    if not user_text or user_text.startswith("/"):
         return
-    # Depois de uma despedida, mensagens tardias pertencem à conversa
-    # encerrada. Somente /mary é um gatilho inequívoco de nova chamada.
-    if state.get("status") == "finished" and text.lower() != "/mary":
-        return
-    rows = _rows(_RECEIVED_SCRIPT, _RECEIVED_TAB)
+    rows = _rows(
+        str(state["script_name"]), str(state["worksheet_name"])
+    )
     chat_id = _allowed_chat()
-    temporary = {
-        "index": 0, "history": [], "offset": int(event["update_id"]) + 1,
-        "last_message_id": 0, "status": "starting",
-        "script_name": _RECEIVED_SCRIPT,
-        "worksheet_name": _RECEIVED_TAB,
-        "trigger_id": "received:" + str(event["update_id"]),
-        "incoming": True, "loop": {"active": False, "attempts": 0},
-        "outcome": "", "initialized": True,
-    }
-    initial_message = "Oi, Mary." if text.lower() == "/mary" else text
-    # Se houve erro do Redator ou Diretor, o offset anterior é preservado;
-    # a mensagem pode ser tentada novamente no próximo polling.
-    if not _send_emotional_reply(rows[0], rows, temporary, chat_id, model, initial_message):
-        _send_line(rows, temporary, chat_id, model, initial_message)
+    temporary = deepcopy(state)
+    temporary["status"] = "starting"
+    # O texto que ativou a chamada é a entrada REAL da linha 1.
+    if not _send_emotional_reply(
+        rows[0], rows, temporary, chat_id, model, user_text
+    ):
+        _send_line(rows, temporary, chat_id, model, user_text)
+    temporary["offset"] = int(event["update_id"]) + 1
     if temporary["status"] == "starting":
         temporary["status"] = "active"
     state.clear()
@@ -612,8 +626,8 @@ def _start_received(event: dict, model: str) -> None:
 def _check_reply(model: str) -> str:
     state = _state()
     status = str(state.get("status", "idle"))
-    if status not in {"active", "idle", "finished"}:
-        return "Aguardando conclusão da chamada atual."
+    if status not in {"waiting", "active"}:
+        return "Nenhuma chamada do roteiro mãe aguardando mensagens."
     chat_id = _allowed_chat()
     data = _telegram("getUpdates", {
         "offset": int(state.get("offset", 0)), "timeout": 0, "limit": 50,
@@ -622,37 +636,25 @@ def _check_reply(model: str) -> str:
         event for event in data
         if event.get("message", {}).get("chat", {}).get("id") == chat_id
         and event.get("message", {}).get("text")
-        and int(event["message"].get("message_id", 0)) > int(state.get("last_message_id", 0))
-        and (
-            not str(event["message"]["text"]).startswith("/")
-            or str(event["message"]["text"]).strip().lower() == "/mary"
-        )
+        and not str(event["message"]["text"]).startswith("/")
+        and int(event["message"].get("message_id", 0))
+            > int(state.get("last_message_id", 0))
     ]
     if not pending:
         if data:
             state["offset"] = max(int(x["update_id"]) for x in data) + 1
         return "Nenhuma mensagem nova do chat autorizado."
     event = pending[0]
-    if status == "finished" and str(event["message"]["text"]).strip().lower() != "/mary":
-        # Consumir a atualização sem responder e sem reiniciar o roteiro.
-        # Não tratar uma resposta atrasada como uma nova chamada.
-        state["offset"] = int(event["update_id"]) + 1
-        return "Roteiro encerrado. Para iniciar nova conversa, envie /mary."
-    if status in {"idle", "finished"}:
+    if status == "waiting":
         _start_received(event, model)
-        return "Chamada recebida; Mary respondeu pela linha 1 de Recebido1."
-    rows = _rows(
-        str(state["script_name"]),
-        str(state.get("worksheet_name") or _TAB),
-    )
+        return "Chamada recebida; Mary iniciou o sub-roteiro autorizado."
+    rows = _rows(str(state["script_name"]), str(state["worksheet_name"]))
     row = rows[int(state["index"])]
     user_text = str(event["message"]["text"])
-    if user_text.strip().lower() == "/mary":
-        user_text = "Oi, Mary."
     if not _send_emotional_reply(row, rows, state, chat_id, model, user_text):
         _send_line(rows, state, chat_id, model, user_text)
     state["offset"] = int(event["update_id"]) + 1
-    return "Resposta recebida e interpretada pela Mary."
+    return "Mensagem recebida e interpretada pela Mary."
 
 
 def render_telegram_sidebar(model: str) -> None:
