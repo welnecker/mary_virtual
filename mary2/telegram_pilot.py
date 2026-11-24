@@ -50,6 +50,7 @@ def resolve_telegram_script(marker: str) -> tuple[str, str, bool]:
 _NAME = r"([A-ZÀ-Ý][A-Za-zÀ-ÿ'’-]{1,39}(?:\s+[A-ZÀ-Ý][A-Za-zÀ-ÿ'’-]{1,39})?)"
 _CALL_PATTERNS = [
     re.compile(r"\b(?:ligar|telefonar|chamar|mandar\s+(?:mensagem|um\s+recado))\s+(?:para|pro|pra|ao|à)\s+" + _NAME, re.I),
+    re.compile(r"\b(?:conversar|falar|dialogar)\s+(?:com|co|c[oa])\s+" + _NAME, re.I),
     re.compile(r"\b" + _NAME + r"\s+(?:tá|está|anda)\s+(?:me\s+)?(?:ligando|chamando|mandando\s+mensagem)", re.I),
     re.compile(r"\b(?:chamada|ligação|mensagem)\s+(?:do|da|de)\s+" + _NAME, re.I),
     re.compile(r"\b(?:é|eh)\s+(?:o|a)?\s*" + _NAME + r"\s+(?:me\s+)?(?:ligando|chamando|mandando)", re.I),
@@ -62,6 +63,7 @@ def extract_call_interlocutor(row: dict, mary_speech: str = "") -> str:
         str(mary_speech or ""),
         str((row or {}).get("speech_guide") or ""),
         str((row or {}).get("action_guide") or ""),
+        str((row or {}).get("thought_guide") or ""),
         str((row or {}).get("interlocutor_direction") or ""),
     ]
     for field in fields:
