@@ -38,7 +38,8 @@ memórias e a linha especial LOOP. Não são modificados pelo adaptador.
 5. Cada nova mensagem de Donisete alimenta a próxima linha, sem
    alterar a ORDEM de MINHA_SUGESTAO.
 6. A última linha de Recebido1 encerra a sessão do Telegram.
-   Uma mensagem posterior pode iniciar outra chamada Recebido1.
+   Mensagens tardias são consumidas sem resposta, para impedir reinício em loop.
+   Somente o comando /mary inicia outra chamada após o encerramento.
 7. Se entrar no LOOP, as tentativas seguem a orientação da linha
    especial e o estado normal fica suspenso até reparação ou exaustão.
 
