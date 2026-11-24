@@ -142,6 +142,39 @@ class TelegramNarrativeContractTest(unittest.TestCase):
         self.assertEqual(writer.call_args.kwargs["row"]["interaction_mode"], "")
         self.assertEqual(writer.call_args.kwargs["user_text"], "Oi, Mary!")
 
+    def test_final_classification_keeps_previous_yes_after_goodbye(self):
+        history = [
+            {"role": "assistant", "content": "Você aceita vir ao deck?"},
+            {"role": "user", "content": "Poderia ser na suíte?"},
+            {"role": "assistant", "content": "Prefiro no deck."},
+            {"role": "user", "content": "Espera... tudo bem, sim, eu vou no deck. Que horas?"},
+            {"role": "assistant", "content": "Vamos às oito, no deck onde a gente se conheceu."},
+        ]
+        with patch.object(tg, "chat", return_value="ACEITE") as request:
+            outcome = tg._classify_final_reply(
+                "Tá bom... tchau.", history, "fake-model"
+            )
+        self.assertEqual(outcome, "ACEITE")
+        prompt = request.call_args.kwargs["messages"]
+        self.assertIn("sim, eu vou no deck", prompt[1]["content"])
+        self.assertIn("Tá bom... tchau.", prompt[1]["content"])
+        self.assertIn("NÃO cancela", prompt[0]["content"])
+
+    def test_final_classification_respects_explicit_later_retraction(self):
+        history = [
+            {"role": "assistant", "content": "Você aceita me encontrar no deck?"},
+            {"role": "user", "content": "Sim, vou."},
+            {"role": "assistant", "content": "Combinado, às oito."},
+        ]
+        with patch.object(tg, "chat", return_value="RECUO") as request:
+            result = tg._classify_final_reply(
+                "Mudei de ideia. Não vou mais ao deck.", history, "fake-model"
+            )
+        self.assertEqual(result, "RECUO")
+        prompt = request.call_args.kwargs["messages"]
+        self.assertIn("REVOGOU", prompt[0]["content"])
+        self.assertIn("Não vou mais", prompt[1]["content"])
+
     def test_late_message_after_farewell_does_not_restart(self):
         state = _state(incoming=True)
         state.update({"status": "finished", "initialized": True, "offset": 80})
