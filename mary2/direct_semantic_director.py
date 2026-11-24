@@ -640,10 +640,23 @@ def validate_direct_semantic_turn(
             returned_id == expected_id if returned_id
             else action_from_director == canonical_action
         )
+        # Evidência em FALA só vale quando descreve gesto concretamente
+        # realizado, não quando Mary apenas promete, deseja ou pede fazê-lo.
+        # O Diretor confirma a semântica, e esta checagem barra promessas óbvias.
+        speech_future_only = bool(
+            quote_source == "MARY_FALA"
+            and re.search(
+                r"^(?:mary\s*:\s*|[—–-]\s*)?"
+                r"(?:eu\s+)?(?:vou|quero|pretendo|prometo|gostaria|poderia|"
+                r"posso|irei)\b",
+                quote, flags=re.I,
+            )
+        )
         performed = (
             bool(item.get("cumprida", False))
             and identity_matches
             and quote_source in {"MARY_ACAO", "MARY_FALA"}
+            and not speech_future_only
         )
         reason = ""
         if not performed:
