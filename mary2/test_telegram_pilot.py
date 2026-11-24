@@ -142,6 +142,40 @@ class TelegramNarrativeContractTest(unittest.TestCase):
         self.assertEqual(writer.call_args.kwargs["row"]["interaction_mode"], "")
         self.assertEqual(writer.call_args.kwargs["user_text"], "Oi, Mary!")
 
+    def test_late_message_after_farewell_does_not_restart(self):
+        state = _state(incoming=True)
+        state.update({"status": "finished", "initialized": True, "offset": 80})
+        session = {"_mary_telegram_pilot": state}
+        event = {"update_id": 81, "message": {
+            "message_id": 42, "chat": {"id": 123},
+            "text": "Tá bom, eu aceito seus termos."
+        }}
+        with patch.object(tg.st, "session_state", session), \
+             patch.object(tg, "_allowed_chat", return_value=123), \
+             patch.object(tg, "_telegram",
+                          return_value={"ok": True, "result": [event]}), \
+             patch.object(tg, "_start_received") as starter:
+            result = tg._check_reply("fake-model")
+        starter.assert_not_called()
+        self.assertIn("encerrado", result)
+        self.assertEqual(state["status"], "finished")
+        self.assertEqual(state["offset"], 82)
+
+    def test_explicit_mary_command_restarts_after_farewell(self):
+        state = _state(incoming=True)
+        state.update({"status": "finished", "initialized": True, "offset": 80})
+        session = {"_mary_telegram_pilot": state}
+        event = {"update_id": 81, "message": {
+            "message_id": 42, "chat": {"id": 123}, "text": "/mary"
+        }}
+        with patch.object(tg.st, "session_state", session), \
+             patch.object(tg, "_allowed_chat", return_value=123), \
+             patch.object(tg, "_telegram",
+                          return_value={"ok": True, "result": [event]}), \
+             patch.object(tg, "_start_received") as starter:
+            tg._check_reply("fake-model")
+        starter.assert_called_once_with(event, "fake-model")
+
     def test_call_release_allows_new_received_calls(self):
         state = _state()
         state["status"] = "approved"
