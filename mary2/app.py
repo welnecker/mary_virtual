@@ -2488,15 +2488,16 @@ telegram_trigger_id = (
 )
 # A ligação é autorizada depois que Mary executa/publica a linha-mãe.
 # Vale tanto para AUTOMÁTICO quanto para BLOQUEADO (Mary fala primeiro).
-telegram_blocked_emitted = bool(
+telegram_awaiting_emitted = bool(
     direct_ui_row
     and telegram_target
-    and is_blocked_direct_row(direct_ui_row)
     and int(ui_state.get("awaiting_reply_order", 0) or 0)
         == int(direct_ui_row.get("order", 0) or 0)
     and not choice_ready
 )
-telegram_ready = bool(telegram_target and (automatic_emitted or telegram_blocked_emitted))
+# Qualquer linha-mãe publicada deve disparar o Telegram: automática,
+# bloqueada OU interativa normal. Nunca iniciar antes de Mary responder.
+telegram_ready = bool(telegram_target and (automatic_emitted or telegram_awaiting_emitted))
 telegram_state = telegram_call_status(telegram_trigger_id) if telegram_target else "idle"
 
 if telegram_ready and telegram_state != "approved":
@@ -2554,10 +2555,9 @@ elif automatic_emitted or (telegram_ready and telegram_state == "approved"):
             )
             if automatic_emitted:
                 advanced = advance_emitted_automatic_line(ui_state, navigation_rows)
-            elif telegram_blocked_emitted and telegram_approved:
-                # O sub-roteiro concluído satisfaz a espera da linha BLOQUEADO.
-                # register_direct_user_reply move somente o cursor, sem publicar
-                # fala falsa ou abrir um turno extra na cena.
+            elif telegram_awaiting_emitted and telegram_approved:
+                # O sub-roteiro concluído satisfaz a espera da linha mãe
+                # interativa OU bloqueada, sem um turno falso no Streamlit.
                 register_direct_user_reply(
                     ui_state, navigation_rows,
                     "[sub-roteiro Telegram concluído]",
