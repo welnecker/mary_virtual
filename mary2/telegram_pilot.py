@@ -6,12 +6,15 @@ persistência transacional de offset/estado e um serviço receptor durável.
 """
 from __future__ import annotations
 
+from copy import deepcopy
+import re
+
 import json
 from typing import Any
 import requests
 import streamlit as st
 
-from direct_script import load_direct_script_rows, build_direct_writer_prompt
+from direct_script import load_direct_script_rows, build_direct_writer_prompt, hurt_loop_max_interactions
 from direct_semantic_director import validate_direct_semantic_turn
 from openrouter_client import chat
 from output_filter import parse_mary_components, sanitize_mary_output, looks_like_action_narration
@@ -19,6 +22,8 @@ from output_filter import parse_mary_components, sanitize_mary_output, looks_lik
 _TIMEOUT = 15
 _SCRIPT = "Celular1"
 _TAB = "MARY_CELULAR"
+_RECEIVED_TAB = "MARY_CELULAR_RECEBIDO"
+_RECEIVED_SCRIPT = "Recebido1"
 
 
 def _secret(name: str) -> str:
@@ -60,17 +65,17 @@ def _credentials() -> tuple[dict, str]:
     return creds, sheet_id
 
 
-def _rows(script_name: str = _SCRIPT) -> list[dict]:
+def _rows(script_name: str = _SCRIPT, worksheet_name: str = _TAB) -> list[dict]:
     creds, sheet_id = _credentials()
     rows = load_direct_script_rows(
         service_account_info=creds,
         spreadsheet_id=sheet_id,
-        worksheet_name=_TAB,
+        worksheet_name=worksheet_name,
         script_name=script_name,
     )
     if not rows:
         raise RuntimeError(
-            f"Nenhuma linha executável de ROTEIRO={script_name} na aba {_TAB}."
+            f"Nenhuma linha executável de ROTEIRO={script_name} na aba {worksheet_name}."
         )
     return rows
 
@@ -80,7 +85,8 @@ def _state() -> dict:
         st.session_state["_mary_telegram_pilot"] = {
             "index": 0, "history": [], "offset": 0, "last_message_id": 0,
             "status": "idle", "script_name": "", "trigger_id": "",
-            "outcome": "",
+            "outcome": "", "worksheet_name": _TAB, "incoming": False,
+            "loop": {"active": False, "attempts": 0}, "initialized": False,
         }
     return st.session_state["_mary_telegram_pilot"]
 
@@ -190,7 +196,7 @@ def _send_line(
     is_final = index == len(rows) - 1
     outcome = (
         _classify_final_reply(user_text, list(state["history"]), model)
-        if is_final else ""
+        if is_final and "ACEITE:" in str(row.get("speech_guide", "")).upper() else ""
     )
     speech = _generate(row, rows, list(state["history"]), user_text, model, outcome)
     result = _telegram("sendMessage", {"chat_id": chat_id, "text": speech})
@@ -202,7 +208,10 @@ def _send_line(
     state["index"] += 1  # Envio efetivo e aprovado precede avanço.
     if is_final:
         state["outcome"] = outcome
-        state["status"] = "approved" if outcome == "ACEITE" else "rejected"
+        if state.get("incoming"):
+            state["status"] = "finished"
+        else:
+            state["status"] = "approved" if outcome == "ACEITE" else "rejected"
 
 
 def telegram_call_status(trigger_id: str) -> str:
@@ -234,7 +243,8 @@ def ensure_telegram_call(trigger_id: str, script_name: str, model: str) -> str:
     state.update({
         "index": 0, "history": [], "offset": offset, "last_message_id": 0,
         "status": "starting", "script_name": script_name, "trigger_id": trigger_id,
-        "outcome": "",
+        "outcome": "", "worksheet_name": _TAB, "incoming": False,
+        "loop": {"active": False, "attempts": 0}, "initialized": True,
     })
     try:
         _send_line(rows, state, chat_id, model)
@@ -278,7 +288,7 @@ def _check_reply(model: str) -> str:
         return "Nenhuma mensagem nova do chat autorizado."
     event = pending[0]
     _send_line(
-        _rows(str(state["script_name"])), state, chat_id, model,
+        _rows(str(state["script_name"]), str(state.get("worksheet_name") or _TAB)), state, chat_id, model,
         str(event["message"]["text"]),
     )
     state["offset"] = int(event["update_id"]) + 1
