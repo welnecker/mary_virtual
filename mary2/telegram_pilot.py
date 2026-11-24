@@ -30,6 +30,50 @@ _TAB = "MARY_CELULAR"
 _RECEIVED_TAB = "MARY_CELULAR_RECEBIDO"
 _RECEIVED_SCRIPT = "Recebido1"
 
+_TARGET_RECEIVED = re.compile(r"celular_rec([1-9]\d*)", re.I)
+_TARGET_OUTGOING = re.compile(r"celular([1-9]\d*)", re.I)
+
+
+def resolve_telegram_script(marker: str) -> tuple[str, str, bool]:
+    """Traduz exclusivamente a coluna TELEGRAM do roteiro mãe."""
+    marker = str(marker or "").strip()
+    incoming_match = _TARGET_RECEIVED.fullmatch(marker)
+    if incoming_match:
+        return _RECEIVED_TAB, f"Recebido{incoming_match.group(1)}", True
+    outgoing_match = _TARGET_OUTGOING.fullmatch(marker)
+    if outgoing_match:
+        return _TAB, f"Celular{outgoing_match.group(1)}", False
+    raise ValueError(f"Marcador TELEGRAM desconhecido: {marker!r}")
+
+
+# Identidade definida pela cena principal; nunca presumir o nome do usuário.
+_NAME = r"([A-ZÀ-Ý][A-Za-zÀ-ÿ'’-]{1,39}(?:\s+[A-ZÀ-Ý][A-Za-zÀ-ÿ'’-]{1,39})?)"
+_CALL_PATTERNS = [
+    re.compile(r"\b(?:ligar|telefonar|chamar|mandar\s+(?:mensagem|um\s+recado))\s+(?:para|pro|pra|ao|à)\s+" + _NAME, re.I),
+    re.compile(r"\b" + _NAME + r"\s+(?:tá|está|anda)\s+(?:me\s+)?(?:ligando|chamando|mandando\s+mensagem)", re.I),
+    re.compile(r"\b(?:chamada|ligação|mensagem)\s+(?:do|da|de)\s+" + _NAME, re.I),
+    re.compile(r"\b(?:é|eh)\s+(?:o|a)?\s*" + _NAME + r"\s+(?:me\s+)?(?:ligando|chamando|mandando)", re.I),
+]
+
+
+def extract_call_interlocutor(row: dict, mary_speech: str = "") -> str:
+    """Extrai a identidade declarada quando Mary pega/atende o celular."""
+    fields = [
+        str(mary_speech or ""),
+        str((row or {}).get("speech_guide") or ""),
+        str((row or {}).get("action_guide") or ""),
+        str((row or {}).get("interlocutor_direction") or ""),
+    ]
+    for field in fields:
+        for pattern in _CALL_PATTERNS:
+            found = pattern.search(field)
+            if found:
+                name = found.group(1).strip(" .,!?:;-")
+                if name and name.casefold() not in {"mary", "telegram", "celular"}:
+                    return name
+    return ""
+
+
 
 def _secret(name: str) -> str:
     try:
@@ -98,6 +142,7 @@ def _state() -> dict:
             "status": "idle", "script_name": "", "trigger_id": "",
             "outcome": "", "worksheet_name": _TAB, "incoming": False,
             "loop": {"active": False, "attempts": 0}, "initialized": False,
+            "interlocutor": "",
         }
     return st.session_state["_mary_telegram_pilot"]
 
