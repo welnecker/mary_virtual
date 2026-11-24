@@ -47,6 +47,7 @@ from telegram_pilot import (
     ensure_telegram_call,
     telegram_call_status,
     release_telegram_call,
+    extract_call_interlocutor,
 )
 from scene_images import find_scene_image, SCENE_IMAGE_SIZE
 
@@ -2485,41 +2486,59 @@ telegram_trigger_id = (
     f"{_chapter_id()}:{str(direct_ui_row.get('order', '') or '')}"
     if telegram_target else ""
 )
+# A ligação é autorizada depois que Mary executa/publica a linha-mãe.
+# Vale tanto para AUTOMÁTICO quanto para BLOQUEADO (Mary fala primeiro).
+telegram_blocked_emitted = bool(
+    direct_ui_row
+    and telegram_target
+    and is_blocked_direct_row(direct_ui_row)
+    and int(ui_state.get("awaiting_reply_order", 0) or 0)
+        == int(direct_ui_row.get("order", 0) or 0)
+    and not choice_ready
+)
+telegram_ready = bool(telegram_target and (automatic_emitted or telegram_blocked_emitted))
 telegram_state = telegram_call_status(telegram_trigger_id) if telegram_target else "idle"
 
-if automatic_emitted and telegram_target and telegram_state != "approved":
-    # A linha-gatilho foi publicada e validada. Não executar a linha seguinte
-    # até que o roteiro MARY_CELULAR confirme o encontro.
+if telegram_ready and telegram_state != "approved":
     user_text = None
     if telegram_state == "idle":
         try:
-            ensure_telegram_call(telegram_trigger_id, telegram_target, model)
+            last_mary_message = next(
+                (str(item.get("content") or "")
+                 for item in reversed(st.session_state.get("messages", []))
+                 if item.get("role") == "assistant"),
+                "",
+            )
+            interlocutor = extract_call_interlocutor(direct_ui_row, last_mary_message)
+            ensure_telegram_call(telegram_trigger_id, telegram_target, model, interlocutor)
             st.rerun()
         except Exception as exc:
-            st.error(f"Não foi possível iniciar a sub-rotina Telegram: {exc}")
+            st.error(f"Não foi possível preparar o sub-roteiro Telegram: {exc}")
+    elif telegram_state == "waiting":
+        st.info(
+            f"Mary identificou a chamada de {telegram_target}. "
+            "Aguardando mensagem do personagem no Telegram. "
+            "A próxima linha do roteiro mãe está suspensa."
+        )
     elif telegram_state == "active":
         st.info(
-            f"Chamada {telegram_target} em andamento no Telegram. "
-            "Responda pelo celular e use 'Verificar respostas' no menu lateral. "
-            "A próxima linha do Streamlit está bloqueada."
+            f"Sub-roteiro {telegram_target} em andamento no Telegram. "
+            "A próxima linha do roteiro mãe permanece suspensa."
         )
     elif telegram_state == "rejected":
         st.warning(
-            "Chamada encerrada sem encontro confirmado. A progressão está bloqueada. "
-            "Reinicie a conversa no painel Telegram."
+            f"O sub-roteiro {telegram_target} encerrou sem cumprir sua "
+            "condição autoral ou esgotou o LOOP. A progressão está bloqueada."
         )
     else:
-        st.error(
-            "Chamada ainda não concluída. Verifique o estado do Telegram antes "
-            "de prosseguir; a linha seguinte permanece bloqueada."
+        st.warning(
+            "Chamada ainda não concluída. Confira o painel Telegram; "
+            "a progressão principal permanece bloqueada."
         )
-elif automatic_emitted:
-    # A resposta desta linha já está publicada. O botão apenas move a ORDEM;
-    # não chama modelos, não gera novo turno e não duplica os logs.
+elif automatic_emitted or (telegram_ready and telegram_state == "approved"):
+    # Retorno ao roteiro mãe sem gerar uma intervenção fictícia do usuário.
     user_text = None
-    telegram_approved = bool(
-        telegram_target and telegram_state == "approved"
-    )
+    telegram_approved = bool(telegram_ready and telegram_state == "approved")
     if telegram_approved or st.button(
         "Prosseguir",
         key=f"auto_advance_{_chapter_id()}_{direct_ui_row.get('order', 0)}",
@@ -2528,14 +2547,25 @@ elif automatic_emitted:
     ):
         state_before_advance = deepcopy(st.session_state.story_state)
         try:
-            # Releia a planilha também na navegação: uma linha recém-inserida
-            # depois da automática não pode desaparecer por cache antigo.
             navigation_rows = _direct_script_rows(
                 persistence=persistence,
                 chapter=ui_chapter,
                 force_refresh=True,
             )
-            if advance_emitted_automatic_line(ui_state, navigation_rows):
+            if automatic_emitted:
+                advanced = advance_emitted_automatic_line(ui_state, navigation_rows)
+            elif telegram_blocked_emitted and telegram_approved:
+                # O sub-roteiro concluído satisfaz a espera da linha BLOQUEADO.
+                # register_direct_user_reply move somente o cursor, sem publicar
+                # fala falsa ou abrir um turno extra na cena.
+                register_direct_user_reply(
+                    ui_state, navigation_rows,
+                    "[sub-roteiro Telegram concluído]",
+                )
+                advanced = True
+            else:
+                advanced = False
+            if advanced:
                 narrative_advance = st.session_state.story_state.setdefault("narrative", {})
                 if direct_script_ready_for_choice(ui_state):
                     narrative_advance["choice_ready"] = True
