@@ -422,7 +422,11 @@ def release_telegram_call(trigger_id: str) -> None:
 
 
 def _latest_offset() -> int:
-    updates = _telegram("getUpdates", {"timeout": 0, "limit": 100}).get("result", [])
+    # Offset negativo consulta somente a atualização mais recente, evitando
+    # reabrir conversas a partir de centenas de updates antigos no servidor.
+    updates = _telegram("getUpdates", {
+        "offset": -1, "timeout": 0, "limit": 1,
+    }).get("result", [])
     return max((int(event["update_id"]) for event in updates), default=-1) + 1
 
 
