@@ -65,6 +65,36 @@ class TelegramNarrativeContractTest(unittest.TestCase):
         with self.assertRaises(ValueError):
             tg.resolve_telegram_script("Recebido1")
 
+    def test_normal_parent_line_20_arms_received_call(self):
+        row = {
+            "order": 20, "telegram_script": "celular_rec1",
+            "thought_guide": "Meu celular...droga..Janio? Meu Deus..",
+            "speech_guide": (
+                "Mary pede para Donisete esperar, mentindo que é Silvia."
+            ),
+            "action_guide": "Mary se afasta até o banheiro.",
+            "interaction_mode": "",
+        }
+        state = {"awaiting_reply_order": 20, "automatic_emitted_order": 0}
+        self.assertTrue(tg.telegram_parent_line_emitted(row, state))
+        self.assertEqual(tg.extract_call_interlocutor(row), "Janio")
+        self.assertFalse(tg.telegram_parent_line_emitted(
+            row, {"awaiting_reply_order": 0, "automatic_emitted_order": 0}
+        ))
+        self.assertFalse(tg.telegram_parent_line_emitted(row, state, True))
+
+    def test_blocked_and_automatic_parent_lines_still_arm(self):
+        row = {"order": 2, "telegram_script": "Celular1"}
+        self.assertTrue(tg.telegram_parent_line_emitted(
+            row, {"automatic_emitted_order": 2}
+        ))
+        self.assertTrue(tg.telegram_parent_line_emitted(
+            row, {"awaiting_reply_order": 2}
+        ))
+        self.assertFalse(tg.telegram_parent_line_emitted(
+            {"order": 2, "telegram_script": ""}, {"awaiting_reply_order": 2}
+        ))
+
     def test_parent_scene_identifies_interlocutor(self):
         self.assertEqual(tg.extract_call_interlocutor({
             "speech_guide": "Mary diz que vai tentar conversar com Donisete."
