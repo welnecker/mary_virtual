@@ -14,7 +14,11 @@ from typing import Any
 import requests
 import streamlit as st
 
-from direct_script import load_direct_script_rows, build_direct_writer_prompt, hurt_loop_max_interactions
+from direct_script import (
+    load_direct_script_rows, build_direct_writer_prompt, hurt_loop_max_interactions,
+    ensure_direct_state, register_direct_user_reply, current_direct_row,
+    mark_direct_line_emitted,
+)
 from direct_semantic_director import validate_direct_semantic_turn
 from openrouter_client import chat
 from output_filter import parse_mary_components, sanitize_mary_output, looks_like_action_narration
@@ -319,23 +323,36 @@ def _send_line(
     rows: list[dict], state: dict, chat_id: int, model: str,
     user_text: str = "",
 ) -> None:
-    index = int(state["index"])
-    if index >= len(rows):
+    # Reusa exatamente o estado de progressão do roteiro direto. O avanço
+    # ocorre em cópia; a versão vigente só muda após sendMessage confirmado.
+    narrative = {
+        "direct_script": deepcopy(state.get("direct_script"))
+    }
+    direct_state = ensure_direct_state(narrative, rows)
+    if user_text and state.get("history"):
+        register_direct_user_reply(direct_state, rows, user_text)
+    row = current_direct_row(rows, direct_state)
+    if not row:
         raise RuntimeError("O roteiro do celular já terminou.")
-    row = rows[index]
+    index = int(direct_state["index"])
     is_final = index == len(rows) - 1
     outcome = (
         _classify_final_reply(user_text, list(state["history"]), model)
-        if is_final and "ACEITE:" in str(row.get("speech_guide", "")).upper() else ""
+        if is_final and "ACEITE:" in str(row.get("speech_guide", "")).upper()
+        else ""
     )
     speech = _generate(row, rows, list(state["history"]), user_text, model, outcome)
     result = _telegram("sendMessage", {"chat_id": chat_id, "text": speech})
+    mark_direct_line_emitted(direct_state, row, rows)
+    state["direct_script"] = deepcopy(direct_state)
     msg = result.get("result", {})
     state["last_message_id"] = int(msg.get("message_id", 0) or 0)
     if user_text:
         state["history"].append({"role": "user", "content": user_text})
     state["history"].append({"role": "assistant", "content": speech})
-    state["index"] += 1  # Envio efetivo e aprovado precede avanço.
+    # O índice da próxima mensagem é derivado do cursor autoral, e não
+    # de uma contagem independente do Telegram.
+    state["index"] = int(direct_state["index"])
     if is_final:
         state["outcome"] = outcome
         if state.get("incoming"):
