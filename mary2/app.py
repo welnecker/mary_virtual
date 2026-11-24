@@ -239,6 +239,7 @@ def _runtime_get_chapter(chapter_id: str) -> dict:
 
 
 DEFAULT_MODELS = [
+    "deepseek/deepseek-v4.1-flash-1017",
     "google/gemini-3-flash-preview",
     "xiaomi/mimo-v2.6-pro",
     "google/gemini-2.5-flash-lite",
@@ -1500,8 +1501,8 @@ with st.sidebar:
     selected = st.selectbox(
         "OpenRouter",
         choices,
-        index=0,
-        help="Padrão de teste: Gemini 3 Flash Preview. Outros modelos permanecem disponíveis para comparação.",
+        index=(choices.index(configured_model) if configured_model else 0),
+        help="Padrão: DeepSeek V4.1 Flash 1017. MARY_DEFAULT_MODEL nos Secrets pode substituí-lo; outros modelos permanecem disponíveis.",
     )
 
     if selected == "Outro...":
