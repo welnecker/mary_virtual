@@ -20,6 +20,7 @@ from direct_script import (
     mark_direct_line_emitted,
 )
 from direct_semantic_director import validate_direct_semantic_turn
+from user_understanding_audit import analyze_user_understanding
 from openrouter_client import chat
 from output_filter import parse_mary_components, sanitize_mary_output, looks_like_action_narration
 
@@ -160,10 +161,31 @@ def _generate(
             "Interpretar: Mary responde à mensagem real de Donisete. "
             + fragment + " Não antecipar acontecimentos posteriores."
         )
+    previous_mary = next(
+        (str(item.get("content") or "") for item in reversed(history)
+         if item.get("role") == "assistant"), ""
+    )
+    understanding = {}
+    if user_text.strip():
+        understanding = analyze_user_understanding(
+            api_key=_secret("OPENROUTER_API_KEY"),
+            model=_secret("MARY_DIRECTOR_MODEL") or model,
+            fallback_model=_secret("MARY_FALLBACK_MODEL") or None,
+            user_text=user_text, user_scene_direction="",
+            previous_mary_text=previous_mary,
+            recent_messages=history[-10:],
+            active_interlocutor="Donisete",
+            instant_memory=str(active_row.get("instant_memory") or ""),
+            permanent_memory=str(active_row.get("permanent_memory") or ""),
+            physical_memory=str(active_row.get("physical_memory") or ""),
+            initial_description=str(active_row.get("initial_description") or ""),
+            revelation_policy=str(active_row.get("revelation_policy") or ""),
+        )
     prompt = build_direct_writer_prompt(
         row=active_row, all_rows=rows, recent_messages=history[-10:],
         user_text=user_text, active_interlocutor="Donisete",
-        character_name="Donisete",
+        character_name="Donisete", interpretation=understanding,
+        previous_mary_text=previous_mary,
     )
     prompt += (
         "\n\nCANAL TELEGRAM: somente a fala verbal de Mary será enviada. "
@@ -186,7 +208,7 @@ def _generate(
         api_key=_secret("OPENROUTER_API_KEY"),
         model=_secret("MARY_DIRECTOR_MODEL") or model,
         fallback_model=_secret("MARY_FALLBACK_MODEL") or None,
-        row=active_row, interpretation={}, mary_text=speech,
+        row=active_row, interpretation=understanding, mary_text=speech,
         mary_thought=parts.get("thought", ""),
         mary_action=parts.get("action", ""),
         user_text=user_text, user_scene_direction="",
