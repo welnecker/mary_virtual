@@ -448,6 +448,34 @@ def release_telegram_call(trigger_id: str) -> None:
         state["status"] = "finished"
 
 
+def recheck_rejected_encounter(model: str) -> str:
+    """Reavalia uma conclusão antiga sem reenviar fala nem avançar linha."""
+    state = _state()
+    if (
+        state.get("status") != "rejected"
+        or state.get("incoming")
+        or state.get("outcome") != "RECUO"
+        or len(state.get("history") or []) < 2
+        or not bool((state.get("direct_script") or {}).get("completed"))
+    ):
+        raise RuntimeError("Não há conclusão de encontro válida para reavaliar.")
+    history = list(state["history"])
+    last_user_index = next(
+        (idx for idx in range(len(history) - 1, -1, -1)
+         if history[idx].get("role") == "user"), None
+    )
+    if last_user_index is None:
+        raise RuntimeError("Resposta final do interlocutor indisponível.")
+    outcome = _classify_final_reply(
+        str(history[last_user_index].get("content") or ""),
+        history[:last_user_index], model,
+    )
+    if outcome == "ACEITE":
+        state["outcome"] = "ACEITE"
+        state["status"] = "approved"
+    return outcome
+
+
 def _latest_offset() -> int:
     # Offset negativo consulta somente a atualização mais recente, evitando
     # reabrir conversas a partir de centenas de updates antigos no servidor.
@@ -626,6 +654,20 @@ def render_telegram_sidebar(model: str) -> None:
                 st.rerun()
     elif status == "rejected":
         st.warning("Conversa encerrada sem confirmação. Roteiro principal bloqueado.")
+        if (
+            not state.get("incoming")
+            and state.get("outcome") == "RECUO"
+            and bool((state.get("direct_script") or {}).get("completed"))
+        ):
+            if st.button("Reavaliar encontro sem reiniciar", key="telegram_recheck", use_container_width=True):
+                try:
+                    outcome = recheck_rejected_encounter(model)
+                    if outcome == "ACEITE":
+                        st.rerun()
+                    else:
+                        st.warning("Não foi encontrado aceite inequívoco na conversa.")
+                except Exception as exc:
+                    st.error(f"Falha na reavaliação: {exc}")
         if st.button("Reiniciar Celular", key="telegram_retry", use_container_width=True):
             try:
                 _restart_call(model)
