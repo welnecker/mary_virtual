@@ -49,6 +49,46 @@ class TelegramNarrativeContractTest(unittest.TestCase):
         self.assertEqual(payload["chat_id"], 123)
         return {"ok": True, "result": {"message_id": 70}}
 
+    def test_audit_contains_metadata_not_private_message(self):
+        state = _state(incoming=True)
+        state.update({
+            "parent_order": "20", "marker": "celular_rec1",
+            "script_name": "Recebido1", "interlocutor": "Janio",
+        })
+        worksheet = unittest.mock.Mock()
+        book = unittest.mock.Mock()
+        book.worksheet.return_value = worksheet
+        client = unittest.mock.Mock()
+        client.open_by_key.return_value = book
+        session = {"run_id": "mary_test", "story_state": {"narrative": {
+            "chapter_id": "sheet:Cruzeiro Caribe4",
+            "chapter_instance_id": "scene_1",
+        }}}
+        with patch.object(tg.st, "session_state", session), \
+             patch.object(tg, "_credentials", return_value=({"type":"service_account"}, "sheet")), \
+             patch.object(tg.gspread, "service_account_from_dict", return_value=client):
+            tg._audit_event(
+                state, "incoming_processed", before="waiting", after="active",
+                order=2, update_id=123,
+            )
+        worksheet.append_row.assert_called_once()
+        logged = worksheet.append_row.call_args.args[0]
+        record = dict(zip(tg._AUDIT_HEADERS, logged))
+        self.assertEqual(record["run_id"], "mary_test")
+        self.assertEqual(record["parent_order"], "20")
+        self.assertEqual(record["subscript"], "Recebido1")
+        self.assertEqual(record["interlocutor"], "Janio")
+        self.assertEqual(record["telegram_update_id"], "123")
+        self.assertNotIn("text", tg._AUDIT_HEADERS)
+        self.assertNotIn("token", " ".join(tg._AUDIT_HEADERS))
+        book.worksheet.assert_called_once_with("TELEGRAM_AUDIT")
+
+    def test_audit_failure_does_not_interrupt_calls(self):
+        state = _state()
+        with patch.object(tg, "_credentials", side_effect=RuntimeError("offline")):
+            tg._audit_event(state, "line_sent", order=1)
+        # Silencioso para o usuário; nenhum reenvio ou LLM causado pelo log.
+
     def test_dynamic_script_mapping(self):
         self.assertEqual(
             tg.resolve_telegram_script("celular_rec2"),
