@@ -435,7 +435,9 @@ def _send_emotional_reply(
     state["history"].append({"role": "assistant", "content": speech})
     state["loop"] = new_loop
     if exhausted:
-        state["status"] = "rejected" if not state.get("incoming") else "finished"
+        # Exaustão do LOOP impede retorno automático, mas permite reiniciar
+        # a mesma chamada pela interface, sem saltar a linha mãe.
+        state["status"] = "rejected"
         state["outcome"] = "LOOP_EXHAUSTED"
     return True
 
