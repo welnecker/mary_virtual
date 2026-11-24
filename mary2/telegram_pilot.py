@@ -7,11 +7,15 @@ persistência transacional de offset/estado e um serviço receptor durável.
 from __future__ import annotations
 
 from copy import deepcopy
+from datetime import datetime, timezone
+from uuid import uuid4
+import logging
 import re
 
 import json
 from typing import Any
 import requests
+import gspread
 import streamlit as st
 
 from direct_script import (
@@ -32,6 +36,63 @@ _RECEIVED_SCRIPT = "Recebido1"
 
 _TARGET_RECEIVED = re.compile(r"celular_rec([1-9]\d*)", re.I)
 _TARGET_OUTGOING = re.compile(r"celular([1-9]\d*)", re.I)
+
+
+
+_AUDIT_TAB = "TELEGRAM_AUDIT"
+_AUDIT_HEADERS = [
+    "event_id", "created_at_utc", "run_id", "chapter_id",
+    "chapter_instance_id", "parent_order", "trigger_id", "marker",
+    "subscript", "direction", "interlocutor", "event",
+    "status_before", "status_after", "subscript_order", "outcome",
+    "loop_attempts", "loop_limit", "telegram_update_id",
+    "telegram_message_id", "error_type",
+]
+_LOG = logging.getLogger(__name__)
+
+
+def _audit_event(
+    state: dict, event: str, *, before: str = "", after: str = "",
+    order: int = 0, update_id: int = 0, message_id: int = 0,
+    error_type: str = "",
+) -> None:
+    """Registro técnico best-effort; não grava texto, token, chat_id nem prompts."""
+    try:
+        creds, spreadsheet_id = _credentials()
+        client = gspread.service_account_from_dict(creds)
+        worksheet = client.open_by_key(spreadsheet_id).worksheet(_AUDIT_TAB)
+        story = st.session_state.get("story_state") or {}
+        narrative = story.get("narrative") or {}
+        values = {
+            "event_id": uuid4().hex,
+            "created_at_utc": datetime.now(timezone.utc).isoformat(),
+            "run_id": str(st.session_state.get("run_id") or ""),
+            "chapter_id": str(narrative.get("chapter_id") or ""),
+            "chapter_instance_id": str(narrative.get("chapter_instance_id") or ""),
+            "parent_order": str(state.get("parent_order") or ""),
+            "trigger_id": str(state.get("trigger_id") or ""),
+            "marker": str(state.get("marker") or ""),
+            "subscript": str(state.get("script_name") or ""),
+            "direction": "received" if state.get("incoming") else "outgoing",
+            "interlocutor": str(state.get("interlocutor") or ""),
+            "event": event,
+            "status_before": before,
+            "status_after": after or str(state.get("status") or ""),
+            "subscript_order": str(order or ""),
+            "outcome": str(state.get("outcome") or ""),
+            "loop_attempts": str((state.get("loop") or {}).get("attempts") or ""),
+            "loop_limit": str((state.get("loop") or {}).get("max_attempts") or ""),
+            "telegram_update_id": str(update_id or ""),
+            "telegram_message_id": str(message_id or ""),
+            "error_type": error_type,
+        }
+        worksheet.append_row(
+            [values.get(col, "") for col in _AUDIT_HEADERS],
+            value_input_option="RAW",
+        )
+    except Exception as exc:
+        # Logs nunca devem impedir a resposta, reiniciar a chamada nem duplicar mensagens.
+        _LOG.warning("TELEGRAM_AUDIT_FAILED type=%s", type(exc).__name__)
 
 
 def resolve_telegram_script(marker: str) -> tuple[str, str, bool]:
