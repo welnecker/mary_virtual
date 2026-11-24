@@ -51,6 +51,23 @@ continuidade autoral da história, e não deve ser inventada pelo Telegram.
 6. Em LOOP emocional esgotado, o retorno fica bloqueado. O painel permite
    reiniciar a chamada vigente, sem saltar a mãe.
 
+## Linhas interativas comuns — correção de 24/11/2026
+
+O gatilho da coluna TELEGRAM não depende de PROSSEGUIR. Depois que Mary
+publica sua resposta na linha mãe, o motor reconhece tanto
+automatic_emitted_order quanto awaiting_reply_order. Assim, uma linha
+interativa comum, como Cruzeiro Caribe4 ORDEM 20, também prepara
+celular_rec1 e suspende a entrada do roteiro principal.
+
+Na linha 20, o PENSAMENTO-GUIA identifica "Janio?", enquanto Mary
+mente ao acompanhante dizendo "Silvia". O interlocutor verdadeiro
+é Janio, conforme a autoria da cena; a mentira permanece apenas
+na atuação da personagem.
+
+Mensagens enviadas antes da linha mãe ser efetivamente publicada
+não contam como chamadas recebidas. Aguardar o painel mostrar
+"aguardando mensagem" e então enviar a primeira mensagem no Telegram.
+
 ## Garantias e restrições
 
 - As chamadas não podem começar em qualquer momento; o estado idle não
