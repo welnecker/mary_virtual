@@ -283,6 +283,23 @@ def _prepare_emotional_row(
     max_attempts = max(1, int(loop.get("max_attempts", 3) or 3))
     loop["attempts"] = min(max_attempts, int(loop.get("attempts", 0)) + 1)
     resolved = dict(guide)
+    # Cada tentativa interpreta somente a missão autoral daquele estágio.
+    # O Diretor não deve exigir os três acontecimentos do LOOP em um turno.
+    raw_loop_guide = str(guide.get("speech_guide") or "")
+    loop_sentences = re.split(r"(?<=[.!?])\\s+", raw_loop_guide)
+    markers = {
+        1: r"\\b(?:primeir[ao]|1[ªº]|1\\.?)\\b",
+        2: r"\\b(?:segund[ao]|2[ªº]|2\\.?)\\b",
+        3: r"\\b(?:terceir[ao]|3[ªº]|3\\.?)\\b",
+    }
+    step_pattern = markers.get(int(loop["attempts"]))
+    step_sentence = next(
+        (sentence for sentence in loop_sentences
+         if step_pattern and re.search(step_pattern, sentence, re.I)),
+        "",
+    )
+    if step_sentence:
+        resolved["speech_guide"] = "Interpretar: " + step_sentence.strip()
     resolved["permanent_memory"] = str(row.get("permanent_memory") or "")
     resolved["physical_memory"] = str(row.get("physical_memory") or "")
     resolved["instant_memory"] = (
