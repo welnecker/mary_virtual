@@ -1,98 +1,100 @@
-# Mary Core 2 — roteiro celular, iniciador e recebido (piloto)
+# Mary Core 2 — integração de sub-roteiros Telegram pelo roteiro mãe
 
-Branch isolada: agent/telegram-mary-pilot. Apenas Streamlit Cloud,
-sem Render, webhook, Supabase ou alteração da branch principal.
+Branch experimental: agent/telegram-mary-pilot.
+Código principal: mary2/app.py e mary2/telegram_pilot.py.
+Não modifica as abas ou os textos autorais da planilha.
 
-## Planilhas verificadas
+## Contrato do roteiro mãe
 
-Planilha MARY_CORE_PERSISTENCE:
+A coluna TELEGRAM de MINHA_SUGESTAO seleciona somente o sub-roteiro:
 
-- MINHA_SUGESTAO: coluna TELEGRAM = Celular1 em Cruzeiro Caribe4, linha 2.
-- MARY_CELULAR: roteiro Celular1, ORDEM 1–5 + LOOP.
-- MARY_CELULAR_RECEBIDO: roteiro Recebido1, ORDEM 1–5 + LOOP.
+- Celular1, Celular2, ... → aba MARY_CELULAR, roteiros Celular1, Celular2, ...
+- celular_rec1, celular_rec2, ... → aba MARY_CELULAR_RECEBIDO,
+  roteiros Recebido1, Recebido2, ...
 
-Os dois roteiros Telegram têm os mesmos 17 cabeçalhos de controle:
-FALA-GUIA, PENSAMENTO-GUIA, PROSSEGUIR, PROMPT NEGATIVO, ORGULHO FERIDO,
-memórias e a linha especial LOOP. Não são modificados pelo adaptador.
+A numeração não representa ordem universal: é a ORDEM da linha
+executada em MINHA_SUGESTAO que decide qual chamada ocorre em seguida.
 
-## Fluxo A — Mary chama Donisete
+A cena mãe define o interlocutor explicitamente quando Mary pega/atende o
+celular. O adaptador extrai o nome da FALA-GUIA e da fala efetivamente
+publicada, com fallback para DESCRIÇÃO-GUIA e PENSAMENTO-GUIA.
+Se não identificar o personagem, sinaliza erro e mantém a linha bloqueada;
+não presume Donisete nem qualquer outro.
 
-1. Executar Cruzeiro Caribe4, linhas 1 e 2 no Streamlit.
-2. Depois da linha 2 aprovada, o gatilho TELEGRAM ativa Celular1.
-3. Streamlit suspende a progressão do roteiro principal.
-4. Mary envia a primeira mensagem, interpreta as respostas seguintes,
-   e avança usando o estado do roteiro direto.
-5. Na última linha, ACEITE confirma encontro e libera a linha 3;
-   RECUO encerra a tentativa, mantendo a cena suspensa.
-6. Depois que o roteiro principal avança com sucesso, o bot volta
-   a ficar disponível para uma nova chamada recebida.
+A missão dramática da conversa, o sentimento, o contexto, as memórias, as
+regras de orgulho ferido, os limites e a despedida são descritos pelo
+roteiro secundário. A próxima linha de MINHA_SUGESTAO já contém a
+continuidade autoral da história, e não deve ser inventada pelo Telegram.
 
-## Fluxo B — Donisete chama Mary
+## Mary ligando — CelularN
 
-1. Deixar o Streamlit aberto com o Telegram em estado disponível
-   (sem Celular1 ou Recebido1 ativos).
-2. Enviar mensagem comum como "Oi, Mary!" ou comando /mary ao bot.
-3. O monitor identifica a mensagem do TELEGRAM_CHAT_ID autorizado.
-4. A aba MARY_CELULAR_RECEBIDO, roteiro Recebido1, é carregada;
-   a mensagem original é entregue à linha 1 com memórias autorais.
-5. Cada nova mensagem de Donisete alimenta a próxima linha, sem
-   alterar a ORDEM de MINHA_SUGESTAO.
-6. A última linha de Recebido1 encerra a sessão do Telegram.
-   Mensagens tardias são consumidas sem resposta, para impedir reinício em loop.
-   Somente o comando /mary inicia outra chamada após o encerramento.
-7. Se entrar no LOOP, as tentativas seguem a orientação da linha
-   especial e o estado normal fica suspenso até reparação ou exaustão.
+1. Mary publica sua linha mãe (AUTOMÁTICO ou BLOQUEADO).
+2. O app resolve CelularN e envia a fala da linha 1 no Telegram.
+3. A cena mãe fica travada; respostas seguintes alimentam linhas 2, 3 ...
+4. O mesmo estado de progressão usado por direct_script marca cada linha.
+5. Na última linha, se a FALA-GUIA tem ACEITE e RECUO, o classificador
+   avalia a missão conforme a conversa inteira. RECUO bloqueia; ACEITE
+   libera. Sem essas condições, a conclusão normal libera.
+6. Depois da liberação, a cena mãe avança para sua próxima linha.
 
-## Compartilhamento de contratos com o motor original
+## Mary recebendo — celular_recN
 
-Reutilizados: load_direct_script_rows, ensure_direct_state,
-register_direct_user_reply, current_direct_row, mark_direct_line_emitted,
-build_direct_writer_prompt, hurt_loop_max_interactions,
-analyze_user_understanding, validate_direct_semantic_turn e filtros de fala.
+1. Mary publica a cena que identifica o personagem que a está chamando.
+2. O app resolve RecebidoN, valida sua existência e entra em WAITING,
+   sem enviar fala ao Telegram nem chamar LLM.
+3. Só uma mensagem NOVA do TELEGRAM_CHAT_ID autorizado, recebida depois
+   desse gatilho, ativa a linha 1 de RecebidoN. Não precisa /mary.
+4. Cada mensagem seguinte avança a linha secundária, sem modificar a mãe.
+5. Depois da despedida e conclusão da última linha, o motor libera a mãe.
+   ACEITE/RECUO seleciona apenas a fala condicional da última linha
+   recebida; o retorno à mãe segue o acontecimento previamente escrito.
+6. Em LOOP emocional esgotado, o retorno fica bloqueado. O painel permite
+   reiniciar a chamada vigente, sem saltar a mãe.
 
-Os critérios autorais de ORGULHO FERIDO e LOOP são avaliados no
-adaptador Telegram. A classificação emocional do piloto ainda não
-compartilha literalmente a mesma função interna monolítica de app.py.
-O resultado precisa de auditoria comparativa em casos reais antes de
-ser considerado semanticamente idêntico ao motor Streamlit.
-Nenhuma memória narrativa nova é adicionada à história principal.
+## Garantias e restrições
+
+- As chamadas não podem começar em qualquer momento; o estado idle não
+  consulta Telegram e nem aceita /mary como gatilho espontâneo.
+- Uma chamada por vez; as consecutivas têm estado, histórico, roteiro
+  e identidade próprios. Nenhum sub-roteiro se inicia por ordem numérica
+  implícita.
+- A identidade de personagem é narrativa, definida pela linha mãe.
+  TELEGRAM_CHAT_ID ainda autoriza apenas uma conta Telegram real.
+- Nenhum modelo é chamado durante polling vazio (a cada 3 segundos)
+  em WAITING/ACTIVE; as chamadas LLM são feitas ao processar mensagens.
+- O app usa componentes compartilhados com o motor direto: carregamento
+  de linhas, cursor, compreensão do usuário, Redator e Diretor Semântico.
+  A avaliação emocional possui um adaptador Telegram próprio; ainda
+  deve ser comparada com a implementação monolítica do Streamlit.
+- Apenas texto. Monitor funciona enquanto a página Streamlit permanecer
+  aberta e conectada. O estado está em st.session_state, sem transação
+  persistente, recuperação garantida após restart ou isolamento
+  multiusuário. Não é implantação permanente 24h.
 
 ## Testes
 
-Arquivo de testes com mocks: mary2/test_telegram_pilot.py.
+Regressões sem requisições reais: mary2/test_telegram_pilot.py.
 
-Com dependências instaladas, executar da pasta mary2:
+Executar a partir da pasta mary2, com dependências instaladas:
 
     python -m unittest test_telegram_pilot -v
 
-No aplicativo Streamlit Cloud:
+Verificações manuais recomendadas:
 
-- Teste A1: clique Prosseguir em Caribe4 até a linha 2; Mary
-  deve enviar linha 1 no Telegram automaticamente.
-- Teste A2: responda quatro vezes, confirmando o encontro na última;
-  a linha 3 de Caribe4 deve ser liberada.
-- Teste A3: reinicie o roteiro e recuse na última resposta; a
-  linha 3 não deve ser liberada.
-- Teste B1: depois da liberação, envie "Oi, Mary!" ao bot; Recebido1
-  deve começar pela linha 1 e continuar até a despedida.
-- Teste B2: em uma nova tentativa, envie uma mensagem que contrarie
-  explicitamente PROMPT NEGATIVO; confira a entrada no LOOP e a
-  eventual reparação ou encerramento após o limite autoral.
-- Teste B3: confira que Recebido1 não avançou MINHA_SUGESTAO.
+1. Cruzeiro Caribe4, linha 2 com Celular1: deve continuar iniciando a
+   mensagem de Donisete, travar a cena e retornar apenas no desfecho.
+2. Adicionar a um roteiro de teste do principal uma linha autoral com
+   personagem explicitamente nomeado e TELEGRAM = celular_rec1:
+   o app deve ficar em WAITING, sem enviar mensagem.
+3. Após esse gatilho, escrever uma mensagem natural no Telegram:
+   Recebido1 deve começar e responder ao personagem da linha mãe.
+4. A última resposta de Recebido1 deve liberar a continuação autoral
+   de MINHA_SUGESTAO, sem reiniciar o celular nem exigir /mary.
+5. Testar Celular2 e celular_rec2 quando os respectivos sub-roteiros
+   estiverem preenchidos; confirmar que nunca executam Celular1/Recebido1.
+6. Enviar mensagem no Telegram fora de chamada ativa/pendente:
+   não deve gerar resposta nem tokens.
+7. Testar ORGULHO FERIDO, LOOP esgotado e reinício de tentativa.
 
-## Limitações
-
-- Somente mensagens de texto e apenas TELEGRAM_CHAT_ID autorizado.
-- O monitor usa st.fragment a cada 3 segundos enquanto Streamlit
-  estiver aberto e conectado; não é um daemon independente.
-- No início de uma nova sessão, mensagens anteriores ao offset de
-  inicialização são desconsideradas, para não acionar chamadas antigas.
-- A sessão é mantida em st.session_state, sem persistência transacional.
-  Reiniciar o Streamlit pode perder estados de chamada e bloqueio.
-  Não indicado para multiusuário ou para produção sem serviço receptor.
-- O mesmo bot não deve ter outro consumidor de getUpdates nem webhook.
-- Erros de rede durante sendMessage podem ser ambíguos. Verificar
-  a conversa no Telegram antes de repetir manualmente.
-- A classificação de ACEITE/RECUO e a emoção dependem de LLM; testar
-  respostas ambíguas, reparações e limites explícitos por linha.
-- A linha LOOP não altera o roteiro principal em chamadas recebidas.
+Não criar linhas ou sub-roteiros fictícios automaticamente.
+A alteração só produz resposta quando existem scripts autorais na planilha.
