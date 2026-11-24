@@ -110,26 +110,41 @@ def _allowed_chat() -> int:
 
 
 def _classify_final_reply(user_text: str, history: list[dict], model: str) -> str:
-    """Somente aceite inequívoco confirma o encontro; a dúvida reprova."""
+    """Confere o acordo estabelecido durante a chamada, não só a despedida."""
     if not user_text.strip():
-        return "RECUO"
+        raise RuntimeError("Mensagem final ausente; não é possível concluir a chamada.")
+    # Uma confirmação pode ocorrer na resposta à linha 3 ou 4. Na linha 5,
+    # o interlocutor pode apenas se despedir. A decisão deve respeitar
+    # todo o diálogo efetivo e eventuais revogações posteriores.
     context = "\n".join(
-        f"{item.get('role', '')}: {item.get('content', '')}"
-        for item in history[-4:]
+        ("MARY: " if item.get("role") == "assistant" else "DONISETE: ")
+        + str(item.get("content", ""))
+        for item in history[-20:]
+        if isinstance(item, dict) and str(item.get("content", "")).strip()
     )
     result = chat(
         api_key=_secret("OPENROUTER_API_KEY"), model=model,
         messages=[
             {"role": "system", "content": (
-                "Classifique EXCLUSIVAMENTE a última mensagem de Donisete sobre o "
-                "encontro proposto por Mary. Responda uma palavra: ACEITE ou RECUO. "
-                "ACEITE somente quando ele aceita explicitamente encontrar Mary. "
-                "RECUO para recusa, hesitação, ironia, mudança de assunto ou resposta ambígua. "
-                "Nunca deduza aceite da intenção de Mary ou de mensagens anteriores."
+                "Você avalia o RESULTADO ATUAL do convite para encontro no deck "
+                "da conversa inteira entre Mary e Donisete, na ordem cronológica. "
+                "Retorne exclusivamente ACEITE ou RECUO, sem explicações. "
+                "ACEITE se Donisete aceitou claramente o encontro em QUALQUER "
+                "mensagem anterior ou na última, e não retirou depois esse aceite. "
+                "A confirmação de Mary sobre local e horário reforça que houve acordo, "
+                "mas não substitui um aceite real de Donisete. "
+                "Uma despedida posterior como 'tchau', 'até logo' ou 'tá bom' "
+                "NÃO cancela um encontro previamente confirmado. "
+                "RECUO se não houve aceite inequívoco, se há apenas hesitação, "
+                "ou se Donisete REVOGOU explicitamente a confirmação após aceitá-la. "
+                "Uma recusa ANTERIOR superada por aceite claro posterior não é recuo. "
+                "Não confunda concordar com outro assunto com aceitar o encontro. "
+                "Não invente consentimento: exija evidência literal na fala de Donisete."
             )},
             {"role": "user", "content": (
-                "Conversa recente:\n" + context +
-                "\n\nÚltima resposta de Donisete:\n" + user_text
+                "DIÁLOGO EM ORDEM CRONOLÓGICA:\n" + context +
+                "\n\nÚLTIMA MENSAGEM DE DONISETE:\n" + user_text +
+                "\n\nQual é o estado FINAL do acordo sobre o encontro?"
             )},
         ],
         temperature=0, call_type="TELEGRAM_OUTCOME",
