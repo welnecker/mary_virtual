@@ -4375,7 +4375,7 @@ if user_text:
                             status=(
                                 "APPROVED"
                                 if bool(direct_validation.get("fulfilled", False))
-                                else "PENDING_SAME_LINE"
+                                else "REJECTED_NOT_PUBLISHED"
                             ),
                         )
                     except Exception as director_validation_audit_exc:
@@ -4401,10 +4401,20 @@ if user_text:
                 }
 
                 if not bool(direct_validation.get("fulfilled", False)):
-                    # A linha direta pode levar mais de uma interação.
-                    # Preserve a fala atual de Mary e mantenha a mesma missão ativa.
-                    # O próximo turno continua na mesma linha até a validação semântica fechar.
-                    director_audit.setdefault("scene_after", {})["pending_same_line"] = True
+                    # Falha de validação não pode virar fala publicada com
+                    # a ORDEM inalterada: seria uma repetição involuntária da missão.
+                    # O try externo restaura o estado antes deste turno.
+                    _LOG.warning(
+                        "DIRECT_LINE_VALIDATION_REJECTED chapter=%s order=%s missing=%s",
+                        _chapter_id(),
+                        int(direct_row.get("order", 0) or 0),
+                        str(direct_validation.get("missing", "") or "")[:450],
+                    )
+                    raise OpenRouterError(
+                        "A linha não foi aprovada após as correções internas. "
+                        "Nenhuma resposta foi publicada; o roteiro permanece intacto. "
+                        "Consulte DIRECTOR_VALIDATION_AUDIT e tente novamente."
+                    )
 
                 # Interpreta semanticamente o movimento que a própria Mary acabou de criar.
                 # Esse estado, e não apenas o texto bruto, será a âncora causal do próximo turno.
