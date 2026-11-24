@@ -186,6 +186,26 @@ class TelegramNarrativeContractTest(unittest.TestCase):
         self.assertTrue(state["direct_script"]["completed"])
         # O retorno à cena mãe consumirá o status aprovado.
 
+    def test_conditional_classification_uses_authored_mission_and_previous_yes(self):
+        history = [
+            {"role": "assistant", "content": "Você aceita encontrar Mary no deck?"},
+            {"role": "user", "content": "Sim, eu vou ao deck às oito."},
+            {"role": "assistant", "content": "Combinado, às oito."},
+        ]
+        guide = (
+            "ACEITE: Mary confirma o encontro e se despede. "
+            "RECUO: Mary respeita a recusa e se despede."
+        )
+        with patch.object(tg, "chat", return_value="ACEITE") as llm:
+            outcome = tg._classify_final_reply(
+                "Tá bom, tchau.", history, "fake-model", "Janio", guide
+            )
+        self.assertEqual(outcome, "ACEITE")
+        messages = llm.call_args.kwargs["messages"]
+        self.assertIn(guide, messages[1]["content"])
+        self.assertIn("Sim, eu vou", messages[1]["content"])
+        self.assertIn("NÃO cancela", messages[0]["content"])
+
     def test_outgoing_conditional_recuo_still_blocks(self):
         state = _state()
         with patch.object(tg, "_generate", return_value="Até mais!"), \
