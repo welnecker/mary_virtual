@@ -167,7 +167,7 @@ class TelegramNarrativeContractTest(unittest.TestCase):
             tg._send_line(_rows("Recebido1"), state, 123, "fake-model", "Tchau!")
         self.assertEqual(state["status"], "approved")
         self.assertTrue(state["direct_script"]["completed"])
-        tg.release_telegram_call  # Status só volta a finished após avançar a mãe.
+        # O retorno à cena mãe consumirá o status aprovado.
 
     def test_outgoing_conditional_recuo_still_blocks(self):
         state = _state()
