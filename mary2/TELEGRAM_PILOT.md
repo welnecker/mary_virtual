@@ -62,6 +62,11 @@ continuidade autoral da história, e não deve ser inventada pelo Telegram.
   TELEGRAM_CHAT_ID ainda autoriza apenas uma conta Telegram real.
 - Nenhum modelo é chamado durante polling vazio (a cada 3 segundos)
   em WAITING/ACTIVE; as chamadas LLM são feitas ao processar mensagens.
+- Se o processamento de uma nova mensagem falhar, o monitor muda para
+  start_error/reply_error e não repete automaticamente chamadas à LLM.
+  Antes de retomar, conferir se Telegram já recebeu a resposta, pois falha
+  de rede após envio pode resultar em mensagem duplicada. Ao retomar, a
+  mensagem pendente pode ser processada novamente.
 - O app usa componentes compartilhados com o motor direto: carregamento
   de linhas, cursor, compreensão do usuário, Redator e Diretor Semântico.
   A avaliação emocional possui um adaptador Telegram próprio; ainda
@@ -74,6 +79,8 @@ continuidade autoral da história, e não deve ser inventada pelo Telegram.
 ## Testes
 
 Regressões sem requisições reais: mary2/test_telegram_pilot.py.
+Validação automatizada na branch experimental: .github/workflows/telegram-pilot-tests.yml
+(compileall + unittest com mocks, sujeito à disponibilidade de GitHub Actions).
 
 Executar a partir da pasta mary2, com dependências instaladas:
 
