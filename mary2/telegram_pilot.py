@@ -664,7 +664,7 @@ def render_telegram_sidebar(model: str) -> None:
         st.caption("Configure TELEGRAM_BOT_TOKEN nos Secrets para habilitar o piloto.")
         return
     if not _secret("TELEGRAM_CHAT_ID"):
-        st.caption("Abra @marycore2_bot, envie /start e clique em Identificar chat.")
+        st.caption("Abra o bot, envie /start e clique em Identificar chat.")
         if st.button("Identificar chat Telegram", key="telegram_discover", use_container_width=True):
             try:
                 updates = _telegram("getUpdates", {"timeout": 0, "limit": 25}).get("result", [])
@@ -675,37 +675,34 @@ def render_telegram_sidebar(model: str) -> None:
                 })
                 if ids:
                     st.info("IDs detectados: " + ", ".join(str(i) for i in ids)
-                            + ". Configure somente o seu em TELEGRAM_CHAT_ID.")
+                            + ". Configure o seu em TELEGRAM_CHAT_ID.")
                 else:
-                    st.warning("Nenhum chat identificado. Envie nova mensagem e tente novamente.")
+                    st.warning("Nenhum chat identificado. Envie uma mensagem e tente novamente.")
             except Exception as exc:
                 st.error(str(exc))
         return
 
     state = _state()
     status = str(state.get("status", "idle"))
-    script_name = str(state.get("script_name") or _SCRIPT)
-    st.caption(f"Roteiro {script_name} · próxima linha {int(state['index']) + 1}")
+    script_name = str(state.get("script_name") or "(nenhum)")
+    interlocutor = str(state.get("interlocutor") or "(não definido)")
     if status == "idle":
-        st.caption("Disponível: uma mensagem sua inicia Recebido1 no Telegram.")
-        if st.button("Telegram — Chamar (teste manual)", key="telegram_call", use_container_width=True):
-            try:
-                ensure_telegram_call("manual_pilot", _SCRIPT, model)
-                st.rerun()
-            except Exception as exc:
-                st.error(str(exc))
+        st.caption("Sem chamada pendente. A coluna TELEGRAM do roteiro mãe controla a ativação.")
+    else:
+        st.caption(
+            f"Sub-roteiro {script_name} · personagem {interlocutor} · "
+            f"próxima linha {int(state.get('index', 0)) + 1}"
+        )
+    if status == "waiting":
+        st.info("Aguardando mensagem do personagem no Telegram para atender a chamada.")
     elif status == "active":
-        st.info("Conversa em andamento. Respostas automáticas enquanto o Streamlit estiver aberto.")
-    elif status == "finished":
-        st.success("Conversa encerrada. Para iniciar outra chamada, envie /mary ao bot.")
+        st.info("Conversa em andamento. O roteiro mãe permanece suspenso.")
     elif status == "approved":
-        st.success("Encontro confirmado. Chamada aprovada.")
-        if str(state.get("trigger_id")) == "manual_pilot":
-            if st.button("Liberar Telegram para chamadas recebidas", key="telegram_manual_release", use_container_width=True):
-                release_telegram_call("manual_pilot")
-                st.rerun()
+        st.success("Sub-roteiro concluído; preparando retorno à cena principal.")
+    elif status == "finished":
+        st.caption("Chamada encerrada; aguarde o próximo gatilho do roteiro mãe.")
     elif status == "rejected":
-        st.warning("Conversa encerrada sem confirmação. Roteiro principal bloqueado.")
+        st.warning("Sub-roteiro encerrado por recuo ou limite autoral.")
         if (
             not state.get("incoming")
             and state.get("outcome") == "RECUO"
@@ -717,52 +714,42 @@ def render_telegram_sidebar(model: str) -> None:
                     if outcome == "ACEITE":
                         st.rerun()
                     else:
-                        st.warning("Não foi encontrado aceite inequívoco na conversa.")
+                        st.warning("Não foi encontrado aceite inequívoco no diálogo.")
                 except Exception as exc:
                     st.error(f"Falha na reavaliação: {exc}")
-        if st.button("Reiniciar Celular", key="telegram_retry", use_container_width=True):
+        if st.button("Reiniciar sub-roteiro", key="telegram_retry", use_container_width=True):
             try:
                 _restart_call(model)
                 st.rerun()
             except Exception as exc:
                 st.error(str(exc))
     elif status == "start_error":
-        st.error("Início da chamada inconclusivo. Verifique o Telegram antes de reiniciar.")
+        st.error("Início inconclusivo. Confira o Telegram antes de repetir.")
         if st.button("Reiniciar chamada", key="telegram_recover", use_container_width=True):
             try:
                 _restart_call(model)
                 st.rerun()
             except Exception as exc:
                 st.error(str(exc))
-    # Um único monitor para a sessão, tanto na espera quanto durante chamadas.
-    if status in {"active", "idle", "finished"}:
+    if status in {"waiting", "active"}:
         _telegram_reply_monitor(model)
 
 
 @st.fragment(run_every="3s")
 def _telegram_reply_monitor(model: str) -> None:
-    """Recebe chamadas e respostas enquanto a sessão Streamlit está conectada."""
+    """Consulta Telegram somente com uma chamada autorizada pelo roteiro mãe."""
     state = _state()
-    if state.get("status") not in {"idle", "active", "finished"}:
+    if state.get("status") not in {"waiting", "active"}:
         return
-    # Baseline apenas na primeira execução da sessão: mensagens muito antigas
-    # não devem iniciar inesperadamente uma nova história ao implantar a branch.
-    if not state.get("initialized"):
-        try:
-            state["offset"] = _latest_offset()
-            state["initialized"] = True
-        except Exception as exc:
-            st.error(f"Não foi possível inicializar o monitor Telegram: {exc}")
-            return
-    st.caption("Telegram ativo · consulta automática a cada 3 segundos")
+    st.caption("Monitor da chamada · consulta a cada 3 segundos")
     st.button("Verificar agora", key="telegram_check", use_container_width=True)
     try:
-        before = str(state.get("status", "idle"))
+        before = str(state.get("status"))
         notice = _check_reply(model)
-        after = str(_state().get("status", "idle"))
+        after = str(_state().get("status"))
         if before != after:
             st.rerun()
-        if notice.startswith(("Resposta recebida", "Chamada recebida")):
+        if notice.startswith(("Mensagem recebida", "Chamada recebida")):
             st.success(notice)
     except Exception as exc:
         st.error(f"Falha ao processar mensagem do Telegram: {exc}")
