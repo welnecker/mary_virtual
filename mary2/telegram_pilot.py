@@ -531,6 +531,12 @@ def _send_emotional_reply(
     state["history"].append({"role": "user", "content": user_text})
     state["history"].append({"role": "assistant", "content": speech})
     state["loop"] = new_loop
+    _audit_event(
+        state, "loop_reply" if not exhausted else "loop_exhausted",
+        before="active", after="rejected" if exhausted else "active",
+        order=int(row.get("order") or 0),
+        message_id=state["last_message_id"],
+    )
     if exhausted:
         # Exaustão do LOOP impede retorno automático, mas permite reiniciar
         # a mesma chamada pela interface, sem saltar a linha mãe.
@@ -600,6 +606,12 @@ def _send_line(
             # bloquear; roteiros sem ACEITE/RECUO terminam normalmente.
             state["status"] = ("approved" if not outcome or outcome == "ACEITE"
                                else "rejected")
+    _audit_event(
+        state, "subscript_completed" if is_final else "line_sent",
+        before="active",
+        order=int(row.get("order") or 0),
+        message_id=state["last_message_id"],
+    )
 
 
 def telegram_call_status(trigger_id: str) -> str:
@@ -615,6 +627,7 @@ def release_telegram_call(trigger_id: str) -> None:
     state = _state()
     if state.get("trigger_id") == trigger_id and state.get("status") == "approved":
         state["status"] = "finished"
+        _audit_event(state, "parent_resumed", before="approved", after="finished")
 
 
 def recheck_rejected_encounter(model: str) -> str:
@@ -685,12 +698,14 @@ def ensure_telegram_call(
         "script_name": script_name, "worksheet_name": worksheet,
         "trigger_id": trigger_id, "incoming": incoming,
         "interlocutor": interlocutor, "marker": marker,
+        "parent_order": str(trigger_id).rsplit(":", 1)[-1],
         "loop": {"active": False, "attempts": 0},
         "outcome": "", "initialized": True,
         "last_emotional_assessment": {}, "rejection_details": {},
     })
     if incoming:
-        # Espera Donisete/Janio/Silvia/etc. Sem enviar fala nem gastar tokens.
+        # Não há modelo nem mensagem enviados neste estágio.
+        _audit_event(state, "call_waiting", before="idle", after="waiting")
         return "waiting"
     try:
         _send_line(rows, state, chat_id, model)
@@ -699,6 +714,7 @@ def ensure_telegram_call(
         state["status"] = "start_error"
         raise
     state["status"] = "active"
+    _audit_event(state, "call_initiated", before="idle", after="active")
     return "active"
 
 
@@ -711,6 +727,7 @@ def _restart_call(model: str) -> None:
     interlocutor = str(state.get("interlocutor") or "")
     # Não criar um segundo sub-roteiro; repetir só o gatilho autoral atual.
     state["status"] = "idle"
+    _audit_event(state, "call_restart_requested", before="rejected", after="idle")
     ensure_telegram_call(trigger_id, marker, model, interlocutor)
 
 
@@ -738,6 +755,10 @@ def _start_received(event: dict, model: str) -> None:
         temporary["status"] = "active"
     state.clear()
     state.update(temporary)
+    _audit_event(
+        state, "incoming_activated", before="waiting",
+        order=1, update_id=int(event["update_id"]),
+    )
 
 
 def _check_reply(model: str) -> str:
@@ -772,12 +793,21 @@ def _check_reply(model: str) -> str:
         if not _send_emotional_reply(row, rows, state, chat_id, model, user_text):
             _send_line(rows, state, chat_id, model, user_text)
         state["offset"] = int(event["update_id"]) + 1
+        _audit_event(
+            state, "incoming_processed", before=status,
+            update_id=int(event["update_id"]),
+        )
         return "Mensagem recebida e interpretada pela Mary."
     except Exception:
         # Pausa a repetição automática em caso de falha de LLM ou de rede.
         # sendMessage pode ter sido entregue mesmo sem confirmação.
         state["status"] = "start_error" if status == "waiting" else "reply_error"
         state["failed_update_id"] = int(event["update_id"])
+        _audit_event(
+            state, "processing_error", before=status,
+            update_id=int(event["update_id"]),
+            error_type="message_processing",
+        )
         raise
 
 
