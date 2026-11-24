@@ -490,6 +490,10 @@ def _start_received(event: dict, model: str) -> None:
     text = str(event.get("message", {}).get("text") or "").strip()
     if not text or (text.startswith("/") and text.lower() != "/mary"):
         return
+    # Depois de uma despedida, mensagens tardias pertencem à conversa
+    # encerrada. Somente /mary é um gatilho inequívoco de nova chamada.
+    if state.get("status") == "finished" and text.lower() != "/mary":
+        return
     rows = _rows(_RECEIVED_SCRIPT, _RECEIVED_TAB)
     chat_id = _allowed_chat()
     temporary = {
@@ -536,6 +540,11 @@ def _check_reply(model: str) -> str:
             state["offset"] = max(int(x["update_id"]) for x in data) + 1
         return "Nenhuma mensagem nova do chat autorizado."
     event = pending[0]
+    if status == "finished" and str(event["message"]["text"]).strip().lower() != "/mary":
+        # Consumir a atualização sem responder e sem reiniciar o roteiro.
+        # Não tratar uma resposta atrasada como uma nova chamada.
+        state["offset"] = int(event["update_id"]) + 1
+        return "Roteiro encerrado. Para iniciar nova conversa, envie /mary."
     if status in {"idle", "finished"}:
         _start_received(event, model)
         return "Chamada recebida; Mary respondeu pela linha 1 de Recebido1."
@@ -593,7 +602,7 @@ def render_telegram_sidebar(model: str) -> None:
     elif status == "active":
         st.info("Conversa em andamento. Respostas automáticas enquanto o Streamlit estiver aberto.")
     elif status == "finished":
-        st.success("Conversa recebida encerrada. Mary está disponível para outra chamada.")
+        st.success("Conversa encerrada. Para iniciar outra chamada, envie /mary ao bot.")
     elif status == "approved":
         st.success("Encontro confirmado. Chamada aprovada.")
         if str(state.get("trigger_id")) == "manual_pilot":
