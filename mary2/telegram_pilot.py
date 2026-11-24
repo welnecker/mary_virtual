@@ -60,6 +60,14 @@ _CALL_PATTERNS = [
 
 def extract_call_interlocutor(row: dict, mary_speech: str = "") -> str:
     """Extrai a identidade declarada quando Mary pega/atende o celular."""
+    # Na cena de chamada recebida, a identidade vista por Mary no celular
+    # prevalece sobre a desculpa que ela conta ao acompanhante.
+    marker = str((row or {}).get("telegram_script") or "").strip()
+    thought = str((row or {}).get("thought_guide") or "")
+    if _TARGET_RECEIVED.fullmatch(marker):
+        seen = re.search(r"\b([A-ZÀ-Ý][a-zà-ÿ'’-]{2,35})\s*\?", thought)
+        if seen and seen.group(1).casefold() not in {"mary", "deus", "meu"}:
+            return seen.group(1)
     fields = [
         # A autoria da linha mãe é a referência primária. A fala gerada
         # pode empregar apelidos como "Doni" para o nome canônico "Donisete".
