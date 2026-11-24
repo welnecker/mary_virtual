@@ -342,7 +342,12 @@ def _emotional_assessment(
                 "repair_attempt, forgiven, rejected e texto repair_evidence. "
                 "violation=true somente se afrontar limites explícitos; "
                 "frustration=true somente se contrariar expectativa concreta autoral. "
-                "Não trate humor ou recusa cordial como ofensa automática. "
+                "Não trate humor, pedido educado de atenção, tentativa de "
+                "conversar, negociação respeitosa, recusa cordial ou despedida "
+                "como ofensa automática. A vontade de Mary de desligar não "
+                "transforma, por si só, uma insistência educada em agressão. "
+                "frustration exige uma expectativa concreta expressa na linha "
+                "e descumprimento relevante, não mero desacordo. "
                 "rejected exige rejeição pessoal inequívoca. "
                 "forgiven=true somente após evidência concreta de reparação "
                 "relacionada ao conflito, citada literalmente em repair_evidence. "
@@ -390,7 +395,15 @@ def _prepare_emotional_row(
     )
     if repairing:
         loop = {"active": False, "attempts": 0}
+        state["last_emotional_assessment"] = {"repaired": True}
         return row, loop, False
+    if assessment:
+        # Registro mínimo para diagnóstico, sem guardar mensagem privada ou
+        # expor o texto do usuário no painel.
+        state["last_emotional_assessment"] = {
+            key: bool(assessment.get(key))
+            for key in ("violation", "frustration", "rejected", "forgiven")
+        }
     if not loop.get("active") and any(
         assessment.get(key) is True for key in ("violation", "frustration", "rejected")
     ):
@@ -462,6 +475,13 @@ def _send_emotional_reply(
         # a mesma chamada pela interface, sem saltar a linha mãe.
         state["status"] = "rejected"
         state["outcome"] = "LOOP_EXHAUSTED"
+        state["rejection_details"] = {
+            "source": "emotional_loop",
+            "script_name": str(state.get("script_name") or ""),
+            "origin_order": int(new_loop.get("origin_order", 0) or 0),
+            "attempts": int(new_loop.get("attempts", 0) or 0),
+            "max_attempts": int(new_loop.get("max_attempts", 0) or 0),
+        }
     return True
 
 
@@ -606,6 +626,7 @@ def ensure_telegram_call(
         "interlocutor": interlocutor, "marker": marker,
         "loop": {"active": False, "attempts": 0},
         "outcome": "", "initialized": True,
+        "last_emotional_assessment": {}, "rejection_details": {},
     })
     if incoming:
         # Espera Donisete/Janio/Silvia/etc. Sem enviar fala nem gastar tokens.
@@ -744,7 +765,25 @@ def render_telegram_sidebar(model: str) -> None:
     elif status == "finished":
         st.caption("Chamada encerrada; aguarde o próximo gatilho do roteiro mãe.")
     elif status == "rejected":
-        st.warning("Sub-roteiro encerrado por recuo ou limite autoral.")
+        details = dict(state.get("rejection_details") or {})
+        outcome = str(state.get("outcome") or "")
+        if outcome == "LOOP_EXHAUSTED":
+            st.warning(
+                "LOOP emocional esgotado. "
+                f"Origem: linha {details.get('origin_order', '?')} de {script_name}; "
+                f"tentativas: {details.get('attempts', '?')}/"
+                f"{details.get('max_attempts', '?')}. "
+                "A cena principal continua suspensa."
+            )
+            if state.get("last_emotional_assessment"):
+                st.caption(
+                    "Última classificação emocional: "
+                    + str(state["last_emotional_assessment"])
+                )
+        elif outcome == "RECUO":
+            st.warning("Condição autoral do sub-roteiro não confirmada (RECUO).")
+        else:
+            st.warning(f"Chamada interrompida (estado: {outcome or 'indeterminado'}).")
         if (
             not state.get("incoming")
             and state.get("outcome") == "RECUO"
