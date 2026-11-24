@@ -143,8 +143,14 @@ def _classify_final_reply(user_text: str, history: list[dict], model: str) -> st
 def _generate(
     row: dict, rows: list[dict], history: list[dict],
     user_text: str, model: str, outcome: str = "",
+    incoming: bool = False,
 ) -> str:
     active_row = dict(row)
+    # Na primeira linha recebida, o usuário JÁ falou pelo Telegram.
+    # PROSSEGUIR=bloqueado significa iniciativa de Mary só na chamada
+    # originada pelo Streamlit. Não suprima a mensagem real do destinatário.
+    if incoming and user_text.strip() and not history:
+        active_row["interaction_mode"] = ""
     if outcome:
         # Respeita os dois ramos autorais da própria planilha; não inventa uma
         # missão nova para o roteiro quando a decisão já está escrita na linha.
@@ -352,7 +358,10 @@ def _send_emotional_reply(
     if not new_loop.get("active"):
         state["loop"] = new_loop
         return False
-    speech = _generate(emotional_row, rows, list(state["history"]), user_text, model)
+    speech = _generate(
+        emotional_row, rows, list(state["history"]), user_text, model,
+        incoming=bool(state.get("incoming")),
+    )
     reply = _telegram("sendMessage", {"chat_id": chat_id, "text": speech})
     state["last_message_id"] = int(reply.get("result", {}).get("message_id", 0) or 0)
     state["history"].append({"role": "user", "content": user_text})
@@ -386,7 +395,10 @@ def _send_line(
         if is_final and "ACEITE:" in str(row.get("speech_guide", "")).upper()
         else ""
     )
-    speech = _generate(row, rows, list(state["history"]), user_text, model, outcome)
+    speech = _generate(
+        row, rows, list(state["history"]), user_text, model, outcome,
+        incoming=bool(state.get("incoming")),
+    )
     result = _telegram("sendMessage", {"chat_id": chat_id, "text": speech})
     mark_direct_line_emitted(direct_state, row, rows)
     state["direct_script"] = deepcopy(direct_state)
