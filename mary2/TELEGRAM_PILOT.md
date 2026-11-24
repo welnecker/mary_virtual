@@ -122,3 +122,34 @@ Verificações manuais recomendadas:
 
 Não criar linhas ou sub-roteiros fictícios automaticamente.
 A alteração só produz resposta quando existem scripts autorais na planilha.
+
+
+## Auditoria persistente Telegram
+
+Aba TELEGRAM_AUDIT na planilha MARY_CORE_PERSISTENCE (sheetId 46544398).
+É exclusiva dos eventos do adaptador, sem alterar INTERACTIONS, os roteiros
+ou a progressão da história. Cada evento relevante gera uma linha:
+
+- call_waiting: o roteiro mãe autorizou RecebidoN e espera uma nova mensagem
+- call_initiated: Mary iniciou CelularN
+- incoming_activated: uma mensagem autorizada ativou RecebidoN
+- incoming_processed: o adaptador interpretou uma mensagem subsequente
+- line_sent: Mary enviou a resposta de uma linha
+- subscript_completed: a última linha foi enviada e finalizada
+- loop_reply / loop_exhausted: reação emocional e fim do limite do LOOP
+- processing_error: falha e suspensão do monitor
+- parent_resumed: o roteiro mãe foi desbloqueado
+- call_restart_requested: usuário pediu reinício do sub-roteiro atual
+
+Colunas: event_id, created_at_utc, run_id, chapter_id,
+chapter_instance_id, parent_order, trigger_id, marker, subscript,
+direction, interlocutor, event, status_before, status_after,
+subscript_order, outcome, loop_attempts, loop_limit,
+telegram_update_id, telegram_message_id e error_type.
+
+Apenas metadados técnicos: não registra texto de Donisete/Janio,
+mensagens de Mary, dados de credenciais, prompts, tokens ou chat_id.
+O erro é registrado pelo tipo, não pelo conteúdo da exceção. O monitor
+não grava eventos quando não há mensagem nova. Uma falha de escrita
+na auditoria não impede nem duplica uma resposta no Telegram; é sinalizada
+de forma resumida no log do servidor com TELEGRAM_AUDIT_FAILED.
