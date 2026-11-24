@@ -286,11 +286,11 @@ def _prepare_emotional_row(
     # Cada tentativa interpreta somente a missão autoral daquele estágio.
     # O Diretor não deve exigir os três acontecimentos do LOOP em um turno.
     raw_loop_guide = str(guide.get("speech_guide") or "")
-    loop_sentences = re.split(r"(?<=[.!?])\\s+", raw_loop_guide)
+    loop_sentences = re.split(r"(?<=[.!?])\s+", raw_loop_guide)
     markers = {
-        1: r"\\b(?:primeir[ao]|1[ªº]|1\\.?)\\b",
-        2: r"\\b(?:segund[ao]|2[ªº]|2\\.?)\\b",
-        3: r"\\b(?:terceir[ao]|3[ªº]|3\\.?)\\b",
+        1: r"\b(?:primeir[ao]|1[ªº]|1\.?)\b",
+        2: r"\b(?:segund[ao]|2[ªº]|2\.?)\b",
+        3: r"\b(?:terceir[ao]|3[ªº]|3\.?)\b",
     }
     step_pattern = markers.get(int(loop["attempts"]))
     step_sentence = next(
