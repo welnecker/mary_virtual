@@ -125,6 +125,23 @@ class TelegramNarrativeContractTest(unittest.TestCase):
         self.assertEqual(active["line_id"], "loop_orgulho_ferido")
         self.assertIn("primeira tentativa", active["speech_guide"])
 
+    def test_first_received_line_preserves_incoming_user_speech(self):
+        row = _rows()[0]
+        with patch.object(tg, "analyze_user_understanding", return_value={}), \
+             patch.object(tg, "build_direct_writer_prompt", return_value="Prompt") as writer, \
+             patch.object(tg, "chat", return_value="[FALA] Oi, Doni!"), \
+             patch.object(tg, "parse_mary_components", return_value={
+                 "speech": "Oi, Doni!", "thought": "", "action": ""
+             }), \
+             patch.object(tg, "sanitize_mary_output", return_value="Oi, Doni!"), \
+             patch.object(tg, "looks_like_action_narration", return_value=False), \
+             patch.object(tg, "validate_direct_semantic_turn",
+                          return_value={"fulfilled": True}):
+            result = tg._generate(row, _rows(), [], "Oi, Mary!", "fake-model", incoming=True)
+        self.assertEqual(result, "Oi, Doni!")
+        self.assertEqual(writer.call_args.kwargs["row"]["interaction_mode"], "")
+        self.assertEqual(writer.call_args.kwargs["user_text"], "Oi, Mary!")
+
     def test_call_release_allows_new_received_calls(self):
         state = _state()
         state["status"] = "approved"
