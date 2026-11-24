@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - agent/telegram-mary-pilot
+      - agent/direct-action-validation-fix
   workflow_dispatch:
 
 jobs:
@@ -21,4 +22,4 @@ jobs:
         run: python -m compileall -q mary2
       - name: Run mock-based Telegram contract tests
         working-directory: mary2
-        run: python -m unittest test_telegram_pilot -v
+        run: python -m unittest test_telegram_pilot test_direct_action_evidence -v
