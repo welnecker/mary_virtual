@@ -88,6 +88,21 @@ def extract_call_interlocutor(row: dict, mary_speech: str = "") -> str:
 
 
 
+def telegram_parent_line_emitted(row: dict, state: dict, choice_ready: bool = False) -> bool:
+    """Gatilho somente depois que Mary publicou a linha da cena mãe."""
+    if not row or choice_ready or not str(row.get("telegram_script") or "").strip():
+        return False
+    order = int(row.get("order", 0) or 0)
+    if not order:
+        return False
+    # O estado de linha automática é distinto da espera por resposta
+    # para uma linha normal ou BLOQUEADA.
+    return (
+        int(state.get("automatic_emitted_order", 0) or 0) == order
+        or int(state.get("awaiting_reply_order", 0) or 0) == order
+    )
+
+
 def _secret(name: str) -> str:
     try:
         return str(st.secrets.get(name, "") or "").strip()
