@@ -156,15 +156,15 @@ def _allowed_chat() -> int:
     return int(value)
 
 
-def _classify_final_reply(user_text: str, history: list[dict], model: str, interlocutor: str = "interlocutor") -> str:
-    """Confere o acordo estabelecido durante a chamada, não só a despedida."""
+def _classify_final_reply(
+    user_text: str, history: list[dict], model: str,
+    interlocutor: str = "interlocutor", final_guide: str = "",
+) -> str:
+    """Classifica o ACEITE/RECUO apenas se a linha autoral pedir essa decisão."""
     if not user_text.strip():
         raise RuntimeError("Mensagem final ausente; não é possível concluir a chamada.")
-    # Uma confirmação pode ocorrer na resposta à linha 3 ou 4. Na linha 5,
-    # o interlocutor pode apenas se despedir. A decisão deve respeitar
-    # todo o diálogo efetivo e eventuais revogações posteriores.
     context = "\n".join(
-        ("MARY: " if item.get("role") == "assistant" else "DONISETE: ")
+        ("MARY: " if item.get("role") == "assistant" else "INTERLOCUTOR: ")
         + str(item.get("content", ""))
         for item in history[-20:]
         if isinstance(item, dict) and str(item.get("content", "")).strip()
@@ -173,25 +173,24 @@ def _classify_final_reply(user_text: str, history: list[dict], model: str, inter
         api_key=_secret("OPENROUTER_API_KEY"), model=model,
         messages=[
             {"role": "system", "content": (
-                "Você avalia o RESULTADO ATUAL do convite para encontro no deck "
-                "da conversa inteira entre Mary e o interlocutor indicado, na ordem cronológica. "
-                "Retorne exclusivamente ACEITE ou RECUO, sem explicações. "
-                "ACEITE se o interlocutor aceitou claramente o encontro em QUALQUER "
-                "mensagem anterior ou na última, e não retirou depois esse aceite. "
-                "A confirmação de Mary sobre local e horário reforça que houve acordo, "
-                "mas não substitui um aceite real do interlocutor. "
-                "Uma despedida posterior como 'tchau', 'até logo' ou 'tá bom' "
-                "NÃO cancela um encontro previamente confirmado. "
-                "RECUO se não houve aceite inequívoco, se há apenas hesitação, "
-                "ou se o interlocutor REVOGOU explicitamente a confirmação após aceitá-la. "
-                "Uma recusa ANTERIOR superada por aceite claro posterior não é recuo. "
-                "Não confunda concordar com outro assunto com aceitar o encontro. "
-                "Não invente consentimento: exija evidência literal na fala do interlocutor."
+                "Classifique o desfecho da MISSÃO ESPECÍFICA DA LINHA AUTORAL, "
+                "com base no diálogo cronológico. Responda apenas ACEITE ou RECUO. "
+                "ACEITE requer confirmação inequívoca da proposta ou condição "
+                "descrita na FALA-GUIA, pelo interlocutor designado. "
+                "Considere confirmações anteriores que não tenham sido revogadas. "
+                "Uma despedida posterior NÃO cancela uma decisão já confirmada. "
+                "RECUO se não houve concordância inequívoca, ou se o interlocutor "
+                "REVOGOU explicitamente a confirmação. "
+                "Uma recusa anterior superada por confirmação posterior não é recuo. "
+                "Não confunda concordar com outro assunto com cumprir a condição. "
+                "Nunca invente aceite e nunca substitua a missão da planilha."
             )},
             {"role": "user", "content": (
-                "INTERLOCUTOR DEFINIDO PELA CENA: " + interlocutor + "\nDIÁLOGO EM ORDEM CRONOLÓGICA:\n" + context +
-                "\n\nÚLTIMA MENSAGEM DO INTERLOCUTOR:\n" + user_text +
-                "\n\nQual é o estado FINAL do acordo sobre o encontro?"
+                "INTERLOCUTOR DEFINIDO PELA CENA: " + interlocutor +
+                "\nFALA-GUIA CONDICIONAL DA ÚLTIMA LINHA:\n" + final_guide +
+                "\nDIÁLOGO EM ORDEM CRONOLÓGICA:\n" + context +
+                "\nÚLTIMA MENSAGEM:\n" + user_text +
+                "\nQual o desfecho da missão autoral?"
             )},
         ],
         temperature=0, call_type="TELEGRAM_OUTCOME",
@@ -456,8 +455,11 @@ def _send_line(
     index = int(direct_state["index"])
     is_final = index == len(rows) - 1
     outcome = (
-        _classify_final_reply(user_text, list(state["history"]), model,
-                              str(state.get("interlocutor") or "interlocutor"))
+        _classify_final_reply(
+            user_text, list(state["history"]), model,
+            str(state.get("interlocutor") or "interlocutor"),
+            str(row.get("speech_guide") or ""),
+        )
         if is_final and "ACEITE:" in str(row.get("speech_guide", "")).upper()
         else ""
     )
@@ -478,6 +480,7 @@ def _send_line(
     # de uma contagem independente do Telegram.
     state["index"] = int(direct_state["index"])
     if is_final:
+        state["final_speech_guide"] = str(row.get("speech_guide") or "")
         state["outcome"] = outcome
         if state.get("incoming"):
             # Chamada recebida conclui sua missão; o roteiro mãe dá a
@@ -526,6 +529,8 @@ def recheck_rejected_encounter(model: str) -> str:
     outcome = _classify_final_reply(
         str(history[last_user_index].get("content") or ""),
         history[:last_user_index], model,
+        str(state.get("interlocutor") or "interlocutor"),
+        str(state.get("final_speech_guide") or ""),
     )
     if outcome == "ACEITE":
         state["outcome"] = "ACEITE"
