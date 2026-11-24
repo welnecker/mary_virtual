@@ -781,3 +781,5 @@ def _telegram_reply_monitor(model: str) -> None:
             st.success(notice)
     except Exception as exc:
         st.error(f"Falha ao processar mensagem do Telegram: {exc}")
+        if _state().get("status") in {"start_error", "reply_error"}:
+            st.rerun()  # Revela o painel de recuperação; interrompe o polling.
