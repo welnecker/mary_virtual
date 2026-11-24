@@ -369,6 +369,13 @@ def telegram_call_status(trigger_id: str) -> str:
     return str(state.get("status", "idle"))
 
 
+def release_telegram_call(trigger_id: str) -> None:
+    """Libera o bot para mensagens espontâneas após o retorno à cena principal."""
+    state = _state()
+    if state.get("trigger_id") == trigger_id and state.get("status") == "approved":
+        state["status"] = "finished"
+
+
 def _latest_offset() -> int:
     updates = _telegram("getUpdates", {"timeout": 0, "limit": 100}).get("result", [])
     return max((int(event["update_id"]) for event in updates), default=-1) + 1
@@ -528,6 +535,10 @@ def render_telegram_sidebar(model: str) -> None:
         st.success("Conversa recebida encerrada. Mary está disponível para outra chamada.")
     elif status == "approved":
         st.success("Encontro confirmado. Chamada aprovada.")
+        if str(state.get("trigger_id")) == "manual_pilot":
+            if st.button("Liberar Telegram para chamadas recebidas", key="telegram_manual_release", use_container_width=True):
+                release_telegram_call("manual_pilot")
+                st.rerun()
     elif status == "rejected":
         st.warning("Conversa encerrada sem confirmação. Roteiro principal bloqueado.")
         if st.button("Reiniciar Celular", key="telegram_retry", use_container_width=True):
