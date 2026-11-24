@@ -46,6 +46,7 @@ from telegram_pilot import (
     render_telegram_sidebar,
     ensure_telegram_call,
     telegram_call_status,
+    release_telegram_call,
 )
 from scene_images import find_scene_image, SCENE_IMAGE_SIZE
 
@@ -2549,6 +2550,8 @@ elif automatic_emitted:
                         scene_state=st.session_state.scene_state,
                         story_state=st.session_state.story_state,
                     )
+                if telegram_approved:
+                    release_telegram_call(telegram_trigger_id)
                 st.rerun()
         except Exception as exc:
             st.session_state.story_state = state_before_advance
