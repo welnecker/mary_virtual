@@ -49,6 +49,48 @@ class TelegramNarrativeContractTest(unittest.TestCase):
         self.assertEqual(payload["chat_id"], 123)
         return {"ok": True, "result": {"message_id": 70}}
 
+    def test_shared_scene_context_is_scoped_to_selected_script(self):
+        headers = ["Ordem", "Roteiro", "Fala-guia", "DESCRIÇÃO INICIAL-CENA",
+                   "MEMÓRIA PERMANENTE-GLOBAL", "MEMÓRIA FÍSICA-GLOBAL",
+                   "MEMÓRIA INSTANTÂNEA-LOCAL"]
+        for worksheet_name, script_name in (
+            ("MINHA_SUGESTAO", "Principal"),
+            ("MARY_CELULAR", "Celular2"),
+            ("MARY_CELULAR_RECEBIDO", "Recebido1"),
+        ):
+            with self.subTest(worksheet=worksheet_name):
+                worksheet = unittest.mock.Mock()
+                worksheet.get_all_values.return_value = [
+                    headers,
+                    ["1", "Outro", "Outra missão", "Contexto alheio", "Outra memória", "", ""],
+                    ["1", script_name, "Iniciar", "Janio é amigo de Rodrigo.", "Amigas", "Adultas", "Sacada"],
+                    ["2", script_name, "Continuar", "", "", "", "Conversa"],
+                    ["3", script_name, "Responder", "Contexto específico", "", "", ""],
+                    ["4", script_name, "Responder", "", "", "", ""],
+                ]
+                client = unittest.mock.Mock()
+                client.open_by_key.return_value.worksheet.return_value = worksheet
+                with patch.object(tg.gspread, "service_account_from_dict", return_value=client):
+                    rows = tg.load_direct_script_rows(
+                        service_account_info={"test": True}, spreadsheet_id="test",
+                        worksheet_name=worksheet_name, script_name=script_name,
+                    )
+                self.assertEqual(len(rows), 4)
+                self.assertEqual([row["initial_description"] for row in rows], [
+                    "Janio é amigo de Rodrigo.", "Janio é amigo de Rodrigo.",
+                    "Contexto específico", "Janio é amigo de Rodrigo.",
+                ])
+                self.assertEqual(rows[3]["permanent_memory"], "Amigas")
+                self.assertEqual(rows[3]["physical_memory"], "Adultas")
+                self.assertEqual(rows[3]["instant_memory"], "")
+                prompt = tg.build_direct_writer_prompt(
+                    row=rows[3], all_rows=rows, recent_messages=[],
+                    user_text="Quem é o amigo de Rodrigo?", active_interlocutor="Silvia",
+                )
+                self.assertIn("Janio é amigo de Rodrigo.", prompt)
+                self.assertNotIn("Contexto alheio", prompt)
+                self.assertNotIn("Outra memória", prompt)
+
     def test_audit_contains_metadata_not_private_message(self):
         state = _state(incoming=True)
         state.update({
