@@ -189,6 +189,55 @@ class TelegramNarrativeContractTest(unittest.TestCase):
         }), "Silvia")
         self.assertEqual(tg.extract_call_interlocutor({}), "")
 
+    def test_outgoing_call_channel_is_not_recipient(self):
+        for wording in (
+            "Mary faz uma chamada de voz para Silvia, que está na cabine.",
+            "Mary faz uma chamada pelo Telegram para Silvia, que está na cabine.",
+            "Mary faz uma chamada de voz pelo Telegram para Silvia.",
+        ):
+            with self.subTest(wording=wording):
+                self.assertEqual(tg.extract_call_interlocutor({
+                    "telegram_script": "celular2", "speech_guide": wording
+                }), "Silvia")
+
+    def test_semantic_retry_uses_feedback_before_sending(self):
+        row = _rows()[0]
+        with patch.object(tg, "_state", return_value=_state()), \
+             patch.object(tg, "_audit_event") as audit, \
+             patch.object(tg, "chat", side_effect=["[FALA] Oi", "[FALA] Olá!"]) as writer, \
+             patch.object(tg, "build_direct_writer_prompt", return_value="Prompt"), \
+             patch.object(tg, "validate_direct_semantic_turn", side_effect=[
+                 {"fulfilled": False, "missing": "Cumprimentar Silvia"},
+                 {"fulfilled": True},
+             ]), \
+             patch.object(tg, "_telegram") as transport:
+            speech = tg._generate(row, _rows(), [], "", "fake-model", interlocutor="Silvia")
+        self.assertEqual(speech, "Olá!")
+        self.assertEqual(writer.call_count, 2)
+        self.assertIn("Cumprimentar Silvia", writer.call_args.kwargs["messages"][0]["content"])
+        self.assertEqual(audit.call_args.args[1], "generation_retry")
+        transport.assert_not_called()
+
+    def test_second_semantic_rejection_is_classified_and_not_sent(self):
+        with patch.object(tg, "_state", return_value=_state()), \
+             patch.object(tg, "_audit_event"), \
+             patch.object(tg, "build_direct_writer_prompt", return_value="Prompt"), \
+             patch.object(tg, "chat", return_value="[FALA] Oi!") as writer, \
+             patch.object(tg, "validate_direct_semantic_turn", return_value={"fulfilled": False}), \
+             patch.object(tg, "_telegram") as transport:
+            with self.assertRaises(tg._ProcessingFailure) as caught:
+                tg._generate(_rows()[0], _rows(), [], "", "fake-model", interlocutor="Silvia")
+        self.assertEqual(caught.exception.category, "semantic_rejected")
+        self.assertEqual(writer.call_count, 2)
+        transport.assert_not_called()
+
+    def test_delivery_failure_is_never_retried_automatically(self):
+        with patch.object(tg, "_telegram", side_effect=RuntimeError("network")) as transport:
+            with self.assertRaises(tg._ProcessingFailure) as caught:
+                tg._send_confirmed_message(123, "Oi!")
+        self.assertEqual(caught.exception.category, "telegram_delivery_uncertain")
+        transport.assert_called_once()
+
     def test_waiting_requires_parent_trigger_and_emits_no_message(self):
         session = {}
         with patch.object(tg.st, "session_state", session), \
