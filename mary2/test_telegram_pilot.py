@@ -200,6 +200,21 @@ class TelegramNarrativeContractTest(unittest.TestCase):
                     "telegram_script": "celular2", "speech_guide": wording
                 }), "Silvia")
 
+    def test_director_receives_same_recent_conversation_as_writer(self):
+        history = [
+            {"role": "user" if i % 2 == 0 else "assistant", "content": f"Mensagem {i}"}
+            for i in range(14)
+        ]
+        with patch.object(tg, "analyze_user_understanding", return_value={}) as analysis, \
+             patch.object(tg, "build_direct_writer_prompt", return_value="Prompt") as writer, \
+             patch.object(tg, "chat", return_value="[FALA] Oi!"), \
+             patch.object(tg, "validate_direct_semantic_turn", return_value={"fulfilled": True}) as director:
+            tg._generate(_rows()[0], _rows(), history, "Combinado!", "fake-model", interlocutor="Silvia")
+        self.assertEqual(analysis.call_args.kwargs["recent_messages"], history[-10:])
+        self.assertEqual(writer.call_args.kwargs["recent_messages"], history[-10:])
+        self.assertEqual(director.call_args.kwargs["line_dialogue"], history[-10:])
+        self.assertEqual(director.call_args.kwargs["user_text"], "Combinado!")
+
     def test_semantic_retry_uses_feedback_before_sending(self):
         row = _rows()[0]
         with patch.object(tg, "_state", return_value=_state()), \
