@@ -1067,21 +1067,7 @@ def _direct_script_rows(
             f"Nenhuma linha do roteiro {script_name!r} foi encontrada em {worksheet!r}."
         )
 
-    # DESCRIÇÃO INICIAL-CENA é contexto de CENA: autorada uma vez, mas válida
-    # durante todas as linhas desta cena até que outro contexto de cena a substitua.
-    scene_description = next(
-        (
-            str(row.get("initial_description", "") or "").strip()
-            for row in rows
-            if str(row.get("initial_description", "") or "").strip()
-        ),
-        "",
-    )
-    if scene_description:
-        for row in rows:
-            if not str(row.get("initial_description", "") or "").strip():
-                row["initial_description"] = scene_description
-
+    # O parser compartilhado já aplica o contexto inicial do próprio roteiro.
     return rows
 
 
