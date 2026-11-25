@@ -409,7 +409,9 @@ def _generate(
                     mary_thought=parts.get("thought", ""),
                     mary_action=parts.get("action", ""),
                     user_text=user_text, user_scene_direction="",
-                    line_dialogue=[],
+                    # Mesma janela literal usada pela Compreensão e pelo Redator.
+                    # Apenas mensagens da chamada atual, sem histórico do roteiro mãe.
+                    line_dialogue=history[-10:],
                 )
             except Exception:
                 raise _ProcessingFailure("director_model_error", "Falha do modelo Diretor; nada foi enviado.") from None
