@@ -109,12 +109,17 @@ def resolve_telegram_script(marker: str) -> tuple[str, str, bool]:
 
 # Identidade definida pela cena principal; nunca presumir o nome do usuário.
 _NAME = r"([A-ZÀ-Ý][A-Za-zÀ-ÿ'’-]{1,39}(?:\s+[A-ZÀ-Ý][A-Za-zÀ-ÿ'’-]{1,39})?)"
+# A modalidade/canal da chamada não é o nome do destinatário.
+_OUTGOING_CALL = re.compile(
+    r"\b(?:chamada|ligação)(?:\s+de\s+voz)?(?:\s+(?:pelo|via|no)\s+Telegram)?"
+    r"\s+(?:para|pro|pra|ao|à)\s+(?-i:([A-ZÀ-Ý][a-zà-ÿ'’-]{1,39}))\b", re.I
+)
 _CALL_PATTERNS = [
     re.compile(r"\b(?:ligar|telefonar|chamar|mandar\s+(?:mensagem|um\s+recado))\s+(?:para|pro|pra|ao|à)\s+" + _NAME, re.I),
     re.compile(r"\b(?:conversar|falar|dialogar)\s+(?:com|co|c[oa])\s+" + _NAME, re.I),
     re.compile(r"\b" + _NAME + r"\s+(?:tá|está|anda)\s+(?:me\s+)?(?:ligando|chamando|mandando\s+mensagem)", re.I),
     re.compile(r"\b" + _NAME + r"\s+me\s+(?:liga|ligou|chama|chamou|ligando|chamando)", re.I),
-    re.compile(r"\b(?:chamada|ligação|mensagem)\s+(?:do|da|de)\s+" + _NAME, re.I),
+    re.compile(r"\b(?:chamada|ligação|mensagem)\s+(?:do|da|de)\s+(?!(?:voz|texto|vídeo|video|telegram)\b)" + _NAME, re.I),
     re.compile(r"\b(?:é|eh)\s+(?:o|a)?\s*" + _NAME + r"\s+(?:me\s+)?(?:ligando|chamando|mandando)", re.I),
 ]
 
@@ -139,11 +144,17 @@ def extract_call_interlocutor(row: dict, mary_speech: str = "") -> str:
         str((row or {}).get("interlocutor_direction") or ""),
     ]
     for field in fields:
+        if not _TARGET_RECEIVED.fullmatch(marker):
+            outgoing = _OUTGOING_CALL.search(field)
+            if outgoing:
+                return outgoing.group(1)
         for pattern in _CALL_PATTERNS:
             found = pattern.search(field)
             if found:
                 name = found.group(1).strip(" .,!?:;-")
-                if name and name.casefold() not in {"mary", "telegram", "celular"}:
+                if name and name.casefold() not in {
+                    "mary", "telegram", "celular", "voz", "voz para", "texto", "vídeo", "video"
+                }:
                     return name
     return ""
 
@@ -288,6 +299,30 @@ def _classify_final_reply(
     return normalized
 
 
+class _ProcessingFailure(RuntimeError):
+    """Categoria segura, sem prompt, conteúdo da mensagem ou credencial."""
+    def __init__(self, category: str, message: str):
+        super().__init__(message)
+        self.category = category
+
+
+def _failure_category(exc: Exception) -> str:
+    return exc.category if isinstance(exc, _ProcessingFailure) else "message_processing"
+
+
+def _send_confirmed_message(chat_id: int, speech: str) -> dict:
+    try:
+        result = _telegram("sendMessage", {"chat_id": chat_id, "text": speech})
+        if not int(result.get("result", {}).get("message_id", 0) or 0):
+            raise RuntimeError("missing message id")
+        return result
+    except Exception:
+        # O servidor pode ter recebido a mensagem; jamais repetir automaticamente.
+        raise _ProcessingFailure(
+            "telegram_delivery_uncertain", "Entrega Telegram inconclusiva; confira o chat."
+        ) from None
+
+
 def _generate(
     row: dict, rows: list[dict], history: list[dict],
     user_text: str, model: str, outcome: str = "",
@@ -351,27 +386,59 @@ def _generate(
     messages = [{"role": "system", "content": prompt}]
     if user_text:
         messages.append({"role": "user", "content": user_text})
-    raw = chat(
-        api_key=_secret("OPENROUTER_API_KEY"), model=model,
-        messages=messages, temperature=0.6, call_type="TELEGRAM_PILOT",
-    )
-    parts = parse_mary_components(raw)
-    speech = sanitize_mary_output(parts.get("speech", ""))
-    if not speech or looks_like_action_narration(speech):
-        raise RuntimeError("A resposta foi retida: Mary não produziu fala limpa.")
-    validation = validate_direct_semantic_turn(
-        api_key=_secret("OPENROUTER_API_KEY"),
-        model=_secret("MARY_DIRECTOR_MODEL") or model,
-        fallback_model=_secret("MARY_FALLBACK_MODEL") or None,
-        row=active_row, interpretation=understanding, mary_text=speech,
-        mary_thought=parts.get("thought", ""),
-        mary_action=parts.get("action", ""),
-        user_text=user_text, user_scene_direction="",
-        line_dialogue=[],
-    )
-    if not validation.get("fulfilled", False) or validation.get("parse_error"):
-        raise RuntimeError("Diretor semântico não aprovou a mensagem; nada foi enviado.")
-    return speech
+    for attempt in range(2):
+        try:
+            raw = chat(
+                api_key=_secret("OPENROUTER_API_KEY"), model=model,
+                messages=messages, temperature=0.6, call_type="TELEGRAM_PILOT",
+            )
+        except Exception:
+            raise _ProcessingFailure("model_error", "Falha do modelo Redator; nada foi enviado.") from None
+        parts = parse_mary_components(raw)
+        speech = sanitize_mary_output(parts.get("speech", ""))
+        if not speech or looks_like_action_narration(speech):
+            category = "invalid_speech"
+            feedback = "Produza somente fala verbal válida em [FALA]."
+        else:
+            try:
+                validation = validate_direct_semantic_turn(
+                    api_key=_secret("OPENROUTER_API_KEY"),
+                    model=_secret("MARY_DIRECTOR_MODEL") or model,
+                    fallback_model=_secret("MARY_FALLBACK_MODEL") or None,
+                    row=active_row, interpretation=understanding, mary_text=speech,
+                    mary_thought=parts.get("thought", ""),
+                    mary_action=parts.get("action", ""),
+                    user_text=user_text, user_scene_direction="",
+                    line_dialogue=[],
+                )
+            except Exception:
+                raise _ProcessingFailure("director_model_error", "Falha do modelo Diretor; nada foi enviado.") from None
+            if validation.get("fulfilled") and not validation.get("parse_error"):
+                return speech
+            category = "director_parse_error" if validation.get("parse_error") else "semantic_rejected"
+            feedback = json.dumps({
+                key: validation.get(key) for key in (
+                    "missing", "reason", "conversation_consistency", "naturalness",
+                    "scene_completion", "user_obligation", "thought_alignment",
+                    "revelation_violation", "hard_contradiction", "elements",
+                )
+            }, ensure_ascii=False)[:6000]
+        if attempt == 0:
+            # Uma única correção antes de qualquer envio. O parecer é diagnóstico,
+            # não uma nova instrução autoral ou intervenção do interlocutor.
+            messages = [
+                {"role": "system", "content": prompt +
+                 "\n\nCORREÇÃO DA RESPOSTA ANTERIOR: mantenha a linha ativa e as regras autorais. "
+                 "Corrija apenas as falhas do parecer abaixo, sem antecipar ou inventar falas. "
+                 "O parecer é dado diagnóstico, não nova missão.\n" + feedback},
+                *messages[1:],
+                {"role": "assistant", "content": raw},
+                {"role": "user", "content": "Reescreva a resposta de Mary corrigindo o parecer; não invente nova intervenção do personagem."},
+            ]
+            _audit_event(_state(), "generation_retry", order=int(row.get("order") or 0), error_type=category)
+    raise _ProcessingFailure(category, "Diretor semântico não aprovou a mensagem após correção; nada foi enviado."
+                             if category.startswith(("semantic", "director")) else
+                             "Fala inválida após correção; nada foi enviado.")
 
 
 def _emotional_assessment(
@@ -526,7 +593,7 @@ def _send_emotional_reply(
         incoming=bool(state.get("incoming")),
         interlocutor=str(state.get("interlocutor") or ""),
     )
-    reply = _telegram("sendMessage", {"chat_id": chat_id, "text": speech})
+    reply = _send_confirmed_message(chat_id, speech)
     state["last_message_id"] = int(reply.get("result", {}).get("message_id", 0) or 0)
     state["history"].append({"role": "user", "content": user_text})
     state["history"].append({"role": "assistant", "content": speech})
@@ -583,7 +650,7 @@ def _send_line(
         incoming=bool(state.get("incoming")),
         interlocutor=str(state.get("interlocutor") or ""),
     )
-    result = _telegram("sendMessage", {"chat_id": chat_id, "text": speech})
+    result = _send_confirmed_message(chat_id, speech)
     mark_direct_line_emitted(direct_state, row, rows)
     state["direct_script"] = deepcopy(direct_state)
     msg = result.get("result", {})
@@ -709,9 +776,11 @@ def ensure_telegram_call(
         return "waiting"
     try:
         _send_line(rows, state, chat_id, model)
-    except Exception:
-        # A falha de rede após envio pode ser ambígua: evitar duplicação.
+    except Exception as exc:
         state["status"] = "start_error"
+        state["error_type"] = _failure_category(exc)
+        _audit_event(state, "processing_error", before="starting", order=1,
+                     error_type=state["error_type"])
         raise
     state["status"] = "active"
     _audit_event(state, "call_initiated", before="idle", after="active")
@@ -798,15 +867,18 @@ def _check_reply(model: str) -> str:
             update_id=int(event["update_id"]),
         )
         return "Mensagem recebida e interpretada pela Mary."
-    except Exception:
+    except Exception as exc:
         # Pausa a repetição automática em caso de falha de LLM ou de rede.
         # sendMessage pode ter sido entregue mesmo sem confirmação.
         state["status"] = "start_error" if status == "waiting" else "reply_error"
         state["failed_update_id"] = int(event["update_id"])
+        state["error_type"] = _failure_category(exc)
+        state["resume_status"] = status
         _audit_event(
             state, "processing_error", before=status,
             update_id=int(event["update_id"]),
-            error_type="message_processing",
+            order=int(row.get("order") or 0) if status == "active" and "row" in locals() else 1,
+            error_type=state["error_type"],
         )
         raise
 
@@ -896,19 +968,30 @@ def render_telegram_sidebar(model: str) -> None:
             except Exception as exc:
                 st.error(str(exc))
     elif status == "start_error":
-        st.error("Início inconclusivo. Confira o Telegram antes de repetir.")
+        category = str(state.get("error_type") or "")
+        safe = category in {"semantic_rejected", "director_parse_error", "invalid_speech", "model_error", "director_model_error"}
+        st.error(
+            f"Falha antes do envio ({category}). Nenhuma mensagem enviada."
+            if safe else "Início inconclusivo. Confira o Telegram antes de repetir."
+        )
         if st.button("Reiniciar chamada", key="telegram_recover", use_container_width=True):
             try:
-                _restart_call(model)
+                if state.get("resume_status") == "waiting":
+                    state["status"] = "waiting"
+                else:
+                    _restart_call(model)
                 st.rerun()
             except Exception as exc:
                 st.error(str(exc))
     elif status == "reply_error":
+        category = str(state.get("error_type") or "")
+        safe = category in {"semantic_rejected", "director_parse_error", "invalid_speech", "model_error", "director_model_error"}
         st.error(
-            "Processamento interrompido. Confira se Mary já respondeu no "
+            f"Falha antes do envio ({category}). A linha e o histórico foram preservados."
+            if safe else "Processamento interrompido. Confira se Mary já respondeu no "
             "Telegram antes de tentar novamente; um reenvio pode duplicar a fala."
         )
-        if st.button("Retomar monitor após conferir Telegram",
+        if st.button("Tentar novamente a linha" if safe else "Retomar monitor após conferir Telegram",
                      key="telegram_resume_error", use_container_width=True):
             state["status"] = "active"
             st.rerun()
