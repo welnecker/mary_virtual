@@ -460,6 +460,12 @@ def load_direct_script_rows(
         (_clean(item.get("physical_memory")) for item in rows if _clean(item.get("physical_memory"))),
         "",
     )
+    # Mesmo fallback de cena do roteiro principal, aplicado apenas às linhas
+    # do roteiro selecionado (inclusive CelularN e RecebidoN).
+    scene_description = next(
+        (_clean(item.get("initial_description")) for item in rows if _clean(item.get("initial_description"))),
+        "",
+    )
     # Apenas a PRIMEIRA linha pode oferecer um padrão geral do capítulo.
     # A primeira orientação encontrada em uma linha posterior é local e não
     # pode contaminar linhas anteriores nem outros momentos do roteiro.
@@ -468,6 +474,8 @@ def load_direct_script_rows(
     for item in rows:
         item["permanent_memory"] = permanent_memory_global
         item["physical_memory"] = physical_memory_global
+        if not _clean(item.get("initial_description")):
+            item["initial_description"] = scene_description
         # A orientação específica da linha prevalece; a primeira instrução
         # disponível no capítulo é apenas fallback para linhas não preenchidas.
         # Isso permite que a mesma personagem seja contrariada por causas
