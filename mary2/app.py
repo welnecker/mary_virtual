@@ -252,22 +252,27 @@ DEFAULT_MODELS = [
 # O primeiro capítulo é descoberto na planilha, nunca fixado no código.
 # Cache curto evita leituras repetidas a cada rerun do Streamlit.
 @st.cache_data(ttl=60, show_spinner=False)
+def _sheet_executable_scripts() -> list[str]:
+    credentials = (st.secrets.get("GOOGLE_CREDS_JSON") or st.secrets.get("gcp_service_account") or st.secrets.get("GOOGLE_SERVICE_ACCOUNT"))
+    if isinstance(credentials, str):
+        credentials = json.loads(credentials)
+    credentials = dict(credentials)
+    if isinstance(credentials.get("private_key"), str):
+        credentials["private_key"] = credentials["private_key"].replace("\\n", "\n")
+    spreadsheet_id = str(st.secrets.get("MARY_SHEETS_ID", "") or "").strip()
+    catalog = load_direct_script_catalog(
+        service_account_info=credentials,
+        spreadsheet_id=spreadsheet_id,
+        worksheet_name="MINHA_SUGESTAO",
+    )
+    return [str(row["script_id"]) for row in catalog
+            if int(row.get("executable_row_count", 0) or 0) > 0]
+
+
 def _first_sheet_script_id() -> str:
     try:
-        credentials = (st.secrets.get("GOOGLE_CREDS_JSON") or st.secrets.get("gcp_service_account") or st.secrets.get("GOOGLE_SERVICE_ACCOUNT"))
-        if isinstance(credentials, str):
-            credentials = json.loads(credentials)
-        credentials = dict(credentials)
-        if isinstance(credentials.get("private_key"), str):
-            credentials["private_key"] = credentials["private_key"].replace("\\n", "\n")
-        spreadsheet_id = str(st.secrets.get("MARY_SHEETS_ID", "") or "").strip()
-        catalog = load_direct_script_catalog(
-            service_account_info=credentials,
-            spreadsheet_id=spreadsheet_id,
-            worksheet_name="MINHA_SUGESTAO",
-        )
-        executable = [row for row in catalog if int(row.get("executable_row_count", 0) or 0) > 0]
-        return str(executable[0]["script_id"]) if executable else ""
+        scripts = _sheet_executable_scripts()
+        return scripts[0] if scripts else ""
     except Exception as exc:
         _LOG.warning("Não foi possível descobrir capítulo inicial: %s", exc)
         return ""
@@ -281,19 +286,21 @@ def _initial_chapter_id() -> str:
 _base_new_state = new_state
 
 
-def new_state() -> dict:
+def new_state(script_id: str | None = None) -> dict:
     state = _base_new_state()
-    chapter_id = _initial_chapter_id()
-    state["narrative"]["chapter_id"] = chapter_id
+    selected_id = _first_sheet_script_id() if script_id is None else script_id
+    if selected_id:
+        build_direct_chapter(selected_id)  # Valida o identificador antes de iniciar.
+    state["narrative"]["chapter_id"] = direct_chapter_id(selected_id) if selected_id else "sheet:"
     state["narrative"]["chapter_instance_id"] = (
-        f"sheet_{_first_sheet_script_id()}_001" if _first_sheet_script_id() else ""
+        f"sheet_{selected_id}_001" if selected_id else ""
     )
     return state
 
 
-def _initial_scene() -> dict:
-    script_id = _first_sheet_script_id()
-    return deepcopy(build_direct_chapter(script_id).get("initial_scene", {})) if script_id else {}
+def _initial_scene(script_id: str | None = None) -> dict:
+    selected_id = _first_sheet_script_id() if script_id is None else script_id
+    return deepcopy(build_direct_chapter(selected_id).get("initial_scene", {})) if selected_id else {}
 
 
 INITIAL_SCENE = _initial_scene()
@@ -354,10 +361,10 @@ def _render_mary_thought(text: str) -> None:
     )
 
 
-def reset_local_story() -> None:
+def reset_local_story(*, initial_state: dict | None = None, initial_scene: dict | None = None) -> None:
     st.session_state.messages = []
-    st.session_state.story_state = new_state()
-    st.session_state.scene_state = deepcopy(INITIAL_SCENE)
+    st.session_state.story_state = initial_state if initial_state is not None else new_state()
+    st.session_state.scene_state = deepcopy(initial_scene if initial_scene is not None else INITIAL_SCENE)
     st.session_state.turn_records = []
     st.session_state.active_user_role = "PERSONAGEM_DA_CENA"
     st.session_state.run_last_seq = 0
@@ -1504,35 +1511,67 @@ with st.sidebar:
     render_telegram_sidebar(model=model)
 
 
-    if st.button("Nova história", use_container_width=True):
-        reset_local_story()
-
-        if persistence:
-            try:
-                info = ensure_schema(
-                    service_account_info=persistence["service_account_info"],
-                    spreadsheet_id=persistence["spreadsheet_id"],
-                    spreadsheet_title=persistence["spreadsheet_title"],
-                    owner_email=persistence["owner_email"],
+    with st.expander("Nova história"):
+        try:
+            start_scripts = _sheet_executable_scripts()
+            if start_scripts:
+                start_script = st.selectbox(
+                    "Roteiro inicial",
+                    start_scripts,
+                    key="new_story_start_script",
+                    help="A história começa na primeira linha deste roteiro e segue a ordem normal da planilha.",
                 )
-                st.session_state.spreadsheet_url = info["spreadsheet_url"]
-                st.session_state.run_id = create_run(
-                    service_account_info=persistence["service_account_info"],
-                    spreadsheet_id=info["spreadsheet_id"],
-                    spreadsheet_title=persistence["spreadsheet_title"],
-                    owner_email=persistence["owner_email"],
-                    player_id=persistence["player_id"],
-                    active_user_role="PERSONAGEM_DA_CENA",
-                    story_ledger=story_ledger_text(new_state()),
-                    scene_state=dict(INITIAL_SCENE),
-                    story_state=new_state(),
-                    archive_previous=True,
-                )
-                st.session_state.persistence_error = ""
-            except Exception as exc:
-                st.session_state.persistence_error = str(exc)
-
-        st.rerun()
+                st.caption("Inicia uma nova execução, sem recuperar as interações da anterior.")
+                if st.button("Iniciar nova história", use_container_width=True, disabled=not persistence):
+                    # Revalida o catálogo no clique: o menu pode estar em cache.
+                    fresh_catalog = load_direct_script_catalog(
+                        service_account_info=persistence["service_account_info"],
+                        spreadsheet_id=persistence["spreadsheet_id"],
+                        worksheet_name="MINHA_SUGESTAO",
+                    )
+                    if not any(str(item["script_id"]) == start_script
+                               and int(item.get("executable_row_count", 0) or 0) > 0
+                               for item in fresh_catalog):
+                        _sheet_executable_scripts.clear()
+                        raise ValueError("O roteiro escolhido não está mais disponível. Atualize a seleção.")
+                    initial_state = new_state(start_script)
+                    initial_scene = _initial_scene(start_script)
+                    info = ensure_schema(
+                        service_account_info=persistence["service_account_info"],
+                        spreadsheet_id=persistence["spreadsheet_id"],
+                        spreadsheet_title=persistence["spreadsheet_title"],
+                        owner_email=persistence["owner_email"],
+                    )
+                    new_run_id = create_run(
+                        service_account_info=persistence["service_account_info"],
+                        spreadsheet_id=info["spreadsheet_id"],
+                        spreadsheet_title=persistence["spreadsheet_title"],
+                        owner_email=persistence["owner_email"],
+                        player_id=persistence["player_id"],
+                        active_user_role="PERSONAGEM_DA_CENA",
+                        story_ledger=story_ledger_text(initial_state),
+                        scene_state=initial_scene,
+                        story_state=initial_state,
+                        archive_previous=True,
+                    )
+                    # Só substitui o estado local após criar a execução persistente.
+                    reset_local_story(initial_state=initial_state, initial_scene=initial_scene)
+                    for key in ("_mary_telegram_pilot", "_token_usage_pending",
+                                "_openrouter_diagnostic_pending", "_narrative_correction_pending"):
+                        st.session_state.pop(key, None)
+                    st.session_state.rollback_notice = ""
+                    st.session_state.rollback_retry_text = ""
+                    st.session_state.audit_error = ""
+                    st.session_state.hybrid_script_cache = {}
+                    st.session_state.spreadsheet_url = info["spreadsheet_url"]
+                    st.session_state.run_id = new_run_id
+                    st.session_state.persistence_loaded = True
+                    st.session_state.persistence_error = ""
+                    st.rerun()
+            else:
+                st.info("Nenhum roteiro executável encontrado na planilha.")
+        except Exception as exc:
+            st.error(f"Não foi possível iniciar uma nova história: {exc}")
 
     if persistence and not st.session_state.persistence_error:
         st.success("História persistente ativa")
