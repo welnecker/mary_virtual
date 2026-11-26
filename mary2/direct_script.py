@@ -11,6 +11,29 @@ import gspread
 from openrouter_client import chat
 
 
+def authored_dialogue_opener(speech_guide: str) -> str:
+    """Identifica apenas a abertura explicitamente autorada de um diálogo misto."""
+    guide = re.sub(r"<br\s*/?>", "\n", str(speech_guide or ""), flags=re.I)
+    blocks = list(re.finditer(
+        r"(?im)^\s*(?:Interpretar\s*:|DIREÇÃO DE\s+([\wÀ-ÿ-]+)\s*(?:\([^\n)]*\))?\s*:)",
+        guide,
+    ))
+    speakers = []
+    for index, block in enumerate(blocks):
+        name = block.group(1)
+        if not name:
+            speakers.append("Mary")
+            continue
+        direction = guide[block.end():blocks[index + 1].start() if index + 1 < len(blocks) else len(guide)].strip()
+        if re.match(r"^(?:se|caso|quando|talvez|opcionalmente|pode|poderá)\b", direction, re.I):
+            continue
+        if re.search(r"\b(?:pode|poderá|poderia|talvez)\b", direction, re.I):
+            continue
+        if re.search(r"\b(?:fala|diz|dizendo|pergunta|perguntando|responde|respondendo|comenta|comentando|lembra|lembrando|reafirma|provoca|brinca|conversa|dialoga|menciona|sugere|propõe|combina)\b", direction, re.I):
+            speakers.append(name.title())
+    return speakers[0] if len({name.casefold() for name in speakers}) > 1 else ""
+
+
 DIRECT_HEADERS = {
     "ordem": "order",
     "roteiro": "script_name",
@@ -801,6 +824,7 @@ def build_direct_writer_prompt(
     thought_disabled = is_direct_thought_disabled(row)
     thought_guide = "" if thought_disabled else _clean(row.get("thought_guide"))
     inline_sounds = inline_sounds_from_guide(speech_guide)
+    dialogue_opener = authored_dialogue_opener(speech_guide)
     # FALA GRAVADA é transcrição reservada para o futuro módulo de voz.
     # Não deve ser interpretada como onomatopeia ou instrução do Redator.
 
@@ -928,6 +952,13 @@ def build_direct_writer_prompt(
         "Personagens secundários podem participar quando a cena pedir, sem falar pelo usuário nem competir com a resposta dele.\n"
 
         + ("Direção autoral desta linha: " + interpret_direction + "\n" if interpret_direction else "")
+        + (
+            "INICIATIVA VERBAL AUTORAL: " + dialogue_opener + " deve abrir o diálogo em [FALA], "
+            "com identificação nominal. Mary não precisa falar primeiro. Após a abertura, "
+            "desenvolva livremente as alternâncias e a quantidade de falas, respeitando a missão "
+            "e sem falar pelo usuário. [AÇÃO] e [PENSAMENTO] não são falas.\n"
+            if dialogue_opener else ""
+        )
         + (
             "SONS AUTORAIS INLINE — prioridade da FALA-GUIA: "
             + ", ".join(inline_sounds) + "\n"
