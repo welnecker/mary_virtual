@@ -5,6 +5,7 @@ import re
 import time
 
 from openrouter_client import chat
+from direct_script import authored_dialogue_opener
 
 
 def _clean(value) -> str:
@@ -274,6 +275,7 @@ def validate_direct_semantic_turn(
     obligation_text = _clean(obligation.get("requirement"))
     speech_guide = _clean(row.get("speech_guide"))
     thought_guide = _clean(row.get("thought_guide"))
+    dialogue_opener = authored_dialogue_opener(speech_guide)
     interpret_match = re.fullmatch(r"interpretar(?:\s*:\s*(.*))?", speech_guide, flags=re.I | re.S)
     interpret_mode = bool(interpret_match)
     interpret_direction = (interpret_match.group(1) or "").strip() if interpret_match else ""
@@ -356,6 +358,10 @@ def validate_direct_semantic_turn(
         + "\n\nFALA-GUIA ORIGINAL\n"
         + ("Interpretar (modo técnico)" if interpret_mode else (speech_guide or "(nenhuma)"))
         + ("\n\nDIREÇÃO AUTORAL DE INTERPRETAÇÃO — FOCO, NÃO TEXTO LITERAL\n" + interpret_direction if interpret_direction else "")
+        + ("\n\nINICIATIVA VERBAL AUTORAL: " + dialogue_opener
+           + " deve iniciar [FALA]. Verifique apenas a primeira fala em coerencia_conversacional; "
+           "não imponha ordem nem quantidade às demais participações. Ação e pensamento não contam como fala."
+           if dialogue_opener else "")
         + "\n\nPENSAMENTO-GUIA ORIGINAL — REFERÊNCIA EMOCIONAL, NÃO FALA OBRIGATÓRIA\n"
         + (thought_guide or "(não informado)")
         + "\n\nDESCRIÇÃO-GUIA DA LINHA ATUAL — MISSÃO FÍSICA\n"
@@ -541,6 +547,18 @@ def validate_direct_semantic_turn(
             "Identifique cada turno com Mary:, Silvia: ou o nome da personagem, "
             "conservando integralmente as falas e a ordem. Não crie nem exclua acontecimentos."
         )
+
+    if dialogue_opener:
+        first_speech = re.sub(r"\*\*", "", _clean(mary_text))
+        first_label = re.match(r"^(?:[—–-]\s*)?([\wÀ-ÿ-]+(?:[ \t]+[\wÀ-ÿ-]+){0,2})\s*:\s*\S", first_speech)
+        if not first_label or first_label.group(1).casefold() != dialogue_opener.casefold():
+            conversation_consistency["ok"] = False
+            conversation_consistency["issue"] = f"Iniciativa verbal autoral: {dialogue_opener} deve iniciar o diálogo."
+            conversation_consistency["mary_excerpt"] = first_speech[:240]
+            conversation_consistency["correction"] = (
+                f"Inicie [FALA] com {dialogue_opener}: e desenvolva as falas seguintes livremente, "
+                "preservando a missão e a autonomia do usuário."
+            )
 
     natural_raw = parsed.get("naturalidade", {})
     if not isinstance(natural_raw, dict):
@@ -749,6 +767,8 @@ def validate_direct_semantic_turn(
     )
 
     missing_parts = []
+    if dialogue_opener and not conversation_consistency["ok"]:
+        missing_parts.append(conversation_consistency["issue"])
     for name in missing_secondary_speakers:
         missing_parts.append(f"Falta fala identificável de {name}, exigida pela direção autoral da linha")
     if not scene_completion["fulfilled"]:
