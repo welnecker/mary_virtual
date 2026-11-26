@@ -11,11 +11,12 @@ import gspread
 from openrouter_client import chat
 
 
-def authored_dialogue_opener(speech_guide: str) -> str:
-    """Identifica apenas a abertura explicitamente autorada de um diálogo misto."""
+def authored_dialogue_speakers(speech_guide: str) -> list[str]:
+    """Participações verbais afirmativas, na ordem autoral; sem nomes fixos."""
     guide = re.sub(r"<br\s*/?>", "\n", str(speech_guide or ""), flags=re.I)
     blocks = list(re.finditer(
-        r"(?im)^\s*(?:Interpretar\s*:|DIREÇÃO DE\s+([\wÀ-ÿ-]+)\s*(?:\([^\n)]*\))?\s*:)",
+        r"(?im)^[ \t]*(?:Interpretar[ \t]*:|DIRE[CÇ][AÃ]O[ \t]+(?:DE|DA|DO|DAS|DOS)[ \t]+"
+        r"([^\n:()]+?)[ \t]*(?:\([^\n)]*\))?[ \t]*:)",
         guide,
     ))
     speakers = []
@@ -24,13 +25,21 @@ def authored_dialogue_opener(speech_guide: str) -> str:
         if not name:
             speakers.append("Mary")
             continue
+        name = " ".join(name.split())
         direction = guide[block.end():blocks[index + 1].start() if index + 1 < len(blocks) else len(guide)].strip()
         if re.match(r"^(?:se|caso|quando|talvez|opcionalmente|pode|poderá)\b", direction, re.I):
             continue
-        if re.search(r"\b(?:pode|poderá|poderia|talvez)\b", direction, re.I):
+        # Não confundir uma possibilidade mencionada NA fala com participação opcional.
+        if re.search(r"^[^.!?;\n]{0,80}?\b(?:pode|poderá|poderia|talvez)\s+(?:falar|dizer|perguntar|responder|comentar|intervir|participar|conversar)\b", direction, re.I):
             continue
-        if re.search(r"\b(?:fala|diz|dizendo|pergunta|perguntando|responde|respondendo|comenta|comentando|lembra|lembrando|reafirma|provoca|brinca|conversa|dialoga|menciona|sugere|propõe|combina)\b", direction, re.I):
-            speakers.append(name.title())
+        if re.search(r"\b(?:fala|diz|dizendo|pergunta|perguntando|responde|respondendo|comenta|comentando|lembra|lembrando|reafirma|provoca|brinca|conversa|dialoga|menciona|sugere|propõe|combina|começa\s+a\s+combinar|explica|explicando|afirma|afirmando)\b", direction, re.I):
+            speakers.append(name.title() if name.isupper() else name)
+    return speakers
+
+
+def authored_dialogue_opener(speech_guide: str) -> str:
+    """Exige somente a abertura explicitamente autorada de um diálogo misto."""
+    speakers = authored_dialogue_speakers(speech_guide)
     return speakers[0] if len({name.casefold() for name in speakers}) > 1 else ""
 
 
