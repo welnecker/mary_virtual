@@ -5,7 +5,7 @@ import re
 import time
 
 from openrouter_client import chat
-from direct_script import authored_dialogue_opener
+from direct_script import authored_dialogue_opener, authored_dialogue_speakers
 
 
 def _clean(value) -> str:
@@ -214,34 +214,12 @@ def _guide_objective_is_optional(objective: str, speech_guide: str) -> bool:
 
 
 def _required_secondary_speakers(speech_guide: str) -> list[str]:
-    """Find explicit, affirmative dialogue directions for supporting characters.
-
-    A mere mention of Silvia, or an optional/conditional direction, must not
-    force her into every turn. This applies to the authorial 'DIREÇÃO DE ...'
-    subfield, not the narrative context or memories.
-    """
-    required = []
-    for match in re.finditer(
-        r"DIREÇÃO DE\s+([A-ZÀ-Ý][\wÀ-ÿ-]*)\s*"
-        r"(?:\([^\n)]*\))?\s*:\s*([^\n]+)",
-        _clean(speech_guide), flags=re.I,
-    ):
-        name, direction = match.group(1), match.group(2).strip()
-        if name.casefold() == "mary":
-            continue
-        if re.match(r"^(?:se|caso|quando|talvez|opcionalmente|pode|poderá)\b", direction, re.I):
-            continue
-        if re.search(rf"\b{re.escape(name)}\s+(?:pode|poderá|poderia|talvez)\b", direction, re.I):
-            continue
-        # Speech, interaction or an explicit discussion must actually occur.
-        if re.search(
-            r"\b(?:fala|diz|pergunta|responde|comenta|reafirma|provoca|"
-            r"brinca|conversa|dialoga|menciona|sugere|propõe|"
-            r"começa\s+a\s+combinar|combina)\b",
-            direction, flags=re.I,
-        ):
-            required.append(name)
-    return list(dict.fromkeys(required))
+    """Usa o mesmo parser autoral da abertura; não fixa personagens."""
+    required = {}
+    for name in authored_dialogue_speakers(speech_guide):
+        if name.casefold() != "mary":
+            required.setdefault(name.casefold(), name)
+    return list(required.values())
 
 
 def _spoken_by_character(text: str, character: str) -> bool:
@@ -550,8 +528,8 @@ def validate_direct_semantic_turn(
 
     if dialogue_opener:
         first_speech = re.sub(r"\*\*", "", _clean(mary_text))
-        first_label = re.match(r"^(?:[—–-]\s*)?([\wÀ-ÿ-]+(?:[ \t]+[\wÀ-ÿ-]+){0,2})\s*:\s*\S", first_speech)
-        if not first_label or first_label.group(1).casefold() != dialogue_opener.casefold():
+        first_label = re.match(r"^(?:[—–-]\s*)?([^\n:]+?)\s*:\s*\S", first_speech)
+        if not first_label or " ".join(first_label.group(1).split()).casefold() != dialogue_opener.casefold():
             conversation_consistency["ok"] = False
             conversation_consistency["issue"] = f"Iniciativa verbal autoral: {dialogue_opener} deve iniciar o diálogo."
             conversation_consistency["mary_excerpt"] = first_speech[:240]
